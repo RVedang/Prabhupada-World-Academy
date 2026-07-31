@@ -3,8 +3,8 @@ import { createEndpoint, Users, Guides } from 'zite-integrations-backend-sdk';
 import { generateUniqueUserId } from '../lib/userIdGen';
 
 function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean): string {
-  if (role === 'Super Guide') return '/super/dashboard';
-  if (role === 'Guide') return '/guide/dashboard';
+  if (role === 'Super Guide' || role === 'Super Admin' || role === 'SUPER_GUIDE' || role === 'SUPER_ADMIN') return '/super/dashboard';
+  if (role === 'Guide' || role === 'GUIDE') return '/guide/dashboard';
   if (role === 'BVSL') return '/bvsl/dashboard';
   if (role === 'Sadhana Mentor') return '/mentor/dashboard';
   if (isBvsl) return '/bvsl/dashboard';
@@ -14,7 +14,7 @@ function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean):
 
 export function normalizeRole(r: string): string {
   const m: Record<string, string> = {
-    'User': 'USER', 'Guide': 'GUIDE', 'Super Guide': 'SUPER_GUIDE',
+    'User': 'USER', 'Guide': 'GUIDE', 'Super Guide': 'SUPER_GUIDE', 'Super Admin': 'SUPER_GUIDE',
     'BVSL': 'BVSL', 'Sadhana Mentor': 'SADHANA_MENTOR', 'BVSL Mentor': 'BVSL_MENTOR',
   };
   return m[r] ?? r.toUpperCase().replace(/ /g, '_');
