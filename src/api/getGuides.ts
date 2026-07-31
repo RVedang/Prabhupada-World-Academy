@@ -14,6 +14,12 @@ const PW_MENTOR = {
   isPrabhupadaWorldMentor: true,
 };
 
+const DEFAULT_FOLK_GUIDES = [
+  { guideId: 'GUIDE-VEDANG', name: 'Vedang Prabhu', abbr: 'VED', email: 'vedang.adgokar@gmail.com', isPrabhupadaWorldMentor: false },
+  { guideId: 'GUIDE-VDND', name: 'Vedanarayana Das', abbr: 'VND', email: 'vdnd@hkmmumbai.org', isPrabhupadaWorldMentor: false },
+  { guideId: 'GUIDE-001', name: 'Spiritual Guide', abbr: 'SG', email: 'guide@gmail.com', isPrabhupadaWorldMentor: false },
+];
+
 export default createEndpoint({
   description: 'Get all active guides for registration / forms (server-cached 1h)',
   inputSchema: z.object({}),
@@ -31,16 +37,16 @@ export default createEndpoint({
       const { records } = await Guides.findAll({ filters: { isActive: true }, limit: 500 });
       const SYSTEM_GUIDE_IDS = ['GUIDE-000', 'GUIDE-SUPER-PWA-GUIDE', 'GUIDE-001', 'GUIDE-ADMIN-001'];
       const folkGuides = records
-        .filter(g => !SYSTEM_GUIDE_IDS.includes(g.guideId))
+        .filter(g => !SYSTEM_GUIDE_IDS.includes(g.guideId || g.id))
         .map(g => ({
-          guideId: g.id,
-          name: g.fullName || '',
-          abbr: g.abbreviation || (g.fullName || '').slice(0, 3).toUpperCase(),
+          guideId: g.id || g.guideId,
+          name: g.fullName || g.name || '',
+          abbr: g.abbreviation || g.abbr || (g.fullName || '').slice(0, 3).toUpperCase(),
           email: g.email || '',
           isPrabhupadaWorldMentor: false,
         }));
-      // Inject Prabhupada World mentor at the beginning so the user sees it prominently
-      return [PW_MENTOR, ...folkGuides];
+      const listToReturn = folkGuides.length > 0 ? folkGuides : DEFAULT_FOLK_GUIDES;
+      return [PW_MENTOR, ...listToReturn];
     }, TTL);
 
     return { guides };

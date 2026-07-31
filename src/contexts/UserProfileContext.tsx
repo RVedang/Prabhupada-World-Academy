@@ -36,8 +36,9 @@ function buildProfile(userObj: any): ProfileData {
     selectedFolkResidency
   );
 
-  const rawRole = ((userObj.role as string) || 'USER').toUpperCase().replace(/\s+/g, '_').trim();
-  const validRoles = ['USER', 'GUIDE', 'SUPER_GUIDE', 'BVSL', 'SADHANA_MENTOR'];
+  let rawRole = ((userObj.role as string) || 'USER').toUpperCase().replace(/\s+/g, '_').trim();
+  if (rawRole === 'SUPER_ADMIN' || rawRole === 'SUPERADMIN') rawRole = 'SUPER_GUIDE';
+  const validRoles = ['USER', 'GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR'];
   const role = validRoles.includes(rawRole) ? rawRole : 'USER';
 
   const isBvsl = !!(userObj.isBvsl || role === 'BVSL');

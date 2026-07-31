@@ -293,10 +293,15 @@ function DashboardRouter() {
   if (profile.status === 'REJECTED') return <Navigate to="/rejected" replace />;
   if ((profile.status as string) === 'INACTIVE') return <Navigate to="/inactive" replace />;
 
-  const isPwAdmin = user?.email?.toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (profile as any)?.isPwAdmin;
-  if (isPwAdmin) return <Navigate to="/pw-admin/dashboard" replace />;
+  const isPwAdmin = user?.email?.toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
+                    user?.email?.toLowerCase() === 'vdnd@hkmmumbai.org' ||
+                    (profile as any)?.isPwAdmin ||
+                    (profile as any)?.isBvSuperAdmin;
 
-  if (profile.role === 'SUPER_GUIDE') return <Navigate to="/super/dashboard" replace />;
+  if (isPwAdmin || profile.role === 'SUPER_GUIDE' || (profile.role as string) === 'SUPER_ADMIN') {
+    return <Navigate to="/pw-admin/dashboard" replace />;
+  }
+
   if (profile.role === 'GUIDE') return <Navigate to="/guide/dashboard" replace />;
   // BV Mentor: lands on their dedicated BV management dashboard
   if (profile.isBvMentor) return <Navigate to="/bv-mentor/dashboard" replace />;
