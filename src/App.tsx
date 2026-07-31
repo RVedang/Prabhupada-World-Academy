@@ -183,17 +183,17 @@ export default function App() {
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
             {/* Guide */}
-            <Route path="/guide/dashboard" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE']}><GuideDashboard /></ProtectedRoute>} />
-            <Route path="/guide/field-setup" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE']}><GuideFieldSetupPage /></ProtectedRoute>} />
-            <Route path="/guide/users/:userId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'BVSL', 'SADHANA_MENTOR']}><GuideUserDetailPage /></ProtectedRoute>} />
-            <Route path="/guide/bv-group/:groupId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'BV_MENTOR']}><BvGroupDetailPage /></ProtectedRoute>} />
+            <Route path="/guide/dashboard" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN']}><GuideDashboard /></ProtectedRoute>} />
+            <Route path="/guide/field-setup" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN']}><GuideFieldSetupPage /></ProtectedRoute>} />
+            <Route path="/guide/users/:userId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR']}><GuideUserDetailPage /></ProtectedRoute>} />
+            <Route path="/guide/bv-group/:groupId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BV_MENTOR']}><BvGroupDetailPage /></ProtectedRoute>} />
             <Route path="/bvsl/groups/:groupId" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR']}><BvGroupDetailPage /></ProtectedRoute>} />
             <Route path="/guide/stats" element={<Navigate to="/guide/dashboard" replace />} />
 
             {/* Super Guide & Super Admin */}
-            <Route path="/super/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE']}><SuperGuideDashboard /></ProtectedRoute>} />
-            <Route path="/pw-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
-            <Route path="/super-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
+            <Route path="/super/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN']}><SuperGuideDashboard /></ProtectedRoute>} />
+            <Route path="/pw-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
+            <Route path="/super-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
 
             {/* Supervisor dashboard (formerly BV Mentor) */}
             <Route path="/bv-supervisor/dashboard" element={<ProtectedRoute allowedRoles={['BV_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'USER']}><BvSupervisorDashboard /></ProtectedRoute>} />
