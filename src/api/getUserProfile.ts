@@ -32,6 +32,16 @@ export default createEndpoint({
 
     let userRecord = await Users.findOne({ id: context.user.id, fields: USER_FIELDS });
 
+    // Auto-heal missing userId/status if record exists
+    if (userRecord && (userRecord.status || userRecord.role || userRecord.email) && !userRecord.userId) {
+      userRecord.userId = userRecord.id || `USER-${context.user.id.slice(0, 8)}`;
+      if (!userRecord.status) userRecord.status = 'Active';
+      await Users.update({
+        id: context.user.id,
+        record: { userId: userRecord.userId, status: userRecord.status },
+      }).catch(() => {});
+    }
+
     // ── EMAIL FALLBACK ────────────────────────────────────────────────────────
     if (!userRecord?.userId && context.user.email) {
       const emailLower = context.user.email.toLowerCase();
@@ -198,8 +208,8 @@ function buildProfileResult({
       isSadhanaMentor,
       isServiceAllocator,
       isBvMentor,
-      isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || primaryRole === 'SUPER_GUIDE' || (userEmail || '').toLowerCase().includes('superadmin')),
-      isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || primaryRole === 'SUPER_GUIDE'),
+      isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || primaryRole === 'SUPER_GUIDE' || (userEmail || '').toLowerCase().includes('superadmin')),
+      isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || primaryRole === 'SUPER_GUIDE'),
       isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),
       isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
       isBvSubFacilitator: !!(userRecord.isBvSubFacilitator),

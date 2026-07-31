@@ -138,7 +138,17 @@ export default createEndpoint({
     }
 
     // Direct lookup — no full table scan needed with Zite DB user sync
-    const userRecord = await Users.findOne({ id: context.user.id });
+    let userRecord = await Users.findOne({ id: context.user.id });
+
+    // Auto-heal missing userId/status if record exists
+    if (userRecord && (userRecord.status || userRecord.role || userRecord.email) && !userRecord.userId) {
+      userRecord.userId = userRecord.id || `USER-${context.user.id.slice(0, 8)}`;
+      if (!userRecord.status) userRecord.status = 'Active';
+      await Users.update({
+        id: context.user.id,
+        record: { userId: userRecord.userId, status: userRecord.status },
+      }).catch(() => {});
+    }
 
     if (!userRecord?.status || !userRecord?.userId) {
       // ── EMAIL FALLBACK ────────────────────────────────────────────────────
@@ -198,34 +208,43 @@ export default createEndpoint({
     const { records: sameIdRecords } = await Users.findAll({
       filters: { userId: currentUserId } as any,
       fields: ['id', 'userId'],
-      limit: 5,
     });
-    const isDuplicate = sameIdRecords.some(u => u.id !== context.user.id);
 
-    if (isDuplicate) {
-      const prefix = currentUserId.startsWith('GUIDE-') ? 'GUIDE' : 'USER';
-      const fixedId = await generateUniqueUserId(prefix as 'USER' | 'GUIDE');
-      await Users.update({
-        id: context.user.id,
-        record: { userId: fixedId },
-      }).catch(() => {});
-      (userRecord as any).userId = fixedId;
+    if (sameIdRecords.length > 1) {
+      const isEarliestDoc = sameIdRecords
+        .map(r => r.id)
+        .sort()[0] === context.user.id;
+
+      if (!isEarliestDoc) {
+        const timestamp = Date.now().toString(36);
+        const uniqueId = `USER-${timestamp.toUpperCase()}`;
+        await Users.update({
+          id: context.user.id,
+          record: { userId: uniqueId },
+        });
+        userRecord.userId = uniqueId;
+      }
     }
 
     // Update last login (non-blocking)
     await Users.update({ id: context.user.id, record: { lastLoginAt: now } }).catch(() => {});
 
+    // Determine route based on status and role
     const status = userRecord.status;
     let route = '/pending';
-    if (status === 'Rejected') route = '/rejected';
-    else if (status === 'Inactive') route = '/inactive';
-    else if (status === 'Active') route = roleToRoute(userRecord.role || 'User', userRecord.isBvsl, userRecord.isSadhanaMentor);
+    if (status === 'Rejected') {
+      route = '/rejected';
+    } else if (status === 'Inactive') {
+      route = '/inactive';
+    } else if (status === 'Active') {
+      route = roleToRoute(userRecord.role || 'User', userRecord.isBvsl, userRecord.isSadhanaMentor);
+    }
 
     return {
       action: 'route',
       route,
       user: {
-        userId: (userRecord as any).userId,
+        userId: userRecord.userId,
         fullName: userRecord.fullName || '',
         role: normalizeRole(userRecord.role || 'User'),
         status: normalizeStatus(status),
@@ -244,8 +263,8 @@ export default createEndpoint({
         isBvsl: userRecord.isBvsl || false,
         isSadhanaMentor: userRecord.isSadhanaMentor || false,
         isBvMentor: userRecord.isBvMentor || false,
-        isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || userRecord.role === 'Super Guide' || userRecord.role === 'SUPER_GUIDE' || (userEmail || '').includes('superadmin')),
-        isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || userRecord.role === 'Super Guide' || userRecord.role === 'SUPER_GUIDE'),
+        isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || userRecord.role === 'Super Guide' || userRecord.role === 'SUPER_GUIDE' || (userEmail || '').includes('superadmin')),
+        isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || userRecord.role === 'Super Guide' || userRecord.role === 'SUPER_GUIDE'),
         isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),
         isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
         isBvSubFacilitator: !!(userRecord.isBvSubFacilitator),
