@@ -237,7 +237,7 @@ function getMockTable(tableName: string): Map<string, any> {
     if (tableName === 'Users') {
       const now = new Date().toISOString();
       const defaultUsers = [
-        { id: 'srilaprabhupadaworld@gmail.com', userId: 'GUIDE-SUPER-PWA', fullName: 'Super Admin', email: 'srilaprabhupadaworld@gmail.com', role: 'Super Guide', isBvSuperAdmin: true, isBvAdmin: true, isBvSupervisor: true, status: 'Active', createdAt: now },
+        { id: 'srilaprabhupadaworld@gmail.com', userId: 'GUIDE-SUPER-PWA', fullName: 'Super Admin', email: 'vdnd@hkmmumbai.org', role: 'Super Guide', isBvSuperAdmin: true, isBvAdmin: true, isBvSupervisor: true, status: 'Active', createdAt: now },
         { id: 'superguide@gmail.com', userId: 'GUIDE-SUPER-001', fullName: 'Super Guide Admin', email: 'superguide@gmail.com', role: 'Super Guide', status: 'Active', createdAt: now },
         { id: 'superguide@prabhupadaworld.org', userId: 'GUIDE-SUPER-002', fullName: 'Super Guide Admin', email: 'superguide@prabhupadaworld.org', role: 'Super Guide', status: 'Active', createdAt: now },
         { id: 'admin@prabhupadaworld.org', userId: 'GUIDE-ADMIN-001', fullName: 'System Administrator', email: 'admin@prabhupadaworld.org', role: 'Super Guide', status: 'Active', createdAt: now },
