@@ -330,13 +330,13 @@ export class Table {
         if (db) {
           if (query.id) {
             const doc = await db.collection(this.tableName).doc(query.id).get();
-            if (doc.exists) return doc.data();
+            if (doc.exists) return { id: doc.id, ...doc.data() };
           } else if (query.filters) {
             let q = db.collection(this.tableName);
             q = applyFilters(q, query.filters);
             const snapshot = await q.limit(1).get();
             if (!snapshot.empty) {
-              return snapshot.docs[0].data();
+              return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
             }
           }
         }
@@ -388,7 +388,7 @@ export class Table {
           }
 
           const snapshot = await q.get();
-          const records = snapshot.docs.map((doc: any) => doc.data());
+          const records = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
 
           let hasMore = false;
           if (limit !== null && records.length > limit) {

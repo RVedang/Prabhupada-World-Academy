@@ -140,12 +140,22 @@ export default createEndpoint({
     // Direct lookup — no full table scan needed with Zite DB user sync
     let userRecord = await Users.findOne({ id: context.user.id });
 
+    // Fallback lookup by email if not found by ID
+    if (!userRecord && context.user.email) {
+      userRecord = await Users.findOne({ filters: { email: context.user.email } }) ||
+                 await Users.findOne({ filters: { email: context.user.email.toLowerCase() } });
+    }
+
     // Auto-heal missing userId/status if record exists
-    if (userRecord && (userRecord.status || userRecord.role || userRecord.email) && !userRecord.userId) {
-      userRecord.userId = userRecord.id || `USER-${context.user.id.slice(0, 8)}`;
-      if (!userRecord.status) userRecord.status = 'Active';
+    if (userRecord && (userRecord.status || userRecord.role || userRecord.email)) {
+      if (!userRecord.userId) {
+        userRecord.userId = userRecord.id || `USER-${context.user.id.slice(0, 8)}`;
+      }
+      if (!userRecord.status) {
+        userRecord.status = 'Active';
+      }
       await Users.update({
-        id: context.user.id,
+        id: userRecord.id || context.user.id,
         record: { userId: userRecord.userId, status: userRecord.status },
       }).catch(() => {});
     }
