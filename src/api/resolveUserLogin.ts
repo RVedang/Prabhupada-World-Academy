@@ -156,8 +156,9 @@ export default createEndpoint({
                  await Users.findOne({ filters: { email: context.user.email.toLowerCase() } });
     }
 
-    // Auto-seed default mock users in database if not found
-    if (context.user.email) {
+    // Auto-seed default mock users in database if not found (dev only)
+    const isMockAuthEnabled = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_USE_AUTH_EMULATOR === 'true';
+    if (context.user.email && isMockAuthEnabled) {
       const emailLower = context.user.email.toLowerCase();
       const defaults: Record<string, any> = {
         'vdnd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
