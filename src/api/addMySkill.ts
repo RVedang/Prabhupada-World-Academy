@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, UserSkills, SkillCatalog } from 'zite-integrations-backend-sdk';
+import { createEndpoint, UserSkills, SkillCatalog } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Add a skill to the current user',

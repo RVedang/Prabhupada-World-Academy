@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { bulkAddGroupMembers } from 'zite-endpoints-sdk';
+import { bulkAddGroupMembers } from '@/lib/endpoints-sdk';
 
 type Member = { userId: string; fullName: string; ashrayLevel: string | null; existingGroup: { groupName: string } | null };
 
@@ -42,6 +42,7 @@ export default function BvGroupAddMembersDialog({ open, onClose, onAdded, groupD
       toast.success(`Added ${result.added} member${result.added !== 1 ? 's' : ''}${result.alreadyMembers > 0 ? ` (${result.alreadyMembers} already in group)` : ''}`);
       setSelected(new Set()); setSearch('');
       onAdded();
+      onClose(); // close dialog after adding
     } catch { toast.error('Failed to add members'); }
     finally { setSaving(false); }
   };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getOneToOneContext } from 'zite-endpoints-sdk';
+import { getOneToOneContext } from '@/lib/endpoints-sdk';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Flame, BookOpen, Megaphone, Users } from 'lucide-react';

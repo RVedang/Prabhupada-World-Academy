@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, Email, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, Email, AppError } from '@/lib/backend-sdk';
 import { generateUniqueUserId } from '../lib/userIdGen';
 import { enforceRateLimit } from '../utils/rateLimit';
 import { serverCacheInvalidate } from '../lib/serverCache';
@@ -32,23 +32,33 @@ export default createEndpoint({
 
     // Verify guide exists (guideId is the UUID of the Guides record or canonical guideId)
     let guideRecord: any = null;
-    if (input.guideId === 'MENTOR-PW-HIRANYAVARNA' || input.guideId.includes('HIRANYAVARNA')) {
-      guideRecord = { id: 'MENTOR-PW-HIRANYAVARNA', fullName: 'Hiranyavarna Das' };
+    let isPw = input.guideId === 'MENTOR-PW-HIRANYAVARNA' || 
+               input.guideId === 'MENTOR-PW-ADMIN' ||
+               input.guideId.includes('HIRANYAVARNA') ||
+               input.guideId.includes('PW-ADMIN');
+
+    if (isPw) {
+      if (input.guideId === 'MENTOR-PW-ADMIN' || input.guideId.includes('PW-ADMIN')) {
+        guideRecord = { id: 'MENTOR-PW-ADMIN', fullName: 'PW System Administrator' };
+      } else {
+        guideRecord = { id: 'MENTOR-PW-HIRANYAVARNA', fullName: 'Hiranyavarna Das' };
+      }
+    } else if (input.guideId === 'MENTOR-FOLK-GAURMANDAL') {
+      guideRecord = { id: 'MENTOR-FOLK-GAURMANDAL', fullName: 'Gaurmandal Prabhu' };
     } else {
       guideRecord = await Guides.findOne({ id: input.guideId }) ?? await Guides.findOne({ filters: { guideId: input.guideId } });
       if (!guideRecord) {
-        // Fallback: search by name or abbreviation if exact ID didn't match
         const { records: allG } = await Guides.findAll({ limit: 500 }).catch(() => ({ records: [] }));
         guideRecord = allG.find((g: any) => g.id === input.guideId || g.guideId === input.guideId || g.fullName === input.guideId);
       }
-      if (!guideRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'Selected guide not found' });
+      if (guideRecord?.isPrabhupadaWorldMentor) isPw = true;
     }
 
     // Verify residency if claimed
     let residencyRecordId: string | undefined;
     if (input.selectedFolkResidency) {
       const residencyRecord = await FolkResidencies.findOne({ id: input.selectedFolkResidency });
-      if (!residencyRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'Residency not found' });
+      if (!residencyRecord) throw new AppError({ code: 'NOT_FOUND', message: 'Residency not found' });
       residencyRecordId = residencyRecord.id;
     }
 
@@ -96,7 +106,7 @@ export default createEndpoint({
     // Always normalize email to lowercase — prevents case-mismatch duplicates on future logins
     // (Google/OAuth providers return lowercase, so stored email must match)
     const userEmail = (input.email || context.user.email || '').toLowerCase();
-    const appUrl = process.env.ZITE_APP_URL ?? '';
+    const appUrl = process.env.APP_APP_URL ?? '';
     const ashrayLevel = input.ashrayLevel || 'Jigyasa';
 
     // Upsert the record in Firestore — single source of truth for all environments
@@ -115,6 +125,8 @@ export default createEndpoint({
       residencyJoinDate: input.residencyJoinDate || null,
       ashrayLevel,
       bvServiceAllocated: false,
+      isPrabhupadaWorldUser: isPw,
+      segment: isPw ? 'PW' : 'FOLK',
       createdAt: new Date().toISOString()
     };
     const existingFirestoreUser = await Users.findOne({ id: context.user.id });

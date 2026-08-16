@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get service profile summary for the current user',

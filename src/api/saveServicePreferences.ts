@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServicePreferences, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServicePreferences, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Save service preferences for the current user',

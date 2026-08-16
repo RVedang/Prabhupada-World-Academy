@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Users, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCrossPreachingDrilldown } from 'zite-endpoints-sdk';
+import { getCrossPreachingDrilldown } from '@/lib/endpoints-sdk';
 
 interface RecordItem {
   id: string;

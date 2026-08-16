@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Archive, Database, Calendar, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
-import { getArchiveStats, archiveSadhanaData } from 'zite-endpoints-sdk';
-import type { GetArchiveStatsOutputType } from 'zite-endpoints-sdk';
+import { getArchiveStats, archiveSadhanaData } from '@/lib/endpoints-sdk';
+import type { GetArchiveStatsOutputType } from '@/lib/endpoints-sdk';
 
 function getDefaultCutoff(): string {
   const d = new Date();

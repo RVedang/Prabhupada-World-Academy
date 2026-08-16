@@ -1,34 +1,70 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf } from 'lucide-react';
-import { useAuth } from 'zite-auth-sdk';
+import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video } from 'lucide-react';
+import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
+import { useAuth } from '@/lib/auth-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { DashboardLayout } from '@/layouts';
-import SuperBvReportTab from '@/components/super/SuperBvReportTab';
-import SuperUsersPanel from '@/components/super/SuperUsersPanel';
-import SuperStatsPanel from '@/components/super/SuperStatsPanel';
-import SendRemindersPanel from '@/components/super/SendRemindersPanel';
-import ArchiveDataPanel from '@/components/super/ArchiveDataPanel';
-import ReportsTab from '@/components/guide/ReportsTab';
-import MissingSadhanaTab from '@/components/guide/MissingSadhanaTab';
-import TagMangoConfigTab from '@/components/super/TagMangoConfigTab';
-import SuperAttendanceTab from '@/components/super/SuperAttendanceTab';
-import JigyasaTrackerTab from '@/components/jigyasa/JigyasaTrackerTab';
+import { LoadingPage } from '@/shared';
 import TabTransition from '@/components/TabTransition';
+import TabErrorBoundary from '@/components/TabErrorBoundary';
 import { motion } from 'framer-motion';
-import ApprovalsTab from '@/components/guide/ApprovalsTab';
-import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
-import BvAdminManagementTab from '@/components/super/BvAdminManagementTab';
+
+const SuperBvReportTab = lazy(() => import('@/components/super/SuperBvReportTab'));
+const SuperUsersPanel = lazy(() => import('@/components/super/SuperUsersPanel'));
+const SuperStatsPanel = lazy(() => import('@/components/super/SuperStatsPanel'));
+const SendRemindersPanel = lazy(() => import('@/components/super/SendRemindersPanel'));
+const ReportsTab = lazy(() => import('@/components/guide/ReportsTab'));
+const MissingSadhanaTab = lazy(() => import('@/components/guide/MissingSadhanaTab'));
+const TagMangoConfigTab = lazy(() => import('@/components/super/TagMangoConfigTab'));
+const SuperAttendanceTab = lazy(() => import('@/components/super/SuperAttendanceTab'));
+const JigyasaTrackerTab = lazy(() => import('@/components/jigyasa/JigyasaTrackerTab'));
+const ApprovalsTab = lazy(() => import('@/components/guide/ApprovalsTab'));
+const SuperBvRegistrationsTab = lazy(() => import('@/components/super/SuperBvRegistrationsTab'));
+const BvAdminManagementTab = lazy(() => import('@/components/super/BvAdminManagementTab'));
+const MeetingsAndMomTab = lazy(() => import('@/components/super/MeetingsAndMomTab'));
 import {
   getCurrentGuide, getPushSubscriptionStats, GetPushSubscriptionStatsOutputType,
   getPendingApprovals, getGuideRequests, getResidencyTransferRequests, getCleanlinessReviews,
   getPendingBvRegistrations,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 
 export default function PwAdminDashboard() {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const navigate = useNavigate();
-  const [adminName, setAdminName] = useState('Hiranyavarna Das');
+  const userEmail = (user?.email || '').toLowerCase();
+  const isFolk = profile?.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk.org');
+
+  const isSuperAdmin = !!(
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'srilaprabhupadaworld@gmail.com' ||
+    userEmail.includes('gaurmandal')
+  );
+
+  const dashboardTitle = isSuperAdmin
+    ? "Prabhupada World Super Admin Dashboard"
+    : "Prabhupada World Admin Dashboard";
+
+  const isBvAdminUser = isSuperAdmin || !!(profile?.isBvAdmin || (profile?.role as string) === 'ADMIN' || (profile?.role as string) === 'SUPER_ADMIN');
+
+  useEffect(() => {
+    if (profile) {
+      if (!isBvAdminUser) {
+        const targetUserDashboard = isFolk ? '/user/folk-dashboard' : '/user/pw-dashboard';
+        navigate(targetUserDashboard, { replace: true });
+      } else if (isFolk) {
+        navigate('/folk-admin/dashboard', { replace: true });
+      }
+    }
+  }, [profile, isBvAdminUser, isFolk, navigate]);
+
+  const dashboardRole = isSuperAdmin ? "SUPER_ADMIN" : (isBvAdminUser ? "ADMIN" : "USER");
+  const defaultAdminName = "Hiranyavarna Das";
+  const [adminName, setAdminName] = useState(defaultAdminName);
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';
@@ -58,7 +94,7 @@ export default function PwAdminDashboard() {
       getCurrentGuide({ email: user.email }).then(r => {
         if (r.guide?.fullName) setAdminName(r.guide.fullName);
       }).catch(() => {});
-      getPushSubscriptionStats({}).then(setPushStats).catch(() => {});
+      getPushSubscriptionStats({ segment: 'PW' }).then(setPushStats).catch(() => {});
     }
   }, [user?.email]);
 
@@ -69,7 +105,7 @@ export default function PwAdminDashboard() {
       getGuideRequests({ guideId: 'ALL' }),
       getResidencyTransferRequests({ guideId: 'ALL' } as any),
       getCleanlinessReviews({ guideId: 'ALL' }).catch(() => []),
-      getPendingBvRegistrations({}).catch(() => []),
+      getPendingBvRegistrations({ segment: 'PW' }).catch(() => []),
     ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
       setApprovalCount(
         pending.length + requests.guideTransfers.length + requests.ashrayUpgrades.length + resTrans.length + (Array.isArray(cleanReviews) ? cleanReviews.length : 0)
@@ -79,7 +115,7 @@ export default function PwAdminDashboard() {
   }, []);
 
   const SidebarButton = ({ value, label, icon: Icon, badge }: { value: string; label: string; icon: any; badge?: number }) => {
-    const isActive = activeTab === value;
+    const isActive = activeTab === value || (value === 'bhakti-vriksha' && activeTab === 'bv-registrations');
     return (
       <button
         onClick={() => handleTabChange(value)}
@@ -107,11 +143,10 @@ export default function PwAdminDashboard() {
 
   return (
     <DashboardLayout
-      title="Prabhupada World Super Admin Dashboard"
+      title={dashboardTitle}
       subtitle={`Hare Krishna ${adminName} Prabhu!`}
-      role="SUPER_GUIDE"
+      role={dashboardRole}
       maxWidth="max-w-none"
-      showProfile={false}
     >
       {/* Mobile Select Tab Selector */}
       <div className="block md:hidden mb-4">
@@ -129,12 +164,15 @@ export default function PwAdminDashboard() {
             <SelectItem value="approvals">
               Approvals {approvalCount > 0 ? `(${approvalCount})` : ''}
             </SelectItem>
-            <SelectItem value="bv-registrations">
-              BV Registrations {bvRegCount > 0 ? `(${bvRegCount})` : ''}
+            <SelectItem value="bhakti-vriksha">
+              Bhakti Vriksha {bvRegCount > 0 ? `(${bvRegCount})` : ''}
             </SelectItem>
-            <SelectItem value="stats">Stats</SelectItem>
+            <SelectItem value="meetings">Meetings & MoM</SelectItem>
+            <SelectItem value="reminders">Notifications</SelectItem>
+            {isSuperAdmin && <SelectItem value="stats">Stats</SelectItem>}
             <SelectItem value="missing-sadhana">Missing Sadhana</SelectItem>
             <SelectItem value="attendance">Attendance</SelectItem>
+            <SelectItem value="callreports">1:1 Call Reports</SelectItem>
             <SelectItem value="jigyasa">Jigyasa</SelectItem>
             <SelectItem value="tagmango">TagMango</SelectItem>
           </SelectContent>
@@ -149,10 +187,13 @@ export default function PwAdminDashboard() {
             <SidebarButton value="bv" label="Bhakti Vriksha Report" icon={CalendarCheck} />
             <SidebarButton value="users" label="Members / Users" icon={Users} />
             <SidebarButton value="approvals" label="Approvals" icon={ClipboardCheck} badge={approvalCount} />
-            <SidebarButton value="bv-registrations" label="BV Registrations" icon={Leaf} badge={bvRegCount} />
-            <SidebarButton value="stats" label="Stats" icon={LayoutGrid} />
+            <SidebarButton value="bhakti-vriksha" label="Bhakti Vriksha" icon={Leaf} badge={bvRegCount} />
+            <SidebarButton value="meetings" label="Meetings & MoM" icon={Video} />
+            <SidebarButton value="reminders" label="Notifications" icon={Bell} />
+            {isSuperAdmin && <SidebarButton value="stats" label="Stats" icon={LayoutGrid} />}
             <SidebarButton value="missing-sadhana" label="Missing Sadhana" icon={AlertCircle} />
             <SidebarButton value="attendance" label="Attendance" icon={ClipboardCheck} />
+            <SidebarButton value="callreports" label="1:1 Call Reports" icon={CalendarClock} />
             <SidebarButton value="jigyasa" label="Jigyasa" icon={BookOpen} />
             <SidebarButton value="tagmango" label="TagMango" icon={Zap} />
           </div>
@@ -160,129 +201,139 @@ export default function PwAdminDashboard() {
 
         {/* Content Pane */}
         <div className="flex-1 min-w-0 bg-card border rounded-xl p-6 shadow-sm min-h-[500px]">
-          <TabTransition activeTab={activeTab}>
-            {activeTab === 'sadhana' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Prabhupada World Sadhana Report</h2>
-                  <p className="text-sm text-muted-foreground">Sadhana metrics for all Prabhupada World members</p>
-                </div>
-                <ReportsTab guideId="ALL" />
-              </div>
-            )}
-
-            {activeTab === 'bv' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Bhakti Vriksha Reading Groups Report</h2>
-                  <p className="text-sm text-muted-foreground">Reading group attendance & metrics</p>
-                </div>
-                <SuperBvReportTab />
-              </div>
-            )}
-
-            {activeTab === 'users' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Prabhupada World Members</h2>
-                  <p className="text-sm text-muted-foreground">All registered members — sortable, filterable, with role management</p>
-                </div>
-                <SuperUsersPanel isPwAdmin={true} />
-              </div>
-            )}
-
-            {activeTab === 'approvals' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Pending Registrations & Approvals</h2>
-                  <p className="text-sm text-muted-foreground">Review and approve new Prabhupada World member registrations</p>
-                </div>
-                <ApprovalsTab guideId="ALL" isSuperGuide={true} />
-              </div>
-            )}
-
-            {activeTab === 'bv-registrations' && (
-              <div className="space-y-6">
-                <BvAdminManagementTab />
-                <hr className="my-6 border-t" />
-                <SuperBvRegistrationsTab />
-              </div>
-            )}
-
-            {activeTab === 'stats' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">System Stats & Administration</h2>
-                  <p className="text-sm text-muted-foreground">Aggregate metrics, push notifications, and data management</p>
-                </div>
-                <div className="space-y-6">
-                  <SendRemindersPanel />
-                  <ArchiveDataPanel />
-                  {pushStats && (
-                    <div className="rounded-lg border bg-card p-4 space-y-3">
-                      <h3 className="font-semibold flex items-center gap-2">🔔 Push Notification Subscribers</h3>
-                      <p className="text-2xl font-bold text-primary">{pushStats.totalSubscriptions}</p>
-                      <p className="text-sm text-muted-foreground">{pushStats.subscribers.length} unique users subscribed</p>
-                      {pushStats.subscribers.length > 0 && (
-                        <details className="text-sm">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">View subscribers</summary>
-                          <ul className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                            {pushStats.subscribers.map((s: any, i: number) => (
-                              <li key={i} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
-                                <span>{s.name}</span>
-                                <span className="text-muted-foreground">{s.email}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
+          <TabErrorBoundary tabName={activeTab}>
+            <Suspense fallback={<LoadingPage rows={2} />}>
+              <TabTransition activeTab={activeTab}>
+                {activeTab === 'sadhana' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Sadhana Reports</h2>
+                      <p className="text-sm text-muted-foreground">Overview of all Prabhupada World sadhana records</p>
                     </div>
-                  )}
-                  <SuperStatsPanel />
-                </div>
-              </div>
-            )}
+                    <ReportsTab guideId="ALL" />
+                  </div>
+                )}
 
-            {activeTab === 'missing-sadhana' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Missing Sadhana Report</h2>
-                  <p className="text-sm text-muted-foreground">Track which members haven't submitted their daily sadhana</p>
-                </div>
-                <MissingSadhanaTab guideId="ALL" />
-              </div>
-            )}
+                {activeTab === 'bv' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Bhakti Vriksha Preaching Overview</h2>
+                      <p className="text-sm text-muted-foreground">Bhakti Vriksha attendance and group reports</p>
+                    </div>
+                    <SuperBvReportTab isPwAdmin={true} />
+                  </div>
+                )}
 
-            {activeTab === 'attendance' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Attendance Report</h2>
-                  <p className="text-sm text-muted-foreground">Course and session attendance records</p>
-                </div>
-                <SuperAttendanceTab />
-              </div>
-            )}
+                {activeTab === 'users' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Prabhupada World Members</h2>
+                      <p className="text-sm text-muted-foreground">All registered members — sortable, filterable, with role management</p>
+                    </div>
+                    <SuperUsersPanel isPwAdmin={true} />
+                  </div>
+                )}
 
-            {activeTab === 'jigyasa' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Jigyasa Attendance Tracker</h2>
-                  <p className="text-sm text-muted-foreground">Upload TagMango CSVs and track session attendance</p>
-                </div>
-                <JigyasaTrackerTab canUpload={true} />
-              </div>
-            )}
+                {activeTab === 'approvals' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Ashraya Requests & Approvals</h2>
+                      <p className="text-sm text-muted-foreground">Review and approve Ashraya upgrade requests for Prabhupada World members</p>
+                    </div>
+                    <ApprovalsTab guideId="ALL" isSuperGuide={true} isPwAdmin={true} />
+                  </div>
+                )}
 
-            {activeTab === 'tagmango' && (
-              <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">TagMango Configuration</h2>
-                  <p className="text-sm text-muted-foreground">Manage API credentials and course ID mappings for auto-enrollment</p>
-                </div>
-                <TagMangoConfigTab />
-              </div>
-            )}
-          </TabTransition>
+                {(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') && (
+                  <div className="space-y-6">
+                    <SuperBvRegistrationsTab segment="PW" />
+                    <hr className="my-6 border-t" />
+                    <BvAdminManagementTab />
+                  </div>
+                )}
+
+                {activeTab === 'reminders' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Sadhana Reminders & Notifications</h2>
+                      <p className="text-sm text-muted-foreground">Configure automatic Sadhana reminders, custom schedule times, and dispatch instant push notifications</p>
+                    </div>
+                    <div className="space-y-6">
+                      <SendRemindersPanel segment="PW" />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'stats' && isSuperAdmin && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">System Stats & Administration</h2>
+                      <p className="text-sm text-muted-foreground">Aggregate metrics and data management</p>
+                    </div>
+                    <div className="space-y-6">
+                      <SuperStatsPanel />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'missing-sadhana' && (
+                  <div>
+                    <MissingSadhanaTab guideId="ALL" />
+                  </div>
+                )}
+
+                {activeTab === 'attendance' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Attendance Report</h2>
+                      <p className="text-sm text-muted-foreground">Course and session attendance records</p>
+                    </div>
+                    <SuperAttendanceTab />
+                  </div>
+                )}
+
+                {activeTab === 'jigyasa' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Jigyasa Attendance Tracker</h2>
+                      <p className="text-sm text-muted-foreground">Upload TagMango CSVs and track session attendance</p>
+                    </div>
+                    <JigyasaTrackerTab canUpload={true} />
+                  </div>
+                )}
+
+                {activeTab === 'tagmango' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">TagMango Configuration</h2>
+                      <p className="text-sm text-muted-foreground">Manage API credentials and course ID mappings for auto-enrollment</p>
+                    </div>
+                    <TagMangoConfigTab />
+                  </div>
+                )}
+
+                {activeTab === 'meetings' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">Meetings & Minutes of Meeting (MoM)</h2>
+                      <p className="text-sm text-muted-foreground">Schedule meetings, track attendance, and record actionable Minutes of Meeting</p>
+                    </div>
+                    <MeetingsAndMomTab allowSchedule={true} />
+                  </div>
+                )}
+
+                {activeTab === 'callreports' && (
+                  <div>
+                    <div className="space-y-1 mb-4">
+                      <h2 className="text-lg font-bold">1:1 Call Reports</h2>
+                      <p className="text-sm text-muted-foreground">All one-on-one call logs between Facilitators (RGF) and their members</p>
+                    </div>
+                    <BvslOneToOneTab />
+                  </div>
+                )}
+              </TabTransition>
+            </Suspense>
+          </TabErrorBoundary>
         </div>
       </div>
     </DashboardLayout>

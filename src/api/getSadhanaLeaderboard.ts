@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, FolkResidencies, Guides } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 
 const ENTRY_FIELDS = ['id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'maxScore', 'flagSick', 'flagOs', 'submittedAt'];
@@ -29,7 +29,7 @@ export default createEndpoint({
     page: z.number().int().min(0).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const todayStr = getTodayIST();
     const startStr = (input.startDate || input.date || todayStr).split('T')[0];
@@ -71,14 +71,40 @@ export default createEndpoint({
       };
     }
 
-    // ── Fetch active users ────────────────────────────────────────────────
-    const usersFilter = input.residencyId
-      ? { status: 'Active', residency: input.residencyId }
-      : input.guideId
-      ? { status: 'Active', guide: input.guideId }
-      : { status: 'Active' };
+    const userRole = (context.user.role || 'User').toUpperCase().replace(/\s+/g, '_');
+    const userEmail = (context.user.email || '').toLowerCase();
+    const isSuperGuide = userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'PW_ADMIN' ||
+      !!context.user.isBvSuperAdmin ||
+      !!context.user.isBvAdmin ||
+      userEmail.includes('gaurmandal') ||
+      userEmail.includes('superadmin') ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com';
 
-    const allUsers: any[] = [];
+    // 1. Find guide record for scoping (regular guide only)
+    let guideRecord: any = null;
+    if (!isSuperGuide) {
+      guideRecord = await Guides.findOne({
+        filters: { email: context.user.email, isActive: true },
+        fields: ['id', 'folkResidencies'],
+      }).catch(() => null);
+    }
+
+    // 2. Build user query filters
+    const usersFilter: any = { status: 'Active' };
+    if (!isSuperGuide && guideRecord) {
+      usersFilter.guide = (guideRecord as any).id;
+    } else if (isSuperGuide && input.guideId) {
+      usersFilter.guide = input.guideId;
+    }
+    if (input.residencyId) {
+      usersFilter.residency = input.residencyId;
+    }
+
+    // 3. Fetch active users
+    let allUsers: any[] = [];
     let userOffset = 0;
     while (true) {
       const { records, hasMore } = await Users.findAll({
@@ -90,6 +116,27 @@ export default createEndpoint({
       allUsers.push(...records);
       if (!hasMore) break;
       userOffset += 2000;
+    }
+
+    // Include residency-based users for regular guides
+    if (!isSuperGuide && guideRecord && !input.residencyId) {
+      const guideRids: string[] = Array.isArray(guideRecord.folkResidencies)
+        ? (guideRecord.folkResidencies as string[])
+        : (guideRecord.folkResidencies ? [guideRecord.folkResidencies as string] : []);
+
+      if (guideRids.length > 0) {
+        const resFetches = await Promise.all(
+          guideRids.map(rid =>
+            Users.findAll({ filters: { residency: rid, status: 'Active' }, fields: USER_FIELDS, limit: 500 }).catch(() => ({ records: [] }))
+          )
+        );
+        const userMap = new Map<string, any>();
+        for (const u of allUsers) userMap.set(u.id, u);
+        for (const res of resFetches) {
+          for (const u of res.records) userMap.set(u.id, u);
+        }
+        allUsers = Array.from(userMap.values());
+      }
     }
 
     // ── Streak entries (100-day window up to endStr) ──────────────────────

@@ -18,7 +18,7 @@
  *   const guideId = await generateUniqueUserId('GUIDE'); // → "GUIDE-008"
  */
 
-import { Users } from 'zite-integrations-backend-sdk';
+import { Users } from '@/lib/backend-sdk';
 
 const MAX_RETRIES = 10;
 const PAD = 3; // Minimum digits: USER-001, USER-044, USER-100

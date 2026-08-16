@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Flame, Users, Trophy, TrendingUp, AlertTriangle, ExternalLink, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getChallengeDashboard, GetChallengeDashboardOutputType } from 'zite-endpoints-sdk';
+import { getChallengeDashboard, GetChallengeDashboardOutputType } from '@/lib/endpoints-sdk';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type Challenge = GetChallengeDashboardOutputType['challenges'][0];

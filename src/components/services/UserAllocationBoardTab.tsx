@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { format, addDays } from 'date-fns';
 import { Calendar, CheckCircle2, Users, PlusCircle, ChevronLeft, ChevronRight, Clock, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAllocationBoard, markServiceDone, selfAllocate } from 'zite-endpoints-sdk';
-import type { GetAllocationBoardOutputType } from 'zite-endpoints-sdk';
+import { getAllocationBoard, markServiceDone, selfAllocate } from '@/lib/endpoints-sdk';
+import type { GetAllocationBoardOutputType } from '@/lib/endpoints-sdk';
 import SwapRequestModal from './SwapRequestModal';
 import TodayServiceChecklist from './TodayServiceChecklist';
 

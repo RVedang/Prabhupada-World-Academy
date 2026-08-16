@@ -49,6 +49,12 @@ next-env.d.ts
 service-account.json
 service-account.json:Zone.Identifier
 
+# Database Backups & Temporary files
+/docs/firestore-backups/
+/docs/zite-backups/
+/docs/migration-conflicts.json
+firestore-debug.log
+
 # SQLite local databases
 sadhana.db
 sadhana.db-shm

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Home, Users, BarChart2, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, TrendingUp, GitBranch, Zap, ClipboardCheck, Database, Leaf } from 'lucide-react';
-import { useAuth } from 'zite-auth-sdk';
+import { Home, Users, BarChart2, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, TrendingUp, GitBranch, Zap, ClipboardCheck, Database, Leaf, Bell } from 'lucide-react';
+import { useAuth } from '@/lib/auth-sdk';
 import { DashboardLayout } from '@/layouts';
 import SuperBvReportTab from '@/components/super/SuperBvReportTab';
 import SuperHostelsPanel from '@/components/super/SuperHostelsPanel';
@@ -11,7 +11,6 @@ import SuperUsersPanel from '@/components/super/SuperUsersPanel';
 import SuperGuidesPanel from '@/components/super/SuperGuidesPanel';
 import SuperStatsPanel from '@/components/super/SuperStatsPanel';
 import SendRemindersPanel from '@/components/super/SendRemindersPanel';
-import ArchiveDataPanel from '@/components/super/ArchiveDataPanel';
 import ReportsTab from '@/components/guide/ReportsTab';
 import PreachingDataReportTab from '@/components/super/PreachingDataReportTab';
 import MissingSadhanaTab from '@/components/guide/MissingSadhanaTab';
@@ -28,7 +27,7 @@ import {
   getCurrentGuide, getPushSubscriptionStats, GetPushSubscriptionStatsOutputType,
   getPendingApprovals, getGuideRequests, getResidencyTransferRequests, getCleanlinessReviews,
   getPendingBvRegistrations,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 
 export default function SuperGuideDashboard() {
   const { user } = useAuth();
@@ -63,7 +62,7 @@ export default function SuperGuideDashboard() {
       getCurrentGuide({ email: user.email }).then(r => {
         if (r.guide) setGuideName(r.guide.fullName || '');
       }).catch(() => {});
-      getPushSubscriptionStats({}).then(setPushStats).catch(() => {});
+      getPushSubscriptionStats({ segment: 'FOLK' }).then(setPushStats).catch(() => {});
     }
   }, [user?.email]);
 
@@ -116,7 +115,6 @@ export default function SuperGuideDashboard() {
       subtitle={guideName ? `Hare Krishna ${guideName} Prabhu!` : undefined}
       role="SUPER_GUIDE"
       maxWidth="max-w-none"
-      showProfile={false}
     >
       {/* Mobile Select Tab Selector */}
       <div className="block md:hidden mb-4">
@@ -141,6 +139,7 @@ export default function SuperGuideDashboard() {
             <SelectItem value="bv-registrations">
               BV Registrations {bvRegCount > 0 ? `(${bvRegCount})` : ''}
             </SelectItem>
+            <SelectItem value="reminders">Notifications</SelectItem>
             <SelectItem value="stats">Stats</SelectItem>
             <SelectItem value="missing-sadhana">Missing Sadhana</SelectItem>
             <SelectItem value="attendance">Attendance</SelectItem>
@@ -163,6 +162,7 @@ export default function SuperGuideDashboard() {
             <SidebarButton value="users" label="Users" icon={Users} />
             <SidebarButton value="approvals" label="Approvals" icon={ClipboardCheck} badge={approvalCount} />
             <SidebarButton value="bv-registrations" label="BV Registrations" icon={Leaf} badge={bvRegCount} />
+            <SidebarButton value="reminders" label="Notifications" icon={Bell} />
             <SidebarButton value="stats" label="Stats" icon={LayoutGrid} />
             <SidebarButton value="missing-sadhana" label="Missing Sadhana" icon={AlertCircle} />
             <SidebarButton value="attendance" label="Attendance" icon={ClipboardCheck} />
@@ -185,9 +185,9 @@ export default function SuperGuideDashboard() {
             )}
             {activeTab === 'bv-registrations' && (
               <div className="space-y-6">
-                <BvAdminManagementTab />
-                <hr className="my-6 border-t" />
                 <SuperBvRegistrationsTab />
+                <hr className="my-6 border-t" />
+                <BvAdminManagementTab />
               </div>
             )}
             {activeTab === 'sadhana' && (
@@ -254,9 +254,21 @@ export default function SuperGuideDashboard() {
               <div>
                 <div className="space-y-1 mb-4">
                   <h2 className="text-lg font-bold">All Users</h2>
-                  <p className="text-sm text-muted-foreground">All members across all guides — sortable, filterable, with guide and BVSL assignment</p>
+                  <p className="text-sm text-muted-foreground">All members across all guides — sortable, filterable, with guide and RGF assignment</p>
                 </div>
                 <SuperUsersPanel />
+              </div>
+            )}
+
+            {activeTab === 'reminders' && (
+              <div>
+                <div className="space-y-1 mb-4">
+                  <h2 className="text-lg font-bold">Sadhana Reminders & Notifications</h2>
+                  <p className="text-sm text-muted-foreground">Configure automatic Sadhana reminders, custom schedule times, and dispatch instant push notifications</p>
+                </div>
+                <div className="space-y-6">
+                  <SendRemindersPanel segment="FOLK" />
+                </div>
               </div>
             )}
 
@@ -267,28 +279,6 @@ export default function SuperGuideDashboard() {
                   <p className="text-sm text-muted-foreground">Aggregate metrics across all guides and hostels</p>
                 </div>
                 <div className="space-y-6">
-                  <SendRemindersPanel />
-                  <ArchiveDataPanel />
-                  {pushStats && (
-                    <div className="rounded-lg border bg-card p-4 space-y-3">
-                      <h3 className="font-semibold flex items-center gap-2">🔔 Push Notification Subscribers</h3>
-                      <p className="text-2xl font-bold text-primary">{pushStats.totalSubscriptions}</p>
-                      <p className="text-sm text-muted-foreground">{pushStats.subscribers.length} unique users subscribed</p>
-                      {pushStats.subscribers.length > 0 && (
-                        <details className="text-sm">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">View subscribers</summary>
-                          <ul className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                            {pushStats.subscribers.map((s: any, i: number) => (
-                              <li key={i} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
-                                <span>{s.name}</span>
-                                <span className="text-muted-foreground">{s.email}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-                    </div>
-                  )}
                   <SuperStatsPanel />
                 </div>
               </div>
@@ -296,10 +286,6 @@ export default function SuperGuideDashboard() {
 
             {activeTab === 'missing-sadhana' && (
               <div>
-                <div className="space-y-1 mb-4">
-                  <h2 className="text-lg font-bold">Missing Sadhana Report</h2>
-                  <p className="text-sm text-muted-foreground">Track which users haven't filled their sadhana across all groups</p>
-                </div>
                 <MissingSadhanaTab guideId="ALL" />
               </div>
             )}

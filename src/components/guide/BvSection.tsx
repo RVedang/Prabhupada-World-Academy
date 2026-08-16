@@ -7,6 +7,7 @@ import GuideBvTab from '@/components/guide/GuideBvTab';
 import BvSessionMatrixTab from '@/components/guide/BvSessionMatrixTab';
 import SadhanaSection from '@/components/guide/SadhanaSection';
 import BvslManagementTab from '@/components/guide/BvslManagementTab';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 interface Props {
   guideId: string;
@@ -28,16 +29,28 @@ function readStoredSubTab(): SubTab {
 }
 
 export default function BvSection({ guideId, bvslMode, residencyIds }: Props) {
+  const { profile } = useUserProfile();
   const [subTab, setSubTab] = useState<SubTab>(readStoredSubTab);
+
+  const roleUpper = String(profile?.role || '').toUpperCase();
+  const isSupervisorOrAbove =
+    !bvslMode ||
+    !!profile?.isBvAdmin ||
+    !!profile?.isBvSuperAdmin ||
+    !!profile?.isBvSupervisor ||
+    !!profile?.isBvMentor ||
+    ['ADMIN', 'SUPER_ADMIN', 'SUPERVISOR', 'MENTOR', 'GUIDE', 'SUPER_GUIDE', 'PW_ADMIN'].includes(roleUpper);
 
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, subTab); } catch {}
   }, [subTab]);
 
+  const activeSubTab = (!isSupervisorOrAbove && subTab === 'report') ? 'bvmatrix' : subTab;
+
   const tabs = [
     { value: 'bvmatrix'    as SubTab, label: 'BV Report',    icon: Grid3X3    },
-    { value: 'report'      as SubTab, label: 'BVSL Report',  icon: BarChart3  },
-    { value: 'sadhana'     as SubTab, label: 'BVSL Sadhana', icon: Activity   },
+    ...(isSupervisorOrAbove ? [{ value: 'report' as SubTab, label: 'RGF / RGSF Report', icon: BarChart3 }] : []),
+    ...(!bvslMode ? [{ value: 'sadhana'     as SubTab, label: 'Facilitator Sadhana', icon: Activity   }] : []),
     { value: 'stats'       as SubTab, label: 'Stats',        icon: TrendingUp },
     { value: 'improvement' as SubTab, label: 'Improvement',  icon: Lightbulb  },
     { value: 'groups'      as SubTab, label: 'Groups',       icon: Users      },
@@ -46,13 +59,13 @@ export default function BvSection({ guideId, bvslMode, residencyIds }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-0 border-b border-border overflow-x-auto">
+      <div className="flex gap-0 border-b border-border overflow-x-auto overflow-y-hidden scrollbar-none [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {tabs.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
             onClick={() => setSubTab(value)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
-              subTab === value
+              activeSubTab === value
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
             }`}
@@ -63,13 +76,13 @@ export default function BvSection({ guideId, bvslMode, residencyIds }: Props) {
         ))}
       </div>
 
-      {subTab === 'bvmatrix'    && <BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
-      {subTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
-      {subTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} />}
-      {subTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
-      {subTab === 'improvement' && <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
-      {subTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
-      {subTab === 'management'  && !bvslMode && <BvslManagementTab guideId={guideId} />}
+      {activeSubTab === 'bvmatrix'    && <BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} />}
+      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'improvement' && <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'management'  && !bvslMode && <BvslManagementTab guideId={guideId} />}
     </div>
   );
 }

@@ -16,6 +16,7 @@ export const TOGGLE_DISPLAY_KEYS = new Set([
   'fillingSameDay', 'on_time',
   'cleanliness', 'daily_service', 'report_sending',
   'ma_na_gv', 'quotes_tulasi', 'japa_visible', 'sleep_quality',
+  'bath',
 ]);
 
 const FILL_DAY_KEYS_SET = new Set(['report_sending']);
@@ -23,13 +24,7 @@ const SVC_KEYS_SET       = new Set(['daily_service', 'svc']);
 
 /** Swap the positions of SVC and Fill Day in the field def array */
 export function reorderFieldDefs(defs: FieldDef[]): FieldDef[] {
-  const arr = [...defs];
-  const fillIdx = arr.findIndex(d => FILL_DAY_KEYS_SET.has(d.key));
-  const svcIdx  = arr.findIndex(d => SVC_KEYS_SET.has(d.key));
-  if (fillIdx > -1 && svcIdx > -1 && fillIdx !== svcIdx) {
-    [arr[fillIdx], arr[svcIdx]] = [arr[svcIdx], arr[fillIdx]];
-  }
-  return arr;
+  return defs;
 }
 
 export function minutesToHHMM(mins: number): string {

@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserMinus, Flame } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGroupMembers, removeBvGroupMember } from 'zite-endpoints-sdk';
+import { getGroupMembers, removeBvGroupMember } from '@/lib/endpoints-sdk';
 
 type Member = { membershipId: string; userId: string; fullName: string; phone: string; ashrayLevel: string | null; currentStreak: number; role: string; joinedAt: string | null };
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { List, Award, Calendar, Building2, LayoutGrid, Brush, Heart, Sparkles, Star, Trophy, BarChart2, FileSpreadsheet } from 'lucide-react';
-import { getResidenciesForGuide } from 'zite-endpoints-sdk';
+import { getResidenciesForGuide } from '@/lib/endpoints-sdk';
 import ServiceListTab from './ServiceListTab';
 import UserSkillsTab from './UserSkillsTab';
 import AvailabilityOverviewTab from './AvailabilityOverviewTab';

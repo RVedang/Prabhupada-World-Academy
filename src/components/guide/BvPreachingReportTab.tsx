@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { FileDown, Users, Clock, Package, Phone, UserCheck, Search, RefreshCw, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvPreachingReport } from 'zite-endpoints-sdk';
-import type { GetBvPreachingReportOutputType } from 'zite-endpoints-sdk';
+import { getBvPreachingReport } from '@/lib/endpoints-sdk';
+import type { GetBvPreachingReportOutputType } from '@/lib/endpoints-sdk';
 import { useDebouncedCallback } from 'use-debounce';
 import { format, subDays, startOfMonth, endOfMonth, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear } from 'date-fns';
 import { EmptyState } from '@/shared';
@@ -53,7 +53,7 @@ function getWeekOptions(): { value: string; label: string }[] {
   for (let i = 0; i < 52; i++) {
     const ws = new Date(cws); ws.setDate(cws.getDate() - i * 7);
     const we = endOfISOWeek(ws);
-    options.push({ value: `${getISOWeekYear(ws)}-W${String(getISOWeek(ws)).padStart(2, '0')}`, label: `Week ${getISOWeek(ws)}: ${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}` });
+    options.push({ value: `${getISOWeekYear(ws)}-W${String(getISOWeek(ws)).padStart(2, '0')}`, label: `${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}${i === 0 ? ' (Current)' : ''}` });
   }
   return options;
 }
@@ -141,7 +141,7 @@ export default function BvPreachingReportTab({ guideId }: Props) {
   const handleWhatsAppReminder = () => {
     if (!data) return;
     const missing = filteredBvsls.filter(r => !r.submitted);
-    if (missing.length === 0) { toast.success('All BVSLs have submitted! 🎉'); return; }
+    if (missing.length === 0) { toast.success('All RGFs have submitted! 🎉'); return; }
     const names = missing.map(r => `• ${r.fullName}`).join('\n');
     const msg = `🙏 Hare Krishna!\n\nKindly submit your Bhakti Vriksha report.\n${window.location.origin}\n\nStill pending (${missing.length}):\n${names}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
@@ -179,7 +179,9 @@ export default function BvPreachingReportTab({ guideId }: Props) {
             <div className="flex items-center gap-1.5">
               <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
               <Select value={reportType} onValueChange={(v: ReportType) => setReportType(v)}>
-                <SelectTrigger className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-[110px]">
+                  <SelectValue>{reportType === 'daily' ? 'Daily' : reportType === 'weekly' ? 'Weekly' : 'Monthly'}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="daily">Daily</SelectItem>
                   <SelectItem value="weekly">Weekly</SelectItem>
@@ -201,7 +203,9 @@ export default function BvPreachingReportTab({ guideId }: Props) {
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">Week:</Label>
                 <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-                  <SelectTrigger className="h-8 w-[230px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-[280px]">
+                    <SelectValue>{WEEK_OPTIONS.find(o => o.value === selectedWeek)?.label || selectedWeek}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent className="max-h-60">{WEEK_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -210,7 +214,9 @@ export default function BvPreachingReportTab({ guideId }: Props) {
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">Month:</Label>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-[160px]">
+                    <SelectValue>{MONTH_OPTIONS.find(o => o.value === selectedMonth)?.label || selectedMonth}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent className="max-h-60">{MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -232,10 +238,10 @@ export default function BvPreachingReportTab({ guideId }: Props) {
           {/* Summary */}
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Report Summary</span>
-            <span className="text-xs text-muted-foreground">{summary.submitted} of {summary.total} BVSLs submitted</span>
+            <span className="text-xs text-muted-foreground">{summary.submitted} of {summary.total} RGFs submitted</span>
           </div>
           <div className="flex flex-wrap gap-3">
-            <SummaryCard icon={Users} label="Total BVSLs" value={summary.total} />
+            <SummaryCard icon={Users} label="Total RGFs" value={summary.total} />
             <SummaryCard icon={Clock} label="Total Preaching" value={minutesToHHMM(summary.totalMins)} color="text-primary" />
             <SummaryCard icon={Package} label="Total Books" value={summary.totalBooks} color="text-primary" />
             <SummaryCard icon={Phone} label="Total Contacts" value={summary.totalContacts} color="text-primary" />
@@ -287,7 +293,7 @@ export default function BvPreachingReportTab({ guideId }: Props) {
               </CardContent>
             </Card>
           ) : (
-            <Card><CardContent className="py-2"><EmptyState title={searchQuery ? `No BVSLs found matching "${searchQuery}"` : 'No BVSLs found for this guide.'} /></CardContent></Card>
+            <Card><CardContent className="py-2"><EmptyState title={searchQuery ? `No RGFs found matching "${searchQuery}"` : 'No RGFs found for this guide.'} /></CardContent></Card>
           )}
         </div>
       )}

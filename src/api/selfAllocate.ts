@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, Services } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, Services } from '@/lib/backend-sdk';
 
 const DAY_MAP: Record<string, string> = {
   sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday',

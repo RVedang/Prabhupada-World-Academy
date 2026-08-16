@@ -11,18 +11,23 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Shield, UserMinus, UserPlus, BarChart3, Users, Activity, Search, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAllBvGroupsAdmin, getGuideUsers, tagUserAsBvsl } from 'zite-endpoints-sdk';
-import type { GetAllBvGroupsAdminOutputType, GetGuideUsersOutputType } from 'zite-endpoints-sdk';
+import { getAllBvGroupsAdmin, getGuideUsers, tagUserAsBvsl } from '@/lib/endpoints-sdk';
+import type { GetAllBvGroupsAdminOutputType, GetGuideUsersOutputType } from '@/lib/endpoints-sdk';
 import BvAdminDataTable from '@/components/bv/BvAdminDataTable';
 import BvGroupManagerPanel from './BvGroupManagerPanel';
 import BvSadhanaMonitorPanel from './BvSadhanaMonitorPanel';
 import BvMissingSadhanaPanel from './BvMissingSadhanaPanel';
+
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 interface Props { guideId: string; }
 type BvslInfo = GetAllBvGroupsAdminOutputType['bvsls'][0];
 type GuideUser = GetGuideUsersOutputType['users'][0];
 
 export default function BvslManagementTab({ guideId }: Props) {
+  const { profile } = useUserProfile();
+  const isPwAdmin = profile?.segment === 'PW';
+
   const [bvsls, setBvsls] = useState<BvslInfo[]>([]);
   const [guideUsers, setGuideUsers] = useState<GuideUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +45,7 @@ export default function BvslManagementTab({ guideId }: Props) {
       ]);
       setBvsls(adminRes.bvsls);
       setGuideUsers(usersRes.users);
-    } catch { toast.error('Failed to load BVSL data'); }
+    } catch { toast.error('Failed to load RGF data'); }
     finally { setLoading(false); }
   };
 
@@ -48,7 +53,7 @@ export default function BvslManagementTab({ guideId }: Props) {
     setTagging(userId);
     try {
       await tagUserAsBvsl({ userId, action });
-      toast.success(action === 'tag' ? `${name} tagged as BVSL` : `${name} removed as BVSL`);
+      toast.success(action === 'tag' ? `${name} tagged as RGF` : `${name} removed as RGF`);
       loadBvslData();
     } catch { toast.error('Failed to update role'); }
     finally { setTagging(null); }
@@ -56,7 +61,10 @@ export default function BvslManagementTab({ guideId }: Props) {
 
   // Both sides now use DB UUID (u.id from getGuideUsers = userId, b.userId from getAllBvGroupsAdmin = u.id)
   const bvslIds = new Set(bvsls.map(b => b.userId));
-  const eligibleUsers = guideUsers.filter(u => u.status === 'ACTIVE' && !bvslIds.has(u.userId));
+  const eligibleUsers = guideUsers.filter(u => {
+    const matchesSegment = isPwAdmin ? (u as any).segment === 'PW' : (u as any).segment !== 'PW';
+    return u.status === 'ACTIVE' && matchesSegment && !bvslIds.has(u.userId);
+  });
 
   const filteredEligible = search.trim()
     ? eligibleUsers.filter(u => u.fullName.toLowerCase().includes(search.toLowerCase()))
@@ -67,7 +75,7 @@ export default function BvslManagementTab({ guideId }: Props) {
   return (
     <Tabs defaultValue="bvsls">
       <TabsList className="mb-4 w-full sm:w-auto flex">
-        <TabsTrigger value="bvsls" className="flex-1 sm:flex-none"><Shield className="w-4 h-4 mr-1 hidden sm:inline" />BVSLs ({bvsls.length})</TabsTrigger>
+        <TabsTrigger value="bvsls" className="flex-1 sm:flex-none"><Shield className="w-4 h-4 mr-1 hidden sm:inline" />RGFs ({bvsls.length})</TabsTrigger>
         <TabsTrigger value="groups" className="flex-1 sm:flex-none"><Users className="w-4 h-4 mr-1 hidden sm:inline" />Groups & Members</TabsTrigger>
         <TabsTrigger value="monitor" className="flex-1 sm:flex-none"><Activity className="w-4 h-4 mr-1 hidden sm:inline" />Sadhana Monitor</TabsTrigger>
         <TabsTrigger value="missing" className="flex-1 sm:flex-none"><XCircle className="w-4 h-4 mr-1 hidden sm:inline" />Missing Sadhana</TabsTrigger>
@@ -78,7 +86,7 @@ export default function BvslManagementTab({ guideId }: Props) {
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="pt-4 pb-3">
             <p className="text-sm text-muted-foreground">
-              Tag a student as BVSL to give them access to the BVSL dashboard. Then use <strong>Groups & Members</strong> to create their group and assign members directly — no invite link sharing needed!
+              Tag a student as RGF to give them access to the RGF dashboard. Then use <strong>Groups & Members</strong> to create their group and assign members directly — no invite link sharing needed!
             </p>
           </CardContent>
         </Card>
@@ -86,7 +94,7 @@ export default function BvslManagementTab({ guideId }: Props) {
         {eligibleUsers.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Tag User as BVSL</CardTitle>
+              <CardTitle className="text-sm">Tag User as RGF</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-3">
               <div className="relative">
@@ -111,13 +119,13 @@ export default function BvslManagementTab({ guideId }: Props) {
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button size="sm" variant="outline" disabled={tagging === u.userId}>
-                            <UserPlus className="w-3.5 h-3.5 mr-1" />Tag BVSL
+                            <UserPlus className="w-3.5 h-3.5 mr-1" />Tag RGF
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Tag as BVSL?</AlertDialogTitle>
-                            <AlertDialogDescription>{u.fullName} will get access to the BVSL dashboard. You can then create a group for them in the "Groups & Members" tab.</AlertDialogDescription>
+                            <AlertDialogTitle>Tag as RGF?</AlertDialogTitle>
+                            <AlertDialogDescription>{u.fullName} will get access to the RGF dashboard. You can then create a group for them in the "Groups & Members" tab.</AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -136,7 +144,7 @@ export default function BvslManagementTab({ guideId }: Props) {
         {bvsls.length === 0 ? (
           <Card><CardContent className="py-10 text-center text-muted-foreground">
             <Shield className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p>No BVSLs tagged yet</p>
+            <p>No RGFs tagged yet</p>
           </CardContent></Card>
         ) : (
           <div className="space-y-3">
@@ -146,7 +154,7 @@ export default function BvslManagementTab({ guideId }: Props) {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium flex items-center gap-2">
-                        {b.fullName}<Badge className="bg-purple-500 text-xs">BVSL</Badge>
+                        {b.fullName}<Badge className="bg-purple-500 text-xs">RGF</Badge>
                       </p>
                       <p className="text-sm text-muted-foreground">{b.groupCount} group{b.groupCount !== 1 ? 's' : ''} · {b.totalMembers} members</p>
                     </div>
@@ -158,8 +166,8 @@ export default function BvslManagementTab({ guideId }: Props) {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Remove BVSL role?</AlertDialogTitle>
-                          <AlertDialogDescription>{b.fullName} will lose access to the BVSL dashboard. Their groups and members will remain.</AlertDialogDescription>
+                          <AlertDialogTitle>Remove RGF role?</AlertDialogTitle>
+                          <AlertDialogDescription>{b.fullName} will lose access to the RGF dashboard. Their groups and members will remain.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
-import { joinGroupByToken } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { joinGroupByToken } from '@/lib/endpoints-sdk';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Leaf, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';

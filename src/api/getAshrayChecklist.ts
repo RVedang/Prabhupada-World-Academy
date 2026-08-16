@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AshrayChecklist, Config, Users, AshrayUpgradeRequests } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AshrayChecklist, Config, Users, AshrayUpgradeRequests } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get the Ashraya checklist for the current user or a specified user (guide view)',

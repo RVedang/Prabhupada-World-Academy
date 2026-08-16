@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ZiteError, ChallengeEnrollments, AttendanceSessions } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AppError, ChallengeEnrollments, AttendanceSessions } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Join a challenge for a session (public)',
@@ -15,8 +15,8 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     const session = await AttendanceSessions.findOne({ id: input.sessionId });
-    if (!session || !session.challengeEnabled) throw new ZiteError({ code: 'BAD_REQUEST', message: 'Challenge not available' });
-    if (!input.userId && !input.participantId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'userId or participantId required' });
+    if (!session || !session.challengeEnabled) throw new AppError({ code: 'BAD_REQUEST', message: 'Challenge not available' });
+    if (!input.userId && !input.participantId) throw new AppError({ code: 'BAD_REQUEST', message: 'userId or participantId required' });
 
     // Check existing
     const filters: any = { session: input.sessionId };

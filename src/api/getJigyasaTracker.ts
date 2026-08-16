@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, JigyasaRegistrations, JigyasaProcessedFiles, JigyasaSessionAttendance } from 'zite-integrations-backend-sdk';
+import { createEndpoint, JigyasaRegistrations, JigyasaProcessedFiles, JigyasaSessionAttendance } from '@/lib/backend-sdk';
 import { mangoToCentre } from '../lib/mangoToCentre';
 
 export default createEndpoint({

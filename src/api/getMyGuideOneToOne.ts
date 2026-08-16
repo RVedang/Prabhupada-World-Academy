@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Guides, Users, OneToOneMeetings } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Guides, Users, OneToOneMeetings } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: "Get the logged-in user's guide 1:1 booking link and last meeting info, respecting delegation",

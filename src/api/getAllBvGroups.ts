@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvGroups, BvGroupMembers, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, BvGroups, BvGroupMembers, Guides } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get all BV groups available to a user (filtered by their guide)',

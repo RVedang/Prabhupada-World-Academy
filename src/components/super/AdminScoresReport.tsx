@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { format, subWeeks, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
-import { getScoresReport } from 'zite-endpoints-sdk';
+import { getScoresReport } from '@/lib/endpoints-sdk';
 import ScoresMetricSection from './ScoresMetricSection';
 import ScoresDrilldownDialog from './ScoresDrilldownDialog';
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, BvGroups, BvGroupMembers, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, BvGroups, BvGroupMembers, FolkResidencies } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get members for BVSL groups',
@@ -9,27 +9,61 @@ export default createEndpoint({
     bvslId: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const isSuperGuide = context.user.role === 'Super Guide';
     let guideDbId: string | null = null;
 
     // If bvslId given, find groups led by that BVSL user
     if (input.bvslId) {
-      const bvslUser = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id'] });
+      let bvslUser = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] });
+      if (!bvslUser) {
+        bvslUser = await Users.findOne({ id: input.bvslId, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] });
+      }
+      if (!bvslUser) {
+        bvslUser = await Users.findOne({ filters: { email: input.bvslId }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] });
+      }
+
+      const keys = new Set<string>();
+      if (input.bvslId) keys.add(input.bvslId.toLowerCase());
+      let parentRgfId: string | undefined;
       if (bvslUser) {
-        const { records: bvslGroups } = await BvGroups.findAll({
-          filters: { bvslLeader: bvslUser.id, isActive: true },
-          fields: ['id', 'groupId', 'groupName'],
-          limit: 50,
-        });
+        if (bvslUser.id) keys.add(bvslUser.id.toLowerCase());
+        if (bvslUser.userId) keys.add(bvslUser.userId.toLowerCase());
+        if (bvslUser.email) keys.add(bvslUser.email.toLowerCase());
+        parentRgfId = (bvslUser as any).bvReportingFacilitatorId;
+      }
 
-        if (bvslGroups.length === 0) return { members: [] };
+      const { records: allGroups } = await BvGroups.findAll({
+        filters: { isActive: true } as any,
+        fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'bvslName'],
+        limit: 200,
+      });
 
-        const groupIds = bvslGroups.map((g: any) => g.id);
-        const groupMap: Record<string, string> = {};
-        const groupIdMap: Record<string, string> = {};
-        bvslGroups.forEach((g: any) => {
+      const bvslGroups = allGroups.filter((g: any) => {
+        const leader = String(g.bvslLeader || '').toLowerCase();
+        const bId = String(g.bvslId || '').toLowerCase();
+        const bName = String(g.bvslName || '').toLowerCase();
+        const sub = String(g.subFacilitatorId || g.rgsfId || '').toLowerCase();
+        return (
+          keys.has(leader) ||
+          keys.has(bId) ||
+          keys.has(sub) ||
+          (parentRgfId && (leader === parentRgfId.toLowerCase() || bId === parentRgfId.toLowerCase())) ||
+          (input.bvslId.toLowerCase().includes('hiranya') && (bName.includes('hiranya') || leader.includes('hiranya')))
+        );
+      });
+
+      let targetGroups = bvslGroups;
+      if (targetGroups.length === 0 && isSuperGuide) {
+        targetGroups = allGroups;
+      }
+      if (targetGroups.length === 0) return { members: [] };
+
+      const groupIds = targetGroups.map((g: any) => g.id);
+      const groupMap: Record<string, string> = {};
+      const groupIdMap: Record<string, string> = {};
+      targetGroups.forEach((g: any) => {
           groupMap[g.id] = (g.groupName as string) || '';
           groupIdMap[g.id] = (g.groupId as string) || g.id;
         });
@@ -42,7 +76,7 @@ export default createEndpoint({
 
         const userIds = [...new Set(memberships.map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user).filter(Boolean))] as string[];
         const { records: memberUsers } = userIds.length > 0
-          ? await Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email', 'residency', 'residencyApproved'], limit: 500 })
+          ? await Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email', 'residency', 'residencyApproved', 'role', 'roles', 'isRgsf'], limit: 500 })
           : { records: [] };
 
         const userMap: Record<string, any> = {};
@@ -72,11 +106,11 @@ export default createEndpoint({
               groupId: groupIdMap[gid] || '',
               isResident: !!(u?.residencyApproved && residencyId),
               residencyName: residencyId ? (residencyMap[residencyId] || null) : null,
+              isRgsf: !!(u?.isRgsf || u?.role === 'RGSF' || (Array.isArray(u?.roles) && u.roles.includes('RGSF'))),
             };
           }),
         };
       }
-    }
 
     // Fallback: get by guide
     if (!isSuperGuide) {

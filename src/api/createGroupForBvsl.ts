@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, Users, Guides, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, Users, Guides, AppError } from '@/lib/backend-sdk';
 
 function generateToken(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -16,13 +16,14 @@ export default createEndpoint({
     guideId: z.string(),            // Guide's custom ID or DB UUID
     groupName: z.string().min(1).max(200),
     description: z.string().max(500).optional(),
+    meetingTime: z.string().max(100).optional(),
   }),
   outputSchema: z.object({ success: z.boolean(), groupId: z.string(), groupDbId: z.string(), joinToken: z.string() }),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     const callerRole = context.user!.role || '';
     const isBvMentor = !!(context.user as any).isBvMentor;
     if (!['Guide', 'Super Guide'].includes(callerRole) && !isBvMentor) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only guides can create groups on behalf of BVSLs' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only guides can create groups on behalf of BVSLs' });
     }
 
     // Robust 3-step guide ID resolution (handles Users-table UUID, Guides-table UUID, or custom ID)
@@ -43,13 +44,13 @@ export default createEndpoint({
       }
     }
 
-    if (!guideDbId) throw new ZiteError({ code: 'NOT_FOUND', message: 'Guide not found' });
+    if (!guideDbId) throw new AppError({ code: 'NOT_FOUND', message: 'Guide not found' });
 
     const bvslUser = await Users.findOne({ id: input.bvslUserId, fields: ['id', 'fullName'] });
-    if (!bvslUser) throw new ZiteError({ code: 'NOT_FOUND', message: 'BVSL user not found' });
+    if (!bvslUser) throw new AppError({ code: 'NOT_FOUND', message: 'BVSL user not found' });
 
     const joinToken = generateToken();
-    const joinUrl = `${process.env.ZITE_APP_URL}/join-group?token=${joinToken}`;
+    const joinUrl = `${process.env.APP_APP_URL}/join-group?token=${joinToken}`;
     const inviteText = `🙏 Hare Krishna!\n\nYou are invited to join *${input.groupName}*${bvslUser.fullName ? ` led by *${bvslUser.fullName}*` : ''}.\n\nClick to join: ${joinUrl}`;
 
     const group = await BvGroups.create({
@@ -58,6 +59,7 @@ export default createEndpoint({
         bvslLeader: input.bvslUserId,
         guide: guideDbId,
         description: input.description || '',
+        meetingTime: input.meetingTime || '',
         isActive: true,
         joinToken,
         whatsAppLink: `https://wa.me/?text=${encodeURIComponent(inviteText)}`,

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvMemberRegistrations, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvMemberRegistrations, AppError } from '@/lib/backend-sdk';
+import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 
 export default createEndpoint({
   description: 'Get overview stats and group list for BV Supervisor dashboard',
@@ -31,13 +32,40 @@ export default createEndpoint({
       context.user.isBvMentor;
 
     if (!isAuthorized) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Supervisor access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Supervisor access required' });
     }
 
-    // Fetch active groups
-    const { records: groups } = await BvGroups.findAll({ filters: { isActive: true }, limit: 500 });
-    const { records: members } = await BvGroupMembers.findAll({ limit: 2000 });
-    const { records: pending } = await BvMemberRegistrations.findAll({ filters: { status: 'Pending Approval' }, limit: 500 });
+    const scopedUserIds = await getScopedHierarchyUserIds(context.user);
+
+    // Fetch active groups and filter by user segment ('PW' vs 'FOLK')
+    const userSegment = context.user.segment || (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
+    const { records: rawGroups } = await BvGroups.findAll({ filters: { isActive: true }, limit: 500 });
+    let groups = rawGroups.filter((g: any) => (g.segment || 'PW') === userSegment);
+
+    // Apply hierarchy scoping if not Super Admin
+    if (scopedUserIds !== null) {
+      groups = groups.filter((g: any) => {
+        const bvslId = String(g.bvslId || '').toLowerCase();
+        const gGuide = String(g.guide || '').toLowerCase();
+        return (bvslId && scopedUserIds.has(bvslId)) || (gGuide && scopedUserIds.has(gGuide));
+      });
+    }
+
+    const { records: rawMembers } = await BvGroupMembers.findAll({ limit: 2000 });
+    const members = scopedUserIds === null
+      ? rawMembers
+      : rawMembers.filter((m: any) => {
+          const uId = String(m.userId || m.id || m.memberId || '').toLowerCase();
+          return uId && scopedUserIds.has(uId);
+        });
+
+    const { records: rawPending } = await BvMemberRegistrations.findAll({ filters: { status: 'Pending Approval' }, limit: 500 });
+    const pending = scopedUserIds === null
+      ? rawPending
+      : rawPending.filter((p: any) => {
+          const uId = String(p.userId || p.id || '').toLowerCase();
+          return uId && scopedUserIds.has(uId);
+        });
 
     // Count unique RGFs (bvslId in active groups)
     const uniqueRgfs = new Set(groups.map((g: any) => g.bvslId).filter(Boolean));

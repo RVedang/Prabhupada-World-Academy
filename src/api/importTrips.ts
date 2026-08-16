@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Trips, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Trips, AppError } from '@/lib/backend-sdk';
 
 function requireTripEditor(user: any) {
   const role = user.role || '';
   const ok = ['Guide', 'Super Guide'].includes(role) || !!user.isTripCoordinator;
-  if (!ok) throw new ZiteError({ code: 'FORBIDDEN', message: 'Trip Coordinator or Guide access required' });
+  if (!ok) throw new AppError({ code: 'FORBIDDEN', message: 'Trip Coordinator or Guide access required' });
 }
 
 const tripRowSchema = z.object({

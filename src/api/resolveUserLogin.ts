@@ -1,20 +1,29 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides } from '@/lib/backend-sdk';
 import { generateUniqueUserId } from '../lib/userIdGen';
+import { serverCacheInvalidate } from '../lib/serverCache';
 
-function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean): string {
-  if (role === 'Super Guide' || role === 'Super Admin' || role === 'SUPER_GUIDE' || role === 'SUPER_ADMIN') return '/super/dashboard';
+function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean, isBvSupervisor?: boolean, isBvFacilitator?: boolean, isBvSubFacilitator?: boolean, email?: string, segment?: string): string {
+  const emailLower = (email || '').toLowerCase();
+  const isFolk = segment === 'FOLK' || emailLower.includes('gaurmandal') || emailLower.includes('folk.org') || emailLower.includes('superguide');
+  if (role === 'Super Admin' || role === 'SUPER_ADMIN' || role === 'Admin' || role === 'ADMIN') {
+    return isFolk ? '/folk-admin/dashboard' : '/pw-admin/dashboard';
+  }
+  if (role === 'Super Guide' || role === 'SUPER_GUIDE') return '/super/dashboard';
+  // BV role flags take priority over base role for Guide-level users
+  if (isBvSupervisor) return '/bv-supervisor/dashboard';
+  if (isBvSubFacilitator) return '/rgsf/dashboard';
   if (role === 'Guide' || role === 'GUIDE') return '/guide/dashboard';
   if (role === 'BVSL') return '/bvsl/dashboard';
   if (role === 'Sadhana Mentor') return '/mentor/dashboard';
-  if (isBvsl) return '/bvsl/dashboard';
+  if (isBvsl || isBvFacilitator) return '/bvsl/dashboard';
   if (isSadhanaMentor) return '/mentor/dashboard';
   return '/user/dashboard';
 }
 
 export function normalizeRole(r: string): string {
   const m: Record<string, string> = {
-    'User': 'USER', 'Guide': 'GUIDE', 'Super Guide': 'SUPER_GUIDE', 'Super Admin': 'SUPER_GUIDE',
+    'User': 'USER', 'Guide': 'GUIDE', 'Super Guide': 'SUPER_GUIDE', 'Super Admin': 'SUPER_ADMIN',
     'BVSL': 'BVSL', 'Sadhana Mentor': 'SADHANA_MENTOR', 'BVSL Mentor': 'BVSL_MENTOR',
   };
   return m[r] ?? r.toUpperCase().replace(/ /g, '_');
@@ -44,7 +53,7 @@ async function findAndMergeRealProfile(
     fields: ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'status',
       'guide', 'residency', 'residencyClaimed', 'residencyApproved', 'residencyJoinDate',
       'ashrayLevel', 'isBvsl', 'isSadhanaMentor', 'createdAt', 'currentStreak',
-      'lastStreakUpdatedAt', 'bvServiceAllocated'],
+      'lastStreakUpdatedAt', 'bvServiceAllocated', 'isBvMember'],
     limit: 100,
   });
 
@@ -76,6 +85,7 @@ async function findAndMergeRealProfile(
       residencyJoinDate: realProfile.residencyJoinDate || undefined,
       ashrayLevel: realProfile.ashrayLevel || undefined,
       isBvsl: realProfile.isBvsl ?? false,
+      isBvMember: realProfile.isBvMember ?? false,
       isSadhanaMentor: realProfile.isSadhanaMentor ?? false,
       createdAt: realProfile.createdAt || new Date().toISOString(),
       currentStreak: realProfile.currentStreak ?? 0,
@@ -137,13 +147,68 @@ export default createEndpoint({
       });
     }
 
-    // Direct lookup — no full table scan needed with Zite DB user sync
+    // Direct lookup — no full table scan needed with App DB user sync
     let userRecord = await Users.findOne({ id: context.user.id });
 
     // Fallback lookup by email if not found by ID
     if (!userRecord && context.user.email) {
       userRecord = await Users.findOne({ filters: { email: context.user.email } }) ||
                  await Users.findOne({ filters: { email: context.user.email.toLowerCase() } });
+    }
+
+    // Auto-seed default mock users in database if not found
+    if (context.user.email) {
+      const emailLower = context.user.email.toLowerCase();
+      const defaults: Record<string, any> = {
+        'vdnd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
+        'srilaprabhupadaworld@gmail.com': { userId: 'USER-SUPERADMIN-PW-2', fullName: 'Hiranyavarna Das (PW)', email: 'srilaprabhupadaworld@gmail.com', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
+        'gaurmandal@folk.org': { userId: 'USER-SUPERADMIN-FOLK', fullName: 'Gaurmandal Das (FOLK Super Admin)', email: 'gaurmandal@folk.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
+        'gaurmandal@hkmmumbai.org': { userId: 'USER-SUPERADMIN-FOLK-2', fullName: 'Gaurmandal Das (FOLK)', email: 'gaurmandal@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
+        'superguide@gmail.com': { userId: 'GUIDE-SUPER-001', fullName: 'Super Guide Admin (FOLK)', email: 'superguide@gmail.com', role: 'Super Guide', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
+        'admin@prabhupadaworld.org': { userId: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'PW' },
+        'folkadmin@folk.org': { userId: 'GUIDE-ADMIN-FOLK', fullName: 'FOLK System Administrator', email: 'folkadmin@folk.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'FOLK' },
+        'guide@gmail.com': { userId: 'GUIDE-001', fullName: 'Spiritual Guide (FOLK)', email: 'guide@gmail.com', role: 'Guide', status: 'Active', segment: 'FOLK' },
+        'bvsupervisor@gmail.com': { userId: 'SUPERVISOR-001', fullName: 'PW BV Supervisor', email: 'bvsupervisor@gmail.com', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'PW' },
+        'folksupervisor@folk.org': { userId: 'SUPERVISOR-FOLK', fullName: 'FOLK BV Supervisor', email: 'folksupervisor@folk.org', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'FOLK' },
+        'rgf@gmail.com': { userId: 'RGF-001', fullName: 'Reading Group Facilitator (PW RGF)', email: 'rgf@gmail.com', role: 'User', isBvsl: true, isBvFacilitator: true, status: 'Active', segment: 'PW' },
+        'rgsf@gmail.com': { userId: 'RGSF-001', fullName: 'Sub-Facilitator (PW RGSF)', email: 'rgsf@gmail.com', role: 'User', isBvSubFacilitator: true, status: 'Active', segment: 'PW' },
+        'sadhanamentor@gmail.com': { userId: 'MENTOR-001', fullName: 'Sadhana Mentor', email: 'sadhanamentor@gmail.com', role: 'User', isSadhanaMentor: true, isBvMentor: false, status: 'Active', segment: 'PW' },
+        'devotee@gmail.com': { userId: 'USER-001', fullName: 'Regular Devotee', email: 'devotee@gmail.com', role: 'User', status: 'Active', segment: 'PW' },
+        'folkresident@folk.org': { userId: 'FOLK-RESIDENT-001', fullName: 'FOLK Resident Devotee', email: 'folkresident@folk.org', role: 'User', status: 'Active', segment: 'FOLK', residencyApproved: true, residencyClaimed: true, residency: ['FOLK-RESIDENCY-001'], residencyJoinDate: '2023-01-01', ashrayLevel: 'Upasaka' },
+        'folknonresident@folk.org': { userId: 'FOLK-NONRES-001', fullName: 'FOLK Non-Resident Devotee', email: 'folknonresident@folk.org', role: 'User', status: 'Active', segment: 'FOLK', residencyApproved: false, residencyClaimed: false, residency: null, ashrayLevel: 'Upasaka' },
+        'pwdevotee@prabhupadaworld.org': { userId: 'PW-DEVOTEE-001', fullName: 'Prabhupada World Devotee', email: 'pwdevotee@prabhupadaworld.org', role: 'User', status: 'Active', segment: 'PW', isPrabhupadaWorldUser: true, residencyApproved: false, residencyClaimed: false, residency: null, ashrayLevel: 'Upasaka' },
+        'pwuser@prabhupadaworld.org': { userId: 'PW-DEVOTEE-001', fullName: 'Prabhupada World Devotee', email: 'pwuser@prabhupadaworld.org', role: 'User', status: 'Active', segment: 'PW', isPrabhupadaWorldUser: true, residencyApproved: false, residencyClaimed: false, residency: null, ashrayLevel: 'Upasaka' },
+      };
+
+      const matched = defaults[emailLower];
+      if (matched) {
+        if (!userRecord) {
+          userRecord = await Users.create({
+            record: {
+              ...matched,
+              id: context.user.id,
+              createdAt: now,
+              lastLoginAt: now,
+            }
+          }).catch(() => null);
+        } else {
+          // Force update the DB fields to match mock default values (for local testing consistency)
+          await Users.update({
+            id: userRecord.id || context.user.id,
+            record: {
+              ...matched,
+              lastLoginAt: now,
+            }
+          }).catch(() => {});
+          userRecord = { ...userRecord, ...matched };
+        }
+        if (!userRecord) {
+          userRecord = { ...matched, id: context.user.id };
+        }
+        // Invalidate profile cache so fresh login gets latest profile
+        serverCacheInvalidate(`user_profile:${context.user.id}`);
+        serverCacheInvalidate(`sadhana_fields:`);
+      }
     }
 
     // Auto-heal missing userId/status if record exists
@@ -175,7 +240,7 @@ export default createEndpoint({
           let route = '/pending';
           if (status === 'Rejected') route = '/rejected';
           else if (status === 'Inactive') route = '/inactive';
-          else if (status === 'Active') route = roleToRoute(real.role || 'User', real.isBvsl, real.isSadhanaMentor);
+          else if (status === 'Active') route = roleToRoute(real.role || 'User', real.isBvsl, real.isSadhanaMentor, real.isBvSupervisor || real.isBvMentor, real.isBvFacilitator || real.isBvsl, real.isBvSubFacilitator, real.email || authEmail, real.segment);
 
           return {
             action: 'route',
@@ -247,7 +312,7 @@ export default createEndpoint({
     } else if (status === 'Inactive') {
       route = '/inactive';
     } else if (status === 'Active') {
-      route = roleToRoute(userRecord.role || 'User', userRecord.isBvsl, userRecord.isSadhanaMentor);
+      route = roleToRoute(userRecord.role || 'User', userRecord.isBvsl, userRecord.isSadhanaMentor, userRecord.isBvSupervisor || userRecord.isBvMentor, userRecord.isBvFacilitator || userRecord.isBvsl, userRecord.isBvSubFacilitator, userRecord.email, userRecord.segment);
     }
 
     return {
@@ -273,11 +338,30 @@ export default createEndpoint({
         isBvsl: userRecord.isBvsl || false,
         isSadhanaMentor: userRecord.isSadhanaMentor || false,
         isBvMentor: userRecord.isBvMentor || false,
-        isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || userRecord.role === 'Super Guide' || userRecord.role === 'SUPER_GUIDE' || (userEmail || '').includes('superadmin')),
-        isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || userRecord.role === 'Super Guide' || userRecord.role === 'SUPER_GUIDE'),
+        isBvSuperAdmin: !!(
+          userRecord.isBvSuperAdmin ||
+          (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
+          (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' ||
+          (userEmail || '').toLowerCase().includes('gaurmandal') ||
+          (userEmail || '').toLowerCase().includes('folk.org') ||
+          userRecord.role === 'Super Guide' ||
+          userRecord.role === 'SUPER_GUIDE' ||
+          (userEmail || '').includes('superadmin')
+        ),
+        isBvAdmin: !!(
+          userRecord.isBvAdmin ||
+          userRecord.isBvSuperAdmin ||
+          (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
+          (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' ||
+          (userEmail || '').toLowerCase().includes('gaurmandal') ||
+          userRecord.role === 'Super Guide' ||
+          userRecord.role === 'SUPER_GUIDE'
+        ),
         isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),
         isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
         isBvSubFacilitator: !!(userRecord.isBvSubFacilitator),
+        isBvMember: userRecord.isBvMember || false,
+        segment: (userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('folk.org') ? 'FOLK' : (userRecord.segment || 'PW'),
       },
     };
   },

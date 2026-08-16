@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError, Email } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError, Email } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 import { enrollUserOnTagMango } from '../lib/tagMangoEnroll';
@@ -31,14 +31,14 @@ export default createEndpoint({
       id: input.userId,
       fields: ['id', 'email', 'fullName', 'residency', 'guide', 'phone', 'ashrayLevel', 'tagMangoEnrollmentAttempts'],
     });
-    if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     // Authorization: regular guides can only approve users in their center
     if (!isSuperGuide) {
       const scope = await getGuideScope(context.user.email);
-      if (!scope) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+      if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
       if (!isUserInGuideScope(scope, userRecord)) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only approve users in your center' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'You can only approve users in your center' });
       }
     }
 
@@ -62,7 +62,7 @@ export default createEndpoint({
     // Email: approval confirmation to the devotee
     try {
       if (userRecord?.email) {
-        const appUrl = process.env.ZITE_APP_URL ?? '';
+        const appUrl = process.env.APP_APP_URL ?? '';
         await Email.send({
           to: userRecord.email as string,
           subject: '✅ You Are Approved! Start Your Sadhana Today | FOLK Sadhana Tracker',

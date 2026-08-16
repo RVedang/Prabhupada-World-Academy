@@ -8,7 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { LayoutGrid, List, Download, ChevronDown, ChevronRight, Users, Calendar, XCircle, TrendingUp, Smartphone, Clock } from 'lucide-react';
-import { getMissingSadhanaReport, getAllResidencies } from 'zite-endpoints-sdk';
+import { getMissingSadhanaReport, getAllResidencies } from '@/lib/endpoints-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { exportToCsv } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import {
@@ -145,7 +146,7 @@ const STICKY = {
   status: { left: '390px', width: '70px'  },
 } as const;
 
-function MatrixView({ data }: { data: ReportData }) {
+function MatrixView({ data, isPw }: { data: ReportData; isPw: boolean }) {
   const { users, dates, matrix } = data;
   if (users.length === 0) return <p className="text-center text-sm text-muted-foreground py-8">No users found.</p>;
 
@@ -169,14 +170,18 @@ function MatrixView({ data }: { data: ReportData }) {
             <th style={{ left: STICKY.guide.left, minWidth: STICKY.guide.width }} className="hidden md:table-cell sticky z-20 bg-muted text-left px-3 py-2.5 font-semibold border-r border-border/60">
               Guide
             </th>
-            {/* Center — hidden on mobile */}
-            <th style={{ left: STICKY.center.left, minWidth: STICKY.center.width }} className="hidden md:table-cell sticky z-20 bg-muted text-left px-3 py-2.5 font-semibold border-r border-border/60">
-              Center
-            </th>
-            {/* Status — hidden on mobile */}
-            <th style={{ left: STICKY.status.left, minWidth: STICKY.status.width }} className="hidden md:table-cell sticky z-20 bg-muted text-center px-2 py-2.5 font-semibold border-r border-border">
-              Status
-            </th>
+            {/* Center — hidden on mobile (hidden in PW) */}
+            {!isPw && (
+              <th style={{ left: STICKY.center.left, minWidth: STICKY.center.width }} className="hidden md:table-cell sticky z-20 bg-muted text-left px-3 py-2.5 font-semibold border-r border-border/60">
+                Center
+              </th>
+            )}
+            {/* Status — hidden on mobile (hidden in PW) */}
+            {!isPw && (
+              <th style={{ left: STICKY.status.left, minWidth: STICKY.status.width }} className="hidden md:table-cell sticky z-20 bg-muted text-center px-2 py-2.5 font-semibold border-r border-border">
+                Status
+              </th>
+            )}
             {/* Date columns */}
             {dates.map(date => (
               <th
@@ -218,14 +223,18 @@ function MatrixView({ data }: { data: ReportData }) {
                 <td style={{ left: STICKY.guide.left, minWidth: STICKY.guide.width }} className={`hidden md:table-cell sticky z-10 ${rowBg} px-3 py-1.5 border-r border-border/20`}>
                   <span className="text-xs text-muted-foreground truncate block">{u.guideName || '—'}</span>
                 </td>
-                {/* Center — hidden on mobile */}
-                <td style={{ left: STICKY.center.left, minWidth: STICKY.center.width }} className={`hidden md:table-cell sticky z-10 ${rowBg} px-3 py-1.5 border-r border-border/20`}>
-                  <span className="text-xs text-muted-foreground truncate block">{u.residencyName ? u.residencyName.replace(/^FOLK\s+/i, '') : '—'}</span>
-                </td>
-                {/* Status — hidden on mobile */}
-                <td style={{ left: STICKY.status.left, minWidth: STICKY.status.width }} className={`hidden md:table-cell sticky z-10 ${rowBg} px-2 py-1.5 text-center border-r border-border/40`}>
-                  <StatusBadge type={u.residencyType} />
-                </td>
+                {/* Center — hidden on mobile (hidden in PW) */}
+                {!isPw && (
+                  <td style={{ left: STICKY.center.left, minWidth: STICKY.center.width }} className={`hidden md:table-cell sticky z-10 ${rowBg} px-3 py-1.5 border-r border-border/20`}>
+                    <span className="text-xs text-muted-foreground truncate block">{u.residencyName ? u.residencyName.replace(/^FOLK\s+/i, '') : '—'}</span>
+                  </td>
+                )}
+                {/* Status — hidden on mobile (hidden in PW) */}
+                {!isPw && (
+                  <td style={{ left: STICKY.status.left, minWidth: STICKY.status.width }} className={`hidden md:table-cell sticky z-10 ${rowBg} px-2 py-1.5 text-center border-r border-border/40`}>
+                    <StatusBadge type={u.residencyType} />
+                  </td>
+                )}
                 {/* Date cells */}
                 {dates.map(date => {
                   const status: CellStatus = userDates[date] || 'missed';
@@ -246,8 +255,8 @@ function MatrixView({ data }: { data: ReportData }) {
             </td>
             <td style={{ left: STICKY.missed.left }} className="sticky z-10 bg-muted border-r border-border/40" />
             <td style={{ left: STICKY.guide.left }} className="hidden md:table-cell sticky z-10 bg-muted border-r border-border/20" />
-            <td style={{ left: STICKY.center.left }} className="hidden md:table-cell sticky z-10 bg-muted border-r border-border/20" />
-            <td style={{ left: STICKY.status.left }} className="hidden md:table-cell sticky z-10 bg-muted border-r border-border/40" />
+            {!isPw && <td style={{ left: STICKY.center.left }} className="hidden md:table-cell sticky z-10 bg-muted border-r border-border/20" />}
+            {!isPw && <td style={{ left: STICKY.status.left }} className="hidden md:table-cell sticky z-10 bg-muted border-r border-border/40" />}
             {dates.map(date => {
               const missedDay = users.filter(u => matrix[u.id]?.[date] === 'missed').length;
               const lateDay = users.filter(u => matrix[u.id]?.[date] === 'late').length;
@@ -303,15 +312,13 @@ function ListView({ data }: { data: ReportData }) {
         const allGood = missing.length === 0 && late.length === 0;
         return (
           <Collapsible key={date} open={isOpen} onOpenChange={toggle}>
-            <CollapsibleTrigger asChild>
-              <button
-                className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-card hover:bg-muted/40 transition-colors text-left"
-                onClick={toggle}
-              >
-                <div className="flex items-center gap-3">
-                  {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
-                  <span className="font-medium text-sm">{dateLabel}</span>
-                </div>
+            <CollapsibleTrigger
+              className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-card hover:bg-muted/40 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                <span className="font-medium text-sm">{dateLabel}</span>
+              </div>
                 <div className="flex items-center gap-1.5">
                   {allGood ? (
                     <Badge variant="outline" className="text-xs text-green-600 dark:text-green-400 border-green-500/40">All submitted 🎉</Badge>
@@ -330,7 +337,6 @@ function ListView({ data }: { data: ReportData }) {
                     </>
                   )}
                 </div>
-              </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="mt-1 px-4 pb-3 rounded-b-lg space-y-3 pt-2">
@@ -518,13 +524,27 @@ const PERIOD_LABELS: { value: Period; label: string }[] = [
   { value: 'custom',     label: 'Custom' },
 ];
 
-interface Props { guideId: string; }
+interface Props { guideId?: string; segment?: 'PW' | 'FOLK'; }
 
-export default function MissingSadhanaTab({ guideId }: Props) {
+export default function MissingSadhanaTab({ guideId, segment }: Props) {
+  const { profile } = useUserProfile();
+  const userEmail = (profile?.userId || '').toLowerCase();
+  const isSuperAdmin = !!(
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE' ||
+    userEmail.includes('gaurmandal') ||
+    userEmail.includes('superadmin') ||
+    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'srilaprabhupadaworld@gmail.com'
+  );
+
+  const isPw = segment === 'PW' || profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+
   const [period, setPeriod] = useState<Period>('last-week');
   const [customStart, setCustomStart] = useState(() => format(subWeeks(new Date(), 2), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd]     = useState(() => format(subWeeks(new Date(), 1), 'yyyy-MM-dd'));
-  const [residencyId, setResidencyId] = useState('all');
+  const [residencyId, setResidencyId] = useState(() => (isSuperAdmin ? 'all' : (profile as any)?.folkResidencyCustomId || 'all'));
   const [view, setView] = useState<ViewMode>('matrix');
   const [hideZeroMissed, setHideZeroMissed] = useState(false);
   const [guideFilter, setGuideFilter] = useState('all');
@@ -538,10 +558,10 @@ export default function MissingSadhanaTab({ guideId }: Props) {
     if (window.innerWidth < 768) setView('cards');
   }, []);
 
-  // Fetch residency list
+  // Fetch residency list — pass segment so PW is excluded for FOLK dashboards
   useEffect(() => {
-    getAllResidencies({}).then(setResidencies).catch(() => {});
-  }, []);
+    getAllResidencies({ segment: isPw ? 'PW' : 'FOLK' } as any).then(setResidencies).catch(() => {});
+  }, [isPw]);
 
   const { start, end } = getDateRange(period, customStart, customEnd);
 
@@ -554,6 +574,7 @@ export default function MissingSadhanaTab({ guideId }: Props) {
         endDate: end,
         guideId: guideId === 'ALL' ? undefined : guideId,
         residencyId: residencyId !== 'all' ? residencyId : undefined,
+        segment: isPw ? 'PW' : 'FOLK',
       });
       setData(res as ReportData);
     } catch (e: any) {
@@ -561,14 +582,38 @@ export default function MissingSadhanaTab({ guideId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [start, end, guideId, residencyId, period, customStart, customEnd]);
+  }, [start, end, guideId, residencyId, period, customStart, customEnd, isPw]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Filtered data — client-side guide/status/hideZero filters
+  // Filtered data — client-side guide/status/hideZero filters and self-exclusion
   const filteredData = useMemo(() => {
     if (!data) return null;
     let users = data.users;
+
+    // Filter out logged in user's own profile and admin/super admin accounts
+    const myId = ((profile as any)?.id || profile?.userId || '').toLowerCase();
+    const myEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
+    const myName = (profile?.fullName || '').toLowerCase();
+
+    users = users.filter(u => {
+      const uId = (u.id || (u as any).userId || '').toLowerCase();
+      const uEmail = (u.email || (u as any).userId || '').toLowerCase();
+      const uName = (u.fullName || '').toLowerCase();
+
+      const isSelf = !!(
+        (myId && uId && myId === uId) ||
+        (myEmail && uEmail && myEmail === uEmail) ||
+        (myName && uName && myName.length > 3 && myName === uName) ||
+        (uName.includes('system administrator'))
+      );
+
+      if (isSelf) return false;
+      const isUserAdmin = uName.includes('admin') || uEmail.includes('admin');
+      if (isUserAdmin) return false;
+      return true;
+    });
+
     if (guideFilter !== 'all') users = users.filter(u => u.guideId === guideFilter);
     if (statusFilter !== 'all') users = users.filter(u => u.residencyType === statusFilter);
     if (hideZeroMissed) {
@@ -654,19 +699,25 @@ export default function MissingSadhanaTab({ guideId }: Props) {
 
       {/* Controls row 2: Filters + view toggle + export */}
       <div className="flex flex-wrap gap-2 items-center">
-        {/* Server-side residency filter */}
-        {showResidencyFilter && (
-          <Select value={residencyId} onValueChange={setResidencyId}>
+        {/* Server-side residency filter — hidden for Prabhupada World */}
+        {!isPw && showResidencyFilter && isSuperAdmin && (
+          <Select value={residencyId} onValueChange={(v: string | null) => { if (v) setResidencyId(v); }}>
             <SelectTrigger className="h-8 text-xs w-44">
-              <SelectValue placeholder="All Residencies" />
+              <SelectValue>
+                {residencyId === 'all'
+                  ? 'All Residencies'
+                  : residencies.find((r: any) => r.residencyId === residencyId)?.residencyName.replace(/^FOLK\s+/i, '') || 'All Residencies'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Residencies</SelectItem>
-              {residencies.map(r => (
-                <SelectItem key={r.residencyId} value={r.residencyId}>
-                  {r.residencyName.replace(/^FOLK\s+/i, '')}
-                </SelectItem>
-              ))}
+              {residencies
+                .filter((r: any) => !r.residencyName?.includes('Prabhupada World') && !r.residencyName?.includes('PW'))
+                .map((r: any) => (
+                  <SelectItem key={r.residencyId} value={r.residencyId}>
+                    {r.residencyName.replace(/^FOLK\s+/i, '')}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         )}
@@ -674,30 +725,44 @@ export default function MissingSadhanaTab({ guideId }: Props) {
         {/* Client-side guide filter */}
         {showGuideFilter && (
           <Select value={guideFilter} onValueChange={setGuideFilter}>
-            <SelectTrigger className="h-8 text-xs w-40">
-              <SelectValue placeholder="All Guides" />
+            <SelectTrigger className="h-8 text-xs w-44">
+              <span className="truncate">
+                {guideFilter === 'all'
+                  ? (isPw ? 'All Admins / Mentors' : 'All Guides')
+                  : (data?.guides?.find((g: any) => g.id === guideFilter)?.name || 'All Guides')}
+              </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Guides</SelectItem>
-              {data!.guides.map(g => (
-                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-              ))}
+              <SelectItem value="all">{isPw ? "All Admins / Mentors" : "All Guides"}</SelectItem>
+              {data!.guides
+                .filter((g: any) =>
+                  isPw
+                    ? (g.isPrabhupadaWorldMentor || g.email?.includes('prabhupada') || g.email?.includes('hkmmumbai') || g.email?.includes('vdnd'))
+                    : (!g.isPrabhupadaWorldMentor && !g.email?.includes('prabhupada') && !g.email?.toLowerCase().includes('pw') && !g.name?.includes('Prabhupada World') && !g.name?.includes('PW System'))
+                )
+                .map((g: any) => (
+                  <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                ))}
             </SelectContent>
           </Select>
         )}
 
-        {/* Client-side status filter */}
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-8 text-xs w-36">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="Resident">Resident</SelectItem>
-            <SelectItem value="Scholar">Scholar</SelectItem>
-            <SelectItem value="Non-Resident">Non-Resident</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Client-side status filter — hidden for Prabhupada World */}
+        {!isPw && (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 text-xs w-36">
+              <span className="truncate">
+                {statusFilter === 'all' ? 'All Statuses' : statusFilter}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="Resident">Resident</SelectItem>
+              <SelectItem value="Scholar">Scholar</SelectItem>
+              <SelectItem value="Non-Resident">Non-Resident</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
         {/* Hide 0 missed toggle */}
         <div className="flex items-center gap-1.5">
@@ -775,7 +840,7 @@ export default function MissingSadhanaTab({ guideId }: Props) {
               No users found for the selected filters.
             </div>
           ) : view === 'matrix' ? (
-            <MatrixView data={filteredData} />
+            <MatrixView data={filteredData} isPw={isPw} />
           ) : view === 'list' ? (
             <ListView data={filteredData} />
           ) : (

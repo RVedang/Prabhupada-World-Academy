@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvSessions, BvAttendance, BvGroupMembers, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvSessions, BvAttendance, BvGroupMembers, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Mark a user present or absent in a specific BV session, or by date',
@@ -14,7 +14,19 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     const isPresent = input.present ?? (input.status === 'P');
-    const uid = input.userId || context.user!.id;
+
+    // Resolve canonical user keys (id, userId, email)
+    const targetUserId = input.userId || context.user!.id;
+    let uid = targetUserId;
+    const userKeys = new Set<string>();
+    userKeys.add(String(targetUserId).toLowerCase());
+    if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
+    if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
+
+    if (input.userId) {
+      const uRec = await BvAttendance.findOne({ filters: { id: input.userId }, fields: ['id'] }).catch(() => null);
+      if (uRec) uid = uRec.id;
+    }
 
     // If sessionId is given, mark attendance for that session
     if (input.sessionId) {
@@ -22,15 +34,20 @@ export default createEndpoint({
         id: input.sessionId,
         fields: ['id', 'sessionDate', 'group'],
       });
-      if (!session) throw new ZiteError({ code: 'NOT_FOUND', message: 'Session not found' });
+      if (!session) throw new AppError({ code: 'NOT_FOUND', message: 'Session not found' });
 
       const sessionDate = String(session.sessionDate || '').slice(0, 10);
       const groupId = Array.isArray(session.group) ? session.group[0] : session.group as string | undefined;
 
-      // Try to find existing record by group+date (new approach) or by session (legacy)
-      let existing = groupId && sessionDate
-        ? await BvAttendance.findOne({ filters: { group: groupId, attendanceDate: sessionDate, user: uid } })
-        : await BvAttendance.findOne({ filters: { session: input.sessionId, user: uid } });
+      const { records: dateRecords } = await BvAttendance.findAll({
+        filters: { attendanceDate: sessionDate },
+        limit: 1000,
+      }).catch(() => ({ records: [] }));
+
+      const existing = dateRecords.find((a: any) => {
+        const u = Array.isArray(a.user) ? a.user[0] : a.user;
+        return userKeys.has(String(u || '').toLowerCase());
+      });
 
       if (existing) {
         await BvAttendance.update({ id: existing.id, record: { present: isPresent } });
@@ -50,47 +67,48 @@ export default createEndpoint({
 
     // If localDate given — find user's group and mark attendance directly by group+date
     if (input.localDate) {
-      // Get user's group membership
-      const membershipRes = await BvGroupMembers.findAll({
-        filters: { user: uid },
-        limit: 1,
-        fields: ['id', 'group'],
-      });
-      const groupId = membershipRes.records[0]
-        ? (Array.isArray(membershipRes.records[0].group) ? membershipRes.records[0].group[0] : membershipRes.records[0].group as string)
-        : null;
+      // Find all BvAttendance records for this date
+      const { records: dateRecords } = await BvAttendance.findAll({
+        filters: { attendanceDate: input.localDate },
+        limit: 1000,
+      }).catch(() => ({ records: [] }));
 
-      if (!groupId) {
-        // Not in a group — silently succeed
-        return { success: true };
-      }
-
-      // Try new approach: find by group+date
-      const existing = await BvAttendance.findOne({
-        filters: { group: groupId, attendanceDate: input.localDate, user: uid },
+      const existing = dateRecords.find((a: any) => {
+        const u = Array.isArray(a.user) ? a.user[0] : a.user;
+        return userKeys.has(String(u || '').toLowerCase());
       });
 
       if (existing) {
         await BvAttendance.update({ id: existing.id, record: { present: isPresent } });
-      } else {
-        // Check if there's a session for this date to link to (backward compat)
-        const session = await BvSessions.findOne({
-          filters: { group: groupId, sessionDate: input.localDate },
-          fields: ['id'],
-        });
-        await BvAttendance.create({
-          record: {
-            user: uid,
-            present: isPresent,
-            attendanceDate: input.localDate,
-            group: groupId,
-            ...(session ? { session: session.id } : {}),
-          },
-        });
+        return { success: true };
       }
+
+      // Get user's group membership if any
+      const membershipRes = await BvGroupMembers.findAll({
+        filters: { user: uid },
+        limit: 1,
+        fields: ['id', 'group'],
+      }).catch(() => ({ records: [] }));
+      const groupId = membershipRes.records[0]
+        ? (Array.isArray(membershipRes.records[0].group) ? membershipRes.records[0].group[0] : membershipRes.records[0].group as string)
+        : null;
+
+      const session = groupId
+        ? await BvSessions.findOne({ filters: { group: groupId, sessionDate: input.localDate }, fields: ['id'] }).catch(() => null)
+        : null;
+
+      await BvAttendance.create({
+        record: {
+          user: uid,
+          present: isPresent,
+          attendanceDate: input.localDate,
+          ...(groupId ? { group: groupId } : {}),
+          ...(session ? { session: session.id } : {}),
+        },
+      });
       return { success: true };
     }
 
-    throw new ZiteError({ code: 'BAD_REQUEST', message: 'sessionId or localDate is required' });
+    throw new AppError({ code: 'BAD_REQUEST', message: 'sessionId or localDate is required' });
   },
 });

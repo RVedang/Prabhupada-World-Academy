@@ -12,8 +12,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { format, addDays } from 'date-fns';
 import { Download, RefreshCw, Trash2, Pencil, PlusCircle, UserCheck, UserX, Bell, RotateCw, ClipboardList, CheckCircle, XCircle, Shield, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAllocationBoard, autoGenerateAllocation, updateAllocation, getResidentsForAllocation, createAllocation, getResidenciesForGuide, copyLastWeekAllocation, getServiceRotation, publishAllocation, getUnavailabilityRequests, approveUnavailability } from 'zite-endpoints-sdk';
-import type { GetAllocationBoardOutputType, GetResidentsForAllocationOutputType, GetServiceRotationOutputType, GetUnavailabilityRequestsOutputType } from 'zite-endpoints-sdk';
+import { getAllocationBoard, autoGenerateAllocation, updateAllocation, getResidentsForAllocation, createAllocation, getResidenciesForGuide, copyLastWeekAllocation, getServiceRotation, publishAllocation, getUnavailabilityRequests, approveUnavailability } from '@/lib/endpoints-sdk';
+import type { GetAllocationBoardOutputType, GetResidentsForAllocationOutputType, GetServiceRotationOutputType, GetUnavailabilityRequestsOutputType } from '@/lib/endpoints-sdk';
 import WeekPlannerDialog from './WeekPlannerDialog';
 
 import { SERVICE_DAY_LABELS as DAY_LABELS, SERVICE_DAYS, getCurrentServiceWeekStart, getServiceWeekByOffset } from '@/lib/serviceWeek';

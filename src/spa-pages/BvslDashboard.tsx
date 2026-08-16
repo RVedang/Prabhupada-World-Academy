@@ -1,12 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Users, CheckSquare, BarChart3, BookOpen, FileText, Brain, GraduationCap, CalendarClock, ClipboardList, Clock } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Users, CheckSquare, BarChart3, BookOpen, FileText, Brain, GraduationCap, CalendarClock, ClipboardList, Clock, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { getBvslGroups, getPendingBvRegistrations } from 'zite-endpoints-sdk';
+import { getBvslGroups, getPendingBvRegistrations, getCurrentGuide } from '@/lib/endpoints-sdk';
 import { useNavigate } from 'react-router-dom';
-import type { GetBvslGroupsOutputType } from 'zite-endpoints-sdk';
+import type { GetBvslGroupsOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { DashboardLayout } from '@/layouts';
 import { LoadingPage } from '@/shared';
 import TabRouter from '@/shared/TabRouter';
@@ -21,6 +21,7 @@ import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
 import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
 import { Toaster } from '@/components/ui/sonner';
+import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 
 export default function BvslDashboard() {
   const { profile } = useUserProfile();
@@ -29,8 +30,23 @@ export default function BvslDashboard() {
   const [groups, setGroups] = useState<GetBvslGroupsOutputType['groups']>([]);
   const [loading, setLoading] = useState(true);
   const [bvRegCount, setBvRegCount] = useState(0);
+  const [displayName, setDisplayName] = useState('');
+
+  // Determine segment and institutional default name early so effects can use them
+  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+  const defaultName = isFolk ? 'Gaurmandal Das' : 'Hiranyavarna Das';
+  const isSuperAdmin = !!(profile?.isBvSuperAdmin || profile?.role === 'SUPER_ADMIN' || profile?.isBvAdmin);
 
   useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId]);
+
+  useEffect(() => {
+    // Super Admins always show the institutional name — skip getCurrentGuide for them
+    if (authUser?.email && !isSuperAdmin) {
+      getCurrentGuide({ email: authUser.email }).then(r => {
+        if (r.guide?.fullName) setDisplayName(r.guide.fullName);
+      }).catch(() => {});
+    }
+  }, [authUser?.email, isSuperAdmin]);
 
   const loadGroups = useCallback(async () => {
     const bvslId = profile?.userId;
@@ -71,11 +87,15 @@ export default function BvslDashboard() {
     { value: 'report',    label: 'Sadhana',     icon: FileText },
     { value: 'members',   label: 'Members',     icon: BarChart3 },
     ...(canView1on1 ? [{ value: 'onetone', label: '1:1 Call Reports', icon: CalendarClock }] : []),
+    { value: 'meetings',  label: 'Meetings & MoM', icon: Video },
   ];
 
-  const roleTitle = isSubFacilitatorOnly ? 'Reading Group Sub-Facilitator' : 'Reading Group Facilitator';
+  // Super Admins always display the institutional name; regular facilitators show their own guide name
+  const headerName = isSuperAdmin ? defaultName : (displayName || defaultName);
+  const roleTitle = isSubFacilitatorOnly ? 'Reading Group Sub-Facilitator Dashboard' : 'Reading Group Facilitator Dashboard';
   const subtitle = [
-    roleTitle,
+    `Hare Krishna ${headerName} Prabhu`,
+    isSubFacilitatorOnly ? 'Sub-Facilitator (RGSF)' : 'Facilitator (RGF)',
     profile.ashrayLevel ? `Ashray: ${profile.ashrayLevel}` : null,
     profile.guideName ? `Guide: ${profile.guideName}` : null,
     profile.residencyName ? `FOLK: ${profile.residencyName}` : null,
@@ -83,13 +103,14 @@ export default function BvslDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna, ${profile.fullName} Prabhu`}
+      title={roleTitle}
       subtitle={subtitle}
+      role={profile.isBvSubFacilitator ? 'RGSF' : 'RGF'}
       maxWidth="max-w-6xl"
     >
       <Toaster />
       {loading ? <LoadingPage rows={2} /> : (
-        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={9}>
+        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={canView1on1 ? 10 : 9}>
           {(activeTab) => (
             <>
               {activeTab === 'weekplan' && <BvslWeeklyPlanTab userEmail={authUser?.email || ''} />}
@@ -110,6 +131,7 @@ export default function BvslDashboard() {
                 />
               )}
               {activeTab === 'onetone' && <BvslOneToOneTab />}
+              {activeTab === 'meetings' && <MeetingsAndMomTab />}
             </>
           )}
         </TabRouter>

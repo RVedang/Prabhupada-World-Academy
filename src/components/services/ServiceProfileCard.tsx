@@ -3,8 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp, Star, Flame, CheckCircle2 } from 'lucide-react';
-import { getServiceProfile } from 'zite-endpoints-sdk';
-import type { GetServiceProfileOutputType } from 'zite-endpoints-sdk';
+import { getServiceProfile } from '@/lib/endpoints-sdk';
+import type { GetServiceProfileOutputType } from '@/lib/endpoints-sdk';
 
 interface Props { userId?: string; }
 

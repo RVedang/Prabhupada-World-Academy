@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint } from 'zite-integrations-backend-sdk';
+import { createEndpoint } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   authenticated: true,
@@ -18,8 +18,8 @@ export default createEndpoint({
     totalBooks: z.number(),
   }),
   async execute({ input }) {
-    const supabaseUrl = process.env.ZITE_SUPABASE_URL;
-    const supabaseKey = process.env.ZITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.APP_SUPABASE_URL;
+    const supabaseKey = process.env.APP_SUPABASE_ANON_KEY;
 
     // Step 1: Look up volunteer by email
     const volRes = await fetch(

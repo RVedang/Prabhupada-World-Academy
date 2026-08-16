@@ -9,11 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getSadhanaStats, getUserProgressStats } from 'zite-endpoints-sdk';
+import { getSadhanaStats, getUserProgressStats } from '@/lib/endpoints-sdk';
 import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS, FieldConfig } from '@/components/stats/FieldTrendChart';
 import { scoreColor } from '@/lib/scoring';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { ASHRAY_LEVELS } from '@/types/enums';
+
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type Period = '7d' | '30d' | '90d' | 'current_month' | 'prev_month';
 type ResidencyFilter = 'all' | 'resident' | 'non_resident' | 'scholar';
@@ -74,8 +76,12 @@ function TrendIcon({ trend }: { trend: 'up' | 'down' | 'flat' }) {
 interface Props { guideId: string; bvslMode?: boolean; mentorMode?: boolean; }
 
 export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Props) {
+  const { profile } = useUserProfile();
+  const userEmail = (profile?.userId || '').toLowerCase();
+  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+
   const [period, setPeriod] = useState<Period>('30d');
-  const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>('resident');
+  const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(isPw ? 'all' : 'resident');
   const [folkResidencyId, setFolkResidencyId] = useState<string>('all');
   const [ashrayFilter, setAshrayFilter] = useState<string>('all');
 
@@ -99,6 +105,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
       residencyFilter: (residencyFilter === 'all' ? undefined : residencyFilter) as any,
       folkResidencyId: folkResidencyId === 'all' ? undefined : folkResidencyId,
       ashrayLevel: ashrayFilter === 'all' ? undefined : ashrayFilter,
+      segment: isPw ? 'PW' : 'FOLK',
     }).then(data => {
       setGroupStats(data);
       // Only update residencies when we actually get some (don't clear on filtered fetches)
@@ -106,7 +113,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
         setResidencies(data.availableResidencies);
       }
     }).catch(() => {}).finally(() => setGroupLoading(false));
-  }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter]);
+  }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter, isPw]);
 
   // Reset user when filters change
   useEffect(() => { setSelectedUserId(''); setUserStats(null); }, [residencyFilter, folkResidencyId, period]);
@@ -167,43 +174,49 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
               </div>
             </div>
 
-            {/* Residency */}
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">Residency:</Label>
-              <Select value={residencyFilter} onValueChange={(v) => { if (v) setResidencyFilter(v); }}>
-                <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="resident">Residents</SelectItem>
-                  <SelectItem value="non_resident">Non-Residents</SelectItem>
-                  <SelectItem value="scholar">Scholars</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {!isPw && (
+              <>
+                {/* Residency */}
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">Residency:</Label>
+                  <Select value={residencyFilter} onValueChange={(v) => { if (v) setResidencyFilter(v); }}>
+                    <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="resident">Residents</SelectItem>
+                      <SelectItem value="non_resident">Non-Residents</SelectItem>
+                      <SelectItem value="scholar">Scholars</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* FOLK — uses separate residencies state so dropdown never disappears */}
-            {residencies.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">FOLK:</Label>
-                <Select value={folkResidencyId} onValueChange={(v) => setFolkResidencyId(v || 'all')}>
-                  <SelectTrigger className="h-8 w-[140px]">
-                    {residencyFilter === 'all' ? 'All Members' : residencyFilter === 'resident' ? 'Residents' : residencyFilter === 'non_resident' ? 'Non-Residents' : 'Scholars'}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {residencies.map(r => (
-                      <SelectItem key={r.residencyId} value={r.residencyId}>{r.residencyName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                {/* FOLK — uses separate residencies state so dropdown never disappears */}
+                {residencies.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">FOLK:</Label>
+                    <Select value={folkResidencyId} onValueChange={(v) => setFolkResidencyId(v || 'all')}>
+                      <SelectTrigger className="h-8 w-[140px]">
+                        {residencyFilter === 'all' ? 'All Members' : residencyFilter === 'resident' ? 'Residents' : residencyFilter === 'non_resident' ? 'Non-Residents' : 'Scholars'}
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {residencies.map(r => (
+                          <SelectItem key={r.residencyId} value={r.residencyId}>{r.residencyName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Ashray */}
             <div className="flex items-center gap-1.5">
               <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">Ashraya:</Label>
               <Select value={ashrayFilter} onValueChange={(v) => setAshrayFilter(v || 'all')}>
-                <SelectTrigger className="h-7 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 w-[120px] text-xs">
+                  <SelectValue>{ashrayFilter === 'all' ? 'All Levels' : ashrayFilter}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
                   {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}

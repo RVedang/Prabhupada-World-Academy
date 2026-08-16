@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trophy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfISOWeek, endOfISOWeek } from 'date-fns';
-import type { GetBvAttendanceOutputType } from 'zite-endpoints-sdk';
+import type { GetBvAttendanceOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type LeaderboardEntry = GetBvAttendanceOutputType['leaderboard'][0];

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvQuizzes, BvQuizSubmissions, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvQuizzes, BvQuizSubmissions, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Submit answers for a BV quiz and get the result',
@@ -18,10 +18,10 @@ export default createEndpoint({
     const existing = await BvQuizSubmissions.findOne({
       filters: { user: context.user.id, quiz: input.quizId },
     });
-    if (existing) throw new ZiteError({ code: 'CONFLICT', message: 'Already submitted this quiz' });
+    if (existing) throw new AppError({ code: 'CONFLICT', message: 'Already submitted this quiz' });
 
     const quiz = await BvQuizzes.findOne({ id: input.quizId });
-    if (!quiz) throw new ZiteError({ code: 'NOT_FOUND', message: 'Quiz not found' });
+    if (!quiz) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz not found' });
 
     let questions: any[] = [];
     try { questions = JSON.parse(quiz.questionsJson || '[]'); } catch {}

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Join a BV group using a join token (from WhatsApp invite link)',

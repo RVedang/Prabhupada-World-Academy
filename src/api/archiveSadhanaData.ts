@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ZiteError, SadhanaEntries, SadhanaMonthlySummaries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AppError, SadhanaEntries, SadhanaMonthlySummaries } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Archive old sadhana entries into monthly summaries and delete the raw entries — Super Guide only',
@@ -15,10 +15,10 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }) => {
     if (context.user!.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
     if (input.confirm !== 'ARCHIVE') {
-      throw new ZiteError({ code: 'BAD_REQUEST', message: 'Confirmation required' });
+      throw new AppError({ code: 'BAD_REQUEST', message: 'Confirmation required' });
     }
 
     const cutoff = input.cutoffDate; // YYYY-MM-DD string for comparison

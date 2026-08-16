@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, getFirestoreDb, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, getFirestoreDb, AppError } from '@/lib/backend-sdk';
 import fs from 'fs';
 import path from 'path';
 
@@ -124,12 +124,12 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }: any) => {
     if (context.user?.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
 
-    const backupDir = path.resolve(process.cwd(), 'docs/zite-backups');
+    const backupDir = path.resolve(process.cwd(), 'docs/app-backups');
     if (!fs.existsSync(backupDir)) {
-      throw new Error('Backup directory docs/zite-backups not found');
+      throw new Error('Backup directory docs/app-backups not found');
     }
 
     const files = fs.readdirSync(backupDir).filter(f => f.endsWith('.csv') && !f.includes(':Zone.Identifier'));

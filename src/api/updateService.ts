@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Services, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Services, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Update a service',
@@ -25,7 +25,7 @@ export default createEndpoint({
   execute: async ({ input }) => {
     const id = input.rowId ? String(input.rowId) : input.serviceId;
     const service = await Services.findOne({ id });
-    if (!service) throw new ZiteError({ code: 'NOT_FOUND', message: 'Service not found' });
+    if (!service) throw new AppError({ code: 'NOT_FOUND', message: 'Service not found' });
 
     const updates: any = {};
     if (input.serviceName !== undefined) updates.serviceName = input.serviceName;

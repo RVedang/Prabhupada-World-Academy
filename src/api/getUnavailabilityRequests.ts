@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, UnavailabilityRequests, Users, ServiceAllocations, Services } from 'zite-integrations-backend-sdk';
+import { createEndpoint, UnavailabilityRequests, Users, ServiceAllocations, Services } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get unavailability requests — guides see all pending/recent, residents see their own',

@@ -6,9 +6,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, Users, CheckCircle2, Clock, Leaf, Phone, HeartHandshake, BookOpen, Calendar, Building } from 'lucide-react';
-import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, rejectBvRegistration } from '@/lib/zite-endpoints-sdk';
+import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, rejectBvRegistration } from '@/lib/app-endpoints-sdk';
 
-export default function SuperBvRegistrationsTab() {
+const normalizeTimeSlot = (str: string) => {
+  if (!str) return '';
+  return str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+};
+
+const isTimeSlotMatch = (pref: string, groupTime: string) => {
+  if (!pref || pref === 'flexible' || pref === 'none') return true;
+  if (!groupTime) return false;
+
+  const cleanPref = normalizeTimeSlot(pref);
+  const cleanGroup = normalizeTimeSlot(groupTime);
+
+  if (cleanGroup === cleanPref) return true;
+  if (cleanPref.includes(cleanGroup) || cleanGroup.includes(cleanPref)) return true;
+
+  const extractTimes = (s: string) => {
+    const match = s.match(/\d{1,4}[ap]m/gi);
+    return match ? match.map(m => m.toLowerCase()).join('') : s.replace(/everyday|weekdays|weekends|daily|days/gi, '');
+  };
+
+  const timesPref = extractTimes(cleanPref);
+  const timesGroup = extractTimes(cleanGroup);
+
+  if (timesPref && timesGroup) {
+    if (timesPref === timesGroup || timesPref.includes(timesGroup) || timesGroup.includes(timesPref)) return true;
+  }
+
+  return false;
+};
+
+export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 'FOLK' }) {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,20 +47,25 @@ export default function SuperBvRegistrationsTab() {
   const [targetGroupId, setTargetGroupId] = useState<string>('');
   const [assigning, setAssigning] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [showAllGroups, setShowAllGroups] = useState(false);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [segment]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [regs, grpRes] = await Promise.all([
-        getPendingBvRegistrations({}),
+        getPendingBvRegistrations({ segment }),
         getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
       ]);
       setRegistrations(regs || []);
-      setGroups(grpRes.groups || []);
+      const allGroups = grpRes.groups || [];
+      const filteredGroups = segment
+        ? allGroups.filter((g: any) => g.segment === segment)
+        : allGroups;
+      setGroups(filteredGroups);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load pending Bhakti Vriksha registrations');
     } finally {
@@ -66,6 +101,7 @@ export default function SuperBvRegistrationsTab() {
       toast.success(`Approved & assigned ${selectedReg.fullName} to Reading Group`);
       setSelectedReg(null);
       setTargetGroupId('');
+      setShowAllGroups(false);
       loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to approve registration');
@@ -82,6 +118,13 @@ export default function SuperBvRegistrationsTab() {
       </div>
     );
   }
+
+  // Filter groups by devotee preferred time slot
+  const filteredGroups = showAllGroups
+    ? groups
+    : groups.filter(g => isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime));
+
+  const selectedGroup = groups.find(g => g.id === targetGroupId || g.groupId === targetGroupId);
 
   return (
     <div className="space-y-4">
@@ -141,7 +184,15 @@ export default function SuperBvRegistrationsTab() {
                       className="font-semibold shrink-0"
                       onClick={() => {
                         setSelectedReg(reg);
-                        if (groups.length > 0) setTargetGroupId(groups[0].id);
+                        setShowAllGroups(false);
+                        const matched = groups.filter(g => isTimeSlotMatch(reg.timePreference, g.meetingTime));
+                        if (matched.length > 0) {
+                          setTargetGroupId(matched[0].id);
+                        } else if (groups.length > 0) {
+                          setTargetGroupId(groups[0].id);
+                        } else {
+                          setTargetGroupId('');
+                        }
                       }}
                     >
                       Approve & Assign Group
@@ -197,8 +248,11 @@ export default function SuperBvRegistrationsTab() {
 
       {/* Assignment Modal */}
       {selectedReg && (
-        <Dialog open={!!selectedReg} onOpenChange={() => setSelectedReg(null)}>
-          <DialogContent className="max-w-md">
+        <Dialog open={!!selectedReg} onOpenChange={() => {
+          setSelectedReg(null);
+          setShowAllGroups(false);
+        }}>
+          <DialogContent className="sm:max-w-lg min-w-0">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Leaf className="w-5 h-5 text-primary" /> Approve & Assign Reading Group
@@ -208,41 +262,92 @@ export default function SuperBvRegistrationsTab() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-2">
+            <div className="space-y-4 py-2 min-w-0">
               <div className="bg-muted/50 p-3 rounded text-xs space-y-1">
                 <p><strong>Applicant:</strong> {selectedReg.fullName} ({selectedReg.phoneCountryCode} {selectedReg.phone})</p>
                 <p><strong>Preferred Time Slot:</strong> {selectedReg.timePreference}</p>
                 <p><strong>Daily Chanting:</strong> {selectedReg.dailyChantingRounds} rounds</p>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold">Select Reading Group *</label>
-                {groups.length === 0 ? (
-                  <p className="text-xs text-destructive">No active Reading Groups found. Please create a group first.</p>
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <label className="text-sm font-semibold">Select Reading Group *</label>
+                  {selectedReg.timePreference && selectedReg.timePreference !== 'Flexible' && (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showAllGroups}
+                        onChange={(e) => {
+                          setShowAllGroups(e.target.checked);
+                          const activeGroups = e.target.checked
+                            ? groups
+                            : groups.filter(g => isTimeSlotMatch(selectedReg.timePreference, g.meetingTime));
+                          if (activeGroups.length > 0) {
+                            setTargetGroupId(activeGroups[0].id);
+                          } else {
+                            setTargetGroupId('');
+                          }
+                        }}
+                        className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
+                      />
+                      <span>Show all time slots</span>
+                    </label>
+                  )}
+                </div>
+
+                {filteredGroups.length === 0 ? (
+                  <div className="text-xs border border-amber-200 bg-amber-50/50 text-amber-800 rounded p-3 space-y-1.5">
+                    <p>No active Reading Groups match this devotee's preferred time slot (<strong>{selectedReg.timePreference}</strong>).</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAllGroups(true);
+                        if (groups.length > 0) setTargetGroupId(groups[0].id);
+                      }}
+                      className="text-xs text-primary font-semibold underline hover:opacity-90 block"
+                    >
+                      Show all active groups anyway
+                    </button>
+                  </div>
                 ) : (
-                  <Select value={targetGroupId} onValueChange={(val) => val && setTargetGroupId(val)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select group...">
-                        {groups.find(g => g.id === targetGroupId || g.groupId === targetGroupId)
-                          ? `${groups.find(g => g.id === targetGroupId || g.groupId === targetGroupId).groupName} (Facilitator: ${groups.find(g => g.id === targetGroupId || g.groupId === targetGroupId).bvslName || 'Unassigned'})`
-                          : undefined}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups.map(g => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.groupName} (Facilitator: {g.bvslName || 'Unassigned'})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <Select value={targetGroupId || undefined} onValueChange={(val: string | null) => val && setTargetGroupId(val)}>
+                      <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden">
+                        <SelectValue placeholder="Select group..." className="truncate min-w-0">
+                          {selectedGroup
+                            ? `${selectedGroup.groupName} (Facilitator: ${selectedGroup.bvslName || selectedGroup.bvslLeaderName || 'Unassigned'})`
+                            : undefined}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-w-lg">
+                        {filteredGroups.map(g => (
+                          <SelectItem key={g.id} value={g.id}>
+                            {g.groupName} {g.meetingTime ? `[${g.meetingTime}]` : ''} (Facilitator: {g.bvslName || g.bvslLeaderName || 'Unassigned'})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Immediate Group & Facilitator Summary Display */}
+                    {selectedGroup && (
+                      <div className="bg-primary/5 border border-primary/20 p-3 rounded text-xs space-y-1 mt-2">
+                        <p className="font-semibold text-primary">Selected Group Details:</p>
+                        <p><strong>• Name of Reading Group:</strong> {selectedGroup.groupName}</p>
+                        <p><strong>• Reading Group Facilitator:</strong> {selectedGroup.bvslName || selectedGroup.bvslLeaderName || 'Unassigned'}</p>
+                        <p><strong>• Meeting Time Slot:</strong> {selectedGroup.meetingTime || 'Flexible'}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSelectedReg(null)}>Cancel</Button>
-              <Button onClick={handleApprove} disabled={assigning || !targetGroupId}>
+            <DialogFooter className="flex flex-wrap sm:flex-row justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setSelectedReg(null);
+                setShowAllGroups(false);
+              }}>Cancel</Button>
+              <Button onClick={handleApprove} disabled={assigning || !targetGroupId} className="whitespace-nowrap">
                 {assigning && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
                 Confirm Approval & Assign
               </Button>

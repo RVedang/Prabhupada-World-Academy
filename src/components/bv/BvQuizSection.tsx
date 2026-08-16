@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getMyBvQuizSubmissions } from 'zite-endpoints-sdk';
-import type { GetMyBvQuizSubmissionsOutputType } from 'zite-endpoints-sdk';
+import { getMyBvQuizSubmissions } from '@/lib/endpoints-sdk';
+import type { GetMyBvQuizSubmissionsOutputType } from '@/lib/endpoints-sdk';
 import BvQuizTaker from './BvQuizTaker';
 import { format } from 'date-fns';
 

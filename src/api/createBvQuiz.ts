@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvQuizzes, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvQuizzes, AppError } from '@/lib/backend-sdk';
 
 const questionSchema = z.object({
   id: z.string(),
@@ -26,7 +26,7 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
     if (!context.user.isBvsl && context.user.role !== 'BVSL') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only BVSL can create quizzes' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only BVSL can create quizzes' });
     }
     const questionsJson = JSON.stringify(input.questions);
     if (input.quizId) {

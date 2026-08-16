@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { FileDown, Image, Users, Headphones, BookOpen, Music2, TrendingUp, Search, Package, MessageCircle, Moon, Clock, RefreshCw, Zap, GraduationCap } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { getGuideDetailedReport, GetGuideDetailedReportOutputType, recalculateScoresForDate } from 'zite-endpoints-sdk';
+import { getGuideDetailedReport, GetGuideDetailedReportOutputType, recalculateScoresForDate } from '@/lib/endpoints-sdk';
 import { useDebouncedCallback } from 'use-debounce';
 import { format, subDays, startOfMonth, endOfMonth, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear } from 'date-fns';
 import { ASHRAY_LEVELS } from '@/types/enums';
@@ -19,11 +19,12 @@ import { scoreColor } from '@/lib/scoring';
 import { fmt } from '@/lib/fmt';
 import { EmptyState } from '@/shared';
 import SadhanaDetailTable, { FieldDef, TOGGLE_DISPLAY_KEYS, DURATION_MINUTE_KEYS, minutesToHHMM, canonicalSort, UserRow, reorderFieldDefs, buildAshrayGroups } from '@/components/guide/SadhanaDetailTable';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { exportToCsv } from '@/utils/exportCsv';
 import { exportReportAsImage } from '@/utils/exportReportImage';
 import ScoringCriteriaPanel from '@/components/guide/ScoringCriteriaPanel';
 
-interface ReportsTabProps { guideId: string; senderName?: string; bvslMode?: boolean; mentorMode?: boolean; }
+interface ReportsTabProps { guideId?: string; senderName?: string; bvslMode?: boolean; mentorMode?: boolean; segment?: 'PW' | 'FOLK'; }
 type ReportType = 'daily' | 'weekly' | 'monthly';
 type ResidencyFilter = 'all' | 'resident' | 'non_resident' | 'scholar';
 
@@ -108,7 +109,7 @@ function getWeekOptions(): { value: string; label: string }[] {
     const wy = getISOWeekYear(ws);
     options.push({
       value: `${wy}-W${String(wn).padStart(2, '0')}`,
-      label: `Week ${wn}: ${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}`,
+      label: `${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}${i === 0 ? ' (Current)' : ''}`,
     });
   }
   return options;
@@ -174,18 +175,44 @@ function computeSummary(users: ReportUser[], isScholarView = false) {
   };
 }
 
-export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }: ReportsTabProps) {
+export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode }: ReportsTabProps) {
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
+  const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
+  const isPw =
+    profile?.segment === 'PW' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin')) ||
+    userEmail === 'srilaprabhupadaworld@gmail.com' ||
+    userEmail === 'vdnd@hkmmumbai.org';
+
+  const isSuperAdmin = !!(
+    userEmail.includes('gaurmandal') ||
+    userEmail.includes('superadmin') ||
+    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'srilaprabhupadaworld@gmail.com'
+  );
+
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [selectedDate, setSelectedDate] = useState(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(() => {
+    if (isPw) return 'all';
     return (sessionStorage.getItem('guide_report_residencyFilter') as ResidencyFilter) || 'resident';
   });
   const [ashrayLevelFilter, setAshrayLevelFilter] = useState<string>('all');
-  const [folkResidencyId, setFolkResidencyId] = useState<string>('all');
+  const [folkResidencyId, setFolkResidencyId] = useState<string>(() => {
+    if (isPw) return 'all';
+    return isSuperAdmin ? 'all' : (profile?.folkResidencyCustomId || 'all');
+  });
+
+  useEffect(() => {
+    if (profile && !isSuperAdmin && !isPw) {
+      setFolkResidencyId(profile.folkResidencyCustomId || 'all');
+    }
+  }, [profile, isSuperAdmin, isPw]);
+
   const [rawReportData, setRawReportData] = useState<GetGuideDetailedReportOutputType | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -219,6 +246,7 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
         endDate: params.computedEnd,
         bvslMode: params.bvslMode,
         mentorMode: params.mentorMode,
+        segment: isPw ? 'PW' : 'FOLK',
       });
       // Only apply if this is still the latest request
       if (seq === fetchSeqRef.current) {
@@ -234,13 +262,13 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
         setLoading(false);
       }
     }
-  }, []);
+  }, [isPw]);
 
   const debouncedFetch = useDebouncedCallback(fetchReport, 400);
 
   useEffect(() => {
     debouncedFetch({ guideId, date: selectedDate, reportType, computedStart, computedEnd, bvslMode, mentorMode });
-  }, [guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode]);
+  }, [guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, isPw]);
 
   const residencies = rawReportData?.availableResidencies ?? [];
   const availableGuides: { guideId: string; guideName: string }[] = (rawReportData as any)?.availableGuides ?? [];
@@ -359,10 +387,11 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
   // - Non-resident filter → everyone shows "NR", column is pointless
   // "All" filter: always show — residents show FOLK name, NRs show "NR", key for distinguishing members
   const showFolkColumn =
-    residencyFilter === 'all' ||
-    (residencyFilter !== 'non_resident' &&
-      folkResidencyId === 'all' &&
-      (residencies.length > 1 || (residencyFilter === 'scholar' && residencies.length > 1)));
+    !isPw &&
+    (residencyFilter === 'all' ||
+      (residencyFilter !== 'non_resident' &&
+        folkResidencyId === 'all' &&
+        (residencies.length > 1 || (residencyFilter === 'scholar' && residencies.length > 1))));
 
   const reportTitle = getReportTitle(reportType, selectedDate, computedStart, computedEnd);
 
@@ -671,8 +700,10 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
               {/* Report Type */}
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
-                <Select value={reportType} onValueChange={(v: ReportType) => setReportType(v)}>
-                  <SelectTrigger className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
+                <Select value={reportType} onValueChange={(v: ReportType | null) => { if (v) setReportType(v); }}>
+                  <SelectTrigger className="h-8 w-[110px]">
+                    <SelectValue>{reportType === 'daily' ? 'Daily' : reportType === 'weekly' ? 'Weekly' : 'Monthly'}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
@@ -704,8 +735,8 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
               {reportType === 'weekly' && (
                 <div className="flex items-center gap-1.5">
                   <Label className="text-sm font-medium whitespace-nowrap">Week:</Label>
-                  <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-                    <SelectTrigger className="h-8 w-[230px]"><SelectValue /></SelectTrigger>
+                  <Select value={selectedWeek} onValueChange={(v: string | null) => { if (v) setSelectedWeek(v); }}>
+                    <SelectTrigger className="h-8 w-[280px]"><SelectValue>{WEEK_OPTIONS.find(o => o.value === selectedWeek)?.label || selectedWeek}</SelectValue></SelectTrigger>
                     <SelectContent className="max-h-60">
                       {WEEK_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                     </SelectContent>
@@ -716,8 +747,10 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
               {reportType === 'monthly' && (
                 <div className="flex items-center gap-1.5">
                   <Label className="text-sm font-medium whitespace-nowrap">Month:</Label>
-                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                    <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
+                  <Select value={selectedMonth} onValueChange={(v: string | null) => { if (v) setSelectedMonth(v); }}>
+                    <SelectTrigger className="h-8 w-[160px]">
+                      <SelectValue>{MONTH_OPTIONS.find(o => o.value === selectedMonth)?.label || selectedMonth}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent className="max-h-60">
                       {MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                     </SelectContent>
@@ -725,48 +758,56 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
                 </div>
               )}
 
-              {/* Residency filter */}
-              <div className="flex items-center gap-1.5">
-                <Label className="text-sm font-medium whitespace-nowrap">Residency:</Label>
-                <Select value={residencyFilter} onValueChange={(v: ResidencyFilter) => { setResidencyFilter(v); if (v === 'non_resident') setShowScholars(false); }}>
-                  <SelectTrigger className="h-8 w-[140px]">
-                    {residencyFilter === 'all' ? 'All' : residencyFilter === 'resident' ? 'Residents' : residencyFilter === 'non_resident' ? 'Non-Residents' : residencyFilter === 'scholar' ? 'Scholars' : residencyFilter}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="resident">Residents</SelectItem>
-                    <SelectItem value="non_resident">Non-Residents</SelectItem>
-                    {scholarCount > 0 && (
-                      <SelectItem value="scholar">Scholars</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isPw && (
+                <>
+                  {/* Residency filter */}
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-sm font-medium whitespace-nowrap">Residency:</Label>
+                    <Select value={residencyFilter} onValueChange={(v: ResidencyFilter | null) => { if (v) { setResidencyFilter(v); if (v === 'non_resident') setShowScholars(false); } }}>
+                      <SelectTrigger className="h-8 w-[140px]">
+                        {residencyFilter === 'all' ? 'All Users' : residencyFilter === 'resident' ? 'Residents' : residencyFilter === 'non_resident' ? 'Non-Residents' : residencyFilter === 'scholar' ? 'Scholars' : residencyFilter}
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Users</SelectItem>
+                        <SelectItem value="resident">Residents</SelectItem>
+                        <SelectItem value="non_resident">Non-Residents</SelectItem>
+                        {scholarCount > 0 && (
+                          <SelectItem value="scholar">Scholars</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              {/* NI-04: FOLK Residency filter */}
-              <div className="flex items-center gap-1.5">
-                <Label className="text-sm font-medium whitespace-nowrap">FOLK:</Label>
-                <Select value={folkResidencyId} onValueChange={setFolkResidencyId}>
-                  <SelectTrigger className="h-8 w-[150px]">
-                    {folkResidencyId === 'all' ? 'All' : residencies.find(r => r.residencyId === folkResidencyId)?.residencyName.replace(/^FOLK\s+/i, '') || folkResidencyId}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {residencies.map(r => (
-                      <SelectItem key={r.residencyId} value={r.residencyId}>
-                        {r.residencyName.replace(/^FOLK\s+/i, '')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  {/* NI-04: FOLK Residency filter */}
+                  {isSuperAdmin && (
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-sm font-medium whitespace-nowrap">FOLK:</Label>
+                      <Select value={folkResidencyId} onValueChange={(v: string | null) => { if (v) setFolkResidencyId(v); }}>
+                        <SelectTrigger className="h-8 w-[150px]">
+                          <SelectValue>{folkResidencyId === 'all' ? 'All Residencies' : residencies.find((r: any) => r.residencyId === folkResidencyId)?.residencyName.replace(/^FOLK\s+/i, '') || folkResidencyId}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Residencies</SelectItem>
+                          {residencies.filter((r: any) => !r.residencyName?.includes('Prabhupada World') && !r.residencyName?.includes('PW')).map((r: any) => (
+                            <SelectItem key={r.residencyId} value={r.residencyId}>
+                              {r.residencyName.replace(/^FOLK\s+/i, '')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
+              )}
 
-              {/* Guide filter — shown whenever guide data is available */}
-              {!bvslMode && !mentorMode && availableGuides.length > 0 && (
+              {/* Guide filter — shown whenever guide data is available and user is Super Admin */}
+              {isSuperAdmin && !bvslMode && !mentorMode && availableGuides.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <Label className="text-sm font-medium whitespace-nowrap">Guide:</Label>
-                  <Select value={guideFilter || 'all'} onValueChange={v => setGuideFilter(v === 'all' ? 'all' : v)}>
-                    <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
+                  <Select value={guideFilter || 'all'} onValueChange={(v: string | null) => setGuideFilter(v === 'all' || !v ? 'all' : v)}>
+                    <SelectTrigger className="h-8 w-[160px]">
+                      <SelectValue>{guideFilter === 'all' ? 'All Guides' : availableGuides.find(g => g.guideId === guideFilter)?.guideName || guideFilter}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Guides</SelectItem>
                       {availableGuides.map(g => (
@@ -782,8 +823,10 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
               {/* Ashray filter */}
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">Ashray:</Label>
-                <Select value={ashrayLevelFilter} onValueChange={setAshrayLevelFilter}>
-                  <SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger>
+                <Select value={ashrayLevelFilter} onValueChange={(v: string | null) => { if (v) setAshrayLevelFilter(v); }}>
+                  <SelectTrigger className="h-8 w-[120px]">
+                    <SelectValue>{ashrayLevelFilter === 'all' ? 'All Levels' : ashrayLevelFilter}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Levels</SelectItem>
                     {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
@@ -791,53 +834,64 @@ export default function ReportsTab({ guideId, senderName, bvslMode, mentorMode }
                 </Select>
               </div>
 
-              {/* Show Missing toggle */}
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="show-missing"
-                  checked={showMissing}
-                  onCheckedChange={(v) => setShowMissing(!!v)}
-                  className="w-4 h-4"
-                />
-                <Label htmlFor="show-missing" className="text-sm font-medium whitespace-nowrap cursor-pointer">
-                  Show Missing
-                </Label>
-              </div>
-
-              {/* Show Scholars toggle — only when scholars exist and we're not in scholar-only or NR view */}
-              {scholarCount > 0 && residencyFilter !== 'scholar' && residencyFilter !== 'non_resident' && (
+              {/* Second Row: All 3 Checkboxes */}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1 border-t border-border/30 w-full mt-1">
+                {/* Show Missing toggle */}
                 <div className="flex items-center gap-1.5">
                   <Checkbox
-                    id="show-scholars"
-                    checked={showScholars}
-                    onCheckedChange={(v) => setShowScholars(!!v)}
+                    id="show-missing"
+                    checked={showMissing}
+                    onCheckedChange={(v) => setShowMissing(!!v)}
                     className="w-4 h-4"
                   />
-                  <Label htmlFor="show-scholars" className="text-sm font-medium whitespace-nowrap cursor-pointer flex items-center gap-1">
-                    <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
-                    Show Scholars ({scholarCount})
+                  <Label htmlFor="show-missing" className="text-sm font-medium whitespace-nowrap cursor-pointer">
+                    Show Missing
                   </Label>
                 </div>
-              )}
 
-              {/* Show Real Values — displays actual user inputs instead of scored points */}
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="show-real-values"
-                  checked={showRealValues}
-                  onCheckedChange={(v) => setShowRealValues(!!v)}
-                  className="w-4 h-4"
-                />
-                <Label htmlFor="show-real-values" className="text-sm font-medium whitespace-nowrap cursor-pointer">
-                  Show Real Values
-                </Label>
+                {/* Show Scholars toggle — visible in FOLK view */}
+                {!isPw && residencyFilter !== 'scholar' && residencyFilter !== 'non_resident' && (
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      id="show-scholars"
+                      checked={showScholars}
+                      onCheckedChange={(v) => setShowScholars(!!v)}
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="show-scholars" className="text-sm font-medium whitespace-nowrap cursor-pointer flex items-center gap-1">
+                      <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                      Show Scholars {scholarCount > 0 ? `(${scholarCount})` : ''}
+                    </Label>
+                  </div>
+                )}
+
+                {/* Show Real Values — displays actual user inputs instead of scored points */}
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="show-real-values"
+                    checked={showRealValues}
+                    onCheckedChange={(v) => setShowRealValues(!!v)}
+                    className="w-4 h-4"
+                  />
+                  <Label htmlFor="show-real-values" className="text-sm font-medium whitespace-nowrap cursor-pointer">
+                    Show Real Values
+                  </Label>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Scoring Criteria Reference */}
-        <ScoringCriteriaPanel />
+        <ScoringCriteriaPanel
+          mode={
+            residencyFilter === 'resident' || residencyFilter === 'scholar'
+              ? 'resident'
+              : residencyFilter === 'non_resident'
+              ? 'non_resident'
+              : 'all'
+          }
+        />
 
         {/* Report Content */}
         {!rawReportData && loading && (

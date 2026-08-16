@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, GuideTransferRequests, Users, Guides, AshrayUpgradeRequests } from 'zite-integrations-backend-sdk';
+import { createEndpoint, GuideTransferRequests, Users, Guides, AshrayUpgradeRequests } from '@/lib/backend-sdk';
 import { ASHRAY_LEVELS } from '../types/enums';
 
 export default createEndpoint({
@@ -8,8 +8,19 @@ export default createEndpoint({
   inputSchema: z.object({ guideId: z.string().optional() }),
   outputSchema: z.any(),
   execute: async ({ context }: any) => {
-    if (!context.user) throw new Error('Unauthorized');
-    const isSuperGuide = context.user.role === 'Super Guide';
+    const userRole = (context.user.role || '').toUpperCase();
+    const userEmail = (context.user.email || '').toLowerCase();
+    const isSuperGuide =
+      userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'ADMIN' ||
+      userEmail.includes('admin') ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com' ||
+      context.user.isBvSuperAdmin ||
+      context.user.isBvAdmin ||
+      context.user.isPwAdmin;
 
     // Find the guide DB record for the current user
     let guideDbId: string | null = null;

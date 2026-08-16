@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Plus, Plane, Pencil, AlertTriangle, CheckCircle, XCircle, Download, Upload } from 'lucide-react';
-import { addTrip, updateTrip, requestTripCorrection, approveTripCorrection, importTrips } from 'zite-endpoints-sdk';
-import type { GetUserCrmDataOutputType } from 'zite-endpoints-sdk';
+import { addTrip, updateTrip, requestTripCorrection, approveTripCorrection, importTrips } from '@/lib/endpoints-sdk';
+import type { GetUserCrmDataOutputType } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 import { exportToCsv } from '@/utils/exportCsv';
 

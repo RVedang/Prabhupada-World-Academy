@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, CleanlinessRooms } from 'zite-integrations-backend-sdk';
+import { createEndpoint, CleanlinessRooms } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Create, update, or delete cleanliness rooms',

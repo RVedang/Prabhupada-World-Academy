@@ -3,8 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { seedWeeklyAllocations } from 'zite-endpoints-sdk';
-import type { GetAllocationBoardOutputType, GetResidentsForAllocationOutputType } from 'zite-endpoints-sdk';
+import { seedWeeklyAllocations } from '@/lib/endpoints-sdk';
+import type { GetAllocationBoardOutputType, GetResidentsForAllocationOutputType } from '@/lib/endpoints-sdk';
 
 import { SERVICE_DAYS } from '@/lib/serviceWeek';
 const DAYS = [...SERVICE_DAYS];

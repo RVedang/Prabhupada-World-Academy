@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,12 +10,12 @@ import { format } from 'date-fns';
 import {
   getUserProfile, getUserMetrics, getGuides, getAshrayUpgradePath, getAllResidencies,
   getBvAttendance, getAshrayChecklist, getUserCrmData,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 import type {
   GetUserProfileOutputType, GetGuidesOutputType,
   GetAshrayUpgradePathOutputType, GetUserMetricsOutputType, GetAllResidenciesOutputType,
   GetUserCrmDataOutputType,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 import AshrayJourneyCard from '@/components/crm/AshrayJourneyCard';
 import TripsDuesCard from '@/components/crm/TripsDuesCard';
 import RentHistoryCard from '@/components/crm/RentHistoryCard';
@@ -99,13 +99,36 @@ export default function ProfilePage() {
         .length
     : 0;
 
-  const isPwMember = profile.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' || (profile.guideName || '').includes('Hiranyavarna') || (guideName || '').includes('Hiranyavarna');
+  const isGuideOrAdminOrSuper =
+    profile.role === 'GUIDE' ||
+    profile.role === 'SUPER_GUIDE' ||
+    profile.role === 'ADMIN' ||
+    profile.role === 'SUPER_ADMIN' ||
+    profile.role === 'PW_ADMIN' ||
+    !!(profile as any).isBvAdmin ||
+    !!(profile as any).isBvSuperAdmin;
+
+  const userEmail = (user?.email || profile.userId || '').toLowerCase();
+  const isSuperAdmin =
+    profile.role === 'SUPER_ADMIN' ||
+    profile.role === 'SUPER_GUIDE' ||
+    !!(profile as any).isBvSuperAdmin ||
+    userEmail.includes('gaurmandal') ||
+    userEmail.includes('srilaprabhupadaworld') ||
+    userEmail.includes('vdnd') ||
+    userEmail.includes('folkadmin') ||
+    userEmail.includes('superadmin');
+
+  const isPwUser = !!(profile as any).isPrabhupadaWorldUser || profile.segment === 'PW';
+  const showGuideResidencyCard = !isPwUser && !isSuperAdmin;
+  const isFolk = profile.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk');
+  const adminDashboardPath = isFolk ? '/folk-admin/dashboard' : '/pw-admin/dashboard';
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center gap-3 max-w-7xl">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/user/dashboard')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(isSuperAdmin ? adminDashboardPath : '/user/dashboard')}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <h1 className="text-xl font-bold">My Profile</h1>
@@ -115,15 +138,17 @@ export default function ProfilePage() {
       <main className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
         {/* SAD-C02 FIX: isResident requires guide-verified approval + valid residency ID */}
         <ProfileHero fullName={profile.fullName} email={user?.email || ''}
-          isResident={!!(profile.residencyGuideVerified && profile.selectedFolkResidency)} ashrayLevel={profile.ashrayLevel}
+          isResident={!!(profile.residencyGuideVerified && profile.selectedFolkResidency)} ashrayLevel={isSuperAdmin ? null : profile.ashrayLevel}
           role={profile.role} isBvsl={profile.isBvsl} isSadhanaMentor={profile.isSadhanaMentor}
-          isFolkLead={profile.isFolkLead} isTripCoordinator={profile.isTripCoordinator} isBvMentor={profile.isBvMentor} />
+          isFolkLead={profile.isFolkLead} isTripCoordinator={profile.isTripCoordinator} isBvMentor={profile.isBvMentor}
+          isSuperAdmin={isSuperAdmin} />
 
         <div className="grid md:grid-cols-3 gap-6">
           <PersonalInfoCard email={user?.email || ''} fullName={profile.fullName}
-            phone={String(profile.phone || '')} ashrayLevel={profile.ashrayLevel}
+            phone={String(profile.phone || '')} ashrayLevel={isSuperAdmin ? null : profile.ashrayLevel}
+            isSuperAdmin={isSuperAdmin}
             onUpdated={() => handleProfileChanged()} />
-          {!isPwMember && (
+          {showGuideResidencyCard && (
             <GuideResidencyCard email={user?.email || ''} fullName={profile.fullName}
               phone={String(profile.phone || '')} guideName={guideName}
               currentGuideId={profile.selectedGuideId} guides={guides}
@@ -141,8 +166,8 @@ export default function ProfilePage() {
           <NotificationCard />
         </div>
 
-        {/* FIX 4: Sadhana Graph first — FIX 5: exactly 4 stat items */}
-        {metrics && (
+        {/* Sadhana Graph & Stat cards — Hidden for Super Admins */}
+        {!isSuperAdmin && metrics && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatMini icon={Flame} iconColor="text-orange-500"
               value={metrics.currentStreak} label="Sadhana Streak" />
@@ -158,12 +183,30 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Mini CRM — role-aware view of user's own trips, rent & ashray history */}
+        {/* Mini CRM — Ashray Journey & Trips/Dues hidden for Super Admins */}
         {crmData && (() => {
           const role = profile.role || '';
-          const canEditTrips = ['GUIDE', 'SUPER_GUIDE'].includes(role) || !!profile.isTripCoordinator;
           const canEditRent = ['GUIDE', 'SUPER_GUIDE'].includes(role) || !!profile.isFolkLead;
           const isResident = !!(profile.residencyGuideVerified && profile.selectedFolkResidency);
+
+          if (isSuperAdmin) {
+            // Super admins only see Rent History if they are residents with rent data
+            if (!isResident || !crmData.rentPayments || crmData.rentPayments.length === 0) return null;
+            return (
+              <div className="space-y-4">
+                <RentHistoryCard
+                  userId={profile.userId || ''}
+                  rentPayments={crmData.rentPayments}
+                  canEdit={canEditRent}
+                  isOwnProfile={true}
+                  isResident={isResident}
+                  onRefresh={loadAll}
+                />
+              </div>
+            );
+          }
+
+          const canEditTrips = ['GUIDE', 'SUPER_GUIDE'].includes(role) || !!profile.isTripCoordinator;
           return (
             <div className="space-y-4">
               <AshrayJourneyCard ashrayHistory={crmData.ashrayHistory} currentLevel={profile.ashrayLevel || ''} />
@@ -186,8 +229,8 @@ export default function ProfilePage() {
           );
         })()}
 
-        {/* FIX 4: Ashraya Checklist last */}
-        {ashrayData && ashrayData.practiceGroups.length > 0 && (
+        {/* Ashraya Checklist — Hidden for Super Admins */}
+        {!isSuperAdmin && ashrayData && ashrayData.practiceGroups.length > 0 && (
           <AshrayCriteriaGrid currentLevel={profile.ashrayLevel || 'Jigyasa'}
             userId={profile.userId} practiceGroups={ashrayData.practiceGroups} />
         )}

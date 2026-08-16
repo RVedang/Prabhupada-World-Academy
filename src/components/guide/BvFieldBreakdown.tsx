@@ -83,7 +83,7 @@ export default function BvFieldBreakdown({ bvsls }: Props) {
     <div className="space-y-2 mt-6">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Field-by-Field Breakdown</h3>
-        <span className="text-xs text-muted-foreground">{submitted.length} of {bvsls.length} BVSLs submitted</span>
+        <span className="text-xs text-muted-foreground">{submitted.length} of {bvsls.length} RGFs submitted</span>
       </div>
 
       {FIELDS.map(field => {
@@ -124,7 +124,7 @@ export default function BvFieldBreakdown({ bvsls }: Props) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted/40 border-b border-border">
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">BVSL Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">RGF Name</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Group</th>
                       <th className="px-4 py-2 text-right text-xs font-semibold text-muted-foreground">{field.label}</th>
                     </tr>

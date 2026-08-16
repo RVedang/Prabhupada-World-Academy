@@ -6,8 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuides, getGuideUsers } from 'zite-endpoints-sdk';
-import type { GetGuidesOutputType } from 'zite-endpoints-sdk';
+import { getGuides, getGuideUsers } from '@/lib/endpoints-sdk';
+import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
 
 type GuideEntry = GetGuidesOutputType['guides'][0] & { userCount: number };
 

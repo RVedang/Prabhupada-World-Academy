@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSuperBvAnalytics } from 'zite-endpoints-sdk';
+import { getSuperBvAnalytics } from '@/lib/endpoints-sdk';
 import { useDebouncedCallback } from 'use-debounce';
 import {
   format, subDays,
@@ -90,7 +90,7 @@ function getWeekOptions() {
   for (let i = 0; i < 52; i++) {
     const ws = new Date(cws); ws.setDate(cws.getDate() - i * 7);
     const we = endOfISOWeek(ws);
-    opts.push({ value: `${getISOWeekYear(ws)}-W${String(getISOWeek(ws)).padStart(2, '0')}`, label: `Week ${getISOWeek(ws)}: ${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}` });
+    opts.push({ value: `${getISOWeekYear(ws)}-W${String(getISOWeek(ws)).padStart(2, '0')}`, label: `${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}${i === 0 ? ' (Current)' : ''}` });
   }
   return opts;
 }
@@ -169,8 +169,10 @@ export default function SuperBvPreachingAnalytics() {
 
         <div className="flex items-center gap-1.5">
           <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
-          <Select value={reportType} onValueChange={(v: ReportType) => setReportType(v)}>
-            <SelectTrigger className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
+          <Select value={reportType} onValueChange={(v: any) => setReportType(v as ReportType)}>
+            <SelectTrigger className="h-8 w-[110px]">
+              <SelectValue>{reportType === 'daily' ? 'Daily' : reportType === 'weekly' ? 'Weekly' : 'Monthly'}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="daily">Daily</SelectItem>
               <SelectItem value="weekly">Weekly</SelectItem>
@@ -191,8 +193,8 @@ export default function SuperBvPreachingAnalytics() {
         {reportType === 'weekly' && (
           <div className="flex items-center gap-1.5">
             <Label className="text-sm font-medium whitespace-nowrap">Week:</Label>
-            <Select value={selectedWeek} onValueChange={setWeek}>
-              <SelectTrigger className="h-8 w-[240px]"><SelectValue /></SelectTrigger>
+            <Select value={selectedWeek} onValueChange={(val: any) => setWeek(val || '')}>
+              <SelectTrigger className="h-8 w-[280px]"><SelectValue>{WEEK_OPTIONS.find(o => o.value === selectedWeek)?.label || selectedWeek}</SelectValue></SelectTrigger>
               <SelectContent className="max-h-60">{WEEK_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -200,8 +202,8 @@ export default function SuperBvPreachingAnalytics() {
         {reportType === 'monthly' && (
           <div className="flex items-center gap-1.5">
             <Label className="text-sm font-medium whitespace-nowrap">Month:</Label>
-            <Select value={selectedMonth} onValueChange={setMonth}>
-              <SelectTrigger className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
+            <Select value={selectedMonth} onValueChange={(val: any) => setMonth(val || '')}>
+              <SelectTrigger className="h-8 w-[180px]"><SelectValue>{MONTH_OPTIONS.find(o => o.value === selectedMonth)?.label || selectedMonth}</SelectValue></SelectTrigger>
               <SelectContent className="max-h-60">{MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -243,7 +245,7 @@ export default function SuperBvPreachingAnalytics() {
                   </tr>
                   <tr>
                     <td colSpan={COL_COUNT} className="px-3 py-1 text-[10px] text-muted-foreground italic bg-muted/20 border-b border-border">
-                      Showing {viewMode === 'totals' ? 'totals across all submitted BVSLs' : 'averages per submitted BVSL'} · Click any center row to expand individual BVSLs
+                      Showing {viewMode === 'totals' ? 'totals across all submitted Facilitators' : 'averages per submitted Facilitator'} · Click any center row to expand individual Facilitators
                     </td>
                   </tr>
                 </thead>
@@ -332,7 +334,7 @@ export default function SuperBvPreachingAnalytics() {
 function BvslSubTable({ bvsls }: { bvsls: BvslDetail[] }) {
   return (
     <div className="px-6 py-3">
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual BVSLs</p>
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual Facilitators (RGFs)</p>
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead>

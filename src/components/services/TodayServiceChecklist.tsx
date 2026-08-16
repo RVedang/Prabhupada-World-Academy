@@ -3,8 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2, Circle, XCircle, CalendarDays } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { markServiceDone } from 'zite-endpoints-sdk';
-import type { GetAllocationBoardOutputType } from 'zite-endpoints-sdk';
+import { markServiceDone } from '@/lib/endpoints-sdk';
+import type { GetAllocationBoardOutputType } from '@/lib/endpoints-sdk';
 
 import { SERVICE_DAYS, SERVICE_DAY_FULL } from '@/lib/serviceWeek';
 const DAYS = [...SERVICE_DAYS];

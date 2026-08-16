@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AttendanceSessions, AttendanceEvents } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AttendanceSessions, AttendanceEvents } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Look up an attendance session by its share token (public)',

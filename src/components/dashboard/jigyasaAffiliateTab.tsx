@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GraduationCap, ChevronDown, ChevronRight, Clock, Users, TrendingUp } from 'lucide-react';
-import { getMyJigyasaRegistrations } from 'zite-endpoints-sdk';
+import { getMyJigyasaRegistrations } from '@/lib/endpoints-sdk';
 import { EmptyState } from '@/shared';
 
 type Registration = {

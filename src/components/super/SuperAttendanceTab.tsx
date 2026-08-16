@@ -7,19 +7,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardCheck, Download, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useDebouncedCallback } from 'use-debounce';
-import { getSuperGuideAttendanceReport } from 'zite-endpoints-sdk';
+import { getSuperGuideAttendanceReport } from '@/lib/endpoints-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { exportToCsv } from '@/utils/exportCsv';
 import { fmt } from '@/lib/fmt';
 
-export default function SuperAttendanceTab() {
+interface SuperAttendanceTabProps {
+  segment?: 'PW' | 'FOLK';
+}
+export default function SuperAttendanceTab({ segment }: SuperAttendanceTabProps = {}) {
+  const { profile } = useUserProfile();
+  const userEmail = (profile?.userId || '').toLowerCase();
+  const effectiveSegment = segment || profile?.segment || (userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') ? 'PW' : 'FOLK');
+  const isPw = effectiveSegment === 'PW';
+
+  const isSuperAdmin = !!(
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE' ||
+    userEmail.includes('gaurmandal') ||
+    userEmail.includes('superadmin') ||
+    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'srilaprabhupadaworld@gmail.com'
+  );
+
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [ashrayLevel, setAshrayLevel] = useState('');
   const [guideId, setGuideId] = useState('');
-  const [residencyId, setResidencyId] = useState('');
+  const [residencyId, setResidencyId] = useState(() => (isSuperAdmin ? '' : (profile as any)?.folkResidencyCustomId || (Array.isArray((profile as any)?.residency) ? (profile as any).residency[0] : (profile as any)?.residency) || ''));
   const [eventId, setEventId] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [search, setSearch] = useState('');
@@ -35,6 +54,7 @@ export default function SuperAttendanceTab() {
         residencyId: residencyId || undefined, eventId: eventId || undefined,
         sessionId: sessionId || undefined, search: search || undefined,
         offset, limit: LIMIT,
+        segment: effectiveSegment,
       });
       setData(res);
     } catch { /* silent */ }
@@ -61,10 +81,27 @@ export default function SuperAttendanceTab() {
     })), 'super-attendance-report');
   };
 
-  if (loading && !data) return <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>;
-
   const stats = data?.stats;
   const fo = data?.filterOptions;
+
+  useEffect(() => {
+    if (!isSuperAdmin && fo?.guides) {
+      const myGuide = (fo.guides || []).find((g: any) =>
+        String(g.email || '').toLowerCase() === userEmail ||
+        String(g.id || g.guideId || '').toLowerCase() === userEmail ||
+        String(g.id || g.guideId || '').toLowerCase() === String((profile as any)?.id || profile?.userId || '').toLowerCase()
+      );
+      if (myGuide) {
+        const myGid = myGuide.id || myGuide.guideId;
+        if (guideId !== myGid) {
+          setGuideId(myGid);
+          setOffset(0);
+        }
+      }
+    }
+  }, [fo, isSuperAdmin, userEmail, profile, guideId]);
+
+  if (loading && !data) return <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>;
 
   return (
     <div className="space-y-4">
@@ -81,14 +118,14 @@ export default function SuperAttendanceTab() {
       </div>
 
       {/* Level & Center breakdowns */}
-      {(stats?.levelBreakdown?.length > 0 || stats?.centerBreakdown?.length > 0) && (
+      {(stats?.levelBreakdown?.length > 0 || (!isPw && stats?.centerBreakdown?.length > 0)) && (
         <div className="flex flex-wrap gap-2">
           {stats?.levelBreakdown?.map((lb: any) => (
             <Badge key={lb.level} variant="outline" className="text-xs gap-1">
               {lb.level} <span className="font-bold">{lb.count}</span>
             </Badge>
           ))}
-          {stats?.centerBreakdown?.map((cb: any) => (
+          {!isPw && stats?.centerBreakdown?.map((cb: any) => (
             <Badge key={cb.centerName} variant="secondary" className="text-xs gap-1">
               {cb.centerName} <span className="font-bold">{cb.count}</span>
             </Badge>
@@ -115,29 +152,38 @@ export default function SuperAttendanceTab() {
               <label className="text-xs text-muted-foreground mb-1 block">To</label>
               <Input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setOffset(0); }} className="h-9" />
             </div>
-            <div className="min-w-[120px]">
-              <label className="text-xs text-muted-foreground mb-1 block">Guide</label>
-              <Select value={guideId} onValueChange={v => { setGuideId(v === 'all' ? '' : v); setOffset(0); }}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Guides</SelectItem>
-                  {(fo?.guides || []).map((g: any) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-[120px]">
-              <label className="text-xs text-muted-foreground mb-1 block">Center</label>
-              <Select value={residencyId} onValueChange={v => { setResidencyId(v === 'all' ? '' : v); setOffset(0); }}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Centers</SelectItem>
-                  {(fo?.centers || []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {isSuperAdmin && (
+              <div className="min-w-[140px]">
+                <label className="text-xs text-muted-foreground mb-1 block">{isPw ? "Admin / Mentor" : "Guide"}</label>
+                <Select value={guideId || 'all'} onValueChange={(v: string | null) => { setGuideId(v === 'all' || !v ? '' : v); setOffset(0); }}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue>{!guideId || guideId === 'all' ? (isPw ? "All Admins (Overview)" : "All Guides") : (fo?.guides || []).find((g: any) => (g.guideId || g.id) === guideId)?.name || guideId}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{isPw ? "All Admins (Overview)" : "All Guides"}</SelectItem>
+                    {(fo?.guides || []).map((g: any) => {
+                      const gid = g.id || g.guideId;
+                      return <SelectItem key={gid} value={gid}>{g.name}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {isSuperAdmin && !isPw && (
+              <div className="min-w-[120px]">
+                <label className="text-xs text-muted-foreground mb-1 block">Center</label>
+                <Select value={residencyId} onValueChange={(v: string | null) => { setResidencyId(v === 'all' || !v ? '' : v); setOffset(0); }}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Centers</SelectItem>
+                    {(fo?.centers || []).filter((c: any) => !c.name?.includes('Prabhupada World') && !c.name?.includes('PW')).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="min-w-[120px]">
               <label className="text-xs text-muted-foreground mb-1 block">Level</label>
-              <Select value={ashrayLevel} onValueChange={v => { setAshrayLevel(v === 'all' ? '' : v); setOffset(0); }}>
+              <Select value={ashrayLevel} onValueChange={(v: string | null) => { setAshrayLevel(v === 'all' || !v ? '' : v); setOffset(0); }}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
@@ -147,7 +193,7 @@ export default function SuperAttendanceTab() {
             </div>
             <div className="min-w-[120px]">
               <label className="text-xs text-muted-foreground mb-1 block">Event</label>
-              <Select value={eventId} onValueChange={v => { setEventId(v === 'all' ? '' : v); setSessionId(''); setOffset(0); }}>
+              <Select value={eventId} onValueChange={(v: string | null) => { setEventId(v === 'all' || !v ? '' : v); setSessionId(''); setOffset(0); }}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Events</SelectItem>
@@ -157,7 +203,7 @@ export default function SuperAttendanceTab() {
             </div>
             <div className="min-w-[120px]">
               <label className="text-xs text-muted-foreground mb-1 block">Session</label>
-              <Select value={sessionId} onValueChange={v => { setSessionId(v === 'all' ? '' : v); setOffset(0); }}>
+              <Select value={sessionId} onValueChange={(v: string | null) => { setSessionId(v === 'all' || !v ? '' : v); setOffset(0); }}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sessions</SelectItem>

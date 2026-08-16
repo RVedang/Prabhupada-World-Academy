@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, UserSkills, SkillCatalog, Users, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, UserSkills, SkillCatalog, Users, Guides } from '@/lib/backend-sdk';
 
 const DEFAULT_SKILLS = ['cleaning', 'pujari', 'prasadam', 'tech', 'misc'];
 

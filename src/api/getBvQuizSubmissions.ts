@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvQuizSubmissions, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvQuizSubmissions, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get all submissions for a quiz (BVSL view)',

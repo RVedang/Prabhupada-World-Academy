@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   createEndpoint, Users, BvslPreachingEntries,
   BvAttendance, BvGroups, SadhanaEntries,
-} from 'zite-integrations-backend-sdk';
+} from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

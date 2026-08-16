@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, BvGroupMembers, BvGroups, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, BvGroupMembers, BvGroups, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
@@ -44,7 +44,7 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
-    if (!input.userId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'userId is required' });
+    if (!input.userId) throw new AppError({ code: 'BAD_REQUEST', message: 'userId is required' });
 
     // Authorization: only guides, super guides, BVSLs, sadhana mentors, or BV Mentors can view user details
     requireGuideRole(context.user.role, {
@@ -54,7 +54,7 @@ export default createEndpoint({
     });
 
     const userRecord = await resolveUser(input.userId);
-    if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const isSuperGuide = context.user.role === 'Super Guide';
 
@@ -67,19 +67,19 @@ export default createEndpoint({
       if (scope) {
         // Caller has a guide record — enforce center-based access
         if (!isUserInGuideScope(scope, userRecord)) {
-          throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only view users in your center' });
+          throw new AppError({ code: 'FORBIDDEN', message: 'You can only view users in your center' });
         }
       } else if (context.user.isBvsl) {
         // BVSL: check if the target user is in one of their BV groups
         const allowed = await isBvslMember(context.user.id, userRecord.id);
         if (!allowed) {
-          throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only view members of your BV groups' });
+          throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members of your BV groups' });
         }
       } else if (context.user.isSadhanaMentor) {
         // Sadhana Mentors have a trusted role — allow access
         // (they are assigned by guides and oversee a subset of folk)
       } else {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
       }
     }
 

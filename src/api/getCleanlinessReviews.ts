@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, CleanlinessReviewRequests, CleanlinessInspections, CleanlinessRooms, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, CleanlinessReviewRequests, CleanlinessInspections, CleanlinessRooms, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get pending cleanliness review requests for guide',

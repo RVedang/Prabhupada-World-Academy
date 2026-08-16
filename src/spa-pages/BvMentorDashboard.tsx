@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DashboardLayout } from '@/layouts';
 import BvSection from '@/components/guide/BvSection';
-import { getBvMentorData } from 'zite-endpoints-sdk';
+import { getBvMentorData } from '@/lib/endpoints-sdk';
 import { toast } from 'sonner';
 import { Leaf, BookOpen } from 'lucide-react';
 
@@ -75,7 +75,7 @@ export default function BvMentorDashboard() {
     <DashboardLayout
       title={`Hare Krishna ${mentorName || 'Prabhu'} Prabhu!`}
       subtitle="BV Supervisor / Mentor"
-      role="GUIDE"
+      role="BV_MENTOR"
       maxWidth="max-w-7xl"
       showProfile={true}
     >

@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { createEndpoint, Trips, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Trips, AppError } from '@/lib/backend-sdk';
 
 function requireTripEditor(user: any) {
   const role = user.role || '';
   const ok = ['Guide', 'Super Guide'].includes(role) || !!user.isTripCoordinator;
-  if (!ok) throw new ZiteError({ code: 'FORBIDDEN', message: 'Trip Coordinator or Guide access required' });
+  if (!ok) throw new AppError({ code: 'FORBIDDEN', message: 'Trip Coordinator or Guide access required' });
 }
 
 export default createEndpoint({
@@ -20,10 +20,10 @@ export default createEndpoint({
     requireTripEditor(context.user);
 
     const trip = await Trips.findOne({ id: input.tripId });
-    if (!trip) throw new ZiteError({ code: 'NOT_FOUND', message: 'Trip not found' });
+    if (!trip) throw new AppError({ code: 'NOT_FOUND', message: 'Trip not found' });
 
     if ((trip as any).correctionStatus !== 'Pending') {
-      throw new ZiteError({ code: 'BAD_REQUEST', message: 'No pending correction on this trip' });
+      throw new AppError({ code: 'BAD_REQUEST', message: 'No pending correction on this trip' });
     }
 
     if (input.action === 'approve') {

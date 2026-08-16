@@ -16,7 +16,7 @@ import {
   getCleanlinessRooms, getCleanlinessAnalytics,
   toggleCleanlinessManager, toggleCleanlinessEnabled, getGuideUsers,
   manageCleanlinessRoom,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 
 interface Room {
   roomId: string;

@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trophy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { scoreColor } from '@/lib/scoring';
 
+import { useUserProfile } from '@/contexts/UserProfileContext';
+
 const PAGE_SIZE = 10;
 
 const RANK_STYLES = [
@@ -44,6 +46,9 @@ interface Props {
 }
 
 export default function GuideLeaderboardDisplay({ leaderboard, dateLabel }: Props) {
+  const { profile } = useUserProfile();
+  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+
   const isAllNonResidents = leaderboard.length > 0 && leaderboard.every(e => !e.isResident);
   const [activeFilter, setActiveFilter] = useState<FilterKey>(isAllNonResidents ? 'nr' : 'residents');
   const [ashrayFilter, setAshrayFilter] = useState<string>('all');
@@ -52,9 +57,9 @@ export default function GuideLeaderboardDisplay({ leaderboard, dateLabel }: Prop
   const setFilter = (f: FilterKey) => { setActiveFilter(f); setPage(0); };
   const setAshray = (v: string) => { setAshrayFilter(v); setPage(0); };
 
-  let filtered = activeFilter === 'residents'
-    ? leaderboard.filter(e => e.isResident)
-    : leaderboard.filter(e => !e.isResident);
+  let filtered = isFolk
+    ? (activeFilter === 'residents' ? leaderboard.filter(e => e.isResident) : leaderboard.filter(e => !e.isResident))
+    : leaderboard;
 
   if (ashrayFilter !== 'all') {
     filtered = filtered.filter(e => e.ashrayLevel === ashrayFilter);
@@ -76,24 +81,28 @@ export default function GuideLeaderboardDisplay({ leaderboard, dateLabel }: Prop
 
         {/* Filter chips + Ashray dropdown */}
         <div className="flex flex-wrap items-center gap-2 mt-2">
-          {!isAllNonResidents && (
-            <Button size="sm" variant={activeFilter === 'residents' ? 'default' : 'outline'}
-              className="text-xs h-7 whitespace-nowrap" onClick={() => setFilter('residents')}>
-              All FOLK Residents
-            </Button>
+          {isFolk && (
+            <>
+              {!isAllNonResidents && (
+                <Button size="sm" variant={activeFilter === 'residents' ? 'default' : 'outline'}
+                  className="text-xs h-7 whitespace-nowrap" onClick={() => setFilter('residents')}>
+                  All FOLK Residents
+                </Button>
+              )}
+              <Button size="sm" variant={activeFilter === 'nr' ? 'default' : 'outline'}
+                className="text-xs h-7 whitespace-nowrap" onClick={() => setFilter('nr')}>
+                {isAllNonResidents ? 'All Members' : 'All Non-Residents'}
+              </Button>
+            </>
           )}
-          <Button size="sm" variant={activeFilter === 'nr' ? 'default' : 'outline'}
-            className="text-xs h-7 whitespace-nowrap" onClick={() => setFilter('nr')}>
-            {isAllNonResidents ? 'All Members' : 'All Non-Residents'}
-          </Button>
           <Select value={ashrayFilter} onValueChange={(v) => setAshray(v || 'all')}>
-            <SelectTrigger className="h-7 w-[160px] text-xs">
-              <SelectValue placeholder="Ashray Level" />
+            <SelectTrigger className="h-7 w-[180px] text-xs">
+              <SelectValue>{ashrayFilter === 'all' ? 'All Ashraya Levels' : (ashrayFilter.charAt(0).toUpperCase() + ashrayFilter.slice(1).toLowerCase())}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Ashray Levels</SelectItem>
+              <SelectItem value="all">All Ashraya Levels</SelectItem>
               {ASHRAY_LEVELS.map(lvl => (
-                <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
+                <SelectItem key={lvl} value={lvl}>{lvl.charAt(0).toUpperCase() + lvl.slice(1).toLowerCase()}</SelectItem>
               ))}
             </SelectContent>
           </Select>

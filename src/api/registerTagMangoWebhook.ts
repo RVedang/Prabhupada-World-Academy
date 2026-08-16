@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AppError } from '@/lib/backend-sdk';
 import { resolveApiKey } from '../lib/tagMangoEnroll';
 
 export default createEndpoint({
@@ -17,7 +17,7 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean(), message: z.string() }),
   execute: async ({ input, context }) => {
     if (context.user.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
 
     const apiKey = await resolveApiKey();

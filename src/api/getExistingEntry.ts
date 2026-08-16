@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, SadhanaEntries } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get existing sadhana entry for a specific date',

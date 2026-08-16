@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, GuideTransferRequests, ResidencyTransferRequests, AshrayUpgradeRequests } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, GuideTransferRequests, ResidencyTransferRequests, AshrayUpgradeRequests } from '@/lib/backend-sdk';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
 import { serverCacheGet, serverCacheSet } from '../lib/serverCache';
 
@@ -12,7 +12,8 @@ const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'stat
   'isBvMentor', 'bvMentorGuideId', 'isCleanlinessManager', 'isFolkLead', 'isTripCoordinator',
   'acknowledgedFolkLead', 'acknowledgedTripCoordinator', 'acknowledgedSadhanaMentor',
   'isBvSuperAdmin', 'isBvAdmin', 'isBvSupervisor', 'isBvFacilitator', 'isBvSubFacilitator',
-  'pendingRoleNotice', 'roleNoticeAcknowledged', 'bvRegistrationStatus', 'bvGroupId', 'bvGroupName', 'isPrabhupadaWorldUser', 'pendingBvRejectionNotice'];
+  'pendingRoleNotice', 'roleNoticeAcknowledged', 'bvRegistrationStatus', 'bvGroupId', 'bvGroupName', 'isPrabhupadaWorldUser', 'pendingBvRejectionNotice', 'segment', 'pendingBvApprovalNotice',
+  'pendingAshrayNoticeStatus', 'pendingAshrayNoticeLevel', 'ashrayNoticeAcknowledged'];
 const GUIDE_FIELDS = ['id', 'fullName', 'abbr'];
 const RESIDENCY_FIELDS = ['id', 'residencyName', 'residencyId'];
 
@@ -131,7 +132,7 @@ export default createEndpoint({
     const rawRole = userRecord.role || 'User';
     const normalizedRole = normalizeRole(rawRole);
 
-    const validRoles = ['USER', 'GUIDE', 'SUPER_GUIDE', 'BVSL', 'SADHANA_MENTOR'];
+    const validRoles = ['USER', 'ADMIN', 'GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR'];
     const primaryRole = validRoles.includes(normalizedRole) ? normalizedRole : 'USER';
 
     const isBvsl = !!(userRecord.isBvsl || primaryRole === 'BVSL');
@@ -217,9 +218,8 @@ function buildProfileResult({
       isBvsl,
       isSadhanaMentor,
       isServiceAllocator,
-      isBvMentor,
-      isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || primaryRole === 'SUPER_GUIDE' || (userEmail || '').toLowerCase().includes('superadmin')),
-      isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || primaryRole === 'SUPER_GUIDE'),
+      isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || primaryRole === 'SUPER_ADMIN' || primaryRole === 'SUPER_GUIDE' || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || (userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('superadmin')),
+      isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || primaryRole === 'ADMIN' || primaryRole === 'SUPER_ADMIN' || primaryRole === 'SUPER_GUIDE' || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' || (userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('folkadmin')),
       isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),
       isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
       isBvSubFacilitator: !!(userRecord.isBvSubFacilitator),
@@ -248,6 +248,10 @@ function buildProfileResult({
       bvGroupName: userRecord.bvGroupName || null,
       isPrabhupadaWorldUser: !!(userRecord.isPrabhupadaWorldUser),
       pendingBvRejectionNotice: !!(userRecord.pendingBvRejectionNotice),
+      pendingBvApprovalNotice: !!(userRecord.pendingBvApprovalNotice),
+      pendingAshrayNoticeStatus: userRecord.pendingAshrayNoticeStatus || null,
+      pendingAshrayNoticeLevel: userRecord.pendingAshrayNoticeLevel || null,
+      ashrayNoticeAcknowledged: !!(userRecord.ashrayNoticeAcknowledged),
     },
   };
 }

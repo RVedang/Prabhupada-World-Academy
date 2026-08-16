@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint } from 'zite-integrations-backend-sdk';
+import { createEndpoint } from '@/lib/backend-sdk';
 import { supabase, fetchAllRows } from '../utils/supabase';
 import { requireGuideRole } from '../lib/userUtils';
 
@@ -49,7 +49,7 @@ export default createEndpoint({
 
     const { metric, volunteerId, centerId, teamId, weekStart, weekEnd } = input;
 
-    const isMock = !process.env.ZITE_SUPABASE_URL || process.env.ZITE_SUPABASE_URL.includes('mockproject');
+    const isMock = !process.env.APP_SUPABASE_URL || process.env.APP_SUPABASE_URL.includes('mockproject');
 
     if (isMock) {
       const mockContactNames = ['Rohit Sharma', 'Virat Kohli', 'K. L. Rahul', 'Jasprit Bumrah', 'R. Jadeja', 'Hardik Pandya', 'Rishabh Pant', 'Shubman Gill', 'Y. Jaiswal', 'Suryakumar Yadav', 'Axar Patel', 'Kuldeep Yadav', 'Mohammed Siraj', 'Shreyas Iyer', 'Mohammed Shami'];

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvGroups, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroupMembers, BvGroups, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Remove a member from a BV group',
@@ -29,7 +29,7 @@ export default createEndpoint({
       }
     }
 
-    if (!membershipDbId) throw new ZiteError({ code: 'NOT_FOUND', message: 'Membership not found' });
+    if (!membershipDbId) throw new AppError({ code: 'NOT_FOUND', message: 'Membership not found' });
 
     await BvGroupMembers.delete({ id: membershipDbId });
 

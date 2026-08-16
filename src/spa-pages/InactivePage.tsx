@@ -1,4 +1,4 @@
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { UserX } from 'lucide-react';

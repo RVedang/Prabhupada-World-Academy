@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, SadhanaEntries, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, SadhanaEntries, AppError } from '@/lib/backend-sdk';
 import { getNRMaxScore, fillingSameDayApplies, normalizeAshrayLevel } from '../lib/userUtils';
 
 function getIstDateStr(isoString: string): string {
@@ -28,7 +28,7 @@ export default createEndpoint({
     // Only Super Guide or Guide can run recalculations
     const callerRole = context.user!.role || '';
     if (callerRole !== 'Super Guide' && callerRole !== 'Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide or Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide or Super Guide access required' });
     }
 
     const endDate = input.endDate || input.startDate;

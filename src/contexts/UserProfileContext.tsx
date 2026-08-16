@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { useAuth } from 'zite-auth-sdk';
-import { getUserProfile, updateLastLogin } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { getUserProfile, updateLastLogin } from '@/lib/endpoints-sdk';
 import type { ProfileSummary } from '@/types/models';
 import { toast } from 'sonner';
 
@@ -37,7 +37,8 @@ function buildProfile(userObj: any): ProfileData {
   );
 
   let rawRole = ((userObj.role as string) || 'USER').toUpperCase().replace(/\s+/g, '_').trim();
-  if (rawRole === 'SUPER_ADMIN' || rawRole === 'SUPERADMIN') rawRole = 'SUPER_GUIDE';
+  // Normalize legacy variants
+  if (rawRole === 'SUPERADMIN') rawRole = 'SUPER_ADMIN';
   const validRoles = ['USER', 'GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR'];
   const role = validRoles.includes(rawRole) ? rawRole : 'USER';
 
@@ -48,10 +49,26 @@ function buildProfile(userObj: any): ProfileData {
   const isCleanlinessManager = !!(userObj.isCleanlinessManager);
   const folkResidencyCustomId = userObj.folkResidencyCustomId ?? null;
 
+  // BV Hierarchy flags
+  const userEmail = (userObj.email || userObj.id || '').toLowerCase();
+  const isBvSuperAdmin = !!(userObj.isBvSuperAdmin || role === 'SUPER_ADMIN' || role === 'SUPER_GUIDE' || userEmail === 'srilaprabhupadaworld@gmail.com' || userEmail === 'vdnd@hkmmumbai.org' || userEmail.includes('gaurmandal') || userEmail.includes('superadmin'));
+  const isBvAdmin = !!(userObj.isBvAdmin || isBvSuperAdmin || role === 'ADMIN' || role === 'GUIDE' || userEmail.includes('folkadmin'));
+  const isBvSupervisor = !!(userObj.isBvSupervisor || userObj.isBvMentor);
+  const isBvFacilitator = !!(userObj.isBvFacilitator);
+  const isBvSubFacilitator = !!(userObj.isBvSubFacilitator);
+
+  // Determine segment ('PW' | 'FOLK')
+  let segment: 'PW' | 'FOLK' = userObj.segment ?? 'PW';
+  if (userEmail.includes('gaurmandal') || userEmail.includes('folk.org')) {
+    segment = 'FOLK';
+  } else if (userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld')) {
+    segment = 'PW';
+  }
+
   return {
     userId: userObj.userId ?? userObj.id ?? '',
     fullName: userObj.fullName ?? userObj.full_name ?? '',
-    role: role as 'USER' | 'GUIDE' | 'SUPER_GUIDE' | 'BVSL' | 'SADHANA_MENTOR',
+    role: role as 'USER' | 'GUIDE' | 'SUPER_GUIDE' | 'SUPER_ADMIN' | 'BVSL' | 'SADHANA_MENTOR',
     status: (((userObj.status as string) || 'PENDING_APPROVAL').toUpperCase().replace(' ', '_').trim()) as
       'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED',
     isBvsl,
@@ -59,6 +76,11 @@ function buildProfile(userObj: any): ProfileData {
     isServiceAllocator,
     isBvMentor,
     isCleanlinessManager,
+    isBvSuperAdmin,
+    isBvAdmin,
+    isBvSupervisor,
+    isBvFacilitator,
+    isBvSubFacilitator,
     isFolkLead: !!(userObj.isFolkLead),
     isTripCoordinator: !!(userObj.isTripCoordinator),
     folkResidencyCustomId,
@@ -81,6 +103,12 @@ function buildProfile(userObj: any): ProfileData {
     acknowledgedFolkLead: !!(userObj.acknowledgedFolkLead),
     acknowledgedTripCoordinator: !!(userObj.acknowledgedTripCoordinator),
     acknowledgedSadhanaMentor: !!(userObj.acknowledgedSadhanaMentor),
+    segment,
+    pendingBvRejectionNotice: !!(userObj.pendingBvRejectionNotice),
+    pendingBvApprovalNotice: !!(userObj.pendingBvApprovalNotice),
+    pendingAshrayNoticeStatus: userObj.pendingAshrayNoticeStatus ?? null,
+    pendingAshrayNoticeLevel: userObj.pendingAshrayNoticeLevel ?? null,
+    ashrayNoticeAcknowledged: !!(userObj.ashrayNoticeAcknowledged),
   };
 }
 
@@ -219,6 +247,9 @@ export default function UserProfileProvider({ children }: { children: React.Reac
 
   useEffect(() => {
     if (profile) {
+      localStorage.setItem('auth_role', profile.role || 'USER');
+      localStorage.setItem('is_pw_admin', String(profile.isBvAdmin || profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN'));
+
       // ── 1. Registration Status Notice ──
       const lastSeenKey = `status_last_seen_${profile.userId}`;
       const lastSeen = localStorage.getItem(lastSeenKey);
@@ -306,6 +337,9 @@ export default function UserProfileProvider({ children }: { children: React.Reac
           }
         }
       }
+    } else {
+      localStorage.removeItem('auth_role');
+      localStorage.removeItem('is_pw_admin');
     }
   }, [profile]);
 

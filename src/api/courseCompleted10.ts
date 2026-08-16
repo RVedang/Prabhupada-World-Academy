@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, TagMangoSyncLog, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, TagMangoSyncLog, Users } from '@/lib/backend-sdk';
 
 const MILESTONE = 'Course 10% Completed';
 

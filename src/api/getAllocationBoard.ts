@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Services, ServiceAllocations, Users, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Services, ServiceAllocations, Users, FolkResidencies } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get the service allocation board for a week',

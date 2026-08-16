@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, TagMangoSyncLog, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, TagMangoSyncLog, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get TagMango sync log entries with stats (Super Guide only)',
@@ -36,7 +36,7 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }) => {
     if (context.user.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
 
     const limit = input.limit || 50;

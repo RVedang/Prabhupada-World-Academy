@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import UserProfileProvider, { useUserProfile } from './contexts/UserProfileContext';
 import RoleAcknowledgementHandler from '@/components/dashboard/RoleAcknowledgementHandler';
+import RoleAcknowledgementModal from '@/components/RoleAcknowledgementModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import ErrorBoundary from './layouts/ErrorBoundary';
 import ProtectedRoute from './layouts/ProtectedRoute';
@@ -16,7 +17,7 @@ import { GuestOnlyRoute, StatusRoute, AuthCallbackGuard } from './layouts/RouteG
 // ── Auth pages ──
 import LandingPage from './spa-pages/LandingPage';
 import LoginPage from './spa-pages/LoginPage';
-import ZiteAuthPage from './spa-pages/ZiteAuthPage';
+import AuthCallbackPage from './spa-pages/AuthCallbackPage';
 import GuideLoginPage from './spa-pages/GuideLoginPage';
 import RegistrationPage from './spa-pages/RegistrationPage';
 import PendingApprovalPage from './spa-pages/PendingApprovalPage';
@@ -26,6 +27,8 @@ import BvslEntryPage from './spa-pages/BvslEntryPage';
 
 // ── User pages ──
 import UserDashboard from './spa-pages/UserDashboard';
+import FolkUserDashboard from './spa-pages/FolkUserDashboard';
+import PwUserDashboard from './spa-pages/PwUserDashboard';
 import DailySadhanaForm from './spa-pages/DailySadhanaForm';
 import HistoryPage from './spa-pages/HistoryPage';
 import BhaktiVrikshaPage from './spa-pages/BhaktiVrikshaPage';
@@ -37,14 +40,17 @@ import GuideFieldSetupPage from './spa-pages/GuideFieldSetupPage';
 import GuideUserDetailPage from './spa-pages/GuideUserDetailPage';
 import BvGroupDetailPage from './spa-pages/BvGroupDetailPage';
 
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 
 // ── Super Guide & Admin pages ──
 import SuperGuideDashboard from './spa-pages/SuperGuideDashboard';
 import PwAdminDashboard from './spa-pages/PwAdminDashboard';
+import FolkAdminDashboard from './spa-pages/FolkAdminDashboard';
 
-// ── BVSL pages ──
+// ── BVSL, RGF & RGSF pages ──
 import BvslDashboard from './spa-pages/BvslDashboard';
+import RgfDashboard from './spa-pages/RgfDashboard';
+import RgsfDashboard from './spa-pages/RgsfDashboard';
 import JoinGroupPage from './spa-pages/JoinGroupPage';
 import BvJoinPage from './spa-pages/BvJoinPage';
 
@@ -63,7 +69,7 @@ import AttendanceDashboardPage from './spa-pages/attendance/AttendanceDashboardP
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTO VERSION DETECTION
-// Works by comparing the hashed JS bundle filename that Zite bakes into
+// Works by comparing the hashed JS bundle filename that build process bakes into
 // index.html at publish time vs what the browser currently has loaded.
 // Every publish produces a NEW hash → detected automatically. No manual bumps.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,7 +108,7 @@ async function checkAndRefreshIfStale(isBackground: boolean): Promise<void> {
   // Never reload during auth callbacks — the OAuth token is one-time use and a
   // mid-callback reload consumes it without establishing a session, causing a
   // permanent broken auth state (stuck spinner / redirect loop).
-  if (window.location.pathname === '/zite-auth') return;
+  if (window.location.pathname === '/auth-callback') return;
   try {
     const [localPath, remotePath] = await Promise.all([
       Promise.resolve(getLocalScriptPath()),
@@ -157,12 +163,13 @@ export default function App() {
         <InstallBanner />
         <UserProfileProvider>
           <RoleAcknowledgementHandler />
+          <RoleAcknowledgementModal />
           <Routes>
             {/* Auth — guarded to prevent active users from re-visiting */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage mode="signin" />} />
             <Route path="/signup" element={<LoginPage mode="signup" />} />
-            <Route path="/zite-auth" element={<AuthCallbackGuard><ZiteAuthPage /></AuthCallbackGuard>} />
+            <Route path="/auth-callback" element={<AuthCallbackGuard><AuthCallbackPage /></AuthCallbackGuard>} />
             <Route path="/guide-login" element={<GuideLoginPage />} />
             <Route path="/register" element={<GuestOnlyRoute><RegistrationPage /></GuestOnlyRoute>} />
             <Route path="/pending" element={<StatusRoute required="PENDING_APPROVAL"><PendingApprovalPage /></StatusRoute>} />
@@ -177,6 +184,9 @@ export default function App() {
 
             {/* User — accessible by all non-guide roles */}
             <Route path="/user/dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><UserDashboard /></ProtectedRoute>} />
+            {/* Segment-specific user dashboards (FOLK vs Prabhupada World) */}
+            <Route path="/user/folk-dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><FolkUserDashboard /></ProtectedRoute>} />
+            <Route path="/user/pw-dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><PwUserDashboard /></ProtectedRoute>} />
             <Route path="/sadhana" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><DailySadhanaForm /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><HistoryPage /></ProtectedRoute>} />
             <Route path="/bhaktivriksha" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><BhaktiVrikshaPage /></ProtectedRoute>} />
@@ -186,24 +196,26 @@ export default function App() {
             <Route path="/guide/dashboard" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN']}><GuideDashboard /></ProtectedRoute>} />
             <Route path="/guide/field-setup" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN']}><GuideFieldSetupPage /></ProtectedRoute>} />
             <Route path="/guide/users/:userId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR']}><GuideUserDetailPage /></ProtectedRoute>} />
-            <Route path="/guide/bv-group/:groupId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BV_MENTOR']}><BvGroupDetailPage /></ProtectedRoute>} />
-            <Route path="/bvsl/groups/:groupId" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR']}><BvGroupDetailPage /></ProtectedRoute>} />
+            <Route path="/guide/bv-group/:groupId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BV_MENTOR', 'ADMIN', 'PW_ADMIN', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />
+            <Route path="/bvsl/groups/:groupId" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'GUIDE', 'SUPER_GUIDE', 'BV_MENTOR', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />
             <Route path="/guide/stats" element={<Navigate to="/guide/dashboard" replace />} />
 
             {/* Super Guide & Super Admin */}
-            <Route path="/super/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN']}><SuperGuideDashboard /></ProtectedRoute>} />
-            <Route path="/pw-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
-            <Route path="/super-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
+            <Route path="/super/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN']}><FolkAdminDashboard /></ProtectedRoute>} />
+            <Route path="/folk-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'USER']}><FolkAdminDashboard /></ProtectedRoute>} />
+            <Route path="/pw-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
+            <Route path="/super-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
 
-            {/* Supervisor dashboard (formerly BV Mentor) */}
-            <Route path="/bv-supervisor/dashboard" element={<ProtectedRoute allowedRoles={['BV_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'USER']}><BvSupervisorDashboard /></ProtectedRoute>} />
-            <Route path="/supervisor/dashboard" element={<ProtectedRoute allowedRoles={['BV_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'USER']}><BvSupervisorDashboard /></ProtectedRoute>} />
-            <Route path="/bv-mentor/dashboard" element={<ProtectedRoute allowedRoles={['BV_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'USER']}><BvSupervisorDashboard /></ProtectedRoute>} />
+            {/* Supervisor dashboard (formerly BV Mentor) — accessible by BV_MENTOR/isBvSupervisor, Guides, and Admins */}
+            <Route path="/bv-supervisor/dashboard" element={<ProtectedRoute allowedRoles={['BV_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'ADMIN']}><BvSupervisorDashboard /></ProtectedRoute>} />
+            <Route path="/supervisor/dashboard" element={<ProtectedRoute allowedRoles={['BV_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'ADMIN']}><BvSupervisorDashboard /></ProtectedRoute>} />
+            <Route path="/bv-mentor/dashboard" element={<ProtectedRoute allowedRoles={['BV_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'ADMIN']}><BvSupervisorDashboard /></ProtectedRoute>} />
 
-            {/* Reading Group Facilitator (RGF) & Sub-Facilitator (RGSF) dashboards */}
-            <Route path="/rgf/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE']}><BvslDashboard /></ProtectedRoute>} />
-            <Route path="/rgsf/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE']}><BvslDashboard /></ProtectedRoute>} />
-            <Route path="/bvsl/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE']}><BvslDashboard /></ProtectedRoute>} />
+            {/* Reading Group Facilitator (RGF) — accessible by BVSL/isBvFacilitator role */}
+            <Route path="/rgf/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE']}><RgfDashboard /></ProtectedRoute>} />
+            {/* RGSF dashboard — base role is 'User' but isBvSubFacilitator flag gates access via ProtectedRoute */}
+            <Route path="/rgsf/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'USER']}><RgsfDashboard /></ProtectedRoute>} />
+            <Route path="/bvsl/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE']}><RgfDashboard /></ProtectedRoute>} />
 
             {/* Sadhana Mentor dashboard */}
             <Route path="/mentor/dashboard" element={<ProtectedRoute allowedRoles={['SADHANA_MENTOR', 'BVSL']}><SadhanaMentorDashboard /></ProtectedRoute>} />
@@ -293,18 +305,46 @@ function DashboardRouter() {
   if (profile.status === 'REJECTED') return <Navigate to="/rejected" replace />;
   if ((profile.status as string) === 'INACTIVE') return <Navigate to="/inactive" replace />;
 
-  const isPwAdmin = user?.email?.toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
-                    user?.email?.toLowerCase() === 'vdnd@hkmmumbai.org' ||
-                    (profile as any)?.isPwAdmin ||
-                    (profile as any)?.isBvSuperAdmin;
+  const suffix = typeof window !== 'undefined' ? `${window.location.search}${window.location.hash}` : '';
 
-  if (isPwAdmin || profile.role === 'SUPER_GUIDE' || (profile.role as string) === 'SUPER_ADMIN') {
-    return <Navigate to="/pw-admin/dashboard" replace />;
+  // ── BV Hierarchy Routing (top → bottom) ──
+
+  const userEmailLower = (user?.email || '').toLowerCase();
+  const isFolk = profile.segment === 'FOLK' || userEmailLower.includes('gaurmandal') || userEmailLower.includes('folk.org');
+  const isPw = !isFolk;
+
+  // Super Admin / Admin
+  const isSuperAdmin = userEmailLower === 'srilaprabhupadaworld@gmail.com' ||
+                    userEmailLower === 'vdnd@hkmmumbai.org' ||
+                    (profile as any)?.isPwAdmin ||
+                    profile?.isBvSuperAdmin ||
+                    profile?.role === 'SUPER_ADMIN';
+
+  if (isSuperAdmin || profile.isBvAdmin || (profile.role as string) === 'ADMIN') {
+    return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/folk-admin/dashboard${suffix}`} replace />;
   }
 
-  if (profile.role === 'GUIDE') return <Navigate to="/guide/dashboard" replace />;
-  // BV Mentor: lands on their dedicated BV management dashboard
-  if (profile.isBvMentor) return <Navigate to="/bv-mentor/dashboard" replace />;
-  // P1-002 FIX: BVSL and Mentor land on "My Sadhana" (user dashboard) first.
-  return <Navigate to="/user/dashboard" replace />;
+  // Supervisor
+  if (profile.isBvSupervisor || profile.isBvMentor) return <Navigate to={`/bv-supervisor/dashboard${suffix}`} replace />;
+
+  // RGSF (Sub-Facilitator)
+  if (profile.isBvSubFacilitator && !profile.isBvFacilitator && !profile.isBvsl) {
+    return <Navigate to={`/rgsf/dashboard${suffix}`} replace />;
+  }
+
+  // RGF (Reading Group Facilitator) / BVSL
+  if (profile.isBvFacilitator || profile.isBvsl) {
+    return <Navigate to={`/rgf/dashboard${suffix}`} replace />;
+  }
+
+  // Guide / Mentor
+  if (profile.role === 'SUPER_GUIDE' || profile.role === 'GUIDE') {
+    return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/guide/dashboard${suffix}`} replace />;
+  }
+
+  // Default: regular user — route by department (determined by mentor chosen at registration)
+  const isPwUser = !!(profile as any)?.isPrabhupadaWorldUser || (profile as any)?.segment === 'PW';
+  return isPwUser
+    ? <Navigate to={`/user/pw-dashboard${suffix}`} replace />
+    : <Navigate to={`/user/folk-dashboard${suffix}`} replace />;
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvMemberRegistrations, BvGroupMembers, Users, BvGroups, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvMemberRegistrations, BvGroupMembers, Users, BvGroups, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
 
@@ -13,18 +13,36 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const role = (context.user.role || '').toUpperCase();
     const userEmail = (context.user.email || '').toLowerCase();
-    const isAuthorized = role === 'SUPER_GUIDE' || role === 'GUIDE' || userEmail === 'srilaprabhupadaworld@gmail.com' || context.user.isBvAdmin || context.user.isBvSuperAdmin || context.user.isBvSupervisor;
+    
+    // Fetch full caller record to access hierarchy flags
+    const callerRecord = await Users.findOne({ id: context.user.id });
+    if (!callerRecord) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'User profile not found' });
+    }
+
+    const callerRole = (callerRecord.role || '').toUpperCase();
+    const isAuthorized =
+      callerRole === 'SUPER_ADMIN' ||
+      callerRole === 'ADMIN' ||
+      callerRole === 'SUPER_GUIDE' ||
+      callerRole === 'GUIDE' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com' ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail.includes('gaurmandal') ||
+      !!callerRecord.isBvSuperAdmin ||
+      !!callerRecord.isBvAdmin ||
+      !!callerRecord.isBvSupervisor;
+
     if (!isAuthorized) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
     const reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
-    if (!reg) throw new ZiteError({ code: 'NOT_FOUND', message: 'Registration request not found' });
+    if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
 
     const group = await BvGroups.findOne({ id: input.groupId });
-    if (!group) throw new ZiteError({ code: 'NOT_FOUND', message: 'Selected Reading Group not found' });
+    if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Selected Reading Group not found' });
 
     const now = new Date().toISOString();
 
@@ -47,6 +65,8 @@ export default createEndpoint({
       await BvGroupMembers.create({
         record: {
           id: memberRecordId,
+          group: group.id,
+          user: reg.userId,
           groupId: group.id,
           userId: reg.userId,
           role: 'Member',
@@ -55,15 +75,52 @@ export default createEndpoint({
       });
     }
 
-    // 3. Update main User record
-    await Users.update({
-      id: reg.userId,
-      record: {
-        bvRegistrationStatus: 'Approved',
-        bvGroupId: group.id,
-        bvGroupName: group.groupName || '',
-      },
-    }).catch(() => {});
+    // 3. Update main User record & establish reporting parent (RGF)
+    let targetUser = await Users.findOne({ id: reg.userId });
+    if (!targetUser) {
+      targetUser = await Users.findOne({ filters: { userId: reg.userId } }) ||
+                   await Users.findOne({ filters: { email: reg.email } }) ||
+                   await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } });
+    }
+
+    if (targetUser) {
+      // Find Reading Group Facilitator (RGF) for the group
+      const rawRgfId = Array.isArray(group.bvslLeader) ? group.bvslLeader[0] : (group.bvslLeader || group.bvslId || group.guide);
+      let rgfUser: any = null;
+      if (rawRgfId) {
+        rgfUser = await Users.findOne({ id: rawRgfId }).catch(() => null)
+               || await Users.findOne({ filters: { userId: rawRgfId } }).catch(() => null)
+               || await Users.findOne({ filters: { email: rawRgfId } }).catch(() => null);
+      }
+
+      const rgfUserId = rgfUser ? (rgfUser.userId || rgfUser.id) : String(rawRgfId || '');
+      const rgfName = rgfUser ? (rgfUser.fullName || '') : String(group.bvslName || '');
+
+      const rgfSupId = rgfUser ? String(rgfUser.bvReportingSupervisorId || '') : '';
+      const rgfSupName = rgfUser ? String(rgfUser.bvReportingSupervisorName || '') : '';
+      const rgfAdminId = (rgfUser && rgfUser.bvReportingAdminId) ? String(rgfUser.bvReportingAdminId) : String(callerRecord.userId || callerRecord.id || '');
+      const rgfAdminName = (rgfUser && rgfUser.bvReportingAdminName) ? String(rgfUser.bvReportingAdminName) : String(callerRecord.fullName || '');
+
+      await Users.update({
+        id: targetUser.id,
+        record: {
+          bvRegistrationStatus: 'Approved',
+          bvGroupId: group.id,
+          bvGroupName: group.groupName || '',
+          // Default parent is RGF (Reading Group Facilitator)
+          bvReportingFacilitatorId: rgfUserId,
+          bvReportingFacilitatorName: rgfName,
+          bvReportingSupervisorId: rgfSupId,
+          bvReportingSupervisorName: rgfSupName,
+          bvReportingAdminId: rgfAdminId,
+          bvReportingAdminName: rgfAdminName,
+          supervisorName: rgfName, // Legacy fallback
+          guide: rgfAdminId || callerRecord.id, // Ensures Admin's member list includes this user
+          pendingBvApprovalNotice: true,
+        },
+      });
+      serverCacheInvalidate(profileCacheKey(targetUser.id));
+    }
 
     serverCacheInvalidate(profileCacheKey(reg.userId));
 

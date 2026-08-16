@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, CheckCircle2, XCircle, Home, MessageSquare, Camera } from 'lucide-react';
-import { getUserCleanlinessCalendar } from 'zite-endpoints-sdk';
+import { getUserCleanlinessCalendar } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 
 interface DayRecord {

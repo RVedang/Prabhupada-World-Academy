@@ -132,11 +132,28 @@ export function usesResidentTemplate(user: {
  */
 export function requireGuideRole(
   userRole: string | null | undefined,
-  flags?: { isSadhanaMentor?: boolean | null; isBvsl?: boolean | null; isBvMentor?: boolean | null },
+  flags?: {
+    isSadhanaMentor?: boolean | null;
+    isBvsl?: boolean | null;
+    isBvMentor?: boolean | null;
+    isBvAdmin?: boolean | null;
+    isPwAdmin?: boolean | null;
+    isBvSuperAdmin?: boolean | null;
+    isBvSupervisor?: boolean | null;
+  },
 ): void {
-  const ALLOWED_ROLES = ['Guide', 'Super Guide', 'BVSL', 'Sadhana Mentor'];
-  const roleOk = !!(userRole && ALLOWED_ROLES.includes(userRole));
-  const flagOk = !!(flags?.isSadhanaMentor || flags?.isBvsl || flags?.isBvMentor);
+  const normRole = (userRole || '').toUpperCase().replace(/\s+/g, '_');
+  const ALLOWED_ROLES = ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'SUPER_ADMIN', 'PW_ADMIN', 'BVSL', 'SADHANA_MENTOR'];
+  const roleOk = !!(normRole && ALLOWED_ROLES.includes(normRole));
+  const flagOk = !!(
+    flags?.isSadhanaMentor ||
+    flags?.isBvsl ||
+    flags?.isBvMentor ||
+    flags?.isBvAdmin ||
+    flags?.isPwAdmin ||
+    flags?.isBvSuperAdmin ||
+    flags?.isBvSupervisor
+  );
   if (!roleOk && !flagOk) {
     throw new Error('Unauthorized: Guide or higher role required');
   }

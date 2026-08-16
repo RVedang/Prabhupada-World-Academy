@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { User, Users, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { getFieldsForUser, getGuideGroups, GetFieldsForUserOutputType } from 'zite-endpoints-sdk';
+import { getFieldsForUser, getGuideGroups, GetFieldsForUserOutputType } from '@/lib/endpoints-sdk';
 
 interface FormsTabProps {
   guideId: string;

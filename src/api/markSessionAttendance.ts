@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
-  createEndpoint, ZiteError, Users, AttendanceParticipants,
+  createEndpoint, AppError, Users, AttendanceParticipants,
   AttendanceRecords, AttendanceSessions, ChallengeEnrollments,
-} from 'zite-integrations-backend-sdk';
+} from '@/lib/backend-sdk';
 import { normalizePhone } from '@/lib/phoneNormalize';
 
 export default createEndpoint({
@@ -25,7 +25,7 @@ export default createEndpoint({
   execute: async ({ input }) => {
     const today = new Date().toISOString().slice(0, 10);
     const session = await AttendanceSessions.findOne({ id: input.sessionId });
-    if (!session) throw new ZiteError({ code: 'NOT_FOUND', message: 'Session not found' });
+    if (!session) throw new AppError({ code: 'NOT_FOUND', message: 'Session not found' });
 
     let userId: string | undefined;
     let participantId: string | undefined;
@@ -34,7 +34,7 @@ export default createEndpoint({
 
     if (input.userId) {
       const user = await Users.findOne({ id: input.userId });
-      if (!user) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+      if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
       userId = user.id;
       participantName = user.fullName || user.email || '';
       source = 'Registered User';
@@ -56,11 +56,11 @@ export default createEndpoint({
           participantName = matchedPart.name || '';
           source = 'New Participant';
         } else {
-          throw new ZiteError({ code: 'NOT_FOUND', message: 'Phone not found. Try your registered number or register now.' });
+          throw new AppError({ code: 'NOT_FOUND', message: 'Phone not found. Try your registered number or register now.' });
         }
       }
     } else {
-      throw new ZiteError({ code: 'BAD_REQUEST', message: 'Phone or userId required' });
+      throw new AppError({ code: 'BAD_REQUEST', message: 'Phone or userId required' });
     }
 
     // Check duplicate

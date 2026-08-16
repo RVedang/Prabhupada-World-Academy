@@ -3,6 +3,7 @@
  * Columns: Name | Level | FOLK | Group | date columns (Attend | Quiz) | Att% | Quiz%
  */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -11,10 +12,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Users, Calendar, CheckSquare, Brain, FileDown, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvSessionMatrix } from 'zite-endpoints-sdk';
-import type { GetBvSessionMatrixOutputType } from 'zite-endpoints-sdk';
+import { getBvSessionMatrix } from '@/lib/endpoints-sdk';
+import type { GetBvSessionMatrixOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear, startOfMonth, endOfMonth } from 'date-fns';
 import { useDebouncedCallback } from 'use-debounce';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { EmptyState } from '@/shared';
 import { exportToCsv } from '@/utils/exportCsv';
@@ -48,7 +50,7 @@ function getWeekOptions() {
   for (let i = 0; i < 52; i++) {
     const ws = new Date(cws); ws.setDate(cws.getDate() - i * 7);
     const we = endOfISOWeek(ws);
-    opts.push({ value: `${getISOWeekYear(ws)}-W${String(getISOWeek(ws)).padStart(2, '0')}`, label: `Week ${getISOWeek(ws)}: ${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}` });
+    opts.push({ value: `${getISOWeekYear(ws)}-W${String(getISOWeek(ws)).padStart(2, '0')}`, label: `${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}${i === 0 ? ' (Current)' : ''}` });
   }
   return opts;
 }
@@ -70,6 +72,11 @@ const MONTH_OPTIONS = getMonthOptions();
 interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
 
 export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: Props) {
+  const { profile } = useUserProfile();
+  const navigate = useNavigate();
+  const userEmail = (profile?.userId || '').toLowerCase();
+  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('weekly');
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
@@ -293,7 +300,9 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
             <div className="flex items-center gap-1.5">
               <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
               <Select value={reportType} onValueChange={(v: ReportType) => setReportType(v)}>
-                <SelectTrigger className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-[110px]">
+                  <SelectValue>{reportType === 'weekly' ? 'Weekly' : 'Monthly'}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="weekly">Weekly</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
@@ -304,7 +313,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">Week:</Label>
                 <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-                  <SelectTrigger className="h-8 w-[230px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-[280px]"><SelectValue>{WEEK_OPTIONS.find(o => o.value === selectedWeek)?.label || selectedWeek}</SelectValue></SelectTrigger>
                   <SelectContent className="max-h-60">{WEEK_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -313,7 +322,9 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">Month:</Label>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-[160px]">
+                    <SelectValue>{MONTH_OPTIONS.find(o => o.value === selectedMonth)?.label || selectedMonth}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent className="max-h-60">{MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -322,7 +333,9 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">Group:</Label>
                 <Select value={groupId} onValueChange={setGroupId}>
-                  <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-[160px]">
+                    <SelectValue>{groupId === 'all' ? 'All Groups' : groups.find(g => g.id === groupId)?.name || groupId}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Groups</SelectItem>
                     {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
@@ -333,7 +346,9 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
             <div className="flex items-center gap-1.5">
               <Label className="text-sm font-medium whitespace-nowrap">Level:</Label>
               <Select value={ashrayFilter} onValueChange={setAshrayFilter}>
-                <SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-[120px]">
+                  <SelectValue>{ashrayFilter === 'all' ? 'All Levels' : ashrayFilter}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
                   {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
@@ -343,7 +358,9 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
             <div className="flex items-center gap-1.5">
               <Label className="text-sm font-medium whitespace-nowrap">View:</Label>
               <Select value={viewFilter} onValueChange={(v: 'both' | 'attendance' | 'quiz') => setViewFilter(v)}>
-                <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-[150px]">
+                  <SelectValue>{viewFilter === 'both' ? 'Both' : viewFilter === 'attendance' ? 'Attendance Only' : 'Quiz Only'}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="both">Both</SelectItem>
                   <SelectItem value="attendance">Attendance Only</SelectItem>
@@ -351,17 +368,21 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Label className="text-sm font-medium whitespace-nowrap">FOLK:</Label>
-              <Select value={folkFilter} onValueChange={setFolkFilter}>
-                <SelectTrigger className="h-8 w-[140px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="NR">NR</SelectItem>
-                  {availableResidencies.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isPw && (
+              <div className="flex items-center gap-1.5">
+                <Label className="text-sm font-medium whitespace-nowrap">FOLK:</Label>
+                <Select value={folkFilter} onValueChange={setFolkFilter}>
+                  <SelectTrigger className="h-8 w-[140px]">
+                    <SelectValue>{folkFilter === 'all' ? 'All Residencies' : folkFilter}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Residencies</SelectItem>
+                    <SelectItem value="NR">NR</SelectItem>
+                    {availableResidencies.map((r: any) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -412,7 +433,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                       <tr className="bg-muted/50 border-b">
                         <th className="p-2 text-left font-semibold sticky left-0 bg-muted/50 z-20 border-r min-w-[130px]">Name</th>
                         <th className="p-2 text-center font-medium min-w-[80px]">Level</th>
-                        <th className="p-2 text-center font-medium min-w-[72px]">FOLK</th>
+                        {!isPw && <th className="p-2 text-center font-medium min-w-[72px]">FOLK</th>}
                         <th className="p-2 text-left font-medium border-r min-w-[80px]">Group</th>
                         {displayDates.map(d => (
                           <th key={d} colSpan={viewFilter === 'both' ? 2 : 1}
@@ -429,7 +450,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                       <tr className="bg-muted/30 border-b">
                         <th className="sticky left-0 bg-muted/30 z-20 border-r" />
                         <th />
-                        <th />
+                        {!isPw && <th />}
                         <th className="border-r" />
                         {displayDates.flatMap(d => [
                           ...(viewFilter !== 'quiz' ? [<th key={`${d}-ha`} className={`p-1 text-center font-medium border-r text-[10px] ${sessionDateSet.has(d) ? 'bg-primary/5' : 'text-muted-foreground'}`} style={{ minWidth: 38 }}>Att</th>] : []),
@@ -448,6 +469,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                           quizScores={(data.quizScores as Record<string, Record<string, number>>)[m.userId] || {}}
                           isEven={idx % 2 === 0}
                           viewFilter={viewFilter}
+                          isPw={isPw}
                         />
                       ))}
                     </tbody>
@@ -462,7 +484,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   );
 }
 
-function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven, viewFilter }: {
+function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven, viewFilter, isPw }: {
   member: MemberRow;
   dates: string[];
   sessionDates: Set<string>;
@@ -470,7 +492,9 @@ function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven
   quizScores: Record<string, number>;
   isEven: boolean;
   viewFilter: 'both' | 'attendance' | 'quiz';
+  isPw?: boolean;
 }) {
+  const navigate = useNavigate();
   const rowBg = isEven ? '' : 'bg-muted/20';
 
   let attTotal = 0; let attPossible = 0;
@@ -488,21 +512,43 @@ function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven
 
   const folkLabel = member.isResident ? ((member as any).residencyName || 'Resident') : 'NR';
 
+  const isRgsf = (member as any).isRgsf || (member as any).role === 'RGSF' || (Array.isArray((member as any).roles) && (member as any).roles.includes('RGSF'));
+
   return (
     <tr className={`border-b hover:bg-muted/30 ${rowBg}`}>
-      <td className={`p-2 font-medium sticky left-0 z-10 border-r ${isEven ? 'bg-background' : 'bg-muted/20'}`} style={{ minWidth: 130 }}>
-        <div className="truncate max-w-[120px]">{member.fullName}</div>
+      <td className={`p-2 font-medium sticky left-0 z-10 border-r ${isEven ? 'bg-background' : 'bg-muted/20'}`} style={{ minWidth: 140 }}>
+        <div className="flex items-center gap-1.5 min-w-0 max-w-[140px]">
+          {isRgsf && (
+            <Badge className="bg-amber-600 text-white font-bold text-[9px] uppercase tracking-wide px-1 py-0 shrink-0">
+              RGSF
+            </Badge>
+          )}
+          <span className="truncate font-medium">{member.fullName}</span>
+        </div>
       </td>
       <td className="p-2 text-center text-[11px]">
         {member.ashrayLevel ? <span className="font-medium truncate block max-w-[75px] mx-auto">{member.ashrayLevel}</span> : <span className="text-muted-foreground/40">—</span>}
       </td>
-      <td className="p-2 text-center text-[11px]">
-        {member.isResident
-          ? <span className="text-primary font-medium truncate block max-w-[68px] mx-auto">{folkLabel}</span>
-          : <span className="text-muted-foreground font-medium">NR</span>}
-      </td>
+      {!isPw && (
+        <td className="p-2 text-center text-[11px]">
+          {member.isResident
+            ? <span className="text-primary font-medium truncate block max-w-[68px] mx-auto">{folkLabel}</span>
+            : <span className="text-muted-foreground font-medium">NR</span>}
+        </td>
+      )}
       <td className={`p-2 text-muted-foreground border-r ${isEven ? 'bg-background' : 'bg-muted/20'}`} style={{ minWidth: 80 }}>
-        <div className="truncate max-w-[70px] text-[11px]">{member.groupName}</div>
+        {(member as any).groupId ? (
+          <button
+            type="button"
+            onClick={() => navigate(`/bvsl/groups/${(member as any).groupId}`)}
+            className="truncate max-w-[70px] text-[11px] font-medium text-primary hover:underline text-left block"
+            title={`View ${member.groupName} details`}
+          >
+            {member.groupName}
+          </button>
+        ) : (
+          <div className="truncate max-w-[70px] text-[11px]">{member.groupName}</div>
+        )}
       </td>
       {dates.flatMap(d => {
         const hasSession = sessionDates.has(d);

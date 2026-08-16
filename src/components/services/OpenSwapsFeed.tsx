@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ArrowLeftRight, ChevronDown, ChevronUp, Clock, User } from 'lucide-react';
 import { toast } from 'sonner';
-import { acceptSwap } from 'zite-endpoints-sdk';
-import type { GetOpenSwapsOutputType } from 'zite-endpoints-sdk';
+import { acceptSwap } from '@/lib/endpoints-sdk';
+import type { GetOpenSwapsOutputType } from '@/lib/endpoints-sdk';
 
 type SwapItem = GetOpenSwapsOutputType['swaps'][0];
 

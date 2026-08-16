@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, JigyasaRegistrations, JigyasaProcessedFiles, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, JigyasaRegistrations, JigyasaProcessedFiles, AppError } from '@/lib/backend-sdk';
 
 const rowSchema = z.object({
   name: z.string().optional(),
@@ -33,12 +33,12 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user.role;
     if (role !== 'Super Guide' && role !== 'Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can upload registrations' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can upload registrations' });
     }
 
     // Check if already processed
     const existing = await JigyasaProcessedFiles.findOne({ filters: { fileName: input.fileName, fileType: 'Registration' } });
-    if (existing) throw new ZiteError({ code: 'CONFLICT', message: 'This registration file has already been processed' });
+    if (existing) throw new AppError({ code: 'CONFLICT', message: 'This registration file has already been processed' });
 
     let created = 0, updated = 0, skipped = 0;
 

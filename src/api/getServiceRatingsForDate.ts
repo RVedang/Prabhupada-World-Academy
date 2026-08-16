@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, Services, ServiceRatings } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, Services, ServiceRatings } from '@/lib/backend-sdk';
 import crypto from 'crypto';
 
 export default createEndpoint({

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceSwaps, ServiceAllocations } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceSwaps, ServiceAllocations } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Reject a service swap request',

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, Services } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, Services } from '@/lib/backend-sdk';
 
 // Skilled services rotate less aggressively (quality > rotation)
 const SKILLED_CATEGORIES = ['Altar', 'Tech'];

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
-  createEndpoint, ZiteError, AttendanceEvents, AttendanceSessions,
+  createEndpoint, AppError, AttendanceEvents, AttendanceSessions,
   AttendanceRecords, AttendanceParticipants, AttendanceVolunteers, Users,
-} from 'zite-integrations-backend-sdk';
+} from '@/lib/backend-sdk';
 
 const ADMIN_ROLES = ['Guide', 'Super Guide', 'BVSL'];
 
@@ -41,7 +41,7 @@ export default createEndpoint({
     let allowedSessionIds: string[] | null = null;
     if (!isAdmin) {
       const { records: vols } = await AttendanceVolunteers.findAll({ filters: { user: context.user.id }, limit: 100 });
-      if (vols.length === 0) throw new ZiteError({ code: 'FORBIDDEN', message: 'Not authorized' });
+      if (vols.length === 0) throw new AppError({ code: 'FORBIDDEN', message: 'Not authorized' });
       allowedSessionIds = vols.map(v => (Array.isArray(v.session) ? v.session[0] : v.session) as string).filter(Boolean);
     }
 

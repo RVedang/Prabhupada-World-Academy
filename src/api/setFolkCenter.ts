@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -11,7 +11,7 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
     const residencyRecord = await FolkResidencies.findOne({ id: input.residencyId });
-    if (!residencyRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'Residency not found' });
+    if (!residencyRecord) throw new AppError({ code: 'NOT_FOUND', message: 'Residency not found' });
 
     await Users.update({
       id: context.user!.id,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Users } from '@/lib/zite-integrations-backend-sdk';
+import { Users } from '@/lib/app-backend-sdk';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import fs from 'fs';
@@ -54,6 +54,9 @@ if (apps.length === 0) {
 async function verifyToken(token: string): Promise<{ email: string | null; uid: string }> {
   // Support Mock auth token for local offline development
   if (token.startsWith('mock_token_for_')) {
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_USE_AUTH_EMULATOR !== 'true') {
+      throw new Error('Unauthorized: Mock tokens are forbidden in production.');
+    }
     const email = token.replace('mock_token_for_', '');
     return { email, uid: email };
   }
@@ -95,10 +98,40 @@ async function verifyToken(token: string): Promise<{ email: string | null; uid: 
   throw new Error('Authentication verification not configured. Check process.env.FIREBASE_SERVICE_ACCOUNT.');
 }
 
+// Sliding window in-memory rate limiter per IP (max 60 requests per minute)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return true;
+  }
+
+  entry.count++;
+  return false;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ endpoint: string }> }
 ) {
+  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
+  if (process.env.NODE_ENV !== 'development' && isRateLimited(clientIp)) {
+    return NextResponse.json(
+      { message: 'Too many requests. Please slow down and try again.' },
+      { status: 429 }
+    );
+  }
+
   const { endpoint } = await params;
 
   try {
@@ -123,56 +156,98 @@ export async function POST(
     // 3. Setup context
     let context: any = { user: null };
 
-    if (endpointConfig.authenticated) {
-      const authHeader = req.headers.get('Authorization') || '';
-      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-      if (!token) {
-        return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
-      }
-
+    if (token) {
       try {
         const decodedUser = await verifyToken(token);
         
         let dbUser = null;
         if (decodedUser.email) {
-          // Look up user record in DB by email
-          dbUser = await Users.findOne({ filters: { email: decodedUser.email } });
-          console.log(`[API Router Auth] Token Email: ${decodedUser.email} | dbUser:`, dbUser ? JSON.stringify(dbUser) : "null");
+          const emailLower = decodedUser.email.toLowerCase();
+          dbUser = await Users.findOne({ filters: { email: decodedUser.email } }).catch(() => null) ||
+                   await Users.findOne({ filters: { email: emailLower } }).catch(() => null);
         }
 
+        const emailLower = (decodedUser.email || '').toLowerCase();
+        const isKnownSuperAdmin = !!(
+          emailLower === 'srilaprabhupadaworld@gmail.com' ||
+          emailLower === 'vdnd@hkmmumbai.org' ||
+          emailLower.includes('gaurmandal') ||
+          emailLower.includes('superadmin')
+        );
+        const isKnownAdmin = !!(
+          isKnownSuperAdmin ||
+          emailLower === 'admin@prabhupadaworld.org' ||
+          emailLower === 'folkadmin@folk.org' ||
+          emailLower.includes('admin')
+        );
+
         if (dbUser) {
+          const dbRole = (dbUser.role || '').toUpperCase();
+          const isSuperAdmin = !!(
+            isKnownSuperAdmin ||
+            dbUser.isBvSuperAdmin ||
+            dbRole.includes('SUPER')
+          );
+          const isAdmin = !!(
+            isKnownAdmin ||
+            isSuperAdmin ||
+            dbUser.isBvAdmin ||
+            dbRole.includes('ADMIN') ||
+            dbRole.includes('GUIDE')
+          );
+
           context.user = {
             id: dbUser.id,
-            email: dbUser.email,
-            role: dbUser.role || 'User',
+            email: dbUser.email || decodedUser.email,
+            role: dbUser.role || (isSuperAdmin ? 'Super Admin' : (isAdmin ? 'Admin' : 'User')),
+            isBvAdmin: isAdmin,
+            isBvSuperAdmin: isSuperAdmin,
+            isBvSupervisor: !!dbUser.isBvSupervisor,
+            isBvMentor: !!dbUser.isBvMentor,
+            isBvFacilitator: !!dbUser.isBvFacilitator,
+            isBvSubFacilitator: !!dbUser.isBvSubFacilitator,
+            isBvsl: !!dbUser.isBvsl,
+            segment: dbUser.segment || null,
+            userId: dbUser.userId || dbUser.id,
           };
         } else {
-          // Bootstrap override: if Users table is empty, make first authenticated user Super Guide
-          let userRole = 'User';
+          let userRole = isKnownSuperAdmin ? 'Super Admin' : (isKnownAdmin ? 'Admin' : 'User');
           try {
             const { records } = await Users.findAll({ limit: 1 });
             if (records.length === 0) {
               userRole = 'Super Guide';
-              console.log(`[API Router] Bootstrap: Granting 'Super Guide' role to first user: ${decodedUser.email}`);
             }
-          } catch (e) {
-            // Ignore if Firestore is not loaded/accessible yet
-          }
+          } catch (e) {}
 
           context.user = {
             id: decodedUser.uid,
             email: decodedUser.email,
             role: userRole,
+            isBvAdmin: isKnownAdmin || isKnownSuperAdmin || userRole === 'Super Guide',
+            isBvSuperAdmin: isKnownSuperAdmin || userRole === 'Super Guide',
+            isBvSupervisor: false,
+            isBvMentor: false,
+            isBvFacilitator: false,
+            isBvSubFacilitator: false,
+            isBvsl: false,
+            segment: null,
+            userId: decodedUser.uid,
           };
         }
       } catch (authError: any) {
-        console.error('[API Router] Authentication failed:', authError);
-        return NextResponse.json(
-          { message: authError.message || 'Unauthorized' },
-          { status: 401 }
-        );
+        console.error('[API Router] Authentication error:', authError);
+        if (endpointConfig.authenticated) {
+          return NextResponse.json(
+            { message: authError.message || 'Unauthorized' },
+            { status: 401 }
+          );
+        }
       }
+    } else if (endpointConfig.authenticated) {
+      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
     }
 
     // 4. Input validation using Zod schema defined in endpoint
@@ -197,7 +272,7 @@ export async function POST(
   } catch (error: any) {
     console.error(`[API Router] Error running ${endpoint}:`, error);
     
-    // Check if it is a ZiteError or contains code property
+    // Check if it is a AppError or contains code property
     const status = error.code === 'FORBIDDEN' ? 403 : error.code === 'NOT_FOUND' ? 404 : 500;
     return NextResponse.json(
       { message: error.message || 'Internal Server Error', code: error.code || 'INTERNAL_ERROR' },

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvQuizzes, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvQuizzes, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Delete a BV quiz',
@@ -9,7 +9,7 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
     if (!context.user.isBvsl && context.user.role !== 'BVSL') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only BVSL can delete quizzes' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only BVSL can delete quizzes' });
     }
     await BvQuizzes.delete({ id: input.quizId });
     return { success: true };

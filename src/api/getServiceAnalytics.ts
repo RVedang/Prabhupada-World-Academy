@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Services, ServiceAllocations, Users, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Services, ServiceAllocations, Users, FolkResidencies } from '@/lib/backend-sdk';
 import { format, addDays } from 'date-fns';
 
 // Service week starts on Sunday

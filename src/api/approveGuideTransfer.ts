@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, GuideTransferRequests, Users, Guides, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, GuideTransferRequests, Users, Guides, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -17,21 +17,21 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const id = input.requestId || input.logId;
-    if (!id) throw new ZiteError({ code: 'BAD_REQUEST', message: 'requestId is required' });
+    if (!id) throw new AppError({ code: 'BAD_REQUEST', message: 'requestId is required' });
 
     const request = await GuideTransferRequests.findOne({ id });
-    if (!request) throw new ZiteError({ code: 'NOT_FOUND', message: 'Transfer request not found' });
-    if ((request.status as string) !== 'Pending') throw new ZiteError({ code: 'CONFLICT', message: 'Request already reviewed' });
+    if (!request) throw new AppError({ code: 'NOT_FOUND', message: 'Transfer request not found' });
+    if ((request.status as string) !== 'Pending') throw new AppError({ code: 'CONFLICT', message: 'Request already reviewed' });
 
     // Authorization: only the receiving guide (toGuide) or Super Guide can approve
     const isSuperGuide = context.user.role === 'Super Guide';
     if (!isSuperGuide) {
       const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] });
-      if (!guideRecord) throw new ZiteError({ code: 'FORBIDDEN', message: 'You are not a guide' });
+      if (!guideRecord) throw new AppError({ code: 'FORBIDDEN', message: 'You are not a guide' });
 
       const toGuideId = Array.isArray(request.toGuide) ? request.toGuide[0] : request.toGuide as string;
       if (!toGuideId || toGuideId !== guideRecord.id) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'Only the receiving guide can approve this transfer' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'Only the receiving guide can approve this transfer' });
       }
     }
 

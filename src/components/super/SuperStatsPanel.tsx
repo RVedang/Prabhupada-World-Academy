@@ -5,12 +5,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Users, Home, BookOpen, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuides, getGuideUsers, getAllResidenciesWithStats } from 'zite-endpoints-sdk';
-import type { GetGuidesOutputType } from 'zite-endpoints-sdk';
+import { getGuides, getGuideUsers, getAllResidenciesWithStats } from '@/lib/endpoints-sdk';
+import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
+
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type GuideStat = GetGuidesOutputType['guides'][0] & { userCount: number; avgScore: number | null };
 
-export default function SuperStatsPanel() {
+interface SuperStatsPanelProps {
+  segment?: 'PW' | 'FOLK';
+}
+
+export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
+  const { profile } = useUserProfile();
+  const userEmail = (profile?.userId || '').toLowerCase();
+  const effectiveSegment = segment || profile?.segment || (userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') ? 'PW' : 'FOLK');
+  const isPw = effectiveSegment === 'PW';
+
   const [guideStats, setGuideStats] = useState<GuideStat[]>([]);
   const [totalHostels, setTotalHostels] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -19,7 +30,7 @@ export default function SuperStatsPanel() {
     const load = async () => {
       try {
         const [{ guides }, hostels] = await Promise.all([
-          getGuides({}),
+          getGuides({ segment: effectiveSegment }),
           getAllResidenciesWithStats({}).catch(() => [] as any[]),
         ]);
         setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
@@ -41,7 +52,7 @@ export default function SuperStatsPanel() {
       finally { setLoading(false); }
     };
     load();
-  }, []);
+  }, [isPw]);
 
   const totalUsers = guideStats.reduce((s, g) => s + g.userCount, 0);
   const overallAvg = guideStats.filter(g => g.avgScore != null).length > 0
@@ -52,22 +63,22 @@ export default function SuperStatsPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${isPw ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`}>
         <StatCard icon={<Users className="w-5 h-5 text-primary" />} label="Total Users" value={totalUsers} />
-        <StatCard icon={<BookOpen className="w-5 h-5 text-blue-500" />} label="Total Guides" value={guideStats.length} />
-        <StatCard icon={<Home className="w-5 h-5 text-green-600" />} label="Active Hostels" value={totalHostels} />
+        <StatCard icon={<BookOpen className="w-5 h-5 text-blue-500" />} label={isPw ? "Total Admins" : "Total Guides"} value={guideStats.length} />
+        {!isPw && <StatCard icon={<Home className="w-5 h-5 text-green-600" />} label="Active Hostels" value={totalHostels} />}
         <StatCard icon={<BarChart3 className="w-5 h-5 text-amber-500" />} label="Overall Avg Score" value={overallAvg != null ? `${overallAvg}%` : '—'} />
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Guide-wise Breakdown</CardTitle>
+          <CardTitle className="text-base">{isPw ? "Admin-wise Breakdown" : "Guide-wise Breakdown"}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Guide</TableHead>
+                <TableHead>{isPw ? "Admin / Mentor" : "Guide"}</TableHead>
                 <TableHead className="text-center">Active Users</TableHead>
                 <TableHead className="text-center">Avg Sadhana Score</TableHead>
               </TableRow>

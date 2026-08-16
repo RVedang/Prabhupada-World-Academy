@@ -6,7 +6,7 @@ import { BookOpen, Leaf, LayoutDashboard, Building2, GraduationCap, Trophy, Sett
 import { FEATURES } from '@/config/features';
 import UserServicesTab from '@/components/services/UserServicesTab';
 import GuideServicesTab from '@/components/services/GuideServicesTab';
-import { getUserDashboardData, getSadhanaLeaderboard } from 'zite-endpoints-sdk';
+import { getUserDashboardData, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { DashboardLayout } from '@/layouts';
@@ -26,6 +26,21 @@ import { initReminderVisibilityCheck, scheduleSadhanaReminder, hasSubmittedToday
 export default function UserDashboard() {
   const { profile } = useUserProfile();
   const navigate = useNavigate();
+
+  // Super Admins and Admins redirect to their respective management dashboards
+  useEffect(() => {
+    if (profile) {
+      const userEmail = (profile.userId || '').toLowerCase();
+      const isSuperAdmin = profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN' || userEmail.includes('gaurmandal') || userEmail.includes('srilaprabhupadaworld') || userEmail.includes('vdnd');
+      const isAdmin = isSuperAdmin || profile.isBvAdmin || profile.role === 'ADMIN';
+
+      if (isAdmin) {
+        const isFolk = profile.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk');
+        navigate(isFolk ? '/folk-admin/dashboard' : '/pw-admin/dashboard', { replace: true });
+      }
+    }
+  }, [profile, navigate]);
+
   const initialTab = window.location.hash.slice(1) || 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
   // Lazy: leaderboard is the heaviest endpoint — only fetch when user opens that tab

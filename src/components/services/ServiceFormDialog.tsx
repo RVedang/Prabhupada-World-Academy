@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { getAvailableSkills } from 'zite-endpoints-sdk';
-import type { GetServicesOutputType } from 'zite-endpoints-sdk';
+import { getAvailableSkills } from '@/lib/endpoints-sdk';
+import type { GetServicesOutputType } from '@/lib/endpoints-sdk';
 import ChecklistBuilder, { type ChecklistItem } from './ChecklistBuilder';
 
 type Service = GetServicesOutputType['services'][0];

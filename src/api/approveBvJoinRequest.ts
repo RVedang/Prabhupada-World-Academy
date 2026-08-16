@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupRequests, BvGroupMembers, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroupRequests, BvGroupMembers, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Approve or reject a BV group join request',
@@ -14,15 +14,15 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     const id = input.requestId || input.logId;
-    if (!id) throw new ZiteError({ code: 'BAD_REQUEST', message: 'requestId is required' });
+    if (!id) throw new AppError({ code: 'BAD_REQUEST', message: 'requestId is required' });
 
     const request = await BvGroupRequests.findOne({ id });
-    if (!request) throw new ZiteError({ code: 'NOT_FOUND', message: 'Join request not found' });
-    if ((request.status as string) !== 'Pending') throw new ZiteError({ code: 'CONFLICT', message: 'Request already reviewed' });
+    if (!request) throw new AppError({ code: 'NOT_FOUND', message: 'Join request not found' });
+    if ((request.status as string) !== 'Pending') throw new AppError({ code: 'CONFLICT', message: 'Request already reviewed' });
 
     const requestUserId = Array.isArray(request.user) ? request.user[0] : request.user as string;
     if (requestUserId === context.user!.id) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Cannot approve your own join request' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Cannot approve your own join request' });
     }
 
     await BvGroupRequests.update({

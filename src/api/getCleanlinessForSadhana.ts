@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Config, CleanlinessRooms, CleanlinessInspections, CleanlinessReviewRequests } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Config, CleanlinessRooms, CleanlinessInspections, CleanlinessReviewRequests } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get cleanliness inspection score for sadhana form auto-fill',

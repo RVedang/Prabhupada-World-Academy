@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, Users, AppError } from '@/lib/backend-sdk';
 
 function generateToken(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -18,9 +18,10 @@ export default createEndpoint({
     groupName: z.string(),
     description: z.string().optional(),
     guideId: z.string().optional(),
+    meetingTime: z.string().max(100).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const isSuperGuide = context.user.role === 'Super Guide';
     const isGuide = context.user.role === 'Guide';
@@ -28,7 +29,7 @@ export default createEndpoint({
     const isBvsl = context.user.isBvsl === true || context.user.role === 'BVSL';
 
     if (!isGuide && !isSuperGuide && !isBvsl) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide or BVSL access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide or BVSL access required' });
     }
 
     let bvslDbId: string | null = null;
@@ -54,7 +55,7 @@ export default createEndpoint({
     }
 
     const joinToken = generateToken();
-    const appUrl = process.env.ZITE_APP_URL ?? 'https://pwac.app';
+    const appUrl = process.env.APP_APP_URL ?? 'https://pwac.app';
     const joinUrl = `${appUrl}/join-group?token=${joinToken}`;
     const whatsAppLink = `https://wa.me/?text=${encodeURIComponent(`🙏 Hare Krishna!\n\nYou are invited to join *${input.groupName}*.\n\nClick to join: ${joinUrl}`)}`;
 
@@ -64,6 +65,7 @@ export default createEndpoint({
         bvslLeader: bvslDbId || undefined,
         guide: guideId || undefined,
         description: input.description || '',
+        meetingTime: input.meetingTime || '',
         isActive: true,
         joinToken,
         whatsAppLink,

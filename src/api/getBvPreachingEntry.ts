@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvslPreachingEntries, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvslPreachingEntries, Users } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 
 export default createEndpoint({

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, CalendarCheck, RotateCcw, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { getMyAvailability, submitAvailability } from 'zite-endpoints-sdk';
+import { getMyAvailability, submitAvailability } from '@/lib/endpoints-sdk';
 import { format, addDays } from 'date-fns';
 
 import { SERVICE_DAYS, SERVICE_DAY_LABELS, getServiceWeekByOffset } from '@/lib/serviceWeek';

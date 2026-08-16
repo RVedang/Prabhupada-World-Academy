@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, BvGroupRequests, Guides, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, BvGroupRequests, Guides, Users } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 
 const groupSchema = z.object({
@@ -13,6 +13,8 @@ const groupSchema = z.object({
   joinToken: z.string().nullable(),
   bvslName: z.string().nullable(),
   guideName: z.string().nullable(),
+  meetingTime: z.string().nullable().optional(),
+  segment: z.string().nullable().optional(),
 });
 
 export default createEndpoint({
@@ -26,7 +28,7 @@ export default createEndpoint({
     pendingRequestCount: z.number(),
     error: z.string().nullable(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input }: any) => {
     let groupRecords: any[] = [];
     let defaultBvslName = 'Reading Group Facilitator';
 
@@ -34,25 +36,33 @@ export default createEndpoint({
       const { records } = await BvGroups.findAll({ limit: 500 });
       groupRecords = records;
     } else {
-      const userRecord = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'fullName', 'guide'] })
-        ?? await Users.findOne({ id: input.bvslId, fields: ['id', 'fullName', 'guide'] });
+      const userRecord = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'fullName', 'guide', 'bvReportingFacilitatorId'] })
+        ?? await Users.findOne({ id: input.bvslId, fields: ['id', 'fullName', 'guide', 'bvReportingFacilitatorId'] });
       
       const dbUserId = userRecord?.id || input.bvslId;
+      const parentRgfId = (userRecord as any)?.bvReportingFacilitatorId;
       defaultBvslName = userRecord?.fullName || '';
-
+ 
       const { records } = await BvGroups.findAll({
         limit: 200,
       });
-      // Filter by bvslLeader or bvslId
+      // Filter by bvslLeader, bvslId, subFacilitator, or parent RGF
       groupRecords = records.filter((g: any) => 
         g.bvslLeader === dbUserId || 
         g.bvslId === input.bvslId || 
         g.bvslId === dbUserId || 
-        g.bvslLeader === input.bvslId
+        g.bvslLeader === input.bvslId ||
+        g.subFacilitatorId === dbUserId ||
+        g.subFacilitatorId === input.bvslId ||
+        g.rgsfId === dbUserId ||
+        g.rgsfId === input.bvslId ||
+        g.subFacilitator === dbUserId ||
+        g.subFacilitator === input.bvslId ||
+        (parentRgfId && (
+          g.bvslLeader === parentRgfId ||
+          g.bvslId === parentRgfId
+        ))
       );
-      if (groupRecords.length === 0) {
-        groupRecords = records; // Fallback to return active groups
-      }
     }
 
     if (groupRecords.length === 0) return { groups: [], pendingRequestCount: 0, error: null };
@@ -60,11 +70,14 @@ export default createEndpoint({
     const todayDate = getTodayIST();
 
     const groups = await Promise.all(groupRecords.map(async (g) => {
-      const [membersRes, guideRes] = await Promise.all([
+      const [membersRes, guideRes, facilitatorUser] = await Promise.all([
         BvGroupMembers.findAll({ filters: { group: g.id }, limit: 500, fields: ['id'] }),
         g.guide
           ? Guides.findOne({ id: Array.isArray(g.guide) ? g.guide[0] : g.guide as string, fields: ['id', 'fullName'] })
           : Promise.resolve(undefined),
+        g.bvslId
+          ? Users.findOne({ id: g.bvslId, fields: ['segment'] }).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       // Count distinct session dates from attendance (total sessions)
@@ -95,6 +108,8 @@ export default createEndpoint({
         joinToken: g.joinToken || null,
         bvslName: g.bvslName || defaultBvslName || null,
         guideName: (guideRes as any)?.fullName || null,
+        meetingTime: g.meetingTime || g.preferredTimeSlot || null,
+        segment: g.segment || facilitatorUser?.segment || 'PW',
       };
     }));
 

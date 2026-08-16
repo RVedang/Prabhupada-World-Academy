@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
 export default createEndpoint({
@@ -17,14 +17,14 @@ export default createEndpoint({
     const isSuperGuide = callerRole === 'Super Guide';
     const isAuthorized = isSuperGuide || callerRole === 'Guide' || callerRole === 'BVSL';
     if (!isAuthorized) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
     }
 
     // For non-super-guides, get scope once upfront
     let scope: import('../lib/guideScope').GuideScope | null = null;
     if (!isSuperGuide) {
       scope = await getGuideScope(context.user.email);
-      if (!scope) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide record not found' });
+      if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide record not found' });
     }
 
     // Fetch all user records in parallel to verify scope

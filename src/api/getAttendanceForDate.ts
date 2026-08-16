@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvSessions, BvAttendance, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvSessions, BvAttendance, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get member list with existing attendance for a specific group and date',
@@ -21,7 +21,7 @@ export default createEndpoint({
         fields: ['id', 'groupId', 'groupName'],
       }).catch(() => undefined);
     }
-    if (!group) throw new ZiteError({ code: 'NOT_FOUND', message: 'Group not found' });
+    if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
 
     // Get group members
     const { records: memberRecords } = await BvGroupMembers.findAll({
@@ -44,17 +44,25 @@ export default createEndpoint({
     // Query attendance directly by group + date (new approach)
     const { records: directAttRecords } = await BvAttendance.findAll({
       filters: { group: group.id, attendanceDate: input.date },
-      fields: ['id', 'user', 'present'],
+      fields: ['id', 'user', 'present', 'attendedMinutes', 'totalMeetingMinutes'],
       limit: 500,
     });
 
     const attendanceMap: Record<string, boolean | null> = {};
+    const attendedMinutesMap: Record<string, number | null> = {};
+    let totalMeetingMinutes: number = 60;
     let sessionExists = directAttRecords.length > 0;
 
     if (directAttRecords.length > 0) {
       directAttRecords.forEach((a: any) => {
         const uid = Array.isArray(a.user) ? a.user[0] : a.user;
-        if (uid) attendanceMap[uid] = a.present ?? null;
+        if (uid) {
+          attendanceMap[uid] = a.present ?? null;
+          attendedMinutesMap[uid] = typeof a.attendedMinutes === 'number' ? a.attendedMinutes : (a.present ? (a.totalMeetingMinutes || 60) : 0);
+        }
+        if (a.totalMeetingMinutes && typeof a.totalMeetingMinutes === 'number') {
+          totalMeetingMinutes = a.totalMeetingMinutes;
+        }
       });
     } else {
       // Backward compat: fall back to session-based lookup
@@ -66,12 +74,18 @@ export default createEndpoint({
         sessionExists = true;
         const { records: attRecords } = await BvAttendance.findAll({
           filters: { session: session.id },
-          fields: ['id', 'user', 'present'],
+          fields: ['id', 'user', 'present', 'attendedMinutes', 'totalMeetingMinutes'],
           limit: 500,
         });
         attRecords.forEach((a: any) => {
           const uid = Array.isArray(a.user) ? a.user[0] : a.user;
-          if (uid) attendanceMap[uid] = a.present ?? null;
+          if (uid) {
+            attendanceMap[uid] = a.present ?? null;
+            attendedMinutesMap[uid] = typeof a.attendedMinutes === 'number' ? a.attendedMinutes : (a.present ? (a.totalMeetingMinutes || 60) : 0);
+          }
+          if (a.totalMeetingMinutes && typeof a.totalMeetingMinutes === 'number') {
+            totalMeetingMinutes = a.totalMeetingMinutes;
+          }
         });
       }
     }
@@ -82,11 +96,13 @@ export default createEndpoint({
         if (!dbId) return null;
         const u = userMap[dbId];
         if (!u) return null;
+        const isPresent = sessionExists ? (attendanceMap[dbId] ?? null) : null;
         return {
           userDbId: dbId,
           userId: u.userId || dbId,
           fullName: u.fullName || '',
-          present: sessionExists ? (attendanceMap[dbId] ?? null) : null,
+          present: isPresent,
+          attendedMinutes: sessionExists ? (attendedMinutesMap[dbId] ?? (isPresent ? totalMeetingMinutes : 0)) : totalMeetingMinutes,
         };
       })
       .filter(Boolean)
@@ -95,6 +111,7 @@ export default createEndpoint({
     return {
       members,
       sessionExists,
+      totalMeetingMinutes,
       sessionId: null, // deprecated — use group+date directly
     };
   },

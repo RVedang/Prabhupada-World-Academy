@@ -6,10 +6,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CheckSquare, Users, CheckCircle2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import GroupSelect from '@/components/bvsl/GroupSelect';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { getAttendanceForDate, conductBvSession } from 'zite-endpoints-sdk';
-import type { GetAttendanceForDateOutputType, GetBvslGroupsOutputType } from 'zite-endpoints-sdk';
+import { getAttendanceForDate, conductBvSession } from '@/lib/endpoints-sdk';
+import type { GetAttendanceForDateOutputType, GetBvslGroupsOutputType } from '@/lib/endpoints-sdk';
 
 type Group = GetBvslGroupsOutputType['groups'][0];
 type AttendanceMember = GetAttendanceForDateOutputType['members'][0];
@@ -22,8 +24,10 @@ interface Props {
 export default function BvslAttendancePanel({ bvslId, groups }: Props) {
   const [selectedGroupId, setSelectedGroupId] = useState(() => groups[0]?.id || '');
   const [sessionDate, setSessionDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [totalMeetingMinutes, setTotalMeetingMinutes] = useState(60);
   const [members, setMembers] = useState<AttendanceMember[]>([]);
   const [presentIds, setPresentIds] = useState<Set<string>>(new Set());
+  const [attendedMinutesMap, setAttendedMinutesMap] = useState<Record<string, number>>({});
   const [sessionExists, setSessionExists] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,6 +39,16 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
       const res = await getAttendanceForDate({ groupId, date });
       setMembers(res.members);
       setSessionExists(res.sessionExists);
+      if (res.totalMeetingMinutes) setTotalMeetingMinutes(res.totalMeetingMinutes);
+
+      const minutesMap: Record<string, number> = {};
+      res.members.forEach((m: any) => {
+        if (m.userDbId) {
+          minutesMap[m.userDbId] = typeof m.attendedMinutes === 'number' ? m.attendedMinutes : (m.present ? (res.totalMeetingMinutes || 60) : 0);
+        }
+      });
+      setAttendedMinutesMap(minutesMap);
+
       // Pre-populate: if session exists, use saved values; otherwise mark all present
       if (res.sessionExists) {
         const presentSet = new Set<string>(
@@ -56,21 +70,49 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
   const togglePresent = (userDbId: string) => {
     setPresentIds(prev => {
       const next = new Set(prev);
-      if (next.has(userDbId)) next.delete(userDbId); else next.add(userDbId);
+      if (next.has(userDbId)) {
+        next.delete(userDbId);
+        setAttendedMinutesMap(m => ({ ...m, [userDbId]: 0 }));
+      } else {
+        next.add(userDbId);
+        setAttendedMinutesMap(m => ({ ...m, [userDbId]: totalMeetingMinutes }));
+      }
       return next;
     });
+  };
+
+  const handleAttendedMinutesChange = (userDbId: string, val: number) => {
+    const clamped = Math.max(0, Math.min(totalMeetingMinutes, val));
+    setAttendedMinutesMap(prev => ({ ...prev, [userDbId]: clamped }));
+    if (clamped > 0 && !presentIds.has(userDbId)) {
+      setPresentIds(prev => new Set(prev).add(userDbId));
+    } else if (clamped === 0 && presentIds.has(userDbId)) {
+      setPresentIds(prev => {
+        const next = new Set(prev);
+        next.delete(userDbId);
+        return next;
+      });
+    }
   };
 
   const handleSave = async () => {
     if (!selectedGroupId) { toast.error('Select a group'); return; }
     setSaving(true);
     try {
+      const memberAttendance = members.map(m => ({
+        userDbId: m.userDbId,
+        present: presentIds.has(m.userDbId),
+        attendedMinutes: presentIds.has(m.userDbId) ? (attendedMinutesMap[m.userDbId] ?? totalMeetingMinutes) : 0,
+      }));
+
       const res = await conductBvSession({
         bvslId,
         groupId: selectedGroupId,
         sessionDate,
+        totalMeetingMinutes,
+        memberAttendance,
         presentUserIds: Array.from(presentIds),
-      });
+      } as any);
       toast.success(res.message || 'Attendance saved!');
       // Reload to confirm saved state
       await loadAttendance(selectedGroupId, sessionDate);
@@ -98,34 +140,42 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
       </div>
 
       {/* Group selector */}
-      <div className="flex gap-2 flex-wrap">
-        {groups.map(g => (
-          <button
-            key={g.id}
-            onClick={() => setSelectedGroupId(g.id)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              selectedGroupId === g.id
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-border text-muted-foreground hover:border-primary'
-            }`}
-          >
-            {g.groupName}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-3 flex-wrap bg-card p-3 rounded-xl border border-border/80 shadow-xs">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-primary" />
+          <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Select Reading Group:</span>
+        </div>
+        <GroupSelect
+          groups={groups}
+          selectedGroupId={selectedGroupId}
+          onSelectGroup={setSelectedGroupId}
+        />
       </div>
 
       <Card>
         <CardContent className="pt-4 space-y-4">
-          {/* Date picker */}
-          <div className="flex items-center gap-3 flex-wrap">
+          {/* Date & Meeting Duration picker */}
+          <div className="flex items-center justify-between gap-4 flex-wrap border-b border-border pb-3">
             <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <label className="text-sm font-medium whitespace-nowrap">Session Date</label>
+              <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Session Date</label>
               <Input
                 type="date"
                 value={sessionDate}
                 onChange={e => setSessionDate(e.target.value)}
-                className="h-9 max-w-[180px]"
+                className="h-9 max-w-[170px]"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Total Meeting Duration</label>
+              <Input
+                type="number"
+                min={15}
+                max={300}
+                value={totalMeetingMinutes}
+                onChange={e => setTotalMeetingMinutes(Math.max(1, parseInt(e.target.value) || 60))}
+                className="h-9 w-20 text-center font-bold"
+              />
+              <span className="text-xs text-muted-foreground font-medium">mins</span>
             </div>
             {sessionExists && !loading && (
               <Badge className="bg-green-100 text-green-700 border-green-300 gap-1 text-xs">
@@ -144,15 +194,23 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
               <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                 <label className="text-sm font-medium flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  {presentCount}/{totalCount} present
+                  {presentCount}/{totalCount} present (Meeting: {totalMeetingMinutes} mins)
                 </label>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" className="h-7 text-xs"
-                    onClick={() => setPresentIds(new Set(members.map(m => m.userDbId)))}>
+                    onClick={() => {
+                      setPresentIds(new Set(members.map(m => m.userDbId)));
+                      const m: Record<string, number> = {};
+                      members.forEach(mem => { m[mem.userDbId] = totalMeetingMinutes; });
+                      setAttendedMinutesMap(m);
+                    }}>
                     All Present
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs"
-                    onClick={() => setPresentIds(new Set())}>
+                    onClick={() => {
+                      setPresentIds(new Set());
+                      setAttendedMinutesMap({});
+                    }}>
                     All Absent
                   </Button>
                 </div>
@@ -160,27 +218,46 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
               <div className="grid gap-2 max-h-80 overflow-y-auto pr-1">
                 {members.map(m => {
                   const isPresent = presentIds.has(m.userDbId);
+                  const attMinutes = attendedMinutesMap[m.userDbId] ?? (isPresent ? totalMeetingMinutes : 0);
                   return (
                     <div
                       key={m.userDbId}
                       onClick={() => togglePresent(m.userDbId)}
-                      className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${
+                      className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${
                         isPresent
                           ? 'border-green-400 bg-green-50 dark:bg-green-950/20'
                           : 'border-border hover:border-muted-foreground'
                       }`}
                     >
-                      <Checkbox
-                        checked={isPresent}
-                        onCheckedChange={() => togglePresent(m.userDbId)}
-                        onClick={e => e.stopPropagation()}
-                        className="shrink-0"
-                      />
-                      <p className="text-sm font-medium flex-1">{m.fullName}</p>
-                      {isPresent
-                        ? <span className="text-xs font-medium text-green-600">Present</span>
-                        : <span className="text-xs text-muted-foreground">Absent</span>
-                      }
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Checkbox
+                          checked={isPresent}
+                          onCheckedChange={() => togglePresent(m.userDbId)}
+                          onClick={e => e.stopPropagation()}
+                          className="shrink-0"
+                        />
+                        <p className="text-sm font-medium truncate">{m.fullName}</p>
+                      </div>
+
+                      {/* Attended Time Input & Label */}
+                      <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                        {isPresent ? (
+                          <div className="flex items-center gap-1.5 bg-background border border-green-300 dark:border-green-800 px-2 py-0.5 rounded-md shadow-xs">
+                            <span className="text-[11px] text-muted-foreground font-medium">Attended:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={totalMeetingMinutes}
+                              value={attMinutes}
+                              onChange={e => handleAttendedMinutesChange(m.userDbId, parseInt(e.target.value) || 0)}
+                              className="w-12 h-6 text-center text-xs font-bold bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded"
+                            />
+                            <span className="text-[11px] text-muted-foreground">/ {totalMeetingMinutes} mins</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground font-normal">Absent (0 mins)</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

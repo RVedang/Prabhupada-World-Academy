@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { format, subWeeks, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
-import { getCrossPreachingReport } from 'zite-endpoints-sdk';
+import { getCrossPreachingReport } from '@/lib/endpoints-sdk';
 import CrossCenterMetricSection from './CrossCenterMetricSection';
 import CrossCenterDrilldownDialog from './CrossCenterDrilldownDialog';
 

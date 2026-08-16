@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
-import { getUserHistory } from 'zite-endpoints-sdk';
+import { getUserHistory } from '@/lib/endpoints-sdk';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from 'date-fns';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import EntryDetailModal from '@/components/dashboard/EntryDetailModal';

@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, XCircle, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
-import { getPendingBvJoinRequests, approveBvJoinRequest } from 'zite-endpoints-sdk';
-import type { GetPendingBvJoinRequestsOutputType } from 'zite-endpoints-sdk';
+import { getPendingBvJoinRequests, approveBvJoinRequest } from '@/lib/endpoints-sdk';
+import type { GetPendingBvJoinRequestsOutputType } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 
 type Request = GetPendingBvJoinRequestsOutputType['requests'][0];

@@ -11,8 +11,8 @@ import {
 import { Users, TrendingDown, Clock, AlertTriangle, Download, Search, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays, differenceInDays, parseISO } from 'date-fns';
-import { getBvMissingSadhana, updateUserStatus } from 'zite-endpoints-sdk';
-import type { GetBvMissingSadhanaOutputType } from 'zite-endpoints-sdk';
+import { getBvMissingSadhana, updateUserStatus } from '@/lib/endpoints-sdk';
+import type { GetBvMissingSadhanaOutputType } from '@/lib/endpoints-sdk';
 
 type MemberRow = GetBvMissingSadhanaOutputType['members'][0];
 
@@ -107,7 +107,7 @@ function DesktopTable({
           <tr className="bg-muted text-xs text-muted-foreground">
             <th className="text-left px-4 py-2.5 font-semibold whitespace-nowrap">Member</th>
             <th className="text-left px-3 py-2.5 font-semibold whitespace-nowrap">Group</th>
-            <th className="text-left px-3 py-2.5 font-semibold whitespace-nowrap hidden md:table-cell">BVSL</th>
+            <th className="text-left px-3 py-2.5 font-semibold whitespace-nowrap hidden md:table-cell">RGF</th>
             <th className="text-center px-3 py-2.5 font-semibold whitespace-nowrap">Last Filled</th>
             <th className="text-center px-3 py-2.5 font-semibold whitespace-nowrap">Missing</th>
             <th className="text-center px-3 py-2.5 font-semibold whitespace-nowrap hidden sm:table-cell">Late</th>
@@ -131,7 +131,7 @@ function DesktopTable({
               <td className="px-3 py-2.5">
                 <p className="text-xs text-foreground truncate max-w-[120px]">{m.groupName || '—'}</p>
               </td>
-              {/* BVSL */}
+              {/* RGF */}
               <td className="px-3 py-2.5 hidden md:table-cell">
                 <p className="text-xs text-muted-foreground truncate max-w-[100px]">{m.bvslName || '—'}</p>
               </td>
@@ -324,16 +324,16 @@ export default function BvMissingSadhanaPanel({ guideId }: Props) {
   const filteredMembers = useMemo(() => {
     if (!data) return [];
     let m = data.members;
-    if (groupFilter !== 'all') m = m.filter(x => x.groupId === groupFilter);
-    if (bvslFilter !== 'all') m = m.filter(x => x.bvslId === bvslFilter);
-    if (statusFilter === 'active') m = m.filter(x => x.status === 'Active');
-    else if (statusFilter === 'inactive') m = m.filter(x => x.status !== 'Active');
+    if (groupFilter !== 'all') m = m.filter((x: any) => x.groupId === groupFilter);
+    if (bvslFilter !== 'all') m = m.filter((x: any) => x.bvslId === bvslFilter);
+    if (statusFilter === 'active') m = m.filter((x: any) => x.status === 'Active');
+    else if (statusFilter === 'inactive') m = m.filter((x: any) => x.status !== 'Active');
     const minM = parseInt(minMissing, 10);
-    if (!isNaN(minM) && minM > 0) m = m.filter(x => x.missingDays >= minM);
+    if (!isNaN(minM) && minM > 0) m = m.filter((x: any) => x.missingDays >= minM);
     const minL = parseInt(minLate, 10);
-    if (!isNaN(minL) && minL > 0) m = m.filter(x => x.lateDays >= minL);
-    if (search.trim()) m = m.filter(x => x.fullName.toLowerCase().includes(search.toLowerCase().trim()));
-    return [...m].sort((a, b) => b.missingDays - a.missingDays || b.lateDays - a.lateDays || a.fullName.localeCompare(b.fullName));
+    if (!isNaN(minL) && minL > 0) m = m.filter((x: any) => x.lateDays >= minL);
+    if (search.trim()) m = m.filter((x: any) => x.fullName.toLowerCase().includes(search.toLowerCase().trim()));
+    return [...m].sort((a: any, b: any) => b.missingDays - a.missingDays || b.lateDays - a.lateDays || a.fullName.localeCompare(b.fullName));
   }, [data, groupFilter, bvslFilter, statusFilter, minMissing, minLate, search]);
 
   const handleDeactivate = async (member: MemberRow) => {
@@ -351,7 +351,7 @@ export default function BvMissingSadhanaPanel({ guideId }: Props) {
 
   const handleExportCsv = () => {
     if (!filteredMembers.length) return;
-    const headers = ['Member Name', 'Phone', 'Group', 'BVSL', 'Status', 'Last Filled', 'Missing Days', 'Late Days', 'Total Days', 'Fill Rate'];
+    const headers = ['Member Name', 'Phone', 'Group', 'RGF', 'Status', 'Last Filled', 'Missing Days', 'Late Days', 'Total Days', 'Fill Rate'];
     const rows = filteredMembers.map(m => [
       m.fullName,
       m.phone,
@@ -409,13 +409,15 @@ export default function BvMissingSadhanaPanel({ guideId }: Props) {
         {/* Second row: dropdowns + status toggle + min filters */}
         <div className="flex flex-wrap gap-2 items-center">
           {data && data.groups.length > 1 && (
-            <Select value={groupFilter} onValueChange={setGroupFilter}>
+            <Select value={groupFilter} onValueChange={(v) => setGroupFilter(v || 'all')}>
               <SelectTrigger className="h-8 text-xs w-40">
-                <SelectValue placeholder="All Groups" />
+                <SelectValue>
+                  {groupFilter === 'all' ? "All Groups" : data.groups.find((g: any) => g.id === groupFilter)?.name || groupFilter}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Groups</SelectItem>
-                {data.groups.map(g => (
+                {data.groups.map((g: any) => (
                   <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -423,13 +425,15 @@ export default function BvMissingSadhanaPanel({ guideId }: Props) {
           )}
 
           {data && data.bvsls.length > 1 && (
-            <Select value={bvslFilter} onValueChange={setBvslFilter}>
+            <Select value={bvslFilter} onValueChange={(v) => setBvslFilter(v || 'all')}>
               <SelectTrigger className="h-8 text-xs w-40">
-                <SelectValue placeholder="All BVSLs" />
+                <SelectValue>
+                  {bvslFilter === 'all' ? "All RGFs" : data.bvsls.find((b: any) => b.id === bvslFilter)?.name || bvslFilter}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All BVSLs</SelectItem>
-                {data.bvsls.map(b => (
+                <SelectItem value="all">All RGFs</SelectItem>
+                {data.bvsls.map((b: any) => (
                   <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                 ))}
               </SelectContent>

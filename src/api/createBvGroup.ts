@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Create a new Bhakti Vriksha Reading Group',
@@ -24,15 +24,17 @@ export default createEndpoint({
       context.user.isBvSuperAdmin;
 
     if (!isAuthorized) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Admin access required to create Reading Groups' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Admin access required to create Reading Groups' });
     }
 
-    // Resolve facilitator name
+    // Resolve facilitator name and segment
     let bvslName = 'Unassigned';
+    let segment = 'PW';
     if (input.bvslId) {
-      const facilitatorUser = await Users.findOne({ id: input.bvslId });
+      const facilitatorUser = await Users.findOne({ id: input.bvslId, fields: ['fullName', 'email', 'segment'] });
       if (facilitatorUser) {
         bvslName = facilitatorUser.fullName || facilitatorUser.email || input.bvslId;
+        segment = facilitatorUser.segment || 'PW';
       }
     }
 
@@ -45,6 +47,7 @@ export default createEndpoint({
       meetingTime: input.meetingTime || '',
       description: input.description || '',
       isActive: true,
+      segment,
       createdAt: new Date().toISOString(),
     };
 

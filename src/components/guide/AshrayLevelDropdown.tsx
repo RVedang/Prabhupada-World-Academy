@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { setAshrayLevel } from 'zite-endpoints-sdk';
+import { setAshrayLevel } from '@/lib/endpoints-sdk';
 import { ASHRAY_LEVELS } from '@/types/enums';
 
 interface AshrayLevelDropdownProps {

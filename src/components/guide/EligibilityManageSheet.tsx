@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { saveOneToOneEligibility } from 'zite-endpoints-sdk';
+import { saveOneToOneEligibility } from '@/lib/endpoints-sdk';
 import { toast } from 'sonner';
 import { Loader2, Users } from 'lucide-react';
 import type { Member } from './OneToOneMatrix';

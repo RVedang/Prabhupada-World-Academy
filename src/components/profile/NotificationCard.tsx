@@ -146,7 +146,7 @@ export default function NotificationCard() {
         {status === 'not-setup' && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Get reminded to fill your Sadhana at 9:20 PM, 10:20 PM, and 7:40 AM.
+              Enable push notifications to receive Sadhana reminders directly on your device.
             </p>
             <Button onClick={handleEnable} disabled={busy} className="w-full">
               {busy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BellRing className="w-4 h-4 mr-2" />}
@@ -158,22 +158,8 @@ export default function NotificationCard() {
         {status === 'enabled' && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You'll receive reminders at:
+              Push notifications are active for this device. You will receive customized Sadhana reminders as scheduled by Super Admin.
             </p>
-            <ul className="text-sm space-y-1">
-              <li className="flex items-center gap-2">
-                <span className="text-primary font-medium">9:20 PM</span>
-                <span className="text-muted-foreground text-xs">— First reminder</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-primary font-medium">10:20 PM</span>
-                <span className="text-muted-foreground text-xs">— Second reminder</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-primary font-medium">7:40 AM</span>
-                <span className="text-muted-foreground text-xs">— Morning deadline</span>
-              </li>
-            </ul>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={busy}>
                 {busy ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}

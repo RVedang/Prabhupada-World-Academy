@@ -1,53 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Mail, CheckCircle2, Clock, AlertTriangle, Zap } from 'lucide-react';
-import { triggerSadhanaReminders } from 'zite-endpoints-sdk';
+import { Mail, CheckCircle2, Clock, AlertTriangle, Zap, ShieldCheck, Settings, Plus, Trash2, Save, Sparkles, BellRing, Send, RefreshCw, Loader2 } from 'lucide-react';
+import { sendPushNotifications, getPushSubscriptionStats, getMeetings, sendMeetingReminder, type GetPushSubscriptionStatsOutputType } from '@/lib/endpoints-sdk';
 import { toast } from 'sonner';
+import {
+  getPwNotificationConfig,
+  savePwNotificationConfig,
+  scheduleSadhanaReminder,
+  hasSubmittedToday,
+  DEFAULT_PW_NOTIFICATION_CONFIG,
+  type PwSadhanaNotificationConfig,
+} from '@/utils/sadhanaNotification';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 const ROUNDS = [
   {
     round: 1 as const,
-    label: 'Round 1 — Tonight',
+    label: 'Round 1 — Tonight Push',
     time: '9:00 PM IST',
-    description: 'Gentle nudge to fill before sleeping',
+    description: 'Direct device push nudge before sleeping',
     icon: '🌙',
   },
   {
     round: 2 as const,
-    label: 'Round 2 — Early Morning',
+    label: 'Round 2 — Early Morning Push',
     time: '4:45 AM IST',
-    description: "Missed yesterday? Fill it now",
+    description: "Missed yesterday? Direct push alert",
     icon: '🌅',
   },
   {
     round: 3 as const,
-    label: 'Round 3 — Final',
+    label: 'Round 3 — Final Push Alert',
     time: '9:15 AM IST',
-    description: "Last chance for yesterday's entry",
+    description: "Last chance device push alert for yesterday",
     icon: '🚨',
   },
 ];
 
-/** Pick the right round based on current IST time:
- *  6:00 AM – 11:59 PM  → Round 1 (evening reminder for today)
- *  12:00 AM – 5:59 AM  → Round 2 (early morning for yesterday)
- *  (Round 3 is always manual — it's a narrow 9:15 AM window)
- *
- *  Practical rule:
- *   hour 0–5   → Round 2  (middle of night / early morning)
- *   hour 6–11  → Round 3  (morning, last chance for yesterday)
- *   hour 12–23 → Round 1  (afternoon / evening, remind for today)
- */
 function getSmartRound(): 1 | 2 | 3 {
   const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
   const istDate = new Date(Date.now() + IST_OFFSET_MS);
-  const hour = istDate.getUTCHours(); // UTC hours of IST-shifted time
+  const hour = istDate.getUTCHours();
   if (hour >= 0 && hour < 6) return 2;
   if (hour >= 6 && hour < 12) return 3;
   return 1;
@@ -71,22 +75,288 @@ type RoundResult = {
   recipients: { name: string; email: string }[];
 };
 
-export default function SendRemindersPanel() {
+interface SendRemindersPanelProps {
+  segment?: 'PW' | 'FOLK';
+}
+
+export default function SendRemindersPanel({ segment: segmentProp }: SendRemindersPanelProps = {}) {
+  const { profile } = useUserProfile();
+
+  const isPw = segmentProp
+    ? segmentProp === 'PW'
+    : (
+        profile?.segment === 'PW' ||
+        (profile as any)?.isPrabhupadaWorldUser ||
+        (profile as any)?.isPwAdmin ||
+        (profile?.role as string)?.toUpperCase()?.includes('PW') ||
+        !((profile?.role as string)?.toUpperCase()?.includes('FOLK') || profile?.segment === 'FOLK')
+      );
+  const activeSegment: 'PW' | 'FOLK' = isPw ? 'PW' : 'FOLK';
+
   const [confirmRound, setConfirmRound] = useState<1 | 2 | 3 | null>(null);
   const [smartConfirm, setSmartConfirm] = useState(false);
   const [loading, setLoading] = useState<1 | 2 | 3 | 'smart' | null>(null);
   const [results, setResults] = useState<Record<number, RoundResult>>({});
 
+  const [config, setConfig] = useState<PwSadhanaNotificationConfig>(DEFAULT_PW_NOTIFICATION_CONFIG);
+  const [sentCustomTimes, setSentCustomTimes] = useState<Set<string>>(new Set());
+  const [newTimeInput, setNewTimeInput] = useState('21:20');
+  const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
+  const [loadingPushStats, setLoadingPushStats] = useState(true);
+
+  const fetchStats = async () => {
+    setLoadingPushStats(true);
+    try {
+      const stats = await getPushSubscriptionStats({ segment: activeSegment });
+      setPushStats(stats);
+    } catch {
+      setPushStats({ totalSubscriptions: 0, subscribers: [] });
+    } finally {
+      setLoadingPushStats(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    // Fetch DB config on mount
+    getPwNotificationConfig().then((cfg) => {
+      setConfig(cfg);
+    }).catch(() => {});
+  }, [activeSegment]);
+
+  // Background monitor for custom reminder times and meetings (Admin dispatcher)
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      // 1. Fetch and dispatch meeting reminders (10 minutes before start)
+      try {
+        const { meetings } = await getMeetings({});
+        const scheduled = (meetings || []).filter((m: any) => m.status === 'SCHEDULED' && !m.notificationSent);
+        for (const m of scheduled) {
+          const diffMs = new Date(m.scheduledAt).getTime() - Date.now();
+          const diffMins = diffMs / (60 * 1000);
+          
+          // Trigger reminder if meeting is starting in approx 10 minutes (9.5 to 10.5 mins)
+          if (diffMins > 9.5 && diffMins <= 10.5) {
+            const meetingKey = m.id;
+            
+            // Check local tracking state to prevent double-sends in the same minute window
+            const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders') || '{}');
+            if (localSentObj[meetingKey]) continue;
+
+            // Mark immediately
+            localSentObj[meetingKey] = true;
+            localStorage.setItem('sent_meeting_reminders', JSON.stringify(localSentObj));
+
+            console.log(`[Meeting Scheduler] Triggering 10m reminder for: ${m.title}`);
+            sendMeetingReminder({ meetingId: m.id }).then((res: any) => {
+              if (res.success && res.sent > 0) {
+                toast.success(`⏰ 10-minute meeting reminder dispatched for "${m.title}" to ${res.sent} devices!`);
+              }
+            }).catch((err: any) => {
+              console.error('[Meeting Scheduler] Failed to send meeting reminder:', err);
+            });
+          }
+        }
+      } catch (err: any) {
+        console.error('[Meeting Scheduler] Error querying meetings:', err);
+      }
+
+      if (!config.enabled) return;
+      const now = new Date();
+      // IST offset
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istNow = new Date(now.getTime() + istOffset);
+      const istHour = istNow.getUTCHours();
+      const istMinute = istNow.getUTCMinutes();
+      const istDateStr = istNow.toISOString().slice(0, 10);
+
+      const hourStr = String(istHour).padStart(2, '0');
+      const minStr = String(istMinute).padStart(2, '0');
+      const timeStr = `${hourStr}:${minStr}`; // e.g. "13:12"
+
+      if (config.times && config.times.includes(timeStr)) {
+        const sentKey = `${istDateStr}_${timeStr}`;
+        if (!sentCustomTimes.has(sentKey)) {
+          // Mark as sent immediately to avoid duplicates in the same minute
+          setSentCustomTimes(prev => {
+            const next = new Set(prev);
+            next.add(sentKey);
+            return next;
+          });
+
+          try {
+            // 1. Instantly calculate subscriber count from DB
+            const stats = await getPushSubscriptionStats({ segment: activeSegment });
+            setPushStats(stats);
+            
+            // If there are 0 subscriber devices active, do not send and do not toast
+            if (stats.totalSubscriptions === 0) {
+              console.log('[Custom Reminder Scheduler] Skipping: 0 active subscribers');
+              return;
+            }
+
+            // 2. Trigger push notification
+            const senderEmail = typeof window !== 'undefined' ? localStorage.getItem('auth_email') || '' : '';
+            const res = await sendPushNotifications({
+              reminderSlot: 'night-1',
+              cronSecret: process.env.NEXT_PUBLIC_CRON_SECRET || 'app_cron_secret',
+              customTitle: config.title,
+              customBody: config.body,
+              senderEmail,
+              segment: activeSegment,
+            });
+
+            // 3. Show toast only when at least 1 notification was actually delivered
+            if (res.sent > 0) {
+              const notifWord = res.sent === 1 ? 'notification' : 'notifications';
+              const deviceWord = res.sent === 1 ? 'device' : 'devices';
+              toast.success(
+                <div className="flex flex-col text-[15px] sm:text-base leading-relaxed">
+                  <span className="font-bold">⏰ Sadhana reminder sent at {timeStr}.</span>
+                  <div className="mt-2 font-semibold text-neutral-800 dark:text-neutral-200">
+                    <div>{res.sent} web push {notifWord} successfully delivered</div>
+                    <div>to {res.sent} subscribed user {deviceWord}.</div>
+                  </div>
+                </div>,
+                { duration: Infinity }
+              );
+            } else if (stats.totalSubscriptions > 0) {
+              // Subscriptions exist but delivery failed — likely stale endpoint
+              toast.warning(
+                `⚠️ Custom reminder at ${timeStr}: ${stats.totalSubscriptions} subscriber(s) found, but 0 notifications were delivered. Subscriptions may be stale or the user has already submitted today.`,
+                { duration: Infinity }
+              );
+            }
+          } catch (err) {
+            console.error('[Custom Reminder Scheduler] Error sending push:', err);
+          }
+        }
+      }
+    }, 15000); // Check every 15 seconds
+
+    return () => clearInterval(timer);
+  }, [config.enabled, config.times, config.title, config.body, sentCustomTimes]);
+
+  const handleSaveConfig = async () => {
+    try {
+      const updated = await savePwNotificationConfig({
+        ...config,
+        updatedBy: profile?.fullName || profile?.userId || 'PW Super Admin',
+      });
+      setConfig(updated);
+      // Sync settings with SW and reschedule reminder timers immediately
+      scheduleSadhanaReminder(hasSubmittedToday(), 'PW');
+      toast.success('PW Sadhana Notification Settings saved! 🛡️');
+    } catch {
+      toast.error('Failed to save PW Sadhana Notification Settings');
+    }
+  };
+
+  const handleAddTimeSlot = () => {
+    if (!newTimeInput || !/^\d{2}:\d{2}$/.test(newTimeInput)) {
+      toast.error('Please enter a valid 24h time format (HH:MM)');
+      return;
+    }
+    if (config.times.includes(newTimeInput)) {
+      toast.error('Time slot already added');
+      return;
+    }
+    const updatedTimes = [...config.times, newTimeInput].sort();
+    setConfig((prev: PwSadhanaNotificationConfig) => ({ ...prev, times: updatedTimes }));
+  };
+
+  const handleRemoveTimeSlot = (timeToRemove: string) => {
+    if (config.times.length <= 1) {
+      toast.error('At least one notification time slot is required');
+      return;
+    }
+    setConfig((prev: PwSadhanaNotificationConfig) => ({ ...prev, times: prev.times.filter((t: string) => t !== timeToRemove) }));
+  };
+
+  const DAYS_OF_WEEK = [
+    { label: 'Sun', value: 0 },
+    { label: 'Mon', value: 1 },
+    { label: 'Tue', value: 2 },
+    { label: 'Wed', value: 3 },
+    { label: 'Thu', value: 4 },
+    { label: 'Fri', value: 5 },
+    { label: 'Sat', value: 6 },
+  ];
+
+  const toggleCustomDay = (dayValue: number) => {
+    const currentDays = config.customDays || [0, 1, 2, 3, 4, 5, 6];
+    let updatedDays: number[];
+    if (currentDays.includes(dayValue)) {
+      if (currentDays.length <= 1) {
+        toast.error('Select at least one day for the custom schedule');
+        return;
+      }
+      updatedDays = currentDays.filter(d => d !== dayValue);
+    } else {
+      updatedDays = [...currentDays, dayValue].sort();
+    }
+    setConfig(prev => ({ ...prev, customDays: updatedDays }));
+  };
+
   const handleSend = async (round: 1 | 2 | 3, isSmart = false) => {
     setConfirmRound(null);
     setSmartConfirm(false);
     setLoading(isSmart ? 'smart' : round);
+    const slotMap: Record<number, 'night-1' | 'night-2' | 'morning'> = {
+      1: 'night-1',
+      2: 'night-2',
+      3: 'morning',
+    };
     try {
-      const result = await triggerSadhanaReminders({ round });
-      setResults(prev => ({ ...prev, [round]: result }));
-      toast.success(`Round ${round} sent — ${result.sent} email${result.sent !== 1 ? 's' : ''} delivered`);
+      // 1. Instantly calculate subscriber count from DB before sending
+      const stats = await getPushSubscriptionStats({ segment: activeSegment });
+      setPushStats(stats);
+
+      // 2. Dispatch notifications
+      const senderEmail = typeof window !== 'undefined' ? localStorage.getItem('auth_email') || '' : '';
+      const res = await sendPushNotifications({
+        reminderSlot: slotMap[round],
+        cronSecret: process.env.NEXT_PUBLIC_CRON_SECRET || 'app_cron_secret',
+        customTitle: config.title,
+        customBody: config.body,
+        senderEmail,
+        segment: activeSegment,
+      });
+
+      // 3. Show toast only when at least 1 notification was actually delivered
+      if (res.sent > 0) {
+        const notifWord = res.sent === 1 ? 'notification' : 'notifications';
+        const deviceWord = res.sent === 1 ? 'device' : 'devices';
+        toast.success(
+          <div className="flex flex-col text-[15px] sm:text-base leading-relaxed">
+            <span className="font-bold">🔔 Push broadcast sent!</span>
+            <div className="mt-2 font-semibold text-neutral-800 dark:text-neutral-200">
+              <div>{res.sent} web push {notifWord} successfully delivered</div>
+              <div>to {res.sent} subscribed user {deviceWord}.</div>
+            </div>
+          </div>,
+          { duration: Infinity }
+        );
+      } else if (stats.totalSubscriptions > 0) {
+        toast.warning(
+          `⚠️ Push broadcast attempted: ${stats.totalSubscriptions} subscriber(s) found, but 0 notifications were delivered. Subscriptions may be stale or all users have already submitted today.`,
+          { duration: Infinity }
+        );
+      } else {
+        toast.info('ℹ️ No active subscribers found. Notification was not sent.', { duration: 8000 });
+      }
+
+      setResults(prev => ({
+        ...prev,
+        [round]: {
+          sent: res.sent,
+          skipped: res.skipped || res.failed,
+          date: new Date().toISOString().slice(0, 10),
+          recipients: [],
+        },
+      }));
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to send reminders');
+      toast.error(err?.message || 'Failed to send web push notifications');
     } finally {
       setLoading(null);
     }
@@ -97,167 +367,308 @@ export default function SendRemindersPanel() {
   const pendingRound = ROUNDS.find(r => r.round === confirmRound);
   const isSmartLoading = loading === 'smart';
 
+  const format24To12 = (t24: string) => {
+    const [hStr, mStr] = t24.split(':');
+    const h = parseInt(hStr || '0', 10);
+    const m = mStr || '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 === 0 ? 12 : h % 12;
+    return `${displayH}:${m} ${ampm}`;
+  };
+
   return (
-    <>
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Mail className="w-5 h-5 text-primary" />
-              <CardTitle className="text-base">Sadhana Reminders</CardTitle>
+    <div className="space-y-6">
+      {/* High-Visibility Instant Notification Banner */}
+      <div className="rounded-xl border border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-background p-4 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5 min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-500 fill-amber-500/20 animate-pulse" />
+              <h3 className="text-base font-bold text-foreground truncate">Send Notification Instantly</h3>
+              <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30 whitespace-nowrap">
+                Instant Dispatch
+              </Badge>
             </div>
-            {/* Smart Send Now button */}
-            <Button
-              size="sm"
-              className="gap-1.5 shrink-0"
-              disabled={isSmartLoading}
-              onClick={() => setSmartConfirm(true)}
-            >
-              {isSmartLoading ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Sending…
-                </>
-              ) : (
-                <>
-                  <Zap className="w-3.5 h-3.5" />
-                  Send Now
-                </>
-              )}
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              Trigger a push notification immediately to all registered member devices who haven't submitted their Sadhana report today.
+            </p>
+          </div>
+          <Button
+            size="default"
+            onClick={async () => {
+              await fetchStats();
+              setSmartConfirm(true);
+            }}
+            disabled={loading === 'smart'}
+            className="bg-primary text-primary-foreground font-semibold gap-2 shadow-md hover:shadow-lg transition-all shrink-0 cursor-pointer"
+          >
+            {loading === 'smart' ? (
+              <>
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Sending Instantly…
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                Send Notification Instantly
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-primary" />
+            <CardTitle className="text-base font-semibold">PW Super Admin Notification Settings</CardTitle>
           </div>
           <CardDescription>
-            <strong>Send Now</strong> auto-picks the right round for the current IST time ({getISTTimeString()} → {smartRoundInfo.icon} {smartRoundInfo.label}).
-            Or send a specific round manually below.
+            Manage automatic Sadhana reminders, custom times, and push messaging for users.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {ROUNDS.map(({ round, label, time, description, icon }) => {
-            const result = results[round];
-            const isLoading = loading === round;
-            const isCurrentSmart = round === smartRound;
-
-            return (
-              <div
-                key={round}
-                className={`flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/30 ${isCurrentSmart ? 'border-primary/40 bg-primary/5' : 'border-border'}`}
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <span className="text-xl leading-none mt-0.5">{icon}</span>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium truncate">{label}</p>
-                      {isCurrentSmart && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-normal">
-                          Now
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{description}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">{time}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  {result && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                      <span className="text-muted-foreground">
-                        <span className="font-semibold text-foreground">{result.sent}</span> sent
-                        {result.skipped > 0 && (
-                          <span className="ml-1 text-destructive">({result.skipped} failed)</span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isLoading || isSmartLoading}
-                    onClick={() => setConfirmRound(round)}
-                    className="shrink-0"
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Sending…
-                      </span>
-                    ) : result ? 'Resend' : 'Send'}
-                  </Button>
-                </div>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3.5 shadow-sm">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-primary" />
+                <Label className="text-sm font-medium">Automatic Push Notifications</Label>
               </div>
-            );
-          })}
+              <p className="text-xs text-muted-foreground">
+                {config.enabled
+                  ? 'Enabled — Automatic reminders will run for users at configured custom times.'
+                  : 'Disabled — All automated push reminders for users are currently paused.'}
+              </p>
+            </div>
+            <Switch
+              checked={config.enabled}
+              onCheckedChange={(val) => setConfig((prev: PwSadhanaNotificationConfig) => ({ ...prev, enabled: val }))}
+              aria-label="Toggle Sadhana Notifications"
+            />
+          </div>
 
-          {Object.keys(results).length > 0 && (
-            <div className="pt-2 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Recipients</p>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.values(results).flatMap(r => r.recipients).map((rec, i) => (
-                  <Badge key={i} variant="secondary" className="text-xs font-normal">
-                    {rec.name || rec.email}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2 rounded-lg border border-border bg-background p-3.5">
+              <Label className="text-sm font-medium flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-primary" />
+                Custom Reminder Times (IST)
+              </Label>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {config.times.map((t: string) => (
+                  <Badge key={t} variant="secondary" className="px-2.5 py-1 text-xs flex items-center gap-1.5">
+                    {format24To12(t)} ({t})
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTimeSlot(t)}
+                      className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </Badge>
                 ))}
-                {Object.values(results).flatMap(r => r.recipients).length === 0 && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                    All members have already submitted — no reminders needed!
-                  </p>
-                )}
               </div>
+              <div className="flex items-center gap-2 pt-2">
+                <Input
+                  type="time"
+                  value={newTimeInput}
+                  onChange={(e) => setNewTimeInput(e.target.value)}
+                  className="h-8 text-xs w-32"
+                />
+                <Button size="sm" variant="outline" onClick={handleAddTimeSlot} className="h-8 text-xs gap-1">
+                  <Plus className="w-3.5 h-3.5" /> Add Time
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-border bg-background p-3.5">
+              <Label className="text-sm font-medium">Notification Frequency</Label>
+              <Select
+                value={config.frequency}
+                onValueChange={(val: any) => setConfig((prev: PwSadhanaNotificationConfig) => ({ ...prev, frequency: val }))}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue>
+                    {config.frequency === 'daily'
+                      ? 'Daily'
+                      : config.frequency === 'weekdays'
+                      ? 'Weekdays Only'
+                      : 'Custom Schedule'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekdays">Weekdays Only</SelectItem>
+                  <SelectItem value="custom">Custom Schedule</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Determines when users are alerted to fill their Sadhana form.
+              </p>
+
+              {config.frequency === 'custom' && (
+                <div className="space-y-1.5 pt-2 border-t border-border mt-2">
+                  <Label className="text-xs font-medium text-foreground">Select Custom Schedule Days</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {DAYS_OF_WEEK.map((day) => {
+                      const selected = (config.customDays || [0, 1, 2, 3, 4, 5, 6]).includes(day.value);
+                      return (
+                        <Button
+                          key={day.value}
+                          type="button"
+                          size="sm"
+                          variant={selected ? 'default' : 'outline'}
+                          onClick={() => toggleCustomDay(day.value)}
+                          className={`h-7 px-2.5 text-xs font-medium ${
+                            selected
+                              ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {day.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-border bg-background p-3.5">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Notification Title</Label>
+              <Input
+                value={config.title}
+                onChange={(e) => setConfig((prev: PwSadhanaNotificationConfig) => ({ ...prev, title: e.target.value }))}
+                className="h-8 text-xs"
+                placeholder="e.g. 📿 Sadhana Reminder"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Notification Message Body</Label>
+              <Textarea
+                value={config.body}
+                onChange={(e) => setConfig((prev: PwSadhanaNotificationConfig) => ({ ...prev, body: e.target.value }))}
+                className="text-xs min-h-[60px]"
+                placeholder="Message body shown on user devices"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-border">
+            <Button size="sm" onClick={handleSaveConfig} className="gap-1.5">
+              <Save className="w-4 h-4" />
+              Save Notification Settings
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Push Notification Subscribers List Card - ALWAYS VISIBLE */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BellRing className="w-4 h-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">Push Notification Subscribers</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchStats}
+                disabled={loadingPushStats}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                title="Refresh subscriber list"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingPushStats ? 'animate-spin' : ''}`} />
+              </Button>
+              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20 font-bold">
+                {loadingPushStats ? 'Loading...' : `${pushStats?.totalSubscriptions || 0} Subscriptions`}
+              </Badge>
+            </div>
+          </div>
+          <CardDescription className="text-xs">
+            {loadingPushStats
+              ? 'Checking active registered push notification devices...'
+              : `${pushStats?.subscribers?.length || 0} unique registered devices / subscribers active for push notifications`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-2">
+          {loadingPushStats ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              Fetching subscriber devices...
+            </div>
+          ) : pushStats?.subscribers && pushStats.subscribers.length > 0 ? (
+            <details className="text-xs border border-border rounded-lg p-3 bg-background shadow-xs" open>
+              <summary className="cursor-pointer text-xs font-semibold text-foreground hover:text-primary transition-colors py-0.5">
+                View subscribed devices ({pushStats.subscribers.length})
+              </summary>
+              <div className="mt-2.5 space-y-1.5 max-h-56 overflow-y-auto pt-2 border-t border-border">
+                {pushStats.subscribers.map((s: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-md bg-muted/40 border border-border">
+                    <span className="font-medium text-foreground">{s.name || 'Registered Device'}</span>
+                    <span className="text-muted-foreground text-[11px] font-mono">{s.email}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : (
+            <div className="text-xs text-muted-foreground py-2 border border-dashed rounded-lg p-3 text-center">
+              No registered push notification devices found yet. Member users can subscribe from their Dashboard or Profile.
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Smart Send Now confirmation */}
-      <AlertDialog open={smartConfirm} onOpenChange={open => !open && setSmartConfirm(false)}>
+      <AlertDialog open={smartConfirm} onOpenChange={setSmartConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-primary" />
-              Send Now — {smartRoundInfo.icon} {smartRoundInfo.label}
+              <Zap className="w-5 h-5 text-primary animate-pulse" />
+              Send Instant Web Push Broadcast
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Based on the current time (<strong>{getISTTimeString()}</strong>), this will send{' '}
-              <strong>{smartRoundInfo.label}</strong> reminders to all active members who haven't filled their Sadhana
-              for {smartRound === 1 ? 'today' : 'yesterday'}.
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                This will trigger direct Web Push Notifications ONLY to the registered devices of active members who have not filled their Sadhana report today.
+              </p>
+              {loadingPushStats ? (
+                <div className="rounded-lg bg-muted p-3 text-xs flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  Checking subscriber devices...
+                </div>
+              ) : (
+                <div className={`rounded-lg p-3 text-xs border ${
+                  (pushStats?.totalSubscriptions || 0) > 0
+                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300'
+                    : 'bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400 font-medium'
+                }`}>
+                  {(pushStats?.totalSubscriptions || 0) > 0 ? (
+                    <>
+                      <strong>Active Target Audience:</strong> {pushStats?.totalSubscriptions || 0} registered device(s) will be notified.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Warning:</strong> No registered push notification devices found. You cannot send a broadcast because there are no active device subscriptions.
+                    </>
+                  )}
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleSend(smartRound, true)}>
-              Send Reminders
+            <AlertDialogAction
+              onClick={() => handleSend(1, true)}
+              disabled={loadingPushStats || !pushStats || pushStats.totalSubscriptions === 0}
+              className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold"
+            >
+              Send Push Broadcast Now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Manual round confirmation */}
-      <AlertDialog open={confirmRound !== null} onOpenChange={open => !open && setConfirmRound(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Send {pendingRound?.label}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will send an email reminder to all active members who haven't filled their Sadhana
-              for {pendingRound?.round === 1 ? 'today' : 'yesterday'}.
-              Scheduled time: <strong>{pendingRound?.time}</strong>.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmRound && handleSend(confirmRound)}>
-              Send Reminders
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+    </div>
   );
 }

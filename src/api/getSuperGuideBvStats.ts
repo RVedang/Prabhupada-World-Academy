@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, Guides } from '@/lib/backend-sdk';
 
 /** ISO week number for a given Date */
 function getISOWeek(d: Date): number {
@@ -22,6 +22,8 @@ function isoWeekToDateRange(weekNum: number, year: number): { start: string; end
   return { start: fmt(weekStart), end: fmt(weekEnd) };
 }
 
+import getGuides from './getGuides';
+
 export default createEndpoint({
   description: 'Get BV stats for Super Guide — aggregate across all active groups with weekly filtering',
   authenticated: true,
@@ -29,18 +31,20 @@ export default createEndpoint({
     filterGuideId: z.string().optional(),
     weekNumber: z.number().optional(),
     year: z.number().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
-    // Fetch guides for the dropdown (always all active guides)
-    const { records: allGuides } = await Guides.findAll({
-      filters: { isActive: true },
-      fields: ['id', 'guideId', 'fullName'],
-      limit: 100,
-    });
+  execute: async ({ input, context }: { input: any; context: any }) => {
+    // Fetch guides for dropdown via getGuides endpoint (segment-aware)
+    const guidesListRes = await getGuides.execute({ input: { segment: input.segment }, context });
+    const guidesForDropdown = (guidesListRes.guides || []).map((g: any) => ({
+      guideId: g.guideId,
+      name: g.name,
+      segment: g.isPrabhupadaWorldMentor ? 'PW' : 'FOLK',
+    }));
 
     const guideNameMap = new Map<string, string>();
-    for (const g of allGuides) guideNameMap.set(g.id, (g.fullName as string) || '');
+    for (const g of guidesForDropdown) guideNameMap.set(g.guideId, g.name);
 
     // Fetch all active BV groups
     const { records: allGroups } = await BvGroups.findAll({
@@ -61,7 +65,7 @@ export default createEndpoint({
       summary: { totalUsers: 0, markedCount: 0, presentCount: 0, absentCount: 0, notMarkedCount: 0, serviceFullCount: 0, avgPoints: 0 },
       guideBreakdown: [],
       leaderboard: [],
-      guides: allGuides.map((g: any) => ({ guideId: g.id, name: (g.fullName as string) || '' })),
+      guides: guidesForDropdown,
     };
 
     if (groups.length === 0) return emptyResult;
@@ -95,31 +99,80 @@ export default createEndpoint({
       }),
     ]);
 
-    // Build unique user set per group from members
+    // Fetch user info for members (display name, ashray, guide, role, flags)
+    const { records: userRecs } = await Users.findAll({
+      fields: ['id', 'userId', 'fullName', 'email', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
+      limit: 2000,
+    });
+
+    const userInfoMap = new Map<string, any>();
+    const adminUserIds = new Set<string>();
+
+    const callerId = String(context.user?.id || '').toLowerCase();
+    const callerUserId = String(context.user?.userId || '').toLowerCase();
+    const callerEmail = String(context.user?.email || '').toLowerCase();
+    if (callerId) adminUserIds.add(callerId);
+    if (callerUserId) adminUserIds.add(callerUserId);
+    if (callerEmail) adminUserIds.add(callerEmail);
+
+    for (const u of userRecs) {
+      const uId = String(u.id || u.userId || '').toLowerCase();
+      const uEmail = String(u.email || '').toLowerCase();
+      const uRole = String(u.role || '').toUpperCase();
+      const uName = String(u.fullName || '').toLowerCase();
+
+      const isAdmin =
+        u.isBvAdmin ||
+        u.isBvSuperAdmin ||
+        uRole === 'ADMIN' ||
+        uRole === 'SUPER_ADMIN' ||
+        uRole === 'SUPER_GUIDE' ||
+        uRole === 'PW_ADMIN' ||
+        uRole === 'SUPER ADMIN' ||
+        uName.includes('system admin') ||
+        uName.includes('super admin') ||
+        uEmail === 'vdnd@hkmmumbai.org' ||
+        uEmail === 'srilaprabhupadaworld@gmail.com' ||
+        uEmail === 'gaurmandal@folk.org' ||
+        uEmail === 'admin@prabhupadaworld.org' ||
+        (callerId && uId === callerId) ||
+        (callerEmail && uEmail === callerEmail);
+
+      if (isAdmin) {
+        if (u.id) adminUserIds.add(String(u.id).toLowerCase());
+        if (u.userId) adminUserIds.add(String(u.userId).toLowerCase());
+        if (u.email) adminUserIds.add(String(u.email).toLowerCase());
+      } else {
+        userInfoMap.set(u.id, u);
+        if (u.userId) userInfoMap.set(u.userId, u);
+      }
+    }
+
+    // Build unique user set per group from members (excluding admin users)
     const usersByGroup = new Map<string, Set<string>>();
     for (const m of membersRes.records) {
       const gid = Array.isArray(m.group) ? m.group[0] : m.group as string;
       const uid = Array.isArray(m.user) ? m.user[0] : m.user as string;
       if (!gid || !uid) continue;
+      if (adminUserIds.has(String(uid).toLowerCase())) continue;
       if (!usersByGroup.has(gid)) usersByGroup.set(gid, new Set());
       usersByGroup.get(gid)!.add(uid);
     }
 
-    // All unique users across all groups
+    // All unique non-admin users across all groups
     const allUserIds = new Set<string>();
     for (const s of usersByGroup.values()) for (const uid of s) allUserIds.add(uid);
 
-    // Weekly attendance: userId → { present, groupId }
+    // Weekly attendance: userId → { present, groupId } (excluding admin users)
     const attendanceByUser = new Map<string, { present: boolean; groupId: string }>();
     for (const a of weekAttRes.records) {
       const uid = Array.isArray(a.user) ? a.user[0] : a.user as string;
       const gid = Array.isArray(a.group) ? a.group[0] : a.group as string;
-      if (!uid) continue;
-      // Last record wins if somehow duplicated
+      if (!uid || adminUserIds.has(String(uid).toLowerCase())) continue;
       attendanceByUser.set(uid, { present: !!(a.present), groupId: gid });
     }
 
-    // All-time attendance for leaderboard (paginated)
+    // All-time attendance for leaderboard (paginated, excluding admin users)
     let allTimeAttendance: any[] = [];
     {
       let offset = 0;
@@ -130,7 +183,11 @@ export default createEndpoint({
           limit: 2000,
           offset,
         });
-        allTimeAttendance = allTimeAttendance.concat(records);
+        const nonAdminRecs = records.filter((a: any) => {
+          const uid = Array.isArray(a.user) ? a.user[0] : a.user as string;
+          return uid && !adminUserIds.has(String(uid).toLowerCase());
+        });
+        allTimeAttendance = allTimeAttendance.concat(nonAdminRecs);
         if (!hasMore) break;
         offset += 2000;
       }
@@ -141,19 +198,9 @@ export default createEndpoint({
     const userTotalSessions = new Map<string, number>(); // any attendance record
     for (const a of allTimeAttendance) {
       const uid = Array.isArray(a.user) ? a.user[0] : a.user as string;
-      if (!uid) continue;
+      if (!uid || adminUserIds.has(String(uid).toLowerCase())) continue;
       userTotalSessions.set(uid, (userTotalSessions.get(uid) || 0) + 1);
       if (a.present) userTotalPoints.set(uid, (userTotalPoints.get(uid) || 0) + 1);
-    }
-
-    // Fetch user info for members (display name, ashray, guide)
-    const { records: userRecs } = await Users.findAll({
-      fields: ['id', 'fullName', 'ashrayLevel', 'guide'],
-      limit: 2000,
-    });
-    const userInfoMap = new Map<string, any>();
-    for (const u of userRecs) {
-      if (allUserIds.has(u.id)) userInfoMap.set(u.id, u);
     }
 
     // ── Summary stats ──
@@ -175,38 +222,49 @@ export default createEndpoint({
       presentCount: number;
     }>();
 
+    // Map: groupId → Admin / Guide display name
+    const groupAdminNameMap = new Map<string, string>();
+    for (const g of groups) {
+      const gAdmin = (g as any).bvReportingAdminName || (g as any).bvslName || (g as any).guideName || (input.segment === 'PW' ? 'Hiranyavarna Das' : 'Gaurmandal Das');
+      groupAdminNameMap.set(g.id, gAdmin);
+    }
+
     for (const [gid, uids] of usersByGroup) {
-      const guideDbId = groupGuideMap.get(gid) || 'unknown';
-      if (!guideBreakdownMap.has(guideDbId)) {
-        guideBreakdownMap.set(guideDbId, {
-          guideName: guideNameMap.get(guideDbId) || 'Unknown',
+      const guideDbId = groupGuideMap.get(gid) || '';
+      const name = guideNameMap.get(guideDbId) || groupAdminNameMap.get(gid) || (input.segment === 'PW' ? 'Hiranyavarna Das' : 'Gaurmandal Das');
+      if (!guideBreakdownMap.has(name)) {
+        guideBreakdownMap.set(name, {
+          guideName: name,
           userIds: new Set(),
           markedCount: 0,
           presentCount: 0,
         });
       }
-      const entry = guideBreakdownMap.get(guideDbId)!;
+      const entry = guideBreakdownMap.get(name)!;
       for (const uid of uids) entry.userIds.add(uid);
     }
 
     for (const [uid, att] of attendanceByUser) {
-      const guideDbId = groupGuideMap.get(att.groupId) || 'unknown';
-      const entry = guideBreakdownMap.get(guideDbId);
+      const guideDbId = groupGuideMap.get(att.groupId) || '';
+      const name = guideNameMap.get(guideDbId) || groupAdminNameMap.get(att.groupId) || (input.segment === 'PW' ? 'Hiranyavarna Das' : 'Gaurmandal Das');
+      const entry = guideBreakdownMap.get(name);
       if (!entry) continue;
       entry.markedCount++;
       if (att.present) entry.presentCount++;
     }
 
-    const guideBreakdown = [...guideBreakdownMap.entries()].map(([, d]) => ({
-      guideId: [...guideNameMap.entries()].find(([, n]) => n === d.guideName)?.[0] || '',
-      guideName: d.guideName,
-      totalUsers: d.userIds.size,
-      presentCount: d.presentCount,
-      serviceFullCount: d.presentCount,
-      avgPoints: d.markedCount > 0
-        ? Math.round((d.presentCount / d.markedCount) * 3 * 10) / 10
-        : 0,
-    }));
+    const guideBreakdown = [...guideBreakdownMap.entries()]
+      .map(([, d]) => ({
+        guideId: [...guideNameMap.entries()].find(([, n]) => n === d.guideName)?.[0] || '',
+        guideName: d.guideName,
+        totalUsers: d.userIds.size,
+        presentCount: d.presentCount,
+        serviceFullCount: d.presentCount,
+        avgPoints: d.markedCount > 0
+          ? Math.round((d.presentCount / d.markedCount) * 3 * 10) / 10
+          : 0,
+      }))
+      .filter(d => d.totalUsers > 0);
 
     // ── Leaderboard (sorted by all-time points) ──
     const leaderboard = [...allUserIds]
@@ -231,7 +289,7 @@ export default createEndpoint({
       summary: { totalUsers, markedCount, presentCount, absentCount, notMarkedCount, serviceFullCount, avgPoints },
       guideBreakdown,
       leaderboard,
-      guides: allGuides.map((g: any) => ({ guideId: g.id, name: (g.fullName as string) || '' })),
+      guides: guidesForDropdown,
     };
   },
 });

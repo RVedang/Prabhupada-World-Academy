@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, FolkResidencies, Guides, Users, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, FolkResidencies, Guides, Users, SadhanaEntries } from '@/lib/backend-sdk';
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 
 export default createEndpoint({
@@ -151,6 +151,6 @@ export default createEndpoint({
         monthlyAvgs,
         quarterAvg,
       };
-    });
+    }).filter((r: any) => !r.residencyName.includes('Prabhupada World') && !r.residencyName.includes('PW'));
   },
 });

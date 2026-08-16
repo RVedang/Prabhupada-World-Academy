@@ -267,11 +267,17 @@ export function computeCell(
   }
 
   // Standard point-based coloring
-  if (typeof val === 'number' && field.maxPoints != null && field.maxPoints > 0) {
-    if (val >= field.maxPoints) return { displayText, colorType: 'green', isNA: false };
-    if (val < 0)               return { displayText, colorType: 'purple', isNA: false };
-    if (val === 0)             return { displayText, colorType: 'red', isNA: false };
-    return { displayText, colorType: 'amber', isNA: false };
+  if (typeof val === 'number') {
+    if (val < 0) return { displayText, colorType: 'purple', isNA: false };
+    if (field.key === 'bath') {
+      // 0 score for bath = no penalty = green
+      return { displayText, colorType: 'green', isNA: false };
+    }
+    if (field.maxPoints != null && field.maxPoints > 0) {
+      if (val >= field.maxPoints) return { displayText, colorType: 'green', isNA: false };
+      if (val === 0)             return { displayText, colorType: 'red', isNA: false };
+      return { displayText, colorType: 'amber', isNA: false };
+    }
   }
 
   // Fallback: no color

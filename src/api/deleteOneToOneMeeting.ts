@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, OneToOneMeetings, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, OneToOneMeetings, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Delete a one-to-one meeting record',
@@ -8,7 +8,7 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }) => {
     const meeting = await OneToOneMeetings.findOne({ id: input.meetingId });
-    if (!meeting) throw new ZiteError({ code: 'NOT_FOUND', message: 'Meeting not found' });
+    if (!meeting) throw new AppError({ code: 'NOT_FOUND', message: 'Meeting not found' });
 
     const guideId = Array.isArray(meeting.guide) ? meeting.guide[0] : meeting.guide;
     const isOwner = guideId === context.user!.id;
@@ -19,7 +19,7 @@ export default createEndpoint({
       isMentorForGuide = !!mentorGuideRef && mentorGuideRef === guideId;
     }
     if (!isOwner && !isMentorForGuide) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only delete your own meeting records' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'You can only delete your own meeting records' });
     }
 
     await OneToOneMeetings.delete({ id: input.meetingId });

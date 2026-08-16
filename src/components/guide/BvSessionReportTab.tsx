@@ -8,8 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CalendarCheck, Users, TrendingUp, RefreshCw, FileDown, Image, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvSessionReport } from 'zite-endpoints-sdk';
-import type { GetBvSessionReportOutputType } from 'zite-endpoints-sdk';
+import { getBvSessionReport } from '@/lib/endpoints-sdk';
+import type { GetBvSessionReportOutputType } from '@/lib/endpoints-sdk';
 import { useDebouncedCallback } from 'use-debounce';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { EmptyState } from '@/shared';
@@ -43,7 +43,7 @@ export default function BvSessionReportTab({ guideId }: Props) {
 
   const handleExportCsv = () => {
     if (!data) return;
-    const headers = ['Date', 'Group', 'BVSL', 'Topic', 'Attendees', 'Total', 'Attendance %'];
+    const headers = ['Date', 'Group', 'RGF', 'Topic', 'Attendees', 'Total', 'Attendance %'];
     const rows = sessions.map(s => [
       s.sessionDate ? format(new Date(s.sessionDate + 'T00:00:00'), 'yyyy-MM-dd') : '',
       s.groupName, s.bvslName, s.topic || '', s.presentCount, s.totalMembers, `${s.attendancePercent}%`,
@@ -157,7 +157,7 @@ export default function BvSessionReportTab({ guideId }: Props) {
                       <tr className="border-b bg-muted/50">
                         <th className="p-2 text-left font-medium">Date</th>
                         <th className="p-2 text-left font-medium">Group</th>
-                        <th className="p-2 text-left font-medium">BVSL</th>
+                        <th className="p-2 text-left font-medium">RGF</th>
                         <th className="p-2 text-left font-medium">Topic</th>
                         <th className="p-2 text-right font-medium">Attendees</th>
                         <th className="p-2 text-right font-medium">Total</th>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvGroups, BvSessions, BvAttendance, BvGroupMembers } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, BvGroups, BvSessions, BvAttendance, BvGroupMembers } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 

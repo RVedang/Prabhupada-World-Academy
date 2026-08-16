@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, SkillCatalog, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, SkillCatalog, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Create, update, or deactivate a skill in the catalog',
@@ -16,7 +16,7 @@ export default createEndpoint({
     const action = input.action === 'add' ? 'create' : input.action === 'remove' ? 'deactivate' : input.action;
 
     if (action === 'create') {
-      if (!input.skillName) throw new ZiteError({ code: 'BAD_REQUEST', message: 'skillName is required for create' });
+      if (!input.skillName) throw new AppError({ code: 'BAD_REQUEST', message: 'skillName is required for create' });
       const record = await SkillCatalog.create({
         record: {
           skillName: input.skillName,
@@ -34,7 +34,7 @@ export default createEndpoint({
       if (existing) resolvedId = existing.id;
     }
 
-    if (!resolvedId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'skillId or skillName is required' });
+    if (!resolvedId) throw new AppError({ code: 'BAD_REQUEST', message: 'skillId or skillName is required' });
 
     if (action === 'deactivate') {
       await SkillCatalog.update({ id: resolvedId, record: { isActive: false } });

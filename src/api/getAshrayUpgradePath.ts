@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AshrayLevels } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AshrayLevels } from '@/lib/backend-sdk';
 
 const LEVEL_ORDER = ['Jigyasa', 'Shraddhavan', 'Sevak', 'Sadhaka', 'Upasaka', 'Caranashraya', 'Harinam Diksha'];
 

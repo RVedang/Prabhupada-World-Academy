@@ -10,21 +10,21 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Flame, CheckCircle2, XCircle, Leaf, LogOut, Loader2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { getUserBvStatus, getBvAttendance, leaveBvGroup } from 'zite-endpoints-sdk';
+import { getUserBvStatus, getBvAttendance, leaveBvGroup } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
-import type { GetUserBvStatusOutputType, GetBvAttendanceOutputType } from 'zite-endpoints-sdk';
+import type { GetUserBvStatusOutputType, GetBvAttendanceOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import BvCalendarView from '@/components/bv/BvCalendarView';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvQuizSection from '@/components/bv/BvQuizSection';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
 
-interface Props { userId: string; }
+interface Props { userId: string; segment?: 'PW' | 'FOLK'; }
 
 type BvStatus = GetUserBvStatusOutputType;
 type BvAttendance = GetBvAttendanceOutputType;
 
-export default function BvTab({ userId }: Props) {
+export default function BvTab({ userId, segment }: Props) {
   const { profile } = useUserProfile();
   const [status, setStatus] = useState<BvStatus | null>(null);
   const [attendance, setAttendance] = useState<BvAttendance | null>(null);
@@ -75,7 +75,12 @@ export default function BvTab({ userId }: Props) {
     );
   }
 
-  const isPending = (profile as any)?.bvRegistrationStatus === 'Pending Approval' || status?.pendingRequest;
+  const isPending = !!(
+    (profile as any)?.bvRegistrationStatus === 'Pending Approval' ||
+    (profile as any)?.bvRegistrationStatus === 'Pending' ||
+    (profile as any)?.bvRegistrationStatus === 'Awaiting Approval' ||
+    status?.pendingRequest
+  );
 
   const attendanceRate = status?.totalSessions && status.totalSessions > 0
     ? Math.round((status.presentCount / status.totalSessions) * 100)
@@ -123,22 +128,25 @@ export default function BvTab({ userId }: Props) {
           </CardContent>
         </Card>
       ) : isPending ? (
-        <Card className="border-l-4 border-l-orange-400 bg-orange-50/40 dark:bg-orange-950/20">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-start gap-3">
-              <Clock className="w-8 h-8 text-orange-500 shrink-0 mt-0.5" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-base">Bhakti Vriksha Registration Pending</p>
-                  <Badge variant="outline" className="border-orange-400 text-orange-600 bg-orange-100 dark:bg-orange-900/40">
-                    Awaiting Admin Approval
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your registration has been received! A Bhakti Vriksha Admin will approve your request and assign you to an active Reading Group shortly.
-                </p>
-              </div>
+        <Card className="border-2 border-dashed border-orange-300/80 bg-orange-50/50 dark:bg-orange-950/20">
+          <CardContent className="py-8 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center mx-auto text-orange-600">
+              <Clock className="w-6 h-6 animate-pulse" />
             </div>
+            <div>
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <p className="font-bold text-lg text-orange-700 dark:text-orange-300">Bhakti Vriksha Registration Pending</p>
+                <Badge variant="outline" className="border-orange-400 text-orange-600 bg-orange-100 dark:bg-orange-900/40 font-medium">
+                  Awaiting Admin Approval
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                Your Bhakti Vriksha details have been submitted! An Admin will review your application and assign you to an active Reading Group shortly.
+              </p>
+            </div>
+            <Button size="lg" disabled className="mt-2 font-semibold shadow-sm gap-2 bg-orange-100 text-orange-700 border border-orange-300 dark:bg-orange-900/60 dark:text-orange-200 dark:border-orange-700 cursor-not-allowed opacity-90">
+              <Clock className="w-4 h-4 text-orange-600" /> Pending Approval
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -214,6 +222,7 @@ export default function BvTab({ userId }: Props) {
         open={regModalOpen}
         onOpenChange={setRegModalOpen}
         onSuccess={load}
+        segment={segment}
       />
     </div>
   );

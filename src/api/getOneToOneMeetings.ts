@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Guides, Users, OneToOneMeetings } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Guides, Users, OneToOneMeetings } from '@/lib/backend-sdk';
 
 function getWeeks(weeksBack: number): string[] {
   const today = new Date();
@@ -100,7 +100,7 @@ export default createEndpoint({
     if (userIds.length > 0) {
       const { records } = await OneToOneMeetings.findAll({
         filters: { weekDate: { gte: startDate, lte: endDate } } as any,
-        fields: ['id', 'guide', 'member', 'weekDate', 'meetingDate', 'durationMinutes', 'notes'],
+        fields: ['id', 'guide', 'member', 'weekDate', 'meetingDate', 'durationMinutes', 'notes', 'callStatus', 'recordingLink', 'nextCallDate', 'nextCallAgenda'],
         limit: 2000,
       });
       meetings = records.filter(m => {
@@ -130,6 +130,10 @@ export default createEndpoint({
         meetingDate: String(m.meetingDate || '').split('T')[0],
         durationMinutes: m.durationMinutes || 0,
         notes: m.notes || '',
+        callStatus: m.callStatus || 'Connected',
+        recordingLink: m.recordingLink || '',
+        nextCallDate: m.nextCallDate ? String(m.nextCallDate).split('T')[0] : '',
+        nextCallAgenda: m.nextCallAgenda || '',
       })),
       weeks,
       availableGuides,

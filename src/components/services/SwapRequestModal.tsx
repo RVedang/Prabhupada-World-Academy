@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
-import { requestServiceSwap } from 'zite-endpoints-sdk';
+import { requestServiceSwap } from '@/lib/endpoints-sdk';
 
 interface Props {
   open: boolean;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Config, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Config, FolkResidencies, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get TagMango configuration (Super Guide only)',
@@ -14,7 +14,7 @@ export default createEndpoint({
   }),
   execute: async ({ context }) => {
     if (context.user.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
 
     const [configResult, residencyResult] = await Promise.all([
@@ -40,7 +40,7 @@ export default createEndpoint({
       apiUrl: map.get('tagmango_api_url') || 'https://api-prod-new.tagmango.com/integration/action/migrate-user',
       courseConfig,
       residencies,
-      envKeyConfigured: !!process.env.ZITE_TAGMANGO_API_KEY,
+      envKeyConfigured: !!process.env.APP_TAGMANGO_API_KEY,
     };
   },
 });

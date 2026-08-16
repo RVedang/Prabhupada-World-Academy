@@ -5,8 +5,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDebouncedCallback } from 'use-debounce';
-import { getAshrayChecklist, saveAshrayChecklist, requestAshrayUpgrade } from 'zite-endpoints-sdk';
-import type { GetAshrayUpgradePathOutputType } from 'zite-endpoints-sdk';
+import { getAshrayChecklist, saveAshrayChecklist, requestAshrayUpgrade } from '@/lib/endpoints-sdk';
+import type { GetAshrayUpgradePathOutputType } from '@/lib/endpoints-sdk';
 import AshrayChecklistSection from './AshrayChecklistSection';
 import AshrayApplySection from './AshrayApplySection';
 

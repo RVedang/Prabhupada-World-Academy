@@ -3,8 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Clock, CheckCircle2, AlertTriangle, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { markServiceDone } from 'zite-endpoints-sdk';
-import type { GetWeeklyScheduleOutputType } from 'zite-endpoints-sdk';
+import { markServiceDone } from '@/lib/endpoints-sdk';
+import type { GetWeeklyScheduleOutputType } from '@/lib/endpoints-sdk';
 import ServiceStatusBadge from './ServiceStatusBadge';
 import SwapRequestModal from './SwapRequestModal';
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, Services, Users, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, Services, Users, FolkResidencies } from '@/lib/backend-sdk';
 import { getServiceWeekStartOf } from '../lib/serviceWeek';
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;

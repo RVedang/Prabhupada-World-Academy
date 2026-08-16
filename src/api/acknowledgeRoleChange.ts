@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({

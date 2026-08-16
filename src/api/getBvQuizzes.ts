@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvQuizzes, BvQuizSubmissions } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvQuizzes, BvQuizSubmissions } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get quizzes for a BV group, with submission counts',

@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Target, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { getPreachingDataReport } from 'zite-endpoints-sdk';
+import { getPreachingDataReport } from '@/lib/endpoints-sdk';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import PreachingMetricSection from './PreachingMetricSection';

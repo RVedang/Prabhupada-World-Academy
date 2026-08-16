@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 
@@ -78,7 +78,7 @@ export default createEndpoint({
         fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'],
         limit: 200,
       });
-      bvslUsers = records;
+      bvslUsers = records.filter(u => u.id !== context.user!.id && u.userId !== context.user!.id);
     }
 
     if (bvslUsers.length === 0) return { bvsls: [], groups: [] };

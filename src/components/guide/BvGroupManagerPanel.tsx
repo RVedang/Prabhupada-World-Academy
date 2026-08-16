@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Plus, ChevronDown, ChevronRight, UserPlus, MessageCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAllBvGroupsAdmin, getEligibleMembersForBvGroup, deleteBvGroup } from 'zite-endpoints-sdk';
-import type { GetAllBvGroupsAdminOutputType } from 'zite-endpoints-sdk';
+import { getAllBvGroupsAdmin, getEligibleMembersForBvGroup, deleteBvGroup } from '@/lib/endpoints-sdk';
+import type { GetAllBvGroupsAdminOutputType } from '@/lib/endpoints-sdk';
 import BvGroupCreateDialog from './BvGroupCreateDialog';
 import BvGroupAddMembersDialog from './BvGroupAddMembersDialog';
 import BvGroupMembersSection from './BvGroupMembersSection';
@@ -81,7 +81,7 @@ export default function BvGroupManagerPanel({ guideId }: Props) {
         <Card><CardContent className="py-12 text-center text-muted-foreground">
           <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
           <p className="font-medium">No BV groups yet</p>
-          <p className="text-xs mt-1">Create a group and assign members on behalf of your BVSLs</p>
+          <p className="text-xs mt-1">Create a group and assign members on behalf of your RGFs</p>
         </CardContent></Card>
       )}
 
@@ -95,7 +95,7 @@ export default function BvGroupManagerPanel({ guideId }: Props) {
                   {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-sm truncate">{g.groupName}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{g.bvslName || 'No BVSL assigned'} · <span className="font-medium">{g.memberCount} members</span></p>
+                    <p className="text-xs text-muted-foreground">{g.bvslName || 'No RGF assigned'} · <span className="font-medium">{g.memberCount} members</span></p>
                   </div>
                   {g.avgAttendanceRate > 0 && <span className={`text-xs font-semibold shrink-0 ${getFillColor(g.avgAttendanceRate)}`}>{g.avgAttendanceRate}% att.</span>}
                   <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>

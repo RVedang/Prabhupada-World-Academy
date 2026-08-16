@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Services, Users, ServiceAllocations, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Services, Users, ServiceAllocations, FolkResidencies } from '@/lib/backend-sdk';
 
 const DOW_MAP: Record<string, string> = {
   sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday',

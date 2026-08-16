@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvSessions, BvAttendance, BvQuizzes, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvSessions, BvAttendance, BvQuizzes, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get full BV group detail — group info, active members, recent sessions',
@@ -7,7 +7,7 @@ export default createEndpoint({
   inputSchema: z.object({ groupId: z.string() }),
   outputSchema: z.any(),
   execute: async ({ input }) => {
-    if (!input.groupId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'groupId is required' });
+    if (!input.groupId) throw new AppError({ code: 'BAD_REQUEST', message: 'groupId is required' });
 
     // Try finding by the custom groupId field first, then fall back to DB record ID
     let group = await BvGroups.findOne({
@@ -20,7 +20,7 @@ export default createEndpoint({
         fields: ['id', 'groupId', 'groupName', 'description', 'isActive', 'joinToken', 'whatsAppLink', 'bvslLeader'],
       }).catch(() => undefined);
     }
-    if (!group) throw new ZiteError({ code: 'NOT_FOUND', message: 'Group not found' });
+    if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
 
     const [membersRes, sessionsRes, quizzesRes] = await Promise.all([
       BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'role', 'joinedAt'], limit: 200 }),

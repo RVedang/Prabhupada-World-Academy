@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ResidencyTransferRequests, FolkResidencies, ZiteError, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ResidencyTransferRequests, FolkResidencies, AppError, Users } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -15,10 +15,10 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const targetResidencyId = input.toResidencyId || input.newResidencyId;
-    if (!targetResidencyId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'toResidencyId is required' });
+    if (!targetResidencyId) throw new AppError({ code: 'BAD_REQUEST', message: 'toResidencyId is required' });
 
     const existing = await ResidencyTransferRequests.findOne({ filters: { user: context.user.id, status: 'Pending' } });
-    if (existing) throw new ZiteError({ code: 'CONFLICT', message: 'You already have a pending residency transfer request' });
+    if (existing) throw new AppError({ code: 'CONFLICT', message: 'You already have a pending residency transfer request' });
 
     // Find residency by residencyId field
     const residencyRecord = await FolkResidencies.findOne({ filters: { residencyId: targetResidencyId }, fields: ['id'] });

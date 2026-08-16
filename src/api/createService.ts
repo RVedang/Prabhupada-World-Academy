@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Services, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Services, FolkResidencies, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Create a new service',
@@ -21,7 +21,7 @@ export default createEndpoint({
   }),
   outputSchema: z.any(),
   execute: async ({ input }) => {
-    if (!input.serviceName) throw new ZiteError({ code: 'BAD_REQUEST', message: 'serviceName is required' });
+    if (!input.serviceName) throw new AppError({ code: 'BAD_REQUEST', message: 'serviceName is required' });
 
     // Resolve custom residency ID (e.g. "RES-001") to UUID for the linked record field
     let residencyUuid: string | undefined;

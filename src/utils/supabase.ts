@@ -1,6 +1,6 @@
 /**
  * Lightweight Supabase REST client for backend endpoints.
- * Uses process.env.ZITE_SUPABASE_URL and process.env.ZITE_SUPABASE_ANON_KEY.
+ * Uses process.env.APP_SUPABASE_URL and process.env.APP_SUPABASE_ANON_KEY.
  * Backend-only — do NOT import from frontend code.
  */
 
@@ -93,7 +93,7 @@ class SupabaseQueryBuilder<T = any> {
 
   /** Build the full URL */
   private _buildUrl(): string {
-    const base = process.env.ZITE_SUPABASE_URL;
+    const base = process.env.APP_SUPABASE_URL;
     const params: string[] = [`select=${encodeURIComponent(this._select)}`];
 
     for (const f of this._filters) {
@@ -113,7 +113,7 @@ class SupabaseQueryBuilder<T = any> {
 
   /** Build request headers */
   private _buildHeaders(): Record<string, string> {
-    const key = process.env.ZITE_SUPABASE_ANON_KEY;
+    const key = process.env.APP_SUPABASE_ANON_KEY;
     const headers: Record<string, string> = {
       'apikey': key,
       'Authorization': `Bearer ${key}`,

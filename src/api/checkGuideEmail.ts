@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Guides } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Check if an email belongs to an active guide',

@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Download, Upload, Save, FileSpreadsheet, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportServiceAllocation, importServiceAllocation, getResidenciesForGuide } from 'zite-endpoints-sdk';
+import { exportServiceAllocation, importServiceAllocation, getResidenciesForGuide } from '@/lib/endpoints-sdk';
 import { exportToCsv } from '@/utils/exportCsv';
 import { getCurrentServiceWeekStart } from '@/lib/serviceWeek';
 import AllocationExportGrid, { CellEdit } from '@/components/services/AllocationExportGrid';

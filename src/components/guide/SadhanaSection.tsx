@@ -45,7 +45,7 @@ export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMo
   return (
     <div className="space-y-4">
       {/* Sub-tab bar */}
-      <div className="flex gap-0 border-b border-border overflow-x-auto">
+      <div className="flex gap-0 border-b border-border overflow-x-auto overflow-y-hidden scrollbar-none [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {SUB_TABS.map(({ value, label, icon: Icon }) => (
           <button
             key={value}

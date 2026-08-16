@@ -8,8 +8,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar, CheckCircle2, XCircle, RefreshCw, UserPlus, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAvailabilityOverview, submitAvailability, bulkSubmitAvailability } from 'zite-endpoints-sdk';
-import type { GetAvailabilityOverviewOutputType } from 'zite-endpoints-sdk';
+import { getAvailabilityOverview, submitAvailability, bulkSubmitAvailability } from '@/lib/endpoints-sdk';
+import type { GetAvailabilityOverviewOutputType } from '@/lib/endpoints-sdk';
 import { format, addDays } from 'date-fns';
 
 import { SERVICE_DAYS, SERVICE_DAY_LABELS as SVC_DAY_LABELS_ARR, getServiceWeekByOffset } from '@/lib/serviceWeek';

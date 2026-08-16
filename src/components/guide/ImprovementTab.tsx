@@ -8,7 +8,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getGuideDetailedReport, GetGuideDetailedReportOutputType } from 'zite-endpoints-sdk';
+import { getGuideDetailedReport, GetGuideDetailedReportOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfISOWeek, endOfISOWeek, subWeeks, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TrendingDown, Users, RefreshCw, ChevronRight, Lightbulb, CheckCircle2, CheckCircle, ArrowUpRight } from 'lucide-react';
 import { scoreColor } from '@/lib/scoring';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type ReportUser = GetGuideDetailedReportOutputType['users'][0];
 type FieldDef = GetGuideDetailedReportOutputType['fieldDefs'][0];
@@ -46,9 +47,9 @@ function isFieldScoredForSickOs(fieldKey: string, isResident: boolean): boolean 
 // ─── Plain language mappings ────────────────────────────────────────────────
 
 const FIELD_PLAIN: Record<string, string> = {
-  ma_na_gv:       'Morning Aarti & GV',
-  quotes_tulasi:  'Quotes and Tulsi Prayers',
-  japa_visible:   'Japa (done visibly in TH)',
+  ma_na_gv:       'DA + NA + GP + Kirtan',
+  quotes_tulasi:  'Soulful Japa/ Holy Name Quotes + Vaishnava Pranam Mantra',
+  japa_visible:   'Japa visibly done in MTH/Balcony',
   sb:             'SB Class Attendance',
   cleanliness:    'Cleanliness Duty',
   report_sending: 'Same-Day Form Filling',
@@ -65,8 +66,8 @@ const FIELD_PLAIN: Record<string, string> = {
 };
 
 const FIELD_TIP: Record<string, string> = {
-  ma_na_gv:       'Encourage daily attendance at Mangal Aarti and GV. A group reminder the night before helps.',
-  quotes_tulasi:  'Remind members to participate in quote and Tulasi devi pooja daily.',
+  ma_na_gv:       'Encourage daily attendance at DA+NA+GP+Kirtan. A group reminder the night before helps.',
+  quotes_tulasi:  'Remind members to participate in Soulful Japa/Holy Name Quotes + Vaishnava Pranam Mantra daily.',
   japa_visible:   'Ask members to chant their rounds in the temple hall, in front of the Deities — not in their room.',
   sb:             'Motivate members to attend Srimad Bhagavatam class every morning without exception.',
   cleanliness:    'Verify that members are completing their assigned cleaning duties each day.',
@@ -298,9 +299,11 @@ interface Props { guideId: string; bvslMode?: boolean; mentorMode?: boolean; }
 
 export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props) {
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
+  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
   // Default to previous week — current week is always incomplete
   const [period, setPeriod] = useState<Period>('prev_week');
-  const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>('resident');
+  const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>('all');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<GetGuideDetailedReportOutputType | null>(null);
   // Dialog for "who lost points on this field"
@@ -359,14 +362,16 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
                 </button>
               ))}
             </div>
-            <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
-              {(['resident', 'non_resident', 'all', 'scholar'] as const).map(val => (
-                <button key={val} onClick={() => setResidencyFilter(val)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${residencyFilter === val ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-                  {val === 'all' ? 'All' : val === 'resident' ? 'Residents' : val === 'non_resident' ? 'Non-Residents' : 'Scholars'}
-                </button>
-              ))}
-            </div>
+            {isFolk && (
+              <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
+                {(['resident', 'non_resident', 'all', 'scholar'] as const).map(val => (
+                  <button key={val} onClick={() => setResidencyFilter(val)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${residencyFilter === val ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                    {val === 'all' ? 'All' : val === 'resident' ? 'Residents' : val === 'non_resident' ? 'Non-Residents' : 'Scholars'}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="ml-auto flex items-center gap-3">
               <span className="text-xs text-muted-foreground hidden sm:block">{periodRangeLabel}</span>
               <span className="text-xs text-muted-foreground">{submittedCount}/{totalCount} submitted</span>

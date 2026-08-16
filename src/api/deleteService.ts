@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Services, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Services, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Soft delete (deactivate) a service',
@@ -11,7 +11,7 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input }) => {
     const service = await Services.findOne({ id: input.serviceId });
-    if (!service) throw new ZiteError({ code: 'NOT_FOUND', message: 'Service not found' });
+    if (!service) throw new AppError({ code: 'NOT_FOUND', message: 'Service not found' });
 
     await Services.update({ id: input.serviceId, record: { isActive: false } });
 

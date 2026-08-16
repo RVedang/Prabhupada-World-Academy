@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCw, Users, CheckCircle2, XCircle, TrendingUp, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvGroupSadhanaMonitor } from 'zite-endpoints-sdk';
+import { getBvGroupSadhanaMonitor } from '@/lib/endpoints-sdk';
 import BvSadhanaGroupRow from './BvSadhanaGroupRow';
 
 interface Props { guideId: string; }
@@ -76,7 +76,7 @@ export default function BvSadhanaMonitorPanel({ guideId }: Props) {
                   <thead>
                     <tr className="border-b bg-muted/30">
                       <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Group</th>
-                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">BVSL Leader</th>
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">RGF (Reading Group Facilitator)</th>
                       <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">Members</th>
                       <th className="text-center py-2.5 px-3 font-medium text-green-700">Filled</th>
                       <th className="text-center py-2.5 px-3 font-medium text-destructive">Pending</th>
@@ -98,7 +98,7 @@ export default function BvSadhanaMonitorPanel({ guideId }: Props) {
           )}
 
           <p className="text-xs text-muted-foreground text-center">
-            Click any group row to expand and see individual member details. Use the 💬 Nudge button to send a WhatsApp message to the BVSL leader.
+            Click any group row to expand and see individual member details. Use the 💬 Nudge button to send a WhatsApp message to the RGF.
           </p>
         </div>
       )}

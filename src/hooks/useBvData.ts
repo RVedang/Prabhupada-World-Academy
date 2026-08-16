@@ -4,11 +4,11 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import { getAllBvGroups, getUserBvStatus } from 'zite-endpoints-sdk';
+import { getAllBvGroups, getUserBvStatus } from '@/lib/endpoints-sdk';
 import type {
   GetAllBvGroupsOutputType,
   GetUserBvStatusOutputType,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 
 export type BvGroupItem = GetAllBvGroupsOutputType['groups'][0];
 export type UserBvStatus = GetUserBvStatusOutputType;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
 
@@ -14,21 +14,27 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const role = context.user.role || '';
-    const isSuperGuide = role === 'Super Guide';
-    const isGuide = role === 'Guide';
-    if (!isSuperGuide && !isGuide) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide or Super Guide access required' });
+    const role = (context.user.role || '').toUpperCase();
+    const isAuthorized = !!(
+      context.user.isBvSuperAdmin ||
+      context.user.isBvAdmin ||
+      context.user.isBvMentor ||
+      role.includes('SUPER') ||
+      role.includes('ADMIN') ||
+      role.includes('GUIDE')
+    );
+    if (!isAuthorized) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide or Super Guide access required' });
     }
 
     const userRecord = await Users.findOne({ id: input.userId, fields: ['id'] });
-    if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const shouldTag = input.action === 'tag';
     const updateData: Record<string, any> = { isBvMentor: shouldTag };
     if (shouldTag) {
-      // Guides automatically assign themselves; Super Guides can pass an explicit guideId
-      updateData.bvMentorGuideId = isGuide ? context.user.id : (input.guideId || context.user.id);
+      // Assign guideId or fallback to caller user id
+      updateData.bvMentorGuideId = input.guideId || context.user.id;
     } else {
       updateData.bvMentorGuideId = '';
     }

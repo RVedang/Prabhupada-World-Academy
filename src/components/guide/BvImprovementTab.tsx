@@ -10,8 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingDown, Users, RefreshCw, Lightbulb, CheckCircle2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvPreachingReport } from 'zite-endpoints-sdk';
-import type { GetBvPreachingReportOutputType } from 'zite-endpoints-sdk';
+import { getBvPreachingReport } from '@/lib/endpoints-sdk';
+import type { GetBvPreachingReportOutputType } from '@/lib/endpoints-sdk';
 
 type Period = 'prev_week' | 'prev_month' | 'this_month';
 type BvslRow = GetBvPreachingReportOutputType['bvsls'][0];

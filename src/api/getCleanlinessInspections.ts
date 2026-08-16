@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, CleanlinessRooms, CleanlinessInspections } from 'zite-integrations-backend-sdk';
+import { createEndpoint, CleanlinessRooms, CleanlinessInspections } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get cleanliness inspections for a residency and optional date',

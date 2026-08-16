@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Release (un-assign) a service allocation so it goes back to Open',

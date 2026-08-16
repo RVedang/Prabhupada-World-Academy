@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
 
@@ -16,15 +16,23 @@ export default createEndpoint({
     const role = (context.user.role || '').toUpperCase();
     const isSuperAdmin = role === 'SUPER_GUIDE' || context.user.isBvSuperAdmin || (context.user.email || '').toLowerCase().includes('superadmin');
     if (!isSuperAdmin) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Admin access required to assign Admins' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Admin access required to assign Admins' });
     }
 
     const userRecord = await Users.findOne({ id: input.userId, fields: ['id'] });
-    if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const shouldTag = input.action === 'tag';
-    await Users.update({ id: userRecord.id, record: { isBvAdmin: shouldTag } });
-    serverCacheInvalidate(profileCacheKey(input.userId));
+    await Users.update({
+      id: userRecord.id,
+      record: {
+        isBvAdmin: shouldTag,
+        role: shouldTag ? 'Admin' : 'User',
+        pendingRoleNotice: shouldTag ? 'BV Admin' : 'Regular Member',
+        roleNoticeAcknowledged: false,
+      },
+    });
+    serverCacheInvalidate('user_profile:');
 
     return { success: true };
   },

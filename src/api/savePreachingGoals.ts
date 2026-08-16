@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, PreachingReportGoals, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, PreachingReportGoals, AppError } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
 
 export default createEndpoint({
@@ -22,16 +22,16 @@ export default createEndpoint({
     const isGuide = role === 'Guide';
 
     if (!isSuperGuide && !isGuide) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
     }
 
     // Guides can only save goals for their own centers
     if (isGuide) {
       const scope = await getGuideScope(context.user.email);
-      if (!scope) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide record not found' });
+      if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide record not found' });
       const outOfScope = input.goals.find(g => !scope.residencyIds.includes(g.centerId));
       if (outOfScope) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only set goals for your own center(s)' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'You can only set goals for your own center(s)' });
       }
     }
 

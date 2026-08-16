@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users } from '@/lib/backend-sdk';
 import { RESIDENT_FIELDS, NON_RESIDENT_FIELDS, toFormField } from '../config/sadhanaFields';
 
 export default createEndpoint({

@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardCheck, Download, ChevronLeft, ChevronRight, Search, ExternalLink, CalendarPlus, ArrowRight } from 'lucide-react';
 import { useDebouncedCallback } from 'use-debounce';
 import { useNavigate } from 'react-router-dom';
-import { getGuideAttendanceReport } from 'zite-endpoints-sdk';
+import { getGuideAttendanceReport } from '@/lib/endpoints-sdk';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { exportToCsv } from '@/utils/exportCsv';
 import { fmt } from '@/lib/fmt';

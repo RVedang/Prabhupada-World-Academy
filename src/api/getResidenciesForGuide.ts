@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, FolkResidencies, Guides, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, FolkResidencies, Guides, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get residencies for the current guide or service allocator — returns array directly',

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, AppError } from '@/lib/backend-sdk';
 
 const DOW_MAP: Record<string, string> = {
   sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday',
@@ -24,7 +24,7 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input }) => {
     if (!input.serviceId || !input.userId || !input.weekStartDate) {
-      throw new ZiteError({ code: 'BAD_REQUEST', message: 'serviceId, userId, and weekStartDate are required' });
+      throw new AppError({ code: 'BAD_REQUEST', message: 'serviceId, userId, and weekStartDate are required' });
     }
 
     // Default to whole week if no days specified

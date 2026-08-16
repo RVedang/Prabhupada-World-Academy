@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, PushSubscriptions } from 'zite-integrations-backend-sdk';
+import { createEndpoint, PushSubscriptions } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Unsubscribe from Web Push notifications',

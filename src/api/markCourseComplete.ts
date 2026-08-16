@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
 export default createEndpoint({
@@ -17,7 +17,7 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user.role || 'User';
     if (role !== 'Guide' && role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide or Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide or Super Guide access required' });
     }
 
     // Verify the target user exists
@@ -26,18 +26,18 @@ export default createEndpoint({
       fields: ['id', 'fullName', 'tagMangoEnrollmentStatus', 'courseCompleted', 'residency', 'guide'],
     });
     if (!target) {
-      throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+      throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
     }
 
     // For non-super guides, verify scope
     if (role !== 'Super Guide') {
       const scope = await getGuideScope(context.user.email);
       if (!scope) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'No guide scope found' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'No guide scope found' });
       }
       const inScope = isUserInGuideScope(scope, { residency: target.residency, guide: target.guide });
       if (!inScope) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'User is not in your scope' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'User is not in your scope' });
       }
     }
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAvailability, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAvailability, Users } from '@/lib/backend-sdk';
 
 function parseAvailDays(json: string): { day: string; time: string }[] {
   try {

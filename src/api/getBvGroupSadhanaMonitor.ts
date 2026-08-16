@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, Users, Guides, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, Users, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 
 const EMPTY_SUMMARY = { totalGroups: 0, totalMembers: 0, filledToday: 0, pendingToday: 0, fillRate: 0, weeklyAvgRate: 0 };

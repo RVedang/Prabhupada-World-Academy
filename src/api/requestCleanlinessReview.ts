@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, CleanlinessReviewRequests, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, CleanlinessReviewRequests, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Request a cleanliness review when score is 0',
@@ -19,7 +19,7 @@ export default createEndpoint({
       limit: 1,
     });
     if (records.length > 0) {
-      throw new ZiteError({ code: 'CONFLICT', message: 'Review already requested for this date' });
+      throw new AppError({ code: 'CONFLICT', message: 'Review already requested for this date' });
     }
 
     const created = await CleanlinessReviewRequests.create({

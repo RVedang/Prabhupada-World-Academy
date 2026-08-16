@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Services } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Services } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get services list',

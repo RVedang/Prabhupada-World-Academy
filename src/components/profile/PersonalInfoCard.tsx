@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Edit2, Check, X, Star } from 'lucide-react';
 import { toast } from 'sonner';
-import { updateUserProfile } from 'zite-endpoints-sdk';
+import { updateUserProfile } from '@/lib/endpoints-sdk';
 import { ASHRAY_LEVELS } from '@/types/enums';
 
 interface Props {
@@ -15,10 +15,11 @@ interface Props {
   fullName: string;
   phone: string;
   ashrayLevel?: string | null;
+  isSuperAdmin?: boolean;
   onUpdated: () => void;
 }
 
-export default function PersonalInfoCard({ email, fullName, phone, ashrayLevel, onUpdated }: Props) {
+export default function PersonalInfoCard({ email, fullName, phone, ashrayLevel, isSuperAdmin, onUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ fullName, phone, ashrayLevel: ashrayLevel || '' });
@@ -82,27 +83,29 @@ export default function PersonalInfoCard({ email, fullName, phone, ashrayLevel, 
           <Label className="text-xs text-muted-foreground">Email (read-only)</Label>
           <p className="font-medium text-muted-foreground mt-0.5">{email}</p>
         </div>
-        <div>
-          <Label className="text-xs text-muted-foreground">Ashraya Level</Label>
-          {editing ? (
-            <Select value={form.ashrayLevel} onValueChange={v => setForm(f => ({ ...f, ashrayLevel: v || '' }))}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select Ashraya Level">
-                  {form.ashrayLevel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="mt-0.5">
-              {ashrayLevel
-                ? <Badge variant="secondary" className="gap-1"><Star className="w-3 h-3" />{ashrayLevel}</Badge>
-                : <p className="text-muted-foreground text-sm">—</p>}
-            </div>
-          )}
-        </div>
+        {!isSuperAdmin && (
+          <div>
+            <Label className="text-xs text-muted-foreground">Ashraya Level</Label>
+            {editing ? (
+              <Select value={form.ashrayLevel} onValueChange={v => setForm(f => ({ ...f, ashrayLevel: v || '' }))}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select Ashraya Level">
+                    {form.ashrayLevel}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="mt-0.5">
+                {ashrayLevel
+                  ? <Badge variant="secondary" className="gap-1"><Star className="w-3 h-3" />{ashrayLevel}</Badge>
+                  : <p className="text-muted-foreground text-sm">—</p>}
+              </div>
+            )}
+          </div>
+        )}
         {editing && (
           <div className="flex gap-2 pt-1">
             <Button size="sm" onClick={handleSave} disabled={saving}>

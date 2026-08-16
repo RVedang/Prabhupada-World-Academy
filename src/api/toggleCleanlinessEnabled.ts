@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Config, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Config, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Enable/disable cleanliness tracking for a folk center',
@@ -12,7 +12,7 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user?.role;
     if (role !== 'Guide' && role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
     }
 
     const key = `cleanliness_enabled_${input.residencyId}`;

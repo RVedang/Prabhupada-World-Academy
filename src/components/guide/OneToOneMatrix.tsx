@@ -3,10 +3,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MessageSquarePlus } from 'lucide-react';
 
-export interface Meeting { id: string; guideId: string; memberId: string; weekDate: string; meetingDate: string; durationMinutes: number; notes: string; }
+export interface Meeting { id: string; guideId: string; memberId: string; weekDate: string; meetingDate: string; durationMinutes: number; notes: string; callStatus?: string; recordingLink?: string; nextCallDate?: string; nextCallAgenda?: string; }
 export interface Member {
   userId: string; fullName: string; ashrayLevel: string | null; isResident: boolean;
   eligibility: string; delegateId: string | null; delegateName: string | null;
+  rgfName?: string | null;
+  supervisorName?: string | null;
+  adminName?: string | null;
 }
 
 interface Props {
@@ -15,6 +18,9 @@ interface Props {
   weeks: string[];
   groupByAshray?: boolean;
   onCellClick: (memberId: string, memberName: string, weekDate: string, existing: Meeting | null) => void;
+  isSuperAdmin?: boolean;
+  isAdmin?: boolean;
+  isSupervisor?: boolean;
 }
 
 const ASHRAY_ORDER = ['Jigyasa', 'Shraddhavan', 'Sevak', 'Sadhaka', 'Upasaka', 'Caranashraya', 'Harinam Diksha'];
@@ -49,7 +55,7 @@ function EligibilityBadge({ eligibility, delegateName }: { eligibility: string; 
   if (eligibility === 'Delegated') {
     return (
       <span className="inline-block text-[9px] px-1 py-0 rounded bg-blue-100 text-blue-700 border border-blue-200 font-medium leading-4 truncate max-w-[90px]">
-        → {delegateName || 'BVSL'}
+        → {delegateName || 'RGF'}
       </span>
     );
   }
@@ -64,7 +70,7 @@ type TableRow =
   | { type: 'member'; member: Member; rowIdx: number }
   | { type: 'section'; label: string; count: number; overdueCount: number };
 
-export default function OneToOneMatrix({ members, meetings, weeks, groupByAshray, onCellClick }: Props) {
+export default function OneToOneMatrix({ members, meetings, weeks, groupByAshray, onCellClick, isSuperAdmin, isAdmin, isSupervisor }: Props) {
   const rows = useMemo<TableRow[]>(() => {
     const sortedByGap = (arr: Member[]) =>
       [...arr].sort((a, b) => weeksSince(meetings, b.userId, weeks) - weeksSince(meetings, a.userId, weeks));
@@ -154,6 +160,25 @@ export default function OneToOneMatrix({ members, meetings, weeks, groupByAshray
                         <span className="text-[10px] text-muted-foreground truncate">{member.ashrayLevel}</span>
                       )}
                       <EligibilityBadge eligibility={member.eligibility} delegateName={member.delegateName} />
+                    </div>
+                    {/* Hierarchy Badges for Supervisor, Admin, Super Admin */}
+                    <div className="flex items-center gap-1 flex-wrap mt-1">
+                      {isSuperAdmin && (
+                        <>
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-medium">Admin: {member.adminName || '—'}</span>
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">Sup: {member.supervisorName || '—'}</span>
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">RGF: {member.rgfName || '—'}</span>
+                        </>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">Sup: {member.supervisorName || '—'}</span>
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">RGF: {member.rgfName || '—'}</span>
+                        </>
+                      )}
+                      {isSupervisor && (
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">RGF: {member.rgfName || '—'}</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-2 py-2 text-center border-b border-l border-border">

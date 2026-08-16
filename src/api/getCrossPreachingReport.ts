@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint } from 'zite-integrations-backend-sdk';
+import { createEndpoint } from '@/lib/backend-sdk';
 import { supabase, fetchAllRows } from '../utils/supabase';
 import { requireGuideRole } from '../lib/userUtils';
 
@@ -77,7 +77,7 @@ export default createEndpoint({
     let oneOnOnes: any[] = [];
     let overnightStays: any[] = [];
 
-    const isMock = !process.env.ZITE_SUPABASE_URL || process.env.ZITE_SUPABASE_URL.includes('mockproject');
+    const isMock = !process.env.APP_SUPABASE_URL || process.env.APP_SUPABASE_URL.includes('mockproject');
 
     let useMockFallback = isMock;
     if (!isMock) {

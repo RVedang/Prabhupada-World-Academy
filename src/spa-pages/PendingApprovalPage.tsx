@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, Mail, User, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
-import { getGuides } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { getGuides } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 export default function PendingApprovalPage() {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ export default function PendingApprovalPage() {
     try {
       const guidesRes = await getGuides({});
       if (profile?.selectedGuideId) {
-        const guide = guidesRes.guides.find(g => g.guideId === profile.selectedGuideId);
+        const guide = guidesRes.guides.find((g: any) => g.guideId === profile.selectedGuideId);
         if (guide) setGuideName(guide.name);
       }
     } catch {
@@ -57,56 +58,63 @@ export default function PendingApprovalPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary flex items-center justify-center p-4">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <div className="flex justify-center mb-4">
-            <Clock className="w-16 h-16 text-primary" />
-          </div>
-          <CardTitle className="text-2xl">Pending Approval</CardTitle>
-          <CardDescription>
-            Your registration is awaiting approval from your FOLK Guide
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <Skeleton className="h-16 w-full" />
-          ) : guideName ? (
-            <div className="bg-muted rounded-lg p-4 text-left space-y-2">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-primary shrink-0" />
-                <p className="text-sm">
-                  Your registration has been sent to <strong>{guideName}</strong>.
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md"
+      >
+        <Card className="text-center">
+          <CardHeader>
+            <div className="flex justify-center mb-4">
+              <Clock className="w-16 h-16 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Pending Approval</CardTitle>
+            <CardDescription>
+              Your registration is awaiting approval from your FOLK Guide
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : guideName ? (
+              <div className="bg-muted rounded-lg p-4 text-left space-y-2">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-primary shrink-0" />
+                  <p className="text-sm">
+                    Your registration has been sent to <strong>{guideName}</strong>.
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground pl-6">
+                  Please contact your guide to confirm your registration.
                 </p>
               </div>
-              <p className="text-sm text-muted-foreground pl-6">
-                Please contact your guide to confirm your registration.
-              </p>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              You will be notified once your guide approves your registration.
-              Please contact your guide directly if you have any questions.
-            </p>
-          )}
-
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Mail className="w-4 h-4" />
-            <span>Check your email for updates</span>
-          </div>
-
-          <Button className="w-full" onClick={handleCheckStatus} disabled={checking}>
-            {checking ? (
-              <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Checking...</>
             ) : (
-              <><RefreshCw className="w-4 h-4 mr-2" /> Check Approval Status</>
+              <p className="text-muted-foreground">
+                You will be notified once your guide approves your registration.
+                Please contact your guide directly if you have any questions.
+              </p>
             )}
-          </Button>
 
-          <Button variant="outline" className="w-full" onClick={() => navigate('/')}>
-            Return to Home
-          </Button>
-        </CardContent>
-      </Card>
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Mail className="w-4 h-4" />
+              <span>Check your email for updates</span>
+            </div>
+
+            <Button className="w-full cursor-pointer" onClick={handleCheckStatus} disabled={checking}>
+              {checking ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Checking...</>
+              ) : (
+                <><RefreshCw className="w-4 h-4 mr-2" /> Check Approval Status</>
+              )}
+            </Button>
+
+            <Button variant="outline" className="w-full cursor-pointer" onClick={() => navigate('/')}>
+              Return to Home
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }

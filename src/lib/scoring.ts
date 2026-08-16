@@ -29,6 +29,7 @@ export function normalizeFieldType(fieldType: string, fieldKey?: string): string
 
 export function parseNumericValue(value: any): number {
   if (typeof value === 'number') return value;
+  if (typeof value === 'boolean') return value ? 1 : 0;
   if (typeof value === 'string') {
     // Normalize Unicode minus sign (U+2212 −) to ASCII hyphen before parsing
     const normalized = value.replace(/\u2212/g, '-');
@@ -117,10 +118,11 @@ export function calculateNRPoints(
 
   // 2.5 FIX: Normalize ashray level to a consistent key before lookup.
   // DB and enums use spaces ('Harinam Diksha'); sadhanaFields.ts criteria use underscores ('Harinam_Diksha').
-  // Try space-separated first (canonical), then underscore variant.
-  const levelSpaces = (ashrayLevel || '').trim().replace(/_/g, ' ');
+  // Try space-separated first (canonical), then underscore variant. Unassigned / None falls back to Jigyasa.
+  const effectiveLevel = (!ashrayLevel || ashrayLevel === 'None' || ashrayLevel === 'none') ? 'Jigyasa' : ashrayLevel;
+  const levelSpaces = effectiveLevel.trim().replace(/_/g, ' ');
   const levelUnder  = levelSpaces.replace(/\s+/g, '_');
-  const target = criteria.levels[levelSpaces] ?? criteria.levels[levelUnder] ?? null;
+  const target = criteria.levels[levelSpaces] ?? criteria.levels[levelUnder] ?? criteria.levels['Jigyasa'] ?? null;
   const totalPoints = criteria.total_points || 0;
 
   // "-" means not applicable for this ashray level

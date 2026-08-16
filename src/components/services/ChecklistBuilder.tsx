@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadFile } from 'zite-file-upload-sdk';
+import { uploadFile } from '@/lib/file-upload-sdk';
 
 export type ChecklistItem = { text: string; imageUrl?: string };
 

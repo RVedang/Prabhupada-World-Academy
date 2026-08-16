@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { enrollUserOnTagMango } from '../lib/tagMangoEnroll';
 
 export default createEndpoint({
@@ -14,11 +14,11 @@ export default createEndpoint({
     error: z.string().optional(),
   }),
   execute: async ({ input, context }) => {
-    if (!context.user) throw new ZiteError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
+    if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
     const role = context.user.role;
     if (role !== 'Guide' && role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can retry enrollment' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can retry enrollment' });
     }
 
     const user = await Users.findOne({
@@ -26,7 +26,7 @@ export default createEndpoint({
       fields: ['id', 'fullName', 'email', 'phone', 'ashrayLevel', 'tagMangoEnrollmentAttempts'],
     });
 
-    if (!user) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const result = await enrollUserOnTagMango({
       userId: user.id,

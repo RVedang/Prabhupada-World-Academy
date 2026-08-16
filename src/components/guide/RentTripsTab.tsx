@@ -12,8 +12,8 @@ import {
   Home, Plane, AlertTriangle, Download, Search,
   ChevronRight, RefreshCw, TrendingDown, Users, Globe,
 } from 'lucide-react';
-import { getGuideRentTripsOverview, exportRentPayments, exportTrips } from 'zite-endpoints-sdk';
-import type { GetGuideRentTripsOverviewOutputType } from 'zite-endpoints-sdk';
+import { getGuideRentTripsOverview, exportRentPayments, exportTrips } from '@/lib/endpoints-sdk';
+import type { GetGuideRentTripsOverviewOutputType } from '@/lib/endpoints-sdk';
 import { exportToCsv } from '@/utils/exportCsv';
 
 type OverviewUser = GetGuideRentTripsOverviewOutputType['users'][0];

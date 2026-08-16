@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { createEndpoint, Users, RentPayments, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, RentPayments, AppError } from '@/lib/backend-sdk';
 
 function requireRentEditor(user: any) {
   const role = user.role || '';
   const ok = ['Guide', 'Super Guide'].includes(role) || !!user.isFolkLead || !!user.isBvsl || !!user.isSadhanaMentor;
-  if (!ok) throw new ZiteError({ code: 'FORBIDDEN', message: 'FOLK Lead or Guide access required' });
+  if (!ok) throw new AppError({ code: 'FORBIDDEN', message: 'FOLK Lead or Guide access required' });
 }
 
 async function resolveUser(id: string) {
@@ -29,7 +29,7 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     requireRentEditor(context.user);
     const userRecord = await resolveUser(input.userId);
-    if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const record = await RentPayments.create({
       record: {

@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
-import type { GetUserCrmDataOutputType } from 'zite-endpoints-sdk';
+import type { GetUserCrmDataOutputType } from '@/lib/endpoints-sdk';
 
 type AshrayHistoryItem = GetUserCrmDataOutputType['ashrayHistory'][0];
 

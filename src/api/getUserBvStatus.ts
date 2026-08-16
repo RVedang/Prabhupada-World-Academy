@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvGroupRequests, BvGroups, BvAttendance, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroupMembers, BvGroupRequests, BvGroups, BvAttendance, Users } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 
 export default createEndpoint({
@@ -11,33 +11,49 @@ export default createEndpoint({
     const uid = context.user!.id;
     const today = getTodayIST();
 
+    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus'] }).catch(() => null);
+    const altUid = userRecord?.userId || uid;
+
     // Parallel: membership + pending request
-    const [membershipRes, pendingRes] = await Promise.all([
-      BvGroupMembers.findAll({ filters: { user: uid }, limit: 5, fields: ['id', 'group', 'role', 'joinedAt'] }),
+    let [membershipRes, pendingRes] = await Promise.all([
+      BvGroupMembers.findAll({ filters: { user: uid }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] }),
       BvGroupRequests.findAll({ filters: { user: uid, status: 'Pending' }, limit: 5, fields: ['id', 'group', 'requestedAt'] }),
     ]);
 
-    const membership = membershipRes.records[0];
-    const pending = pendingRes.records[0];
+    let membership = membershipRes.records[0];
+    if (!membership && altUid !== uid) {
+      const altMem = await BvGroupMembers.findAll({ filters: { user: altUid }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] });
+      membership = altMem.records[0];
+    }
+    if (!membership && userRecord?.bvGroupId) {
+      membership = { id: `synth-${uid}`, group: userRecord.bvGroupId, role: 'Member', joinedAt: new Date().toISOString() } as any;
+    }
 
-    // Not in any group — return available groups
+    const pending = pendingRes.records[0];
+    const isUserRegPending = userRecord?.bvRegistrationStatus === 'Pending Approval' || userRecord?.bvRegistrationStatus === 'Pending';
+
+    // Not in any group — return available groups or pending status
     if (!membership) {
       const pendingGroupId = pending
         ? (Array.isArray(pending.group) ? pending.group[0] : pending.group)
         : null;
 
       const [availGroupsRes, pendingGroup] = await Promise.all([
-        pending ? Promise.resolve({ records: [] }) : BvGroups.findAll({
+        (pending || isUserRegPending) ? Promise.resolve({ records: [] }) : BvGroups.findAll({
           filters: { isActive: true }, limit: 50,
           fields: ['id', 'groupId', 'groupName', 'description', 'bvslLeader'],
         }),
         pendingGroupId ? BvGroups.findOne({ id: pendingGroupId, fields: ['id', 'groupName', 'groupId'] }) : Promise.resolve(null),
       ]);
 
-      if (pendingGroup) {
+      if (pendingGroup || isUserRegPending) {
         return {
           myGroup: null,
-          pendingRequest: { groupId: (pendingGroup as any).groupId || (pendingGroup as any).id, groupName: (pendingGroup as any).groupName || '' },
+          pendingRequest: {
+            groupId: (pendingGroup as any)?.groupId || (pendingGroup as any)?.id || 'pending',
+            groupName: (pendingGroup as any)?.groupName || 'Bhakti Vriksha Registration',
+            status: 'Pending Approval',
+          },
           availableGroups: [],
           todayStatus: null, streak: 0, presentCount: 0, totalSessions: 0,
         };
@@ -79,12 +95,13 @@ export default createEndpoint({
     }
 
     // In a group — get group details + attendance
-    const groupId = Array.isArray(membership.group) ? membership.group[0] : membership.group;
+    const groupId = Array.isArray(membership.group) ? membership.group[0] : (membership.group || (membership as any).groupId);
     if (!groupId) return { myGroup: null, pendingRequest: null, availableGroups: [], todayStatus: null, streak: 0, presentCount: 0, totalSessions: 0 };
 
     const [groupRecord, groupMembersRes] = await Promise.all([
-      BvGroups.findOne({ id: groupId, fields: ['id', 'groupId', 'groupName', 'bvslLeader'] }),
-      BvGroupMembers.findAll({ filters: { group: groupId }, fields: ['id'], limit: 1000 }),
+      BvGroups.findOne({ id: groupId, fields: ['id', 'groupId', 'groupName', 'bvslLeader'] })
+        .then(g => g || BvGroups.findOne({ filters: { groupId }, fields: ['id', 'groupId', 'groupName', 'bvslLeader'] })),
+      BvGroupMembers.findAll({ filters: { group: groupId }, fields: ['id', 'user', 'userId'], limit: 1000 }),
     ]);
 
     const group = groupRecord as any;
@@ -100,7 +117,7 @@ export default createEndpoint({
     // Get this user's attendance
     const myAtt = allGroupAtt.filter((a: any) => {
       const u = Array.isArray(a.user) ? a.user[0] : a.user;
-      return u === uid;
+      return u === uid || u === altUid;
     });
 
     // Build maps
@@ -131,15 +148,44 @@ export default createEndpoint({
     const leaderId = Array.isArray(group?.bvslLeader) ? group.bvslLeader[0] : group?.bvslLeader;
     let bvslName = '';
     if (leaderId) {
-      const leaderRec = await Users.findOne({ id: leaderId, fields: ['id', 'fullName'] });
-      bvslName = (leaderRec as any)?.fullName || '';
+      let leaderRec = await Users.findOne({ id: leaderId, fields: ['id', 'fullName'] });
+      if (!leaderRec) {
+        leaderRec = await Users.findOne({ filters: { userId: leaderId }, fields: ['id', 'fullName'] });
+      }
+      bvslName = (leaderRec as any)?.fullName || (typeof leaderId === 'string' && !leaderId.startsWith('USER-') && !leaderId.startsWith('REC') ? leaderId : '');
+    }
+
+    const groupName = group?.groupName || userRecord?.bvGroupName || '';
+    const finalFacilitator = bvslName || group?.bvslName || groupName || '';
+
+    let rgsfName = 'None';
+    const memberUserIds = groupMembersRes.records.map((m: any) => Array.isArray(m.user) ? m.user[0] : (m.user || m.userId)).filter(Boolean);
+    if (memberUserIds.length > 0) {
+      const subFacilitatorUsers = await Users.findAll({
+        filters: { id: { in: memberUserIds }, isBvSubFacilitator: true },
+        fields: ['id', 'fullName'],
+        limit: 10,
+      });
+      let subNames = subFacilitatorUsers.records.map((u: any) => u.fullName).filter(Boolean);
+      if (subNames.length === 0) {
+        const altSubs = await Users.findAll({
+          filters: { userId: { in: memberUserIds }, isBvSubFacilitator: true },
+          fields: ['id', 'fullName'],
+          limit: 10,
+        });
+        subNames = altSubs.records.map((u: any) => u.fullName).filter(Boolean);
+      }
+      if (subNames.length > 0) {
+        rgsfName = subNames.join(', ');
+      }
     }
 
     return {
       myGroup: {
         groupId: group?.groupId || groupId,
-        groupName: group?.groupName || '',
-        bvslName,
+        groupName,
+        bvslName: finalFacilitator,
+        rgsfName,
         memberCount,
       },
       pendingRequest: null,

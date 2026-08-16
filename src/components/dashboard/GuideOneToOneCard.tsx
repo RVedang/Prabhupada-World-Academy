@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getMyGuideOneToOne } from 'zite-endpoints-sdk';
+import { getMyGuideOneToOne } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, User, CalendarClock, Clock } from 'lucide-react';
 import { format, parseISO } from 'date-fns';

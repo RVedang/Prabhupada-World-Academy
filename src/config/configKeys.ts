@@ -2,7 +2,7 @@
 // Config Table Keys — Single source of truth for all Config DB entries.
 //
 // The `Config` table stores app-wide key/value configuration pairs that can be
-// updated via the Zite Database tab without code changes.
+// updated via the App Database tab without code changes.
 //
 // Format: configKey (string) → configValue (string, may be JSON or plain text)
 // ══════════════════════════════════════════════════════════════════════════════

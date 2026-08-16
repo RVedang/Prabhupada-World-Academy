@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getOneToOneMeetings, saveGuideOneToOneLink } from 'zite-endpoints-sdk';
+import { getOneToOneMeetings, saveGuideOneToOneLink } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';

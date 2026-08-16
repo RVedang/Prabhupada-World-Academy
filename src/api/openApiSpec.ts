@@ -4,7 +4,7 @@
  * Used by the Swagger UI docs page at /api-docs.
  */
 import { z } from 'zod';
-import { createEndpoint } from 'zite-integrations-backend-sdk';
+import { createEndpoint } from '@/lib/backend-sdk';
 
 const spec = {
   openapi: '3.0.0',

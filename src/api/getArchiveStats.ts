@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ZiteError, SadhanaEntries, SadhanaMonthlySummaries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AppError, SadhanaEntries, SadhanaMonthlySummaries } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get archival stats: entry count, oldest entry, summaries count, last archive date — Super Guide only',
@@ -14,7 +14,7 @@ export default createEndpoint({
   }),
   execute: async ({ context }) => {
     if (context.user!.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
 
     // Run queries in parallel

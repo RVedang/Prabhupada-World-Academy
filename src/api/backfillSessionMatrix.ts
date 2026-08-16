@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, JigyasaRegistrations, JigyasaSessionAttendance, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, JigyasaRegistrations, JigyasaSessionAttendance, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Backfill sessionMatrix field on all Jigyasa Registrations from existing session attendance records',
@@ -11,7 +11,7 @@ export default createEndpoint({
   }),
   execute: async ({ context }) => {
     if (context.user.role !== 'Super Guide' && context.user.role !== 'Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only Guides can run this' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides can run this' });
     }
 
     // Fetch all session attendance records

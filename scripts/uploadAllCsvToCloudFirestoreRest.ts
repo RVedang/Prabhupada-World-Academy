@@ -130,12 +130,33 @@ const CSV_COLLECTION_MAP: Record<string, string> = {
   'Residency Transfer Requests': 'ResidencyTransferRequests',
 };
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url: string, options: any, maxRetries = 4): Promise<Response> {
+  let attempt = 1;
+  while (true) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || attempt >= maxRetries) {
+        return res;
+      }
+      const text = await res.text();
+      console.warn(`  ⚠️ Attempt ${attempt} failed with status ${res.status}: ${text.slice(0, 100)}. Retrying in ${attempt * 1000}ms...`);
+    } catch (e: any) {
+      if (attempt >= maxRetries) throw e;
+      console.warn(`  ⚠️ Attempt ${attempt} network error: ${e?.message || e}. Retrying in ${attempt * 1000}ms...`);
+    }
+    await delay(attempt * 1000);
+    attempt++;
+  }
+}
+
 async function uploadCollection(collectionName: string, rows: Record<string, string>[], accessToken: string) {
   let count = 0;
   console.log(`⏳ Uploading ${rows.length} documents to Cloud Firestore collection '${collectionName}'...`);
 
-  // Parallel batches of 15 requests
-  const concurrency = 15;
+  // Lower concurrency to 8 requests to avoid rate limits/timeouts
+  const concurrency = 8;
   for (let i = 0; i < rows.length; i += concurrency) {
     const chunk = rows.slice(i, i + concurrency);
     await Promise.all(
@@ -159,7 +180,7 @@ async function uploadCollection(collectionName: string, rows: Record<string, str
         const payload = { fields: toFirestoreFields(docData) };
 
         try {
-          const res = await fetch(url, {
+          const res = await fetchWithRetry(url, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
@@ -171,13 +192,17 @@ async function uploadCollection(collectionName: string, rows: Record<string, str
             count++;
           } else {
             const errText = await res.text();
-            console.warn(`  ⚠️ Write warning for ${collectionName}/${safeDocId}: ${res.status} ${errText.slice(0, 100)}`);
+            console.warn(`  ❌ Write failed for ${collectionName}/${safeDocId}: ${res.status} ${errText.slice(0, 100)}`);
           }
         } catch (e: any) {
-          console.warn(`  ⚠️ Network warning for ${collectionName}/${safeDocId}:`, e?.message || e);
+          console.warn(`  ❌ Fatal error for ${collectionName}/${safeDocId}:`, e?.message || e);
         }
       })
     );
+
+    if (i > 0 && i % 160 === 0) {
+      console.log(`    ... Progress: ${count}/${rows.length} documents uploaded to '${collectionName}'`);
+    }
   }
 
   console.log(`  ✅ Successfully uploaded ${count}/${rows.length} documents to '${collectionName}'`);

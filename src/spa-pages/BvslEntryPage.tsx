@@ -1,4 +1,4 @@
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { Leaf, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 export default function BvslEntryPage() {
@@ -13,7 +13,7 @@ export default function BvslEntryPage() {
               <Leaf className="w-7 h-7 text-primary" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold">BVSL Dashboard</h1>
+          <h1 className="text-2xl font-bold">Reading Group Facilitator Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             Bhakti Vriksha Servant Leader Portal
           </p>
@@ -25,16 +25,16 @@ export default function BvslEntryPage() {
             size="lg"
             onClick={() => loginWithRedirect({ redirectUrl: `${window.location.origin}/bvsl/dashboard` })}
           >
-            Sign in to BVSL Dashboard
+            Sign in to RGF Dashboard
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
           <p className="text-xs text-muted-foreground">
-            Use the email your guide assigned BVSL access to.
+            Use the email your supervisor assigned RGF access to.
           </p>
         </div>
 
         <a href="/" className="text-xs text-muted-foreground underline hover:text-foreground">
-          Not a BVSL? Go to main app
+          Not an RGF? Go to main app
         </a>
       </div>
     </div>

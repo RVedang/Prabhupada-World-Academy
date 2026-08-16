@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { getPipelineReport } from 'zite-endpoints-sdk';
+import { getPipelineReport } from '@/lib/endpoints-sdk';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';

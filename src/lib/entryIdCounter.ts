@@ -13,7 +13,7 @@
  *
  * Result: O(1) on every submission after warm-up. O(n) at most ONCE ever per deploy.
  */
-import { Config, SadhanaEntries, BvslPreachingEntries } from 'zite-integrations-backend-sdk';
+import { Config, SadhanaEntries, BvslPreachingEntries } from '@/lib/backend-sdk';
 
 const CONFIG_KEY_ENTRY = 'counter:sadhanaEntryN';
 const CONFIG_KEY_BV    = 'counter:bvEntryN';

@@ -8,13 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Loader2, Leaf, HeartHandshake, BookOpen, Clock, Building2 } from 'lucide-react';
-import { registerBvMember } from '@/lib/zite-endpoints-sdk';
+import { registerBvMember } from '@/lib/app-endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  segment?: 'PW' | 'FOLK';
 }
 
 const COUNTRY_CODES = [
@@ -64,7 +65,7 @@ const TIME_PREFERENCES = [
   '11:00 AM – 12:00 PM (Saturday & Sunday only)',
 ];
 
-export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: Props) {
+export default function BvRegistrationModal({ open, onOpenChange, onSuccess, segment }: Props) {
   const { profile } = useUserProfile();
 
   const [fullName, setFullName] = useState(profile?.fullName || '');
@@ -81,7 +82,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
   const [weeklyHearingHours, setWeeklyHearingHours] = useState('');
 
   const [ashrayLevel, setAshrayLevel] = useState(profile?.ashrayLevel || 'None');
-  const [pwClassesAttending, setPwClassesAttending] = useState<'5.30 a.m.' | '9.30 a.m.' | 'Tuesday weekly special' | 'None'>('None');
+  const [pwClassesAttending, setPwClassesAttending] = useState<string>('None');
 
   const [inTouchWithTemple, setInTouchWithTemple] = useState(false);
   const [templeName, setTempleName] = useState('');
@@ -110,14 +111,40 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) { toast.error('Please enter your full name'); return; }
-    if (!phone.trim()) { toast.error('Please enter your WhatsApp phone number'); return; }
-    if (!dob) { toast.error('Please enter your date of birth'); return; }
-    if (!occupation.trim()) { toast.error('Please enter your occupation'); return; }
-    if (!companyName.trim()) { toast.error('Please enter your company / institution name'); return; }
-    if (!address.trim()) { toast.error('Please enter your address'); return; }
-    if (!dailyChantingRounds.trim()) { toast.error('Please enter your daily chanting rounds'); return; }
-    if (!weeklyReadingHours.trim()) { toast.error('Please specify your weekly book reading duration'); return; }
-    if (!weeklyHearingHours.trim()) { toast.error('Please specify your weekly hearing classes duration'); return; }
+    const sanitizedPhone = phone.replace(/\D/g, '');
+    if (sanitizedPhone.length !== 10) {
+      toast.error('WhatsApp number must be exactly 10 digits');
+      return;
+    }
+    if (!dob || dob.length !== 10) { toast.error('Please enter a valid Date of Birth (DD/MM/YYYY)'); return; }
+    if (!occupation.trim() || /\d/.test(occupation)) {
+      toast.error('Occupation must contain letters only (no numbers allowed)');
+      return;
+    }
+    if (!companyName.trim() || /\d/.test(companyName)) {
+      toast.error('Company / Institution name must contain letters only (no numbers allowed)');
+      return;
+    }
+    if (!address.trim()) { toast.error('Please enter your full residential address'); return; }
+    
+    const roundsNum = Number(dailyChantingRounds);
+    if (dailyChantingRounds.trim() === '' || isNaN(roundsNum) || roundsNum < 0 || roundsNum > 192) {
+      toast.error('Daily Chanting Rounds must be a number less than or equal to 192');
+      return;
+    }
+    
+    const readingMins = Number(weeklyReadingHours);
+    if (weeklyReadingHours.trim() === '' || isNaN(readingMins) || readingMins < 0) {
+      toast.error('Book Reading Weekly Average must be numbers only (in minutes)');
+      return;
+    }
+    
+    const hearingMins = Number(weeklyHearingHours);
+    if (weeklyHearingHours.trim() === '' || isNaN(hearingMins) || hearingMins < 0) {
+      toast.error('Hearing Lectures Weekly Average must be numbers only (in minutes)');
+      return;
+    }
+    
     if (inTouchWithTemple) {
       if (!templeName.trim()) { toast.error('Please enter the temple name'); return; }
       if (!devoteeName.trim()) { toast.error('Please enter the devotee name'); return; }
@@ -128,21 +155,22 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
       await registerBvMember({
         fullName: fullName.trim(),
         phoneCountryCode,
-        phone: phone.trim(),
+        phone: sanitizedPhone,
         address: address.trim(),
         occupation: occupation.trim(),
         companyName: companyName.trim(),
         dob,
         gender,
-        dailyChantingRounds: Number(dailyChantingRounds) || 0,
-        weeklyReadingHours: weeklyReadingHours.trim(),
-        weeklyHearingHours: weeklyHearingHours.trim(),
+        dailyChantingRounds: roundsNum,
+        weeklyReadingHours: `${readingMins} mins`,
+        weeklyHearingHours: `${hearingMins} mins`,
         ashrayLevel,
         pwClassesAttending,
         inTouchWithTemple,
         templeName: inTouchWithTemple ? templeName.trim() : '',
         devoteeName: inTouchWithTemple ? devoteeName.trim() : '',
         timePreference,
+        segment: segment || (profile as any)?.segment || ((profile as any)?.isPrabhupadaWorldUser ? 'PW' : 'FOLK'),
       });
 
       toast.success('Bhakti Vriksha Registration submitted! Awaiting Admin approval.');
@@ -209,8 +237,10 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
                   </Select>
                   <Input
                     type="tel"
+                    inputMode="numeric"
                     value={phone}
-                    onChange={e => setPhone(e.target.value)}
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    maxLength={10}
                     placeholder="9876543210"
                     required
                   />
@@ -222,6 +252,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
                 <Input
                   id="dob"
                   type="text"
+                  inputMode="numeric"
                   placeholder="DD/MM/YYYY"
                   value={dob}
                   onChange={handleDobChange}
@@ -249,7 +280,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
                 <Input
                   id="occupation"
                   value={occupation}
-                  onChange={e => setOccupation(e.target.value)}
+                  onChange={e => setOccupation(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))}
                   placeholder="e.g. Software Engineer / Student"
                   required
                 />
@@ -260,7 +291,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
                 <Input
                   id="companyName"
                   value={companyName}
-                  onChange={e => setCompanyName(e.target.value)}
+                  onChange={e => setCompanyName(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))}
                   placeholder="e.g. Infosys / ABC College"
                   required
                 />
@@ -292,31 +323,36 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess }: P
                 <Input
                   id="dailyChanting"
                   type="text"
+                  inputMode="numeric"
                   value={dailyChantingRounds}
-                  onChange={e => setDailyChantingRounds(e.target.value)}
-                  placeholder="e.g. 16 rounds or 4 rounds"
+                  onChange={e => setDailyChantingRounds(e.target.value.replace(/\D/g, ''))}
+                  placeholder="e.g. 16"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="weeklyReading">Book Reading (Weekly Avg) *</Label>
+                <Label htmlFor="weeklyReading" className="whitespace-nowrap">Book Reading (Weekly Avg in Minutes) *</Label>
                 <Input
                   id="weeklyReading"
+                  type="text"
+                  inputMode="numeric"
                   value={weeklyReadingHours}
-                  onChange={e => setWeeklyReadingHours(e.target.value)}
-                  placeholder="e.g. 2 hours or 30 mins / week"
+                  onChange={e => setWeeklyReadingHours(e.target.value.replace(/\D/g, ''))}
+                  placeholder="e.g. 120 (in minutes)"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="weeklyHearing">Hearing Lectures/Classes (Weekly Avg) *</Label>
+                <Label htmlFor="weeklyHearing" className="whitespace-nowrap">Hearing Lectures (Weekly Avg in Minutes) *</Label>
                 <Input
                   id="weeklyHearing"
+                  type="text"
+                  inputMode="numeric"
                   value={weeklyHearingHours}
-                  onChange={e => setWeeklyHearingHours(e.target.value)}
-                  placeholder="e.g. 1.5 hours or 45 mins / week"
+                  onChange={e => setWeeklyHearingHours(e.target.value.replace(/\D/g, ''))}
+                  placeholder="e.g. 90 (in minutes)"
                   required
                 />
               </div>

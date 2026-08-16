@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CalendarCheck, Trophy, Users, TrendingUp, Wrench, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSuperGuideBvStats } from 'zite-endpoints-sdk';
-import type { GetSuperGuideBvStatsOutputType } from 'zite-endpoints-sdk';
-import { subWeeks } from 'date-fns';
+import { getSuperGuideBvStats } from '@/lib/endpoints-sdk';
+import type { GetSuperGuideBvStatsOutputType } from '@/lib/endpoints-sdk';
+import { subWeeks, format, startOfISOWeek, endOfISOWeek } from 'date-fns';
 
 function getISOWeek(date: Date): { weekNum: number; year: number } {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -21,11 +21,21 @@ function getISOWeek(date: Date): { weekNum: number; year: number } {
 
 const RANK_STYLES = ['bg-yellow-100 text-yellow-700 border-yellow-300', 'bg-gray-100 text-gray-600 border-gray-300', 'bg-orange-100 text-orange-600 border-orange-300'];
 
+import { useUserProfile } from '@/contexts/UserProfileContext';
+
 export default function SuperGuideBvSection() {
+  const { profile } = useUserProfile();
+  const userEmail = (profile?.userId || '').toLowerCase();
+  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+
   // Bug 11 fix: compute week options inside component so they're fresh on each render
   const weekOptions = useMemo(() => Array.from({ length: 12 }, (_, i) => {
-    const { weekNum, year } = getISOWeek(subWeeks(new Date(), i));
-    return { value: `${year}-${weekNum}`, label: `Week ${weekNum}, ${year}${i === 0 ? ' (Current)' : ''}`, weekNum, year };
+    const d = subWeeks(new Date(), i);
+    const { weekNum, year } = getISOWeek(d);
+    const ws = startOfISOWeek(d);
+    const we = endOfISOWeek(d);
+    const label = `${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}${i === 0 ? ' (Current)' : ''}`;
+    return { value: `${year}-${weekNum}`, label, weekNum, year };
   }), []);
 
   const [loading, setLoading] = useState(true);
@@ -33,13 +43,18 @@ export default function SuperGuideBvSection() {
   const [selectedWeek, setSelectedWeek] = useState(() => weekOptions[0].value);
   const [data, setData] = useState<GetSuperGuideBvStatsOutputType | null>(null);
 
-  useEffect(() => { loadData(); }, [filterGuideId, selectedWeek]);
+  useEffect(() => { loadData(); }, [filterGuideId, selectedWeek, isPw]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const opt = weekOptions.find(o => o.value === selectedWeek) ?? weekOptions[0];
-      const result = await getSuperGuideBvStats({ filterGuideId: filterGuideId || undefined, weekNumber: opt.weekNum, year: opt.year });
+      const result = await getSuperGuideBvStats({
+        filterGuideId: filterGuideId || undefined,
+        weekNumber: opt.weekNum,
+        year: opt.year,
+        segment: isPw ? 'PW' : 'FOLK',
+      });
       setData(result);
     } catch { toast.error('Failed to load BV stats'); }
     finally { setLoading(false); }
@@ -55,11 +70,11 @@ export default function SuperGuideBvSection() {
       {/* Filters */}
       <div className="flex flex-wrap gap-4">
         <div className="flex items-center gap-2">
-          <Label className="text-sm shrink-0">Guide:</Label>
-          <Select value={filterGuideId || 'all'} onValueChange={v => setFilterGuideId(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <Label className="text-sm shrink-0">{isPw ? "Admin / Mentor:" : "Guide:"}</Label>
+          <Select value={filterGuideId || 'all'} onValueChange={v => setFilterGuideId(v === 'all' ? '' : (v || ''))}>
+            <SelectTrigger className="w-56"><SelectValue>{!filterGuideId || filterGuideId === 'all' ? (isPw ? "All Admins (Overview)" : "All Guides") : data?.guides.find((g: any) => g.guideId === filterGuideId)?.name}</SelectValue></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Guides</SelectItem>
+              <SelectItem value="all">{isPw ? "All Admins (Overview)" : "All Guides"}</SelectItem>
               {data?.guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -67,7 +82,7 @@ export default function SuperGuideBvSection() {
         <div className="flex items-center gap-2">
           <Label className="text-sm shrink-0">Week:</Label>
           <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-64"><SelectValue>{weekOptions.find(o => o.value === selectedWeek)?.label || selectedWeek}</SelectValue></SelectTrigger>
             <SelectContent>{weekOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
@@ -88,10 +103,10 @@ export default function SuperGuideBvSection() {
           {/* Per-Guide Breakdown */}
           {!filterGuideId && data.guideBreakdown.length > 0 && (
             <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">Guide-wise Breakdown</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-base">{isPw ? "Admin-wise Breakdown" : "Guide-wise Breakdown"}</CardTitle></CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Guide</TableHead><TableHead className="text-center">Users</TableHead><TableHead className="text-center">Present</TableHead><TableHead className="text-center">Full Service</TableHead><TableHead className="text-center">Avg Points</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>{isPw ? "Admin" : "Guide"}</TableHead><TableHead className="text-center">Users</TableHead><TableHead className="text-center">Present</TableHead><TableHead className="text-center">Full Service</TableHead><TableHead className="text-center">Avg Points</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {data.guideBreakdown.map(g => (
                       <TableRow key={g.guideId}>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
-import { getSessionByToken, markSessionAttendance, registerAndAttend, joinSessionChallenge, getUserProfile } from 'zite-endpoints-sdk';
-import type { GetSessionByTokenOutputType } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { getSessionByToken, markSessionAttendance, registerAndAttend, joinSessionChallenge, getUserProfile } from '@/lib/endpoints-sdk';
+import type { GetSessionByTokenOutputType } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

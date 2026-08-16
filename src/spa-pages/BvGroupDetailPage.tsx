@@ -8,8 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Users, CheckCircle2, Brain } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvGroupDetail, getBvAttendanceMatrix } from 'zite-endpoints-sdk';
-import type { GetBvGroupDetailOutputType, GetBvAttendanceMatrixOutputType } from 'zite-endpoints-sdk';
+import { getBvGroupDetail, getBvAttendanceMatrix } from '@/lib/endpoints-sdk';
+import type { GetBvGroupDetailOutputType, GetBvAttendanceMatrixOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { Calendar } from 'lucide-react';
 import { DashboardLayout } from '@/layouts';
@@ -241,7 +241,7 @@ export default function BvGroupDetailPage() {
 
   if (!detail?.group) {
     return (
-      <DashboardLayout title="BV Group" maxWidth="max-w-5xl" showProfile={false}>
+      <DashboardLayout title="BV Group" maxWidth="max-w-5xl">
         <div className="text-center py-12 text-muted-foreground">
           <p>Group not found.</p>
           <Button variant="link" onClick={() => navigate(-1)}>Go back</Button>
@@ -254,7 +254,7 @@ export default function BvGroupDetailPage() {
   const quizzes = dd.quizzes ?? [];
 
   return (
-    <DashboardLayout title="BV Group" maxWidth="max-w-5xl" showProfile={false}>
+    <DashboardLayout title="BV Group" maxWidth="max-w-5xl">
       <div className="space-y-5">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2 -ml-2">
           <ArrowLeft className="w-4 h-4" /> Back

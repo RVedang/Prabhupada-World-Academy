@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from 'zite-auth-sdk';
-import { getTodayServiceBoard, markServiceDone } from 'zite-endpoints-sdk';
-import type { GetTodayServiceBoardOutputType } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { getTodayServiceBoard, markServiceDone } from '@/lib/endpoints-sdk';
+import type { GetTodayServiceBoardOutputType } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, AlertTriangle, Clock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';

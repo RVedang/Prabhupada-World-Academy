@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trophy, Star, TrendingUp, EyeOff, BarChart2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getServiceLeaderboard } from 'zite-endpoints-sdk';
-import type { GetServiceLeaderboardOutputType } from 'zite-endpoints-sdk';
+import { getServiceLeaderboard } from '@/lib/endpoints-sdk';
+import type { GetServiceLeaderboardOutputType } from '@/lib/endpoints-sdk';
 
 type Entry = GetServiceLeaderboardOutputType['entries'][0];
 type Period = 'daily' | 'weekly' | 'monthly';

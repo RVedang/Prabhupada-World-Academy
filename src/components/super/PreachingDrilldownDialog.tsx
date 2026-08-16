@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Phone } from 'lucide-react';
 import { toast } from 'sonner';
-import { getPreachingDrilldown, GetPreachingDrilldownOutputType } from 'zite-endpoints-sdk';
+import { getPreachingDrilldown, GetPreachingDrilldownOutputType } from '@/lib/endpoints-sdk';
 
 type UserItem = GetPreachingDrilldownOutputType['users'][0];
 
@@ -12,7 +12,7 @@ const DETAIL_LABELS: Record<string, string> = {
   'No of Meetings': 'Meetings',
   'BV Groups Attendance': 'Group / Sessions',
   'Books Distributed': 'Books',
-  'No of BV Groups': 'BVSL Leader',
+  'No of BV Groups': 'Facilitator',
   'Boys Chanting 16 Rounds': 'Avg Rounds',
 };
 

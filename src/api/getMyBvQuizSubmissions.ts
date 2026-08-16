@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvQuizSubmissions, BvQuizzes, BvGroupMembers } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvQuizSubmissions, BvQuizzes, BvGroupMembers } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get the current user\'s BV quiz submission history and pending quizzes',

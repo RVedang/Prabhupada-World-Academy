@@ -1,28 +1,75 @@
 import { z } from 'zod';
-import { createEndpoint, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Guides, Users } from '@/lib/backend-sdk';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
 
-const CACHE_KEY = 'ref:guides_v2';
-const TTL = 60 * 60 * 1000; // 1 hour — guides change very rarely
+function formatGuideName(fullName: string | null | undefined, email: string | null | undefined): string {
+  const name = (fullName || '').trim();
+  if (name && !name.includes('@') && name.toLowerCase() !== 'null' && name.toLowerCase() !== 'undefined') {
+    return name;
+  }
+  if (email && email.trim() !== '') {
+    const localPart = email.split('@')[0];
+    const cleaned = localPart
+      .replace(/[\._\-+0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleaned) {
+      return cleaned
+        .split(' ')
+        .map(w => {
+          const lower = w.toLowerCase();
+          if (lower === 'folkadmin') return 'FOLK Admin';
+          if (lower === 'guide') return 'Spiritual Guide';
+          if (['folk', 'pw', 'bv', 'bvsl'].includes(lower)) return w.toUpperCase();
+          return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        })
+        .join(' ');
+    }
+    return email;
+  }
+  return 'Unknown Guide';
+}
 
-// Prabhupada World mentor — always present; not stored in Guides table
-const PW_MENTOR = {
+const CACHE_KEY = 'ref:guides_v4';
+const TTL = 10 * 1000; // 10 seconds — updates quickly when role changes
+
+// Prabhupada World Mentors
+const PW_SUPER_ADMIN = {
   guideId: 'MENTOR-PW-HIRANYAVARNA',
-  name: 'Hiranyavarna Das',
-  abbr: 'HVD',
-  email: 'hiranyavarna@prabhupadaworld.org',
+  name: 'Hiranyavarna Prabhu (Super Admin)',
+  abbr: 'HVP',
+  email: 'vdnd@hkmmumbai.org',
   isPrabhupadaWorldMentor: true,
 };
 
+const PW_ADMIN = {
+  guideId: 'MENTOR-PW-ADMIN',
+  name: 'PW System Administrator (Admin)',
+  abbr: 'PW-ADM',
+  email: 'admin@prabhupadaworld.org',
+  isPrabhupadaWorldMentor: true,
+};
+
+// FOLK Super Guide
+const FOLK_SUPER_GUIDE = {
+  guideId: 'MENTOR-FOLK-GAURMANDAL',
+  name: 'Gaurmandal Prabhu (Super Guide)',
+  abbr: 'GMP',
+  email: 'gaurmandal@folk.org',
+  isPrabhupadaWorldMentor: false,
+};
+
 const DEFAULT_FOLK_GUIDES = [
+  FOLK_SUPER_GUIDE,
   { guideId: 'GUIDE-VEDANG', name: 'Vedang Prabhu', abbr: 'VED', email: 'vedang.adgokar@gmail.com', isPrabhupadaWorldMentor: false },
-  { guideId: 'GUIDE-VDND', name: 'Vedanarayana Das', abbr: 'VND', email: 'vdnd@hkmmumbai.org', isPrabhupadaWorldMentor: false },
-  { guideId: 'GUIDE-001', name: 'Spiritual Guide', abbr: 'SG', email: 'guide@gmail.com', isPrabhupadaWorldMentor: false },
+  { guideId: 'GUIDE-001', name: 'Spiritual Guide', abbr: 'SG', email: 'guide@folk.org', isPrabhupadaWorldMentor: false },
 ];
 
 export default createEndpoint({
-  description: 'Get all active guides for registration / forms (server-cached 1h)',
-  inputSchema: z.object({}),
+  description: 'Get all active guides for registration / forms (server-cached 10s)',
+  inputSchema: z.object({
+    segment: z.enum(['PW', 'FOLK']).optional(),
+  }),
   outputSchema: z.object({
     guides: z.array(z.object({
       guideId: z.string(),
@@ -32,24 +79,120 @@ export default createEndpoint({
       isPrabhupadaWorldMentor: z.boolean().optional(),
     })),
   }),
-  execute: async () => {
-    const guides = await serverCacheGetOrFetch(CACHE_KEY, async () => {
-      const { records } = await Guides.findAll({ filters: { isActive: true }, limit: 500 });
+  execute: async ({ input, context }: { input: any; context: any }) => {
+    const allGuides = await serverCacheGetOrFetch(CACHE_KEY, async () => {
+      const [{ records: guideRecords }, { records: userRecords }] = await Promise.all([
+        Guides.findAll({ filters: { isActive: true }, limit: 500 }).catch(() => ({ records: [] })),
+        Users.findAll({ limit: 1000 }).catch(() => ({ records: [] })),
+      ]);
+
       const SYSTEM_GUIDE_IDS = ['GUIDE-000', 'GUIDE-SUPER-PWA-GUIDE', 'GUIDE-001', 'GUIDE-ADMIN-001'];
-      const folkGuides = records
+      const folkGuidesFromDb = guideRecords
         .filter(g => !SYSTEM_GUIDE_IDS.includes(g.guideId || g.id))
         .map(g => ({
           guideId: g.id || g.guideId,
-          name: g.fullName || g.name || '',
+          name: formatGuideName(g.fullName || g.name, g.email),
           abbr: g.abbreviation || g.abbr || (g.fullName || '').slice(0, 3).toUpperCase(),
           email: g.email || '',
           isPrabhupadaWorldMentor: false,
         }));
-      const listToReturn = folkGuides.length > 0 ? folkGuides : DEFAULT_FOLK_GUIDES;
-      return [PW_MENTOR, ...listToReturn];
+
+      // Dynamically fetch FOLK Guides / Supervisors / Admins from Users table
+      const dbFolkGuides = userRecords
+        .filter(u => {
+          const roleUpper = (u.role || '').toUpperCase();
+          const segmentUpper = (u.segment || '').toUpperCase();
+          const emailLower = (u.email || '').toLowerCase();
+          const nameLower = (u.fullName || '').toLowerCase();
+
+          const isPwUser =
+            segmentUpper === 'PW' ||
+            u.isPrabhupadaWorldUser === true ||
+            emailLower.includes('prabhupada') ||
+            emailLower === 'vdnd@hkmmumbai.org' ||
+            emailLower === 'admin@prabhupadaworld.org' ||
+            nameLower.includes('hiranya') ||
+            nameLower.includes('prabhupada world') ||
+            nameLower.includes('pw system administrator');
+
+          if (isPwUser) return false;
+
+          const isFolkRole =
+            roleUpper === 'GUIDE' ||
+            roleUpper === 'SUPER_GUIDE' ||
+            roleUpper === 'BVSL' ||
+            u.isBvSupervisor === true ||
+            u.isBvFacilitator === true ||
+            u.isBvsl === true ||
+            u.isBvAdmin === true ||
+            u.isBvSuperAdmin === true;
+
+          return isFolkRole && u.status === 'Active';
+        })
+        .map(u => ({
+          guideId: u.id || u.userId,
+          name: formatGuideName(u.fullName, u.email),
+          abbr: (u.fullName || '').slice(0, 3).toUpperCase(),
+          email: u.email || '',
+          isPrabhupadaWorldMentor: false,
+        }));
+
+      const combinedFolk = [...folkGuidesFromDb, ...dbFolkGuides];
+      const listToReturn = combinedFolk.length > 0 ? combinedFolk : DEFAULT_FOLK_GUIDES;
+
+      // Dynamically fetch PW Admins from Users table
+      const dbPwAdmins = userRecords
+        .filter(u => {
+          const roleUpper = (u.role || '').toUpperCase();
+          const segmentUpper = (u.segment || '').toUpperCase();
+          const nameLower = (u.fullName || '').toLowerCase();
+          const emailLower = (u.email || '').toLowerCase();
+          const isHiranya = nameLower.includes('hiranya') || emailLower.includes('hiranya') || emailLower.includes('vdnd@hkmmumbai');
+          if (isHiranya) return false;
+          return (roleUpper === 'ADMIN' || u.isBvAdmin === true) &&
+                 (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&
+                 u.status === 'Active';
+        })
+        .map(u => ({
+          guideId: u.id || u.userId,
+          name: `${formatGuideName(u.fullName, u.email)} (Admin)`,
+          abbr: (u.fullName || '').slice(0, 3).toUpperCase(),
+          email: u.email || '',
+          isPrabhupadaWorldMentor: true,
+        }));
+
+      const finalPwAdmins = dbPwAdmins.length > 0 ? dbPwAdmins : [PW_ADMIN];
+
+      const pwList = dedupeGuides([PW_SUPER_ADMIN, ...finalPwAdmins]);
+      const folkList = dedupeGuides(listToReturn);
+      const allList = dedupeGuides([...pwList, ...folkList]);
+
+      return {
+        pw: pwList,
+        folk: folkList,
+        all: allList,
+      };
     }, TTL);
 
-    return { guides };
+    const userEmail = (context?.user?.email || '').toLowerCase();
+    const userSegment = context?.user?.segment ?? (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
+    const effectiveSegment = input.segment || userSegment;
+
+    if (effectiveSegment === 'PW') {
+      return { guides: allGuides.pw };
+    } else if (effectiveSegment === 'FOLK') {
+      return { guides: allGuides.folk };
+    }
+
+    return { guides: allGuides.all };
   },
 });
 
+function dedupeGuides(list: any[]) {
+  const seen = new Set();
+  return list.filter(g => {
+    if (!g.guideId || seen.has(g.guideId)) return false;
+    seen.add(g.guideId);
+    return true;
+  });
+}

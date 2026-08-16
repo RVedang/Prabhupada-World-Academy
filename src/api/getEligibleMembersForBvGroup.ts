@@ -1,17 +1,22 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, BvGroups, BvGroupMembers, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
+import { requireGuideRole } from '../lib/userUtils';
 
 export default createEndpoint({
   description: 'Get eligible members (active non-folk-residents) for adding to BV groups under this guide',
   authenticated: true,
   inputSchema: z.object({ guideId: z.string() }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
-    const callerRole = context.user!.role || '';
-    const isBvMentor = !!(context.user as any).isBvMentor;
-    if (!['Guide', 'Super Guide'].includes(callerRole) && !isBvMentor) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only guides can access this' });
-    }
+  execute: async ({ input, context }: any) => {
+    if (!context.user) throw new Error('Unauthorized');
+    requireGuideRole(context.user.role, {
+      isSadhanaMentor: context.user.isSadhanaMentor,
+      isBvsl: context.user.isBvsl,
+      isBvMentor: (context.user as any).isBvMentor,
+      isBvAdmin: (context.user as any).isBvAdmin,
+      isBvSupervisor: (context.user as any).isBvSupervisor,
+      isBvSuperAdmin: (context.user as any).isBvSuperAdmin,
+    });
 
     // Robust 3-step guide ID resolution (handles Users-table UUID, Guides-table UUID, or custom ID)
     let guideDbId: string | null = null;
@@ -35,6 +40,9 @@ export default createEndpoint({
     }
 
     if (!guideDbId) return { members: [] };
+
+    const guideRec = await Guides.findOne({ id: guideDbId, fields: ['id', 'segment'] }).catch(() => null);
+    const guideSegment = guideRec?.segment || (context.user.email?.includes('gaurmandal') || context.user.email?.includes('folk.org') ? 'FOLK' : 'PW');
 
     // Fetch all BV groups under this guide to know who's already in a group
     const { records: groups } = await BvGroups.findAll({
@@ -63,7 +71,7 @@ export default createEndpoint({
     }
 
     const { records: users } = await Users.findAll({
-      filters: { guide: guideDbId, status: 'Active' },
+      filters: { guide: guideDbId, status: 'Active', segment: guideSegment },
       fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'isBvsl'],
       limit: 1000,
     });

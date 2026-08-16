@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, Users, Guides, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, Users, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 
 function getDatesInRange(startDate: string, endDate: string): string[] {

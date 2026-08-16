@@ -2,7 +2,7 @@
 // The frontend (BvslSadhanaReportPanel) calls getGuideDetailedReport with bvslMode=true
 // This stub is kept for backward compat but is not called directly anymore
 import { z } from 'zod';
-import { createEndpoint } from 'zite-integrations-backend-sdk';
+import { createEndpoint } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'BVSL sadhana report (deprecated - use getGuideDetailedReport with bvslMode)',

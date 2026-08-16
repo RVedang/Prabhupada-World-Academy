@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AshrayUpgradeRequests, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AshrayUpgradeRequests, Users, AppError } from '@/lib/backend-sdk';
 import { migrateUserCourse } from '../lib/tagMangoEnroll';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
@@ -19,10 +19,10 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     const id = input.requestId || input.logId;
-    if (!id) throw new ZiteError({ code: 'BAD_REQUEST', message: 'requestId is required' });
+    if (!id) throw new AppError({ code: 'BAD_REQUEST', message: 'requestId is required' });
 
     const request = await AshrayUpgradeRequests.findOne({ id });
-    if (!request) throw new ZiteError({ code: 'NOT_FOUND', message: 'Request not found' });
+    if (!request) throw new AppError({ code: 'NOT_FOUND', message: 'Request not found' });
 
     let newStatus: string;
     let shouldUpgradeUser = false;
@@ -68,7 +68,12 @@ export default createEndpoint({
 
       await Users.update({
         id: resolvedUserRecord.id,
-        record: { ashrayLevel: newLevel },
+        record: {
+          ashrayLevel: newLevel,
+          pendingAshrayNoticeStatus: 'approved',
+          pendingAshrayNoticeLevel: newLevel,
+          ashrayNoticeAcknowledged: false,
+        },
       });
 
       // TagMango migration
@@ -91,6 +96,16 @@ export default createEndpoint({
           // Don't block response
         }
       }
+    } else if ((input.action === 'reject' || input.action === 'fail') && resolvedUserRecord) {
+      const requestedLevel = (request.requestedLevel || input.requestedLevel) as string;
+      await Users.update({
+        id: resolvedUserRecord.id,
+        record: {
+          pendingAshrayNoticeStatus: 'rejected',
+          pendingAshrayNoticeLevel: requestedLevel,
+          ashrayNoticeAcknowledged: false,
+        },
+      });
     }
 
     if (resolvedUserRecord) {

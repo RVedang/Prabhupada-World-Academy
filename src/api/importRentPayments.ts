@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { createEndpoint, Users, RentPayments, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, RentPayments, AppError } from '@/lib/backend-sdk';
 
 function requireRentEditor(user: any) {
   const role = user.role || '';
   const ok = ['Guide', 'Super Guide'].includes(role) || !!user.isFolkLead;
-  if (!ok) throw new ZiteError({ code: 'FORBIDDEN', message: 'FOLK Lead or Guide access required' });
+  if (!ok) throw new AppError({ code: 'FORBIDDEN', message: 'FOLK Lead or Guide access required' });
 }
 
 const rentRowSchema = z.object({

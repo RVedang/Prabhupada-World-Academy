@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +8,32 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Loader2, Plus, Users, ShieldCheck, UserCheck, Leaf, Clock, BookOpen } from 'lucide-react';
-import { createBvGroup, assignBvRole, getBvslGroups, getGuides } from '@/lib/zite-endpoints-sdk';
+import { Loader2, Plus, Users, ShieldCheck, UserCheck, Leaf, Clock, BookOpen, ChevronRight } from 'lucide-react';
+import { createBvGroup, assignBvRole, getBvslGroups, getGuides } from '@/lib/app-endpoints-sdk';
+
+import { useUserProfile } from '@/contexts/UserProfileContext';
+
+const TIME_PREFERENCES = [
+  '7:45 PM – 8:15 PM (Everyday)',
+  '1:00 PM – 1:30 PM (Monday to Friday)',
+  '8:30 PM – 9:00 PM (Monday to Friday)',
+  '11:00 AM – 12:00 PM (Saturday & Sunday only)',
+];
 
 export default function BvAdminManagementTab() {
+  const { profile } = useUserProfile();
+  const navigate = useNavigate();
+  const userEmail = (profile?.userId || '').toLowerCase();
+  const isSuperAdmin = !!(
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'srilaprabhupadaworld@gmail.com' ||
+    userEmail.includes('gaurmandal')
+  );
+
+  const segment = profile?.segment ?? (userEmail.includes('gaurmandal') ? 'FOLK' : 'PW');
+
   const [groups, setGroups] = useState<any[]>([]);
   const [guides, setGuides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,13 +43,8 @@ export default function BvAdminManagementTab() {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupBvslId, setNewGroupBvslId] = useState('');
   const [newGroupTime, setNewGroupTime] = useState('');
+  const [timeSelectionMode, setTimeSelectionMode] = useState<'select' | 'custom'>('select');
   const [creatingGroup, setCreatingGroup] = useState(false);
-
-  // Role assignment modal state
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [targetUserId, setTargetUserId] = useState('');
-  const [selectedRole, setSelectedRole] = useState<'SUPERVISOR' | 'FACILITATOR' | 'SUB_FACILITATOR' | 'ADMIN' | 'MEMBER'>('FACILITATOR');
-  const [assigningRole, setAssigningRole] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -37,9 +55,13 @@ export default function BvAdminManagementTab() {
     try {
       const [grpRes, guideRes] = await Promise.all([
         getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
-        getGuides({}).catch(() => ({ guides: [] })),
+        getGuides({ segment }).catch(() => ({ guides: [] })),
       ]);
-      setGroups(grpRes.groups || []);
+      const allGroups = grpRes.groups || [];
+      const filteredGroups = segment
+        ? allGroups.filter((g: any) => g.segment === segment)
+        : allGroups;
+      setGroups(filteredGroups);
       setGuides(guideRes.guides || []);
     } catch {
       toast.error('Failed to load BV management data');
@@ -47,6 +69,68 @@ export default function BvAdminManagementTab() {
       setLoading(false);
     }
   };
+
+  // Super Admin sees ALL groups; Admin sees only groups under facilitators assigned to them
+  const visibleGroups = (function () {
+    if (isSuperAdmin) return groups;
+
+    const adminId = (profile?.userId || (profile as any)?.id || '').toLowerCase();
+    const adminEmail = (userEmail || '').toLowerCase();
+    const adminName = (profile?.fullName || '').toLowerCase();
+
+    return groups.filter(group => {
+      const grpGuideName = (group.guideName || '').toLowerCase();
+      const grpGuideId = (group.guideId || '').toLowerCase();
+      const grpBvslName = (group.bvslName || '').toLowerCase();
+      const grpBvslId = (group.bvslId || '').toLowerCase();
+
+      // Direct match on group guide/admin
+      if (
+        (grpGuideId && (grpGuideId === adminId || grpGuideId === adminEmail)) ||
+        (grpGuideName && adminName && (grpGuideName.includes(adminName) || adminName.includes(grpGuideName))) ||
+        (grpBvslId && (grpBvslId === adminId || grpBvslId === adminEmail))
+      ) {
+        return true;
+      }
+
+      // Check if the facilitator (RGF) of this group is under this admin
+      const facilitator = guides.find(g =>
+        (g.guideId && (g.guideId === grpBvslId || g.guideId === group.bvslLeader)) ||
+        (g.name && grpBvslName && g.name.toLowerCase().includes(grpBvslName)) ||
+        (g.email && grpBvslId && g.email.toLowerCase() === grpBvslId)
+      );
+
+      if (facilitator) {
+        const facGuideName = (facilitator.guideName || facilitator.adminName || '').toLowerCase();
+        const facGuideId = (facilitator.guideId || facilitator.adminId || '').toLowerCase();
+        const facEmail = (facilitator.email || '').toLowerCase();
+
+        if (
+          (facGuideId && (facGuideId === adminId || facGuideId === adminEmail)) ||
+          (facGuideName && adminName && (facGuideName.includes(adminName) || adminName.includes(facGuideName))) ||
+          (facEmail && facEmail === adminEmail)
+        ) {
+          return true;
+        }
+      }
+
+      // Match facilitators where guide email/name matches this admin
+      const myFacilitators = guides.filter(g => {
+        const gEmail = (g.email || '').toLowerCase();
+        const gGuide = (g.guide || g.guideName || g.adminEmail || '').toLowerCase();
+        return (
+          (gEmail && gEmail === adminEmail) ||
+          (gGuide && (gGuide.includes(adminName) || gGuide === adminEmail || gGuide === adminId))
+        );
+      });
+
+      return myFacilitators.some(f =>
+        (f.guideId && f.guideId === grpBvslId) ||
+        (f.email && f.email.toLowerCase() === grpBvslId) ||
+        (f.name && grpBvslName && f.name.toLowerCase().includes(grpBvslName))
+      );
+    });
+  })();
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
@@ -65,6 +149,7 @@ export default function BvAdminManagementTab() {
       setNewGroupName('');
       setNewGroupBvslId('');
       setNewGroupTime('');
+      setTimeSelectionMode('select');
       loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to create group');
@@ -73,109 +158,108 @@ export default function BvAdminManagementTab() {
     }
   };
 
-  const handleAssignRole = async () => {
-    if (!targetUserId.trim()) {
-      toast.error('Please enter a user ID or email');
-      return;
-    }
-    setAssigningRole(true);
-    try {
-      const res = await assignBvRole({
-        userId: targetUserId.trim(),
-        role: selectedRole,
-      });
-      toast.success(res.message || 'Updated BV role successfully');
-      setRoleModalOpen(false);
-      setTargetUserId('');
-      loadData();
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to assign role');
-    } finally {
-      setAssigningRole(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="py-12 text-center space-y-3">
         <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-        <p className="text-sm text-muted-foreground">Loading BV Admin Management...</p>
+        <p className="text-sm text-muted-foreground">Loading Bhakti Vriksha groups & guides...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header & Actions */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h3 className="text-lg font-bold flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-primary" /> Bhakti Vriksha Admin Management
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Create new Reading Groups and assign 5-tier BV hierarchy roles (Supervisor, Facilitator/RGF, Sub-Facilitator/RGSF).
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setRoleModalOpen(true)} className="gap-1 text-xs">
-            <UserCheck className="w-4 h-4" /> Assign Role
-          </Button>
-          <Button size="sm" onClick={() => setCreateGroupOpen(true)} className="gap-1 text-xs font-semibold">
-            <Plus className="w-4 h-4" /> Create Reading Group
-          </Button>
-        </div>
-      </div>
-
-      {/* Active Reading Groups Grid */}
+      {/* Active Groups Card */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Leaf className="w-4 h-4 text-primary" /> Active Reading Groups ({groups.length})
-          </CardTitle>
-          <CardDescription className="text-xs">
-            All active Bhakti Vriksha groups and their assigned Reading Group Facilitators (RGF).
-          </CardDescription>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" /> Bhakti Vriksha Groups & Role Management
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Monitor reading groups, view group details, create new groups, and assign roles within the Bhakti Vriksha hierarchy.
+            </CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setCreateGroupOpen(true)}>
+              <Plus className="w-4 h-4 mr-1.5" /> Create Group
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          {groups.length === 0 ? (
-            <div className="py-10 text-center text-muted-foreground space-y-2">
+          {visibleGroups.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground space-y-2">
               <Users className="w-10 h-10 mx-auto opacity-40" />
-              <p>No active Reading Groups found.</p>
-              <Button size="sm" variant="outline" onClick={() => setCreateGroupOpen(true)}>
-                Create First Group
-              </Button>
+              <p className="font-semibold text-sm">No Reading Groups found</p>
+              <p className="text-xs">Click "Create Group" above to initialize your first group.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {groups.map(g => (
-                <Card key={g.id} className="border shadow-none hover:border-primary/40 transition-colors">
-                  <CardContent className="pt-4 pb-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-bold text-sm text-foreground">{g.groupName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Facilitator (RGF): <span className="font-medium text-foreground">{g.bvslName || 'Unassigned'}</span>
-                        </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {visibleGroups.map(group => {
+                const groupId = group.groupId || group.id;
+                return (
+                  <Card
+                    key={group.id}
+                    className="group relative cursor-pointer overflow-hidden border border-border/80 bg-card hover:shadow-lg hover:border-primary/50 transition-all duration-200"
+                    onClick={() => navigate(`/bvsl/groups/${groupId}`)}
+                  >
+                    <CardHeader className="pb-2 bg-card border-b px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                            {group.groupName}
+                          </h4>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            Facilitator: {group.bvslName || 'Unassigned'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant="outline" className="text-[10px] font-medium bg-muted/50">
+                            {group.memberCount} members
+                          </Badge>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        </div>
                       </div>
-                      <Badge variant="outline" className="text-xs font-mono shrink-0">
-                        {g.memberCount || 0} Members
-                      </Badge>
-                    </div>
-                    {g.meetingTime && (
-                      <div className="bg-muted/40 p-2 rounded text-xs flex items-center gap-1 text-muted-foreground">
-                        <Clock className="w-3.5 h-3.5 text-primary" /> {g.meetingTime}
+                    </CardHeader>
+                    <CardContent className="p-4 space-y-2 text-xs">
+                      {group.meetingTime && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Clock className="w-3.5 h-3.5 text-primary" />
+                          <span>{group.meetingTime}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <BookOpen className="w-3.5 h-3.5 text-orange-500" />
+                        <span>{group.totalSessions || 0} sessions held</span>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      {group.joinToken && (
+                        <div className="pt-2 border-t mt-2 flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-muted-foreground">Join Code:</span>
+                          <code className="bg-muted px-1.5 py-0.5 rounded font-mono font-bold text-[10px] text-primary">{group.joinToken}</code>
+                        </div>
+                      )}
+                      <div className="pt-2 flex justify-end">
+                        <span className="text-[11px] font-semibold text-primary group-hover:underline flex items-center gap-1">
+                          View Group Details <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Create Reading Group Modal */}
-      <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
+      <Dialog open={createGroupOpen} onOpenChange={(open) => {
+        setCreateGroupOpen(open);
+        if (!open) {
+          setTimeSelectionMode('select');
+          setNewGroupTime('');
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -198,7 +282,7 @@ export default function BvAdminManagementTab() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Assign Facilitator (RGF) *</Label>
-              <Select value={newGroupBvslId} onValueChange={(val: string) => setNewGroupBvslId(val)}>
+              <Select value={newGroupBvslId || undefined} onValueChange={(val: string | null) => setNewGroupBvslId(val || '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select facilitator..." />
                 </SelectTrigger>
@@ -213,12 +297,52 @@ export default function BvAdminManagementTab() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Meeting Time Preference</Label>
-              <Input
-                placeholder="e.g. 7:45 PM – 8:15 PM (Everyday)"
-                value={newGroupTime}
-                onChange={e => setNewGroupTime(e.target.value)}
-              />
+              <Label className="text-xs font-semibold">Meeting Time Preference *</Label>
+              {timeSelectionMode === 'select' ? (
+                <Select
+                  value={newGroupTime || undefined}
+                  onValueChange={(val: string | null) => {
+                    const cleanVal = val || '';
+                    if (cleanVal === 'CUSTOM') {
+                      setTimeSelectionMode('custom');
+                      setNewGroupTime('');
+                    } else {
+                      setNewGroupTime(cleanVal);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select preferred time slot..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIME_PREFERENCES.map(t => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                    <SelectItem value="CUSTOM">Custom...</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="e.g. 7:45 PM – 8:15 PM (Everyday)"
+                    value={newGroupTime}
+                    onChange={e => setNewGroupTime(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs shrink-0"
+                    onClick={() => {
+                      setTimeSelectionMode('select');
+                      setNewGroupTime('');
+                    }}
+                  >
+                    Select List
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -227,55 +351,6 @@ export default function BvAdminManagementTab() {
             <Button onClick={handleCreateGroup} disabled={creatingGroup}>
               {creatingGroup && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
               Create Group
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Role Assignment Modal */}
-      <Dialog open={roleModalOpen} onOpenChange={setRoleModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-primary" /> Assign Bhakti Vriksha Role
-            </DialogTitle>
-            <DialogDescription>
-              Assign a 5-tier role to a user (Supervisor, Facilitator/RGF, Sub-Facilitator/RGSF).
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">User ID or Email *</Label>
-              <Input
-                placeholder="e.g. user@gmail.com or USER-001"
-                value={targetUserId}
-                onChange={e => setTargetUserId(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Select Role *</Label>
-              <Select value={selectedRole} onValueChange={(val: any) => setSelectedRole(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="min-w-[360px] max-w-none">
-                  <SelectItem value="SUPERVISOR">BV Supervisor (Oversees multiple RGFs)</SelectItem>
-                  <SelectItem value="FACILITATOR">Reading Group Facilitator (RGF - Can view 1:1 reports)</SelectItem>
-                  <SelectItem value="SUB_FACILITATOR">Reading Group Sub-Facilitator (RGSF - Group co-host)</SelectItem>
-                  <SelectItem value="ADMIN">BV Admin</SelectItem>
-                  <SelectItem value="MEMBER">Regular BV Member</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRoleModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleAssignRole} disabled={assigningRole}>
-              {assigningRole && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-              Save Role
             </Button>
           </DialogFooter>
         </DialogContent>

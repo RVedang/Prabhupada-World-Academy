@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Award, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getServices, getServicePreferences, saveServicePreferences, getUserSkills, addMySkill, removeMySkill, getAvailableSkills } from 'zite-endpoints-sdk';
-import type { GetServicesOutputType, GetServicePreferencesOutputType } from 'zite-endpoints-sdk';
+import { getServices, getServicePreferences, saveServicePreferences, getUserSkills, addMySkill, removeMySkill, getAvailableSkills } from '@/lib/endpoints-sdk';
+import type { GetServicesOutputType, GetServicePreferencesOutputType } from '@/lib/endpoints-sdk';
 
 interface SkillRow { id: number; skillName: string; }
 interface Props { userId: string; residencyId?: string; }

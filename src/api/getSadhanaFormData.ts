@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, SadhanaFields as SadhanaFieldsTable } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, SadhanaFields as SadhanaFieldsTable } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 import { RESIDENT_FIELDS, NON_RESIDENT_FIELDS, toFormField } from '../config/sadhanaFields';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
@@ -66,9 +66,12 @@ async function loadFormFields(isResident: boolean): Promise<FormField[]> {
           let criteria: string | null = stat?.criteria ? JSON.stringify(stat.criteria) : null;
           if (r.criteriaJson) criteria = r.criteriaJson;
 
+          const key = r.fieldKey ?? stat?.fieldKey ?? '';
+          const defaultMax = key === 'chanting' ? 192 : 1200;
+
           return {
             fieldId:           r.id,
-            fieldKey:          r.fieldKey          ?? stat?.fieldKey        ?? '',
+            fieldKey:          key,
             fieldLabel:        r.fieldLabel         ?? stat?.fieldLabel       ?? '',
             fieldType,
             displayOrder:      r.displayOrder        ?? stat?.displayOrder     ?? 0,
@@ -76,7 +79,7 @@ async function loadFormFields(isResident: boolean): Promise<FormField[]> {
             contributesToScore: r.contributesToScore ?? stat?.contributesToScore ?? false,
             maxPoints:         r.maxPoints           ?? 0,
             minValue:          r.minValue            ?? 0,
-            maxValue:          r.maxValue            ?? 100,
+            maxValue:          r.maxValue            ?? stat?.maxValue         ?? defaultMax,
             group:             r.group               ?? 'General',
             helpText:          r.helpText            ?? null,
             contextTag:        (stat?.contextTag     ?? null) as FormField['contextTag'],

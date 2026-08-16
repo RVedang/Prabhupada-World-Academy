@@ -11,6 +11,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      closeButton
       icons={{
         success: (
           <CircleCheckIcon className="size-4" />
@@ -30,15 +31,32 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
+          "--normal-bg": "hsl(var(--card))",
+          "--normal-text": "hsl(var(--card-foreground))",
+          "--normal-border": "hsl(var(--border))",
+          "--description-color": "hsl(var(--foreground))",
+          "--info-bg": "hsl(var(--card))",
+          "--info-text": "hsl(var(--card-foreground))",
+          "--info-border": "hsl(var(--border))",
+          "--success-bg": "hsl(var(--card))",
+          "--success-text": "hsl(var(--card-foreground))",
+          "--success-border": "hsl(var(--border))",
+          "--warning-bg": "hsl(var(--card))",
+          "--warning-text": "hsl(var(--card-foreground))",
+          "--warning-border": "hsl(var(--border))",
+          "--error-bg": "hsl(var(--card))",
+          "--error-text": "hsl(var(--card-foreground))",
+          "--error-border": "hsl(var(--border))",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "group toast group-[.toaster]:bg-card group-[.toaster]:text-card-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg border p-5 rounded-2xl flex gap-4 w-full md:min-w-[420px] max-w-[480px]",
+          title: "group-[.toast]:font-bold group-[.toast]:text-foreground text-[15px] sm:text-base",
+          description: "group-[.toast]:!text-neutral-800 dark:group-[.toast]:!text-neutral-200 text-xs sm:text-sm font-bold block mt-1.5 leading-relaxed",
+          actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
+          cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
         },
       }}
       {...props}

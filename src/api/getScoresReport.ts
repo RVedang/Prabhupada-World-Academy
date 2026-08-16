@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint } from 'zite-integrations-backend-sdk';
+import { createEndpoint } from '@/lib/backend-sdk';
 import { supabase, fetchAllRows } from '../utils/supabase';
 import { requireGuideRole } from '../lib/userUtils';
 
@@ -65,7 +65,7 @@ export default createEndpoint({
     const from = input.from || toDateStr(fourWeeksAgo);
     const to = input.to || toDateStr(today);
 
-    const isMock = !process.env.ZITE_SUPABASE_URL || process.env.ZITE_SUPABASE_URL.includes('mockproject');
+    const isMock = !process.env.APP_SUPABASE_URL || process.env.APP_SUPABASE_URL.includes('mockproject');
 
     if (isMock) {
       const mockVolunteers = [

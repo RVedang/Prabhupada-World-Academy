@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Users, Leaf, Clock, CheckCircle2, UserCheck, ShieldCheck, BarChart3, CalendarClock, BookOpen, Layers } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Leaf, Clock, CheckCircle2, UserCheck, ShieldCheck, BarChart3, CalendarClock, BookOpen, Layers, ChevronRight, Video } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,20 +8,27 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { DashboardLayout } from '@/layouts';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { getBvSupervisorOverview, GetBvSupervisorOverviewOutputType } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { getBvSupervisorOverview, getCurrentGuide } from '@/lib/endpoints-sdk';
 import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
 import BvSection from '@/components/guide/BvSection';
 import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
+import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 import TabRouter, { TabConfig } from '@/shared/TabRouter';
 
 export default function BvSupervisorDashboard() {
   const { profile } = useUserProfile();
-  const [data, setData] = useState<GetBvSupervisorOverviewOutputType | null>(null);
+  const { user: authUser } = useAuth();
+  const navigate = useNavigate();
+  const [data, setData] = useState<Awaited<ReturnType<typeof getBvSupervisorOverview>> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     loadOverview();
   }, []);
+
+  // Supervisor Dashboard is always accessed by Super Admins — always show institutional name
 
   const loadOverview = async () => {
     setLoading(true);
@@ -42,13 +50,22 @@ export default function BvSupervisorDashboard() {
     { value: 'registrations', label: `Pending Registrations${pendingCount > 0 ? ` (${pendingCount})` : ''}`, icon: Clock },
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
+    { value: 'meetings', label: 'Meetings & MoMs', icon: Video },
   ];
+
+  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+  const defaultName = isFolk ? 'Gaurmandal Das' : 'Hiranyavarna Das';
 
   return (
     <DashboardLayout
-      title={`Hare Krishna, ${profile?.fullName || 'Supervisor'} Prabhu`}
-      subtitle="Bhakti Vriksha Supervisor Dashboard"
-      role="GUIDE"
+      title="Bhakti Vriksha Supervisor Dashboard"
+      subtitle={[
+        `Hare Krishna ${defaultName} Prabhu`,
+        (profile as any)?.bvReportingAdminName
+          ? `Admin: ${(profile as any).bvReportingAdminName}`
+          : null,
+      ].filter(Boolean).join(' · ')}
+      role="SUPERVISOR"
       maxWidth="max-w-6xl"
       showProfile={true}
     >
@@ -126,7 +143,7 @@ export default function BvSupervisorDashboard() {
                         <Leaf className="w-4 h-4 text-primary" /> Active Reading Groups Overview
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Overview of active Bhakti Vriksha reading groups, assigned facilitators, and member strength.
+                        Overview of active Bhakti Vriksha reading groups. Click any group to view details, members, and session attendance.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -136,18 +153,25 @@ export default function BvSupervisorDashboard() {
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {data.groups.map(g => (
-                            <div key={g.id} className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/40 transition-colors">
+                          {data.groups.map((g: { id: string; groupName: string; bvslName: string; meetingTime?: string; memberCount: number }) => (
+                            <div
+                              key={g.id}
+                              className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/40 cursor-pointer hover:border-primary/40 transition-colors group"
+                              onClick={() => navigate(`/bvsl/groups/${g.id}`)}
+                            >
                               <div>
-                                <p className="font-semibold text-sm">{g.groupName}</p>
+                                <p className="font-semibold text-sm group-hover:text-primary transition-colors">{g.groupName}</p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                   Facilitator: <span className="font-medium text-foreground">{g.bvslName}</span>
                                   {g.meetingTime ? ` · ${g.meetingTime}` : ''}
                                 </p>
                               </div>
-                              <Badge variant="secondary" className="font-mono text-xs">
-                                {g.memberCount} members
-                              </Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="font-mono text-xs">
+                                  {g.memberCount} members
+                                </Badge>
+                                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -164,7 +188,7 @@ export default function BvSupervisorDashboard() {
                       <UserCheck className="w-4 h-4 text-primary" /> Reading Group Facilitators (RGF) & Groups
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      All active Reading Group Facilitators and their assigned Bhakti Vriksha groups.
+                      All active Reading Group Facilitators and their assigned Bhakti Vriksha groups. Click any card to view group details.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -172,20 +196,27 @@ export default function BvSupervisorDashboard() {
                       <p className="text-sm text-muted-foreground py-6 text-center">No RGFs found.</p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {data.groups.map(g => (
-                          <Card key={g.id} className="border shadow-none">
+                        {data.groups.map((g: { id: string; groupName: string; bvslName: string; meetingTime?: string; memberCount: number }) => (
+                          <Card
+                            key={g.id}
+                            className="border shadow-none hover:shadow-md cursor-pointer hover:border-primary/40 transition-all group"
+                            onClick={() => navigate(`/bvsl/groups/${g.id}`)}
+                          >
                             <CardContent className="pt-4 pb-4 space-y-2">
                               <div className="flex items-start justify-between">
                                 <div>
                                   <p className="font-bold text-sm text-primary">{g.bvslName}</p>
                                   <p className="text-xs text-muted-foreground">Reading Group Facilitator</p>
                                 </div>
-                                <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
-                                  {g.memberCount} Devotees
-                                </Badge>
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
+                                    {g.memberCount} Devotees
+                                  </Badge>
+                                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                </div>
                               </div>
-                              <div className="bg-muted/40 p-2.5 rounded text-xs space-y-1">
-                                <p className="font-medium text-foreground">📖 {g.groupName}</p>
+                              <div className="bg-muted/40 p-2.5 rounded text-xs space-y-1 group-hover:bg-primary/5 transition-colors">
+                                <p className="font-medium text-foreground group-hover:text-primary">📖 {g.groupName}</p>
                                 {g.meetingTime && <p className="text-muted-foreground">⏰ {g.meetingTime}</p>}
                               </div>
                             </CardContent>
@@ -207,6 +238,10 @@ export default function BvSupervisorDashboard() {
 
               {activeTab === 'callreports' && (
                 <BvslOneToOneTab />
+              )}
+
+              {activeTab === 'meetings' && (
+                <MeetingsAndMomTab />
               )}
             </>
           )}

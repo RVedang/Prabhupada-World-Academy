@@ -115,8 +115,9 @@ function SadhanaFieldRenderer({
 
   const fieldLabel = (
     <div className="flex flex-wrap items-center gap-2">
-      <Label className="text-base font-medium">
-        {displayLabel} {field.isRequired && <span className="text-destructive">*</span>}
+      <Label className="text-base font-medium leading-snug">
+        {displayLabel}
+        {field.isRequired && <span className="text-destructive ml-1 inline">*</span>}
       </Label>
       {contextBadgeLabel && <ContextBadge label={contextBadgeLabel} />}
     </div>
@@ -125,11 +126,11 @@ function SadhanaFieldRenderer({
   const PointsBadge = ({ pts, max, penaltyOnly }: { pts: number; max?: number; penaltyOnly?: boolean }) => {
     let label: string;
     if (penaltyOnly && pts < 0) {
-      label = `${Math.abs(pts)} ${Math.abs(pts) === 1 ? 'point' : 'points'} deducted`;
+      label = `${Math.abs(pts)} ${Math.abs(pts) === 1 ? 'point' : 'points'} penalty`;
     } else if (max != null) {
       label = `${pts} / ${max} pts`;
     } else if (pts < 0) {
-      label = `Minus ${Math.abs(pts)} ${Math.abs(pts) === 1 ? 'point' : 'points'} deducted`;
+      label = `${Math.abs(pts)} ${Math.abs(pts) === 1 ? 'point' : 'points'} penalty`;
     } else {
       label = `${pts} ${Math.abs(pts) === 1 ? 'point' : 'points'}`;
     }
@@ -262,14 +263,16 @@ function SadhanaFieldRenderer({
       onChange(field.fieldKey, val24);
     };
 
-    const handleHourChange = (hStr: string) => {
+    const handleHourChange = (hStr: string | null) => {
+      if (!hStr) return;
       const h = parseInt(hStr);
       if (isNaN(h)) return;
       const currentMin = m24 >= 0 ? m24 : 0;
       store24h(h, currentMin, isPM);
     };
 
-    const handleMinuteChange = (mStr: string) => {
+    const handleMinuteChange = (mStr: string | null) => {
+      if (!mStr) return;
       const m = parseInt(mStr);
       if (isNaN(m)) return;
       const currentH12 = h12 > 0 ? h12 : (isDefaultPM ? 10 : 6);
@@ -289,23 +292,33 @@ function SadhanaFieldRenderer({
       <div className="space-y-2">
         {fieldLabel}
         <div className="flex gap-1.5 items-center flex-wrap">
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring w-[70px]"
-            value={h12 > 0 ? String(h12) : ''}
-            onChange={e => handleHourChange(e.target.value)}
+          <Select
+            value={h12 > 0 ? String(h12).padStart(2, '0') : ''}
+            onValueChange={handleHourChange}
           >
-            <option value="">HH</option>
-            {HOURS_12.map(h => <option key={h} value={String(h)}>{String(h).padStart(2, '0')}</option>)}
-          </select>
+            <SelectTrigger className="w-[60px] h-9">
+              <SelectValue placeholder="HH" />
+            </SelectTrigger>
+            <SelectContent className="min-w-[60px] w-[60px]">
+              {HOURS_12.map(h => (
+                <SelectItem key={h} value={String(h).padStart(2, '0')}>{String(h).padStart(2, '0')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span className="text-lg font-bold text-muted-foreground">:</span>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring w-[70px]"
-            value={m24 >= 0 ? String(m24) : ''}
-            onChange={e => handleMinuteChange(e.target.value)}
+          <Select
+            value={m24 >= 0 ? String(m24).padStart(2, '0') : ''}
+            onValueChange={handleMinuteChange}
           >
-            <option value="">MM</option>
-            {MINUTES_5.map(m => <option key={m} value={String(m)}>{String(m).padStart(2, '0')}</option>)}
-          </select>
+            <SelectTrigger className="w-[60px] h-9">
+              <SelectValue placeholder="MM" />
+            </SelectTrigger>
+            <SelectContent className="min-w-[60px] w-[60px]">
+              {MINUTES_5.map(m => (
+                <SelectItem key={m} value={String(m).padStart(2, '0')}>{String(m).padStart(2, '0')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex rounded-md border border-border overflow-hidden">
             <button type="button" onClick={() => togglePM(false)}
               className={`px-3 py-1.5 text-xs font-semibold transition-colors ${!isPM ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>
@@ -371,12 +384,12 @@ function SadhanaFieldRenderer({
     const nrRes = getNrResult();
     const resPts = (!nrRes && hasDurationVal) ? getResidentPts() : null;
 
-    const handleDurHourChange = (hStr: string) => {
-      const h = parseInt(hStr) || 0;
+    const handleDurHourChange = (hStr: string | null) => {
+      const h = parseInt(hStr || '0') || 0;
       onChange(field.fieldKey, h * 60 + durationMins);
     };
-    const handleDurMinChange = (mStr: string) => {
-      const m = parseInt(mStr) || 0;
+    const handleDurMinChange = (mStr: string | null) => {
+      const m = parseInt(mStr || '0') || 0;
       onChange(field.fieldKey, durationHours * 60 + m);
     };
 
@@ -391,21 +404,35 @@ function SadhanaFieldRenderer({
       <div className="space-y-2">
         {fieldLabel}
         <div className="flex gap-1.5 items-center">
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring w-[75px]"
-            value={String(durationHours)}
-            onChange={e => handleDurHourChange(e.target.value)}
+          <Select
+            value={String(durationHours).padStart(2, '0')}
+            onValueChange={handleDurHourChange}
           >
-            {DURATION_HOURS.map(h => <option key={h} value={String(h)}>{String(h).padStart(2, '0')} hr</option>)}
-          </select>
+            <SelectTrigger className="w-[60px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="min-w-[60px] w-[60px]">
+              {DURATION_HOURS.map(h => (
+                <SelectItem key={h} value={String(h).padStart(2, '0')}>{String(h).padStart(2, '0')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-sm font-semibold text-muted-foreground mr-1.5">hr</span>
           <span className="text-lg font-bold text-muted-foreground">:</span>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring w-[80px]"
-            value={String(displayMin)}
-            onChange={e => handleDurMinChange(e.target.value)}
+          <Select
+            value={String(displayMin).padStart(2, '0')}
+            onValueChange={handleDurMinChange}
           >
-            {DURATION_MINS.map(m => <option key={m} value={String(m)}>{String(m).padStart(2, '0')} min</option>)}
-          </select>
+            <SelectTrigger className="w-[60px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="min-w-[60px] w-[60px]">
+              {DURATION_MINS.map(m => (
+                <SelectItem key={m} value={String(m).padStart(2, '0')}>{String(m).padStart(2, '0')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-sm font-semibold text-muted-foreground ml-0.5">min</span>
         </div>
         {nrRes && nrRes.target !== null && hasDurationVal && !nrRes.isLeaderboard && (
           <PointsBadge pts={nrRes.points} max={nrRes.maxPoints} />

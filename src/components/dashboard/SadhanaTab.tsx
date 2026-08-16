@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import SectionErrorBoundary from '@/components/SectionErrorBoundary';
 import MiniCalendar from '@/components/dashboard/MiniCalendar';
 import EntryDetailModal from '@/components/dashboard/EntryDetailModal';
-import { getUserProgressStats } from 'zite-endpoints-sdk';
+import { getUserProgressStats } from '@/lib/endpoints-sdk';
 import GuideOneToOneCard from '@/components/dashboard/GuideOneToOneCard';
 import PersonalServiceAlert from '@/components/services/PersonalServiceAlert';
 

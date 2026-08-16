@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LayoutGrid, CalendarDays, CalendarCheck, Settings2, Building2, Brush, Heart, Sparkles, Star, Trophy, Bell } from 'lucide-react';
 import { toast } from 'sonner';
-import { checkAndMarkOverdue, autoGenerateAllocation, getWeeklySchedule, checkAllocationPublished } from 'zite-endpoints-sdk';
+import { checkAndMarkOverdue, autoGenerateAllocation, getWeeklySchedule, checkAllocationPublished } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 import UserAllocationBoardTab from './UserAllocationBoardTab';
 import ServiceCalendarTab from './ServiceCalendarTab';

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, SadhanaEntries } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get attendance calendar data for the current user',
@@ -7,12 +7,42 @@ export default createEndpoint({
   inputSchema: z.object({}),
   outputSchema: z.any(),
   execute: async ({ context }) => {
-    const userId = context.user.id;
+    const userKeys = new Set<string>();
+    if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
+    if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
+    if (context.user?.email) userKeys.add(String(context.user.email).toLowerCase());
 
-    const { records } = await AttendanceRecords.findAll({
-      filters: { user: userId },
+    // Fetch BvAttendance records for user
+    const { records: allBv } = await BvAttendance.findAll({
       limit: 2000,
-      fields: ['id', 'session', 'date'],
+      fields: ['id', 'user', 'attendanceDate', 'present'],
+    }).catch(() => ({ records: [] }));
+
+    const bvAtt = allBv.filter((a: any) => {
+      const rawU = Array.isArray(a.user) ? a.user[0] : a.user;
+      return userKeys.has(String(rawU || '').toLowerCase());
+    });
+
+    // Fetch SadhanaEntries for user
+    const { records: allSadhana } = await SadhanaEntries.findAll({
+      limit: 2000,
+      fields: ['id', 'user', 'entryDate', 'fieldValuesJson'],
+    }).catch(() => ({ records: [] }));
+
+    const sadhanaEntries = allSadhana.filter((s: any) => {
+      const rawU = Array.isArray(s.user) ? s.user[0] : s.user;
+      return userKeys.has(String(rawU || '').toLowerCase());
+    });
+
+    // Fetch legacy AttendanceRecords
+    const { records: allLegacy } = await AttendanceRecords.findAll({
+      limit: 2000,
+      fields: ['id', 'user', 'session', 'date'],
+    }).catch(() => ({ records: [] }));
+
+    const records = allLegacy.filter((r: any) => {
+      const rawU = Array.isArray(r.user) ? r.user[0] : r.user;
+      return userKeys.has(String(rawU || '').toLowerCase());
     });
 
     // Get unique session IDs
@@ -29,7 +59,7 @@ export default createEndpoint({
           filters: { id: { in: batch } } as any,
           fields: ['id', 'name', 'event'],
           limit: 100,
-        });
+        }).catch(() => ({ records: [] }));
         sessions.forEach(s => {
           const eid = Array.isArray(s.event) ? s.event[0] : s.event;
           sessionMap.set(s.id, { name: s.name || '', eventId: eid });
@@ -44,29 +74,73 @@ export default createEndpoint({
         filters: { id: { in: [...eventIds] } } as any,
         fields: ['id', 'title'],
         limit: 100,
-      });
+      }).catch(() => ({ records: [] }));
       events.forEach(e => eventMap.set(e.id, e.title || ''));
     }
 
-    // Sort by date desc
-    records.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const entryMap = new Map<string, { date: string; present: boolean; status: 'P' | 'A'; sessionName: string; eventTitle: string }>();
 
-    const entries = records.map(r => {
-      const sid = (Array.isArray(r.session) ? r.session[0] : r.session) as string;
-      const session = sessionMap.get(sid);
-      return {
-        date: r.date || '',
-        sessionName: session?.name || '',
-        eventTitle: session?.eventId ? eventMap.get(session.eventId) || '' : '',
-      };
+    // Add BvAttendance records (present: true or false)
+    bvAtt.forEach((a: any) => {
+      if (a.attendanceDate) {
+        const isPres = !!a.present;
+        entryMap.set(a.attendanceDate, {
+          date: a.attendanceDate,
+          present: isPres,
+          status: isPres ? 'P' : 'A',
+          sessionName: 'Bhakti Vriksha Session',
+          eventTitle: isPres ? 'Present' : 'Absent',
+        });
+      }
     });
 
-    // Calculate stats
-    const uniqueDates = new Set(entries.map(e => e.date));
-    const totalDaysAttended = uniqueDates.size;
+    // Add SadhanaEntries
+    sadhanaEntries.forEach((s: any) => {
+      const d = String(s.entryDate || '').slice(0, 10);
+      if (d && !entryMap.has(d)) {
+        try {
+          const fv = typeof s.fieldValuesJson === 'string' ? JSON.parse(s.fieldValuesJson) : (s.fieldValuesJson || {});
+          const isAttended = !!(
+            fv.bhaktiVriksha === true ||
+            fv.bhaktiVriksha === 1 ||
+            fv.bhaktiVriksha === 'true' ||
+            Number(fv.bhaktiVriksha) > 0 ||
+            Number(fv._pts_bhaktiVriksha) > 0
+          );
+          entryMap.set(d, {
+            date: d,
+            present: isAttended,
+            status: isAttended ? 'P' : 'A',
+            sessionName: 'Bhakti Vriksha (Sadhana Logged)',
+            eventTitle: isAttended ? 'Present' : 'Absent',
+          });
+        } catch {}
+      }
+    });
+
+    // Add legacy AttendanceRecords
+    records.forEach(r => {
+      if (r.date && !entryMap.has(r.date)) {
+        const sid = (Array.isArray(r.session) ? r.session[0] : r.session) as string;
+        const session = sessionMap.get(sid);
+        entryMap.set(r.date, {
+          date: r.date || '',
+          present: true,
+          status: 'P',
+          sessionName: session?.name || 'Session',
+          eventTitle: session?.eventId ? eventMap.get(session.eventId) || '' : 'Program Session',
+        });
+      }
+    });
+
+    const entries = Array.from(entryMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
+    // Calculate stats — count dates where present === true
+    const presentDates = new Set(entries.filter(e => e.present).map(e => e.date));
+    const totalDaysAttended = presentDates.size;
 
     // Current streak
-    const sortedDates = [...uniqueDates].sort().reverse();
+    const sortedDates = [...presentDates].sort().reverse();
     let currentStreak = 0;
     const today = new Date();
     const checkDate = new Date(today);
@@ -84,10 +158,10 @@ export default createEndpoint({
 
     // This month count
     const thisMonth = today.toISOString().slice(0, 7);
-    const thisMonthCount = [...uniqueDates].filter(d => d.startsWith(thisMonth)).length;
+    const thisMonthCount = [...presentDates].filter(d => d.startsWith(thisMonth)).length;
 
     // Longest streak
-    const allDates = [...uniqueDates].sort();
+    const allDates = [...presentDates].sort();
     let longestStreak = 0;
     let streak = 0;
     for (let i = 0; i < allDates.length; i++) {

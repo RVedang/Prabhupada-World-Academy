@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, UserSkills } from 'zite-integrations-backend-sdk';
+import { createEndpoint, UserSkills } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Remove a skill from the current user',

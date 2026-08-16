@@ -8,7 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCw } from 'lucide-react';
 import FolkReportTable from '@/components/guide/FolkReportTable';
 import GuideLeaderboardDisplay from '@/components/guide/GuideLeaderboardDisplay';
-import { getFolkSadhanaReport, getSadhanaLeaderboard } from 'zite-endpoints-sdk';
+import { getFolkSadhanaReport, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type ReportType = 'daily' | 'weekly' | 'monthly';
 
@@ -44,7 +45,7 @@ function getWeekOptions() {
     const wn = getISOWeek(ws), wy = getISOWeekYear(ws);
     opts.push({
       value: `${wy}-W${String(wn).padStart(2, '0')}`,
-      label: `Week ${wn}: ${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}`,
+      label: `${format(ws, 'MMM d')} – ${format(we, 'MMM d, yyyy')}${i === 0 ? ' (Current)' : ''}`,
     });
   }
   return opts;
@@ -71,6 +72,8 @@ const today = format(new Date(), 'yyyy-MM-dd');
 interface Props { guideId?: string; }
 
 export default function GuideLeaderboardTab({ guideId }: Props) {
+  const { profile } = useUserProfile();
+  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [selectedDate, setSelectedDate] = useState(yesterday);
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
@@ -124,7 +127,9 @@ export default function GuideLeaderboardTab({ guideId }: Props) {
         <div className="flex items-center gap-1.5">
           <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
           <Select value={reportType} onValueChange={(v: ReportType) => setReportType(v)}>
-            <SelectTrigger className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[110px]">
+              <SelectValue>{reportType === 'daily' ? 'Daily' : reportType === 'weekly' ? 'Weekly' : 'Monthly'}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="daily">Daily</SelectItem>
               <SelectItem value="weekly">Weekly</SelectItem>
@@ -150,7 +155,7 @@ export default function GuideLeaderboardTab({ guideId }: Props) {
           <div className="flex items-center gap-1.5">
             <Label className="text-sm font-medium whitespace-nowrap">Week:</Label>
             <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-              <SelectTrigger className="h-8 w-[240px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-[280px]"><SelectValue>{WEEK_OPTIONS.find(o => o.value === selectedWeek)?.label || selectedWeek}</SelectValue></SelectTrigger>
               <SelectContent className="max-h-60">
                 {WEEK_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
               </SelectContent>
@@ -177,20 +182,22 @@ export default function GuideLeaderboardTab({ guideId }: Props) {
         </button>
       </div>
 
-      {/* FOLK Report */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2">
-          FOLK Report — All Residencies
-          <span className="ml-2 text-xs font-normal text-muted-foreground">{rangeLabel}</span>
-        </h3>
-        {folkLoading && !folkData ? (
-          <Skeleton className="h-48 w-full" />
-        ) : folkData ? (
-          <div className={`transition-opacity ${folkLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-            <FolkReportTable folkRows={folkData.folkRows} fieldDefs={folkData.fieldDefs} />
-          </div>
-        ) : null}
-      </div>
+      {/* FOLK Report (only shown for FOLK segment users) */}
+      {isFolk && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2">
+            FOLK Report — {folkData?.title || 'All Residencies'}
+            <span className="ml-2 text-xs font-normal text-muted-foreground">{rangeLabel}</span>
+          </h3>
+          {folkLoading && !folkData ? (
+            <Skeleton className="h-48 w-full" />
+          ) : folkData ? (
+            <div className={`transition-opacity ${folkLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+              <FolkReportTable folkRows={folkData.folkRows} fieldDefs={folkData.fieldDefs} />
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Individual Leaderboard — matches selected period */}
       <div>

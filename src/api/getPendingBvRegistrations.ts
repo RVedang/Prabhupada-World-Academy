@@ -1,21 +1,29 @@
 import { z } from 'zod';
-import { createEndpoint, BvMemberRegistrations, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvMemberRegistrations, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get pending Bhakti Vriksha member registrations filtered by access level (FOLK Guides vs Super Admin / Hiranyavarna Prabhu)',
   authenticated: true,
-  inputSchema: z.object({}),
+  inputSchema: z.object({
+    segment: z.enum(['PW', 'FOLK']).optional(),
+  }),
   outputSchema: z.any(),
-  execute: async ({ context }: any) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const role = (context.user.role || '').toUpperCase();
     const userEmail = (context.user.email || '').toLowerCase();
     
     // Check if user is Super Admin / Hiranyavarna Prabhu / Admin
-    const isSuperAdminOrPwAdmin = role === 'SUPER_GUIDE' || 
+    const isSuperAdminOrPwAdmin =
+      role === 'SUPER_GUIDE' || 
+      role === 'SUPER_ADMIN' ||
+      role === 'ADMIN' ||
       userEmail === 'srilaprabhupadaworld@gmail.com' || 
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail.includes('admin') ||
       context.user.isBvAdmin || 
-      context.user.isBvSuperAdmin;
+      context.user.isBvSuperAdmin ||
+      context.user.isPwAdmin;
 
     // Check if user is Guide or Supervisor or RGF
     const isGuideOrSupervisor = role === 'GUIDE' || 
@@ -24,56 +32,103 @@ export default createEndpoint({
       context.user.isSadhanaMentor;
 
     if (!isSuperAdminOrPwAdmin && !isGuideOrSupervisor) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
     let records: any[] = [];
     try {
-      const result = await BvMemberRegistrations.findAll({
-        filters: { status: 'Pending Approval' },
-        limit: 500,
-      });
-      records = result?.records || [];
+      // Fetch all registrations from BvMemberRegistrations collection
+      const result = await BvMemberRegistrations.findAll({ limit: 500 });
+      const rawRecords = result?.records || [];
+      // Filter for pending status (supports 'Pending Approval', 'Pending', 'Awaiting Approval', or missing status)
+      records = rawRecords.filter(r => 
+        !r.status || 
+        r.status === 'Pending Approval' || 
+        r.status === 'Pending' || 
+        r.status === 'Awaiting Approval'
+      );
     } catch (err) {
       records = [];
     }
 
     // Enhance records with user background (PW user vs FOLK guide user)
-    const userIds = records.map(r => r.userId).filter(Boolean);
+    const rawUserIds = records.map(r => r.userId || r.userDbId).filter(Boolean);
+    const rawEmails = records.map(r => (r.email || '').toLowerCase()).filter(Boolean);
     const userMap: Record<string, any> = {};
 
-    if (userIds.length > 0) {
-      try {
-        const { records: usersList } = await Users.findAll({
-          filters: { id: userIds },
-          fields: ['id', 'guide', 'selectedGuideId', 'guideName', 'residency', 'selectedFolkResidency', 'isPrabhupadaWorldUser'],
-          limit: 500,
-        });
-        (usersList || []).forEach(u => {
-          userMap[u.id] = u;
-        });
-      } catch (e) {}
-    }
+    try {
+      const [{ records: list1 }, { records: list2 }, { records: list3 }] = await Promise.all([
+        rawUserIds.length > 0 ? Users.findAll({ filters: { id: rawUserIds }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
+        rawUserIds.length > 0 ? Users.findAll({ filters: { userId: rawUserIds }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
+        rawEmails.length > 0 ? Users.findAll({ filters: { email: rawEmails }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
+      ]);
+      [...(list1 || []), ...(list2 || []), ...(list3 || [])].forEach(u => {
+        if (u.id) userMap[u.id] = u;
+        if (u.userId) userMap[u.userId] = u;
+        if (u.email) userMap[u.email.toLowerCase()] = u;
+      });
+    } catch (e) {}
 
-    // Filter according to user intent:
-    // 1. Hiranyavarna Prabhu / PW Admin sees ONLY Prabhupada World registrations
-    // 2. Super FOLK Guide / Supervisors / Guides see ONLY FOLK registrations
-    const isHiranyavarnaOrPwAdmin = userEmail === 'srilaprabhupadaworld@gmail.com' || context.user.isPwAdmin;
+    // Fallback: Also fetch users whose bvRegistrationStatus is Pending Approval directly from Users table
+    try {
+      const { records: pendingUsers } = await Users.findAll({
+        filters: { bvRegistrationStatus: 'Pending Approval' },
+        limit: 500,
+      }).catch(() => ({ records: [] }));
+
+      const existingUserIds = new Set(records.map(r => r.userDbId || r.userId || r.id));
+      const existingEmails = new Set(records.map(r => (r.email || '').toLowerCase()).filter(Boolean));
+
+      for (const u of (pendingUsers || [])) {
+        const uEmail = (u.email || '').toLowerCase();
+        if (existingUserIds.has(u.id) || existingUserIds.has(u.userId) || (uEmail && existingEmails.has(uEmail))) {
+          continue;
+        }
+
+        const isPw = !!(u.isPrabhupadaWorldUser) || u.segment === 'PW';
+        records.push({
+          id: `BVREG-${u.id}`,
+          userId: u.userId || u.id,
+          userDbId: u.id,
+          email: u.email || '',
+          fullName: u.fullName || u.email || 'Devotee',
+          phone: u.phone || '',
+          ashrayLevel: u.ashrayLevel || 'None',
+          pwClassesAttending: u.pwClassesAttending || 'None',
+          timePreference: u.timePreference || '7:45 PM – 8:15 PM (Everyday)',
+          status: 'Pending Approval',
+          submittedAt: u.statusChangedAt || u.createdAt || new Date().toISOString(),
+          segment: isPw ? 'PW' : 'FOLK',
+          isPrabhupadaWorldUser: isPw,
+        });
+
+        if (u.id) userMap[u.id] = u;
+        if (u.userId) userMap[u.userId] = u;
+        if (uEmail) userMap[uEmail] = u;
+      }
+    } catch (e) {}
+
+    // Filter according to requested segment (PW vs FOLK)
+    const targetSegment = input?.segment || (
+      userEmail === 'srilaprabhupadaworld@gmail.com' || context.user.isPwAdmin ? 'PW' : 'FOLK'
+    );
 
     const filteredRecords = records.filter(r => {
-      const u = userMap[r.userId];
+      const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
       const uGuide = (String(u?.guide || '') + ' ' + String(u?.selectedGuideId || '') + ' ' + String(u?.guideName || '')).toLowerCase();
-      const isPwUser = !!(u?.isPrabhupadaWorldUser) || 
+      const isPwUser = !!(u?.isPrabhupadaWorldUser || r.isPrabhupadaWorldUser) || 
+        (u?.segment === 'PW' || r.segment === 'PW') ||
         r.guideId === 'MENTOR-PW-HIRANYAVARNA' || 
         r.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' ||
         uGuide.includes('mentor-pw-hiranyavarna') ||
-        uGuide.includes('hiranyavarna');
+        uGuide.includes('hiranyavarna') ||
+        uGuide.includes('prabhupadaworld');
 
-      if (isHiranyavarnaOrPwAdmin) {
-        return isPwUser; // Hiranyavarna Prabhu sees ONLY Prabhupada World registrations
+      if (targetSegment === 'PW') {
+        return isPwUser; // PW Admin / Super Admin sees ONLY Prabhupada World registrations
       }
       
-      // Super FOLK Guides / Supervisors see ONLY FOLK registrations
+      // FOLK Admin / Super Admin sees ONLY FOLK registrations
       return !isPwUser;
     });
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Config, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Config, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Save TagMango configuration (Super Guide only)',
@@ -12,7 +12,7 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }) => {
     if (context.user.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
 
     const now = new Date().toISOString();

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, Email } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, Email } from '@/lib/backend-sdk';
 
 /**
  * SADHANA REMINDER SCHEDULER
@@ -12,14 +12,14 @@ import { createEndpoint, Users, SadhanaEntries, Email } from 'zite-integrations-
  *
  * HOW TO SCHEDULE (using any cron service, e.g. cron-job.org, EasyCron, Pipedream):
  *   POST  <your-app-url>/api/sendSadhanaReminders
- *   Body: { "secret": "<ZITE_REMINDER_SECRET>", "round": 1 }
+ *   Body: { "secret": "<APP_REMINDER_SECRET>", "round": 1 }
  *
  * UTC times (IST = UTC+5:30):
  *   Round 1 → 15:30 UTC   (9:00 PM IST)
  *   Round 2 → 23:15 UTC   (4:45 AM IST next day)
  *   Round 3 → 03:45 UTC   (9:15 AM IST next day)
  *
- * Set ZITE_REMINDER_SECRET in your app secrets to protect this endpoint.
+ * Set APP_REMINDER_SECRET in your app secrets to protect this endpoint.
  */
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -70,7 +70,7 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     // Verify secret to prevent unauthorised calls
-    const expectedSecret = process.env.ZITE_REMINDER_SECRET ?? '';
+    const expectedSecret = process.env.APP_REMINDER_SECRET ?? '';
     if (!expectedSecret || input.secret !== expectedSecret) {
       // Return silently — don't reveal whether the secret is wrong
       return { sent: 0, skipped: 0, date: '' };
@@ -79,7 +79,7 @@ export default createEndpoint({
     // Round 1 = check today's entry; rounds 2 & 3 = check yesterday's entry
     const targetDate = input.round === 1 ? getISTDate(0) : getISTDate(-1);
     const copy = ROUND_COPY[input.round];
-    const appUrl = process.env.ZITE_APP_URL ?? '';
+    const appUrl = process.env.APP_APP_URL ?? '';
     const sadhanaUrl = `${appUrl}/sadhana`;
 
     // Collect all active users with emails (paginated)

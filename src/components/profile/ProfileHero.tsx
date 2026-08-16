@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { User, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportUserData } from 'zite-endpoints-sdk';
+import { exportUserData } from '@/lib/endpoints-sdk';
 import { exportToCsv } from '@/utils/exportCsv';
 
 interface Props {
@@ -17,9 +17,10 @@ interface Props {
   isFolkLead?: boolean;
   isTripCoordinator?: boolean;
   isBvMentor?: boolean;
+  isSuperAdmin?: boolean;
 }
 
-export default function ProfileHero({ fullName, email, isResident, ashrayLevel, isBvsl, isSadhanaMentor, isFolkLead, isTripCoordinator, isBvMentor }: Props) {
+export default function ProfileHero({ fullName, email, isResident, ashrayLevel, isBvsl, isSadhanaMentor, isFolkLead, isTripCoordinator, isBvMentor, isSuperAdmin }: Props) {
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
@@ -69,19 +70,22 @@ export default function ProfileHero({ fullName, email, isResident, ashrayLevel, 
         <h2 className="text-2xl font-bold">{fullName}</h2>
         <p className="text-sm text-muted-foreground">{email}</p>
         <div className="flex flex-wrap gap-2 mt-2">
-          {isBvsl && <Badge className="bg-primary/10 text-primary border border-primary/30">🌟 BVSL</Badge>}
+          {isSuperAdmin && <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">👑 Super Admin</Badge>}
+          {isBvsl && <Badge className="bg-primary/10 text-primary border border-primary/30">📖 RGF (Facilitator)</Badge>}
           {isSadhanaMentor && <Badge className="bg-amber-100 text-amber-800 border border-amber-300">🎓 Sadhana Mentor</Badge>}
-          {isBvMentor && <Badge className="bg-purple-100 text-purple-800 border border-purple-300">🍃 BV Mentor</Badge>}
+          {isBvMentor && <Badge className="bg-purple-100 text-purple-800 border border-purple-300">👁️ Supervisor</Badge>}
           {isFolkLead && <Badge className="bg-blue-100 text-blue-800 border border-blue-300">👑 FOLK Lead</Badge>}
           {isTripCoordinator && <Badge className="bg-indigo-100 text-indigo-800 border border-indigo-300">🗺️ Trip Coordinator</Badge>}
           {isResident && <Badge variant="secondary">🏠 Resident</Badge>}
-          {ashrayLevel && <Badge variant="secondary">✨ {ashrayLevel}</Badge>}
+          {!isSuperAdmin && ashrayLevel && <Badge variant="secondary">✨ {ashrayLevel}</Badge>}
         </div>
       </div>
-      <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting} className="shrink-0">
-        {exporting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Download className="w-4 h-4 mr-1" />}
-        Export
-      </Button>
+      {!isSuperAdmin && (
+        <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting} className="shrink-0">
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Download className="w-4 h-4 mr-1" />}
+          Export
+        </Button>
+      )}
     </div>
   );
 }

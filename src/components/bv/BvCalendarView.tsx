@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Calendar, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isBefore, startOfDay } from 'date-fns';
 import { toast } from 'sonner';
-import { markBvAttendance } from 'zite-endpoints-sdk';
-import type { GetBvAttendanceOutputType } from 'zite-endpoints-sdk';
+import { markBvAttendance } from '@/lib/endpoints-sdk';
+import type { GetBvAttendanceOutputType } from '@/lib/endpoints-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type HistoryItem = GetBvAttendanceOutputType['userHistory'][0];
 
@@ -17,12 +18,17 @@ interface Props {
 }
 
 export default function BvCalendarView({ history, userId, onRefresh, quizDates }: Props) {
+  const { profile } = useUserProfile();
+  const activeUserId = userId || (profile as any)?.id || profile?.userId;
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [marking, setMarking] = useState<'P' | 'A' | null>(null);
+  const [overrideMap, setOverrideMap] = useState<Record<string, string>>({});
 
   const statusMap = new Map<string, string>();
   history.forEach(h => { if (h.attendanceDate) statusMap.set(h.attendanceDate, h.status); });
+  // Apply optimistic overrides
+  Object.entries(overrideMap).forEach(([d, st]) => statusMap.set(d, st));
 
   const quizDateMap = new Map<string, number>();
   (quizDates || []).forEach(q => { if (q.date) quizDateMap.set(q.date, q.percentage); });
@@ -35,22 +41,42 @@ export default function BvCalendarView({ history, userId, onRefresh, quizDates }
   const firstDayOfWeek = (calendarDays[0].getDay() + 6) % 7;
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  const presentCount = history.filter(h => h.status === 'P').length;
-  const totalCount = history.length;
+  const canMarkAttendance = !!(
+    profile?.isBvFacilitator ||
+    profile?.isBvsl ||
+    profile?.isBvSubFacilitator ||
+    profile?.isBvMentor ||
+    profile?.isBvSupervisor ||
+    (profile?.role as string) === 'SUPER_ADMIN' ||
+    (profile?.role as string) === 'ADMIN' ||
+    profile?.role === 'SUPER_GUIDE' ||
+    profile?.role === 'GUIDE' ||
+    (profile as any)?.isBvAdmin ||
+    (profile as any)?.isBvSuperAdmin
+  );
+
+  const presentCount = Array.from(statusMap.values()).filter(st => st === 'P').length;
+  const totalCount = statusMap.size || history.length;
 
   const handleDayClick = (dateStr: string, isFuture: boolean) => {
-    if (isFuture || !userId) return;
+    if (isFuture || !activeUserId || !canMarkAttendance) return;
     setSelectedDate(prev => prev === dateStr ? null : dateStr);
   };
 
   const handleMark = async (status: 'P' | 'A') => {
-    if (!selectedDate || !userId) return;
+    if (!selectedDate || !activeUserId || !canMarkAttendance) return;
+    const targetDate = selectedDate;
     setMarking(status);
+    // Optimistically update calendar UI immediately
+    setOverrideMap(prev => ({ ...prev, [targetDate]: status }));
     try {
-      await markBvAttendance({ userId, status, localDate: selectedDate } as any);
-      toast.success(`Marked ${status === 'P' ? 'Present' : 'Absent'} for ${selectedDate}`);
+      await markBvAttendance({ userId: activeUserId, status, localDate: targetDate } as any);
+      toast.success(`Marked ${status === 'P' ? 'Present' : 'Absent'} for ${targetDate}`);
       setSelectedDate(null);
-      onRefresh?.();
+      window.dispatchEvent(new Event('attendanceUpdated'));
+      if (onRefresh) {
+        onRefresh();
+      }
     } catch {
       toast.error('Failed to mark attendance');
     } finally {
@@ -85,14 +111,16 @@ export default function BvCalendarView({ history, userId, onRefresh, quizDates }
         {totalCount > 0 && (
           <p className="text-xs text-muted-foreground">
             {presentCount}/{totalCount} days present · <span className="font-medium text-primary">{Math.round((presentCount / totalCount) * 100)}% Attendance</span>
-            {userId && <span className="ml-2 text-muted-foreground/70">· Tap a day to edit</span>}
+            {activeUserId && canMarkAttendance && (
+              <span className="ml-2 text-muted-foreground/70">· Tap a day to edit</span>
+            )}
           </p>
         )}
       </CardHeader>
       <CardContent>
-        {/* Inline edit bar */}
-        {selectedDate && userId && (
-          <div className="mb-3 p-3 rounded-lg bg-muted/50 border flex items-center justify-between gap-2">
+        {/* Inline edit bar for facilitators */}
+        {selectedDate && activeUserId && canMarkAttendance && (
+          <div className="mb-3 p-3 rounded-lg bg-muted/50 border flex items-center justify-between gap-2 flex-wrap">
             <span className="text-sm font-medium">Mark {selectedDate}:</span>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" disabled={marking !== null}
@@ -141,7 +169,7 @@ export default function BvCalendarView({ history, userId, onRefresh, quizDates }
                     : 'bg-muted/30 border-muted text-muted-foreground',
                   isToday ? 'ring-2 ring-primary ring-offset-1' : '',
                   isSelected ? 'ring-2 ring-blue-400 ring-offset-1' : '',
-                  userId && !isFuture ? 'cursor-pointer' : '',
+                  activeUserId && !isFuture ? 'cursor-pointer' : '',
                 ].join(' ')}
               >
                 <span className="text-sm font-bold leading-none">{format(day, 'd')}</span>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince'];
@@ -33,6 +33,7 @@ export default createEndpoint({
     residencyFilter: z.enum(['all', 'resident', 'non_resident', 'scholar']).optional(),
     folkResidencyId: z.string().optional(),
     ashrayLevel: z.string().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
@@ -81,6 +82,12 @@ export default createEndpoint({
         }
       }
       users = Array.from(map.values());
+    } else {
+      // ALL mode — fetch all active users, scoped by segment if provided
+      const allUsersFilter: any = { status: 'Active' };
+      if (input.segment) allUsersFilter.segment = input.segment;
+      const { records } = await Users.findAll({ filters: allUsersFilter, fields: USER_FIELDS, limit: 2000 });
+      users = records;
     }
 
     if (bvslMode) {

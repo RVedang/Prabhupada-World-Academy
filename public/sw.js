@@ -7,19 +7,18 @@ const ICON_URL = '/icons/icon-192.png';
 // ── State ──
 let submittedToday = false;
 const notifiedSlots = new Set();
+// Track processed broadcast IDs to avoid duplicates from push events and polling fallback
+const processedBroadcastIds = new Set();
 
-// ── Reminder times (IST hours/minutes) ──
-const REMINDER_TIMES = {
-  'night-1': { hour: 21, minute: 20 },
-  'night-2': { hour: 22, minute: 20 },
-  'morning': { hour: 7, minute: 40 },
-};
+// ── Reminder times (IST hours/minutes fallbacks) ──
+let swReminderTimes = [
+  { hour: 21, minute: 20, slot: 'night-1' },
+  { hour: 22, minute: 20, slot: 'night-2' },
+  { hour: 7, minute: 40, slot: 'morning' },
+];
 
-const SLOT_MESSAGES = {
-  'night-1': { title: '📿 Sadhana Reminder', body: 'Time to fill your Sadhana! Complete it before sleeping tonight.' },
-  'night-2': { title: '🙏 Sadhana Reminder', body: "Don't forget — fill your Sadhana report before you sleep!" },
-  'morning': { title: '⏰ Last Chance!', body: "Submit yesterday's Sadhana before the morning deadline!" },
-};
+let swCustomTitle = '';
+let swCustomBody = '';
 
 // ── Push event (server-sent) ──
 self.addEventListener('push', (event) => {
@@ -32,17 +31,62 @@ self.addEventListener('push', (event) => {
     data = { title: 'Sadhana Reminder', body: event.data.text() };
   }
 
-  const slot = data.slot || 'night-1';
-  const msg = SLOT_MESSAGES[slot] || { title: data.title || 'Sadhana Reminder', body: data.body || '' };
+  // User-level bypass guard
+  if (swUserNotificationsDisabled) {
+    console.log('[SW] Skipping push event: user has disabled notifications');
+    return;
+  }
 
+  // Deduplication check
+  if (data.id) {
+    if (processedBroadcastIds.has(data.id)) return;
+    processedBroadcastIds.add(data.id);
+    if (processedBroadcastIds.size > 100) {
+      const first = processedBroadcastIds.values().next().value;
+      if (first !== undefined) processedBroadcastIds.delete(first);
+    }
+  }
+
+  const slot = data.slot || 'night-1';
+  // Prioritize title and body sent by server (which may contain custom super admin content)
+  const titleToUse = data.title || (SLOT_MESSAGES[slot] ? SLOT_MESSAGES[slot].title : 'Sadhana Reminder');
+  const bodyToUse = data.body || (SLOT_MESSAGES[slot] ? SLOT_MESSAGES[slot].body : '');
+
+  // Broadcast to active pages and conditionally show native notification
   event.waitUntil(
-    self.registration.showNotification(msg.title, {
-      body: msg.body,
-      icon: ICON_URL,
-      badge: ICON_URL,
-      tag: `sadhana-push-${slot}`,
-      data: { url: data.url || APP_URL, slot },
-      renotify: true,
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      let hasVisibleClient = false;
+      for (const client of windowClients) {
+        if (client.focused || client.visibilityState === 'visible') {
+          hasVisibleClient = true;
+        }
+        try {
+          client.postMessage({
+            type: 'PUSH_RECEIVED',
+            id: data.id || '',
+            title: titleToUse,
+            body: bodyToUse,
+            slot,
+            senderEmail: data.senderEmail || '',
+            url: data.url || '',
+            inviteeIds: data.inviteeIds || [],
+          });
+        } catch (e) {
+          console.warn('[SW] Failed to postMessage to window client:', e);
+        }
+      }
+
+      // Only show native system notification if no visible page is active
+      if (!hasVisibleClient) {
+        return self.registration.showNotification(titleToUse, {
+          body: bodyToUse,
+          icon: ICON_URL,
+          badge: ICON_URL,
+          tag: `sadhana-push-${slot}-${data.id || Date.now()}`,
+          data: { url: data.url || APP_URL, slot, inviteeIds: data.inviteeIds || [] },
+          renotify: true,
+        });
+      }
     })
   );
 });
@@ -54,10 +98,22 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Focus existing window if found
+      // Focus existing window if found (matching base URL origin & path, bypassing hash difference)
       for (const client of windowClients) {
-        if (client.url.includes(urlPath) && 'focus' in client) {
-          return client.focus();
+        try {
+          const clientUrl = new URL(client.url);
+          const targetUrl = new URL(urlPath, self.location.origin);
+          if (clientUrl.origin === targetUrl.origin && clientUrl.pathname === targetUrl.pathname && 'focus' in client) {
+            // Navigate if hash differs
+            if (clientUrl.hash !== targetUrl.hash && 'navigate' in client) {
+              client.navigate(urlPath);
+            }
+            return client.focus();
+          }
+        } catch (e) {
+          if (client.url.includes(urlPath) && 'focus' in client) {
+            return client.focus();
+          }
         }
       }
       // Open new window
@@ -73,14 +129,57 @@ self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data) return;
 
-  if (data.type === 'SYNC_STATE') {
+  if (data.type === 'SYNC_STATE' || data.type === 'SUBMITTED_TODAY') {
     submittedToday = !!data.submittedToday;
     if (submittedToday) notifiedSlots.clear();
   }
-
-  if (data.type === 'SUBMITTED_TODAY') {
-    submittedToday = !!data.submittedToday;
-    if (submittedToday) notifiedSlots.clear();
+  if (data.type === 'SYNC_USER') {
+    swUserEmail = (data.email || '').toLowerCase();
+    if (swUserEmail) {
+      startPollingLoop();
+    } else {
+      isPolling = false;
+    }
+  }
+  if (data.type === 'SYNC_SETTINGS') {
+    const wasUserDisabled = swUserNotificationsDisabled;
+    if (data.userDisabled !== undefined) {
+      swUserNotificationsDisabled = !!data.userDisabled;
+    } else if (data.disabled !== undefined) {
+      swUserNotificationsDisabled = !!data.disabled;
+    }
+    if (data.adminDisabled !== undefined) {
+      swAdminNotificationsDisabled = !!data.adminDisabled;
+    }
+    if (wasUserDisabled && !swUserNotificationsDisabled) {
+      // User enabled notifications — reset swLastId so they immediately fetch the current broadcast if any
+      swLastId = '';
+    }
+    
+    // Sync custom reminder times
+    if (Array.isArray(data.times)) {
+      if (data.times.length > 0) {
+        swReminderTimes = data.times.map((t, idx) => {
+          const [hStr, mStr] = t.split(':');
+          return {
+            hour: parseInt(hStr || '0', 10),
+            minute: parseInt(mStr || '0', 10),
+            slot: `custom-${idx}`,
+          };
+        });
+      } else {
+        // Reset to default fallbacks
+        swReminderTimes = [
+          { hour: 21, minute: 20, slot: 'night-1' },
+          { hour: 22, minute: 20, slot: 'night-2' },
+          { hour: 7, minute: 40, slot: 'morning' },
+        ];
+      }
+    }
+    
+    // Sync custom text contents
+    if (data.title !== undefined) swCustomTitle = data.title;
+    if (data.body !== undefined) swCustomBody = data.body;
   }
 });
 
@@ -93,6 +192,17 @@ self.addEventListener('periodicsync', (event) => {
 
 async function checkAndNotify() {
   if (submittedToday) return;
+  if (swUserNotificationsDisabled || swAdminNotificationsDisabled) {
+    console.log('[SW] Skipping checkAndNotify: user or admin disabled notifications');
+    return;
+  }
+
+  // Fetch the latest subscriber list/status just before sending
+  const subscription = await self.registration.pushManager.getSubscription();
+  if (!subscription) {
+    console.log('[SW] Skipping reminder check: user is not subscribed');
+    return;
+  }
 
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
@@ -100,7 +210,8 @@ async function checkAndNotify() {
   const istHour = istNow.getUTCHours();
   const istMinute = istNow.getUTCMinutes();
 
-  for (const [slot, time] of Object.entries(REMINDER_TIMES)) {
+  for (const time of swReminderTimes) {
+    const slot = time.slot;
     if (notifiedSlots.has(slot)) continue;
 
     const targetMinutes = time.hour * 60 + time.minute;
@@ -108,86 +219,102 @@ async function checkAndNotify() {
 
     // Fire if we're within 10 minutes past the target time
     if (currentMinutes >= targetMinutes && currentMinutes <= targetMinutes + 10) {
-      const msg = SLOT_MESSAGES[slot];
-      if (msg) {
-        await self.registration.showNotification(msg.title, {
-          body: msg.body,
-          icon: ICON_URL,
-          badge: ICON_URL,
-          tag: `sadhana-local-${slot}`,
-          data: { url: APP_URL, slot },
-        });
-        notifiedSlots.add(slot);
-      }
+      const titleToUse = swCustomTitle || '📿 Sadhana Reminder';
+      const bodyToUse = swCustomBody || 'Time to fill your Sadhana report before sleeping tonight!';
+      
+      await self.registration.showNotification(titleToUse, {
+        body: bodyToUse,
+        icon: ICON_URL,
+        badge: ICON_URL,
+        tag: `sadhana-local-${slot}`,
+        data: { url: APP_URL, slot },
+      });
+      notifiedSlots.add(slot);
     }
   }
 }
 
-// ── Install / Activate / Cache ──
-const CACHE_NAME = 'sadhana-tracker-cache-v1';
+// ── Cache Configuration ──
+const CACHE_NAME = 'sadhana-static-cache-v2';
 const ASSETS_TO_CACHE = [
-  '/',
+  '/manifest.json',
   '/next.svg',
+  '/globe.svg',
   '/window.svg',
   '/file.svg',
-  '/globe.svg',
   '/vercel.svg',
 ];
 
+// ── Lifecycle & Caching ──
+// Pre-cache core static assets on install (excluding HTML documents to prevent refresh loops)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      console.log('[ServiceWorker] Pre-caching static assets');
+      return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
+        console.warn('[ServiceWorker] Pre-caching failed:', err);
+      });
     }).then(() => self.skipWaiting())
   );
 });
 
+// Purge old CacheStorage versions on activate
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
+            console.log('[ServiceWorker] Removing obsolete cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => clients.claim())
+    }).then(() => self.clients.claim())
   );
 });
 
+// Fetch interception with Stale-While-Revalidate strategy
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  if (request.method !== 'GET') return;
+  const url = new URL(event.request.url);
 
-  const url = new URL(request.url);
+  // 1. Only handle GET requests of assets from the same origin
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
 
-  // Skip API queries, hot-reloading hooks, and browser extension assets
+  // 2. Exclude page navigations, HTML files, APIs, hot reloads, and internal Next.js chunks.
+  // Never cache HTML documents to prevent infinite reload loops during app updates.
   if (
-    url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/_next/webpack-hmr') ||
-    url.hostname === 'localhost' ||
-    url.hostname === '127.0.0.1' ||
-    !url.protocol.startsWith('http')
+    event.request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.startsWith('/api/') || 
+    url.pathname.includes('webpack') || 
+    url.pathname.includes('hot-update') ||
+    url.pathname.includes('/_next/')
   ) {
     return;
   }
 
-  // Stale-While-Revalidate Strategy for static assets and local pages
   event.respondWith(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.match(request).then((cachedResponse) => {
-        const fetchPromise = fetch(request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
-            cache.put(request, networkResponse.clone());
+      return cache.match(event.request).then((cachedResponse) => {
+        const fetchPromise = fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         }).catch(() => {
           return cachedResponse;
         });
 
+        // Return cached resource immediately if available, updating in background
         return cachedResponse || fetchPromise;
       });
     })
   );
 });
+
+let swUserNotificationsDisabled = false;
+let swAdminNotificationsDisabled = false;

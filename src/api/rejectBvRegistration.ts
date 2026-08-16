@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvMemberRegistrations, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvMemberRegistrations, Users, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
 
@@ -12,15 +12,33 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const role = (context.user.role || '').toUpperCase();
     const userEmail = (context.user.email || '').toLowerCase();
-    const isAuthorized = role === 'SUPER_GUIDE' || role === 'GUIDE' || userEmail === 'srilaprabhupadaworld@gmail.com' || context.user.isBvAdmin || context.user.isBvSuperAdmin || context.user.isBvSupervisor;
+    
+    // Fetch full caller record to access hierarchy flags
+    const callerRecord = await Users.findOne({ id: context.user.id });
+    if (!callerRecord) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'User profile not found' });
+    }
+
+    const callerRole = (callerRecord.role || '').toUpperCase();
+    const isAuthorized =
+      callerRole === 'SUPER_ADMIN' ||
+      callerRole === 'ADMIN' ||
+      callerRole === 'SUPER_GUIDE' ||
+      callerRole === 'GUIDE' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com' ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail.includes('gaurmandal') ||
+      !!callerRecord.isBvSuperAdmin ||
+      !!callerRecord.isBvAdmin ||
+      !!callerRecord.isBvSupervisor;
+
     if (!isAuthorized) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
     const reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
-    if (!reg) throw new ZiteError({ code: 'NOT_FOUND', message: 'Registration request not found' });
+    if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
 
     const now = new Date().toISOString();
 
@@ -35,13 +53,23 @@ export default createEndpoint({
     });
 
     // 2. Update main User record
-    await Users.update({
-      id: reg.userId,
-      record: {
-        bvRegistrationStatus: 'Rejected',
-        pendingBvRejectionNotice: true,
-      },
-    }).catch(() => {});
+    let targetUser = await Users.findOne({ id: reg.userId });
+    if (!targetUser) {
+      targetUser = await Users.findOne({ filters: { userId: reg.userId } }) ||
+                   await Users.findOne({ filters: { email: reg.email } }) ||
+                   await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } });
+    }
+
+    if (targetUser) {
+      await Users.update({
+        id: targetUser.id,
+        record: {
+          bvRegistrationStatus: 'Rejected',
+          pendingBvRejectionNotice: true,
+        },
+      });
+      serverCacheInvalidate(profileCacheKey(targetUser.id));
+    }
 
     serverCacheInvalidate(profileCacheKey(reg.userId));
 

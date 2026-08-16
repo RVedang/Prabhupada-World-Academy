@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, UserPlus, FlaskConical, Database, Loader2, Users } from 'lucide-react';
-import { seedData, seedUsers } from 'zite-endpoints-sdk';
+import { seedData, seedUsers } from '@/lib/endpoints-sdk';
 import { toast } from 'sonner';
 
 export default function SetupPage() {
@@ -93,7 +93,7 @@ export default function SetupPage() {
                 <div className="text-sm space-y-1">
                   <p>This will upsert all users from the PDF into the <strong>Users</strong> table (matched by userId). Includes:</p>
                   <ul className="list-disc list-inside mt-2 space-y-1 text-muted-foreground">
-                    <li>52 users: Guides, BVSLs, Sadhana Mentors, and regular Users</li>
+                    <li>52 users: Guides, Facilitators (RGFs), Sadhana Mentors, and regular Users</li>
                     <li>Ashray levels, residency status, roles, and status fields</li>
                     <li>Existing records are updated (not duplicated)</li>
                   </ul>
@@ -118,13 +118,13 @@ export default function SetupPage() {
                 <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">1</div>
                 <CardTitle>Add Guides via the Database</CardTitle>
               </div>
-              <CardDescription>Add FOLK Guides directly in the connected Zite database</CardDescription>
+              <CardDescription>Add FOLK Guides directly in the connected App Database</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-start gap-3 p-4 bg-muted rounded-lg">
                 <UserPlus className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                 <div className="text-sm space-y-1">
-                  <p>Open the <strong>Guides</strong> table in your Zite database and add rows with the following fields:</p>
+                  <p>Open the <strong>Guides</strong> table in your App Database and add rows with the following fields:</p>
                   <div className="grid grid-cols-2 gap-2 mt-3 font-mono">
                     <div className="font-bold">Field</div><div className="font-bold">Example Value</div>
                     <div>full_name</div><div>Prabhu Name</div>

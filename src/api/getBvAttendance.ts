@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvAttendance, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroupMembers, BvAttendance, Users, SadhanaEntries } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get BV attendance history and leaderboard for the current user',
@@ -11,44 +11,73 @@ export default createEndpoint({
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
-    const uid = context.user!.id;
+    const uid = input.userId || context.user!.id;
     const sinceDate = input.sinceDate || new Date(Date.now() - 90 * 86400_000).toISOString().split('T')[0];
+
+    const userKeys = new Set<string>();
+    if (uid) userKeys.add(String(uid).toLowerCase());
+    if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
+    if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
+    if (context.user?.email) userKeys.add(String(context.user.email).toLowerCase());
+
+    // Query SadhanaEntries for all users — even those not in a BvGroup
+    const { records: sadhanaRecords } = await SadhanaEntries.findAll({
+      filters: { user: uid } as any,
+      fields: ['id', 'entryDate', 'fieldValuesJson'],
+      limit: 1000,
+    }).catch(() => ({ records: [] }));
 
     // Get user's group membership
     const membershipRes = await BvGroupMembers.findAll({ filters: { user: uid }, limit: 5, fields: ['id', 'group'] });
     const membership = membershipRes.records[0];
-    if (!membership) return { userHistory: [], leaderboard: [], userTotalPointsThisWeek: 0 };
 
-    const groupId = Array.isArray(membership.group) ? membership.group[0] : membership.group;
-    if (!groupId) return { userHistory: [], leaderboard: [], userTotalPointsThisWeek: 0 };
+    const groupId = membership ? (Array.isArray(membership.group) ? membership.group[0] : membership.group) : null;
 
-    // Query all attendance for this group since sinceDate (using new fields)
-    const filters: any = { group: groupId };
-    if (sinceDate) filters.attendanceDate = { gte: sinceDate };
-
-    const allAttRes = await BvAttendance.findAll({
-      filters,
-      limit: 1000,
+    // Query all BvAttendance records and filter by userKeys
+    const { records: allBvRecords } = await BvAttendance.findAll({
+      limit: 2000,
       fields: ['id', 'user', 'present', 'attendanceDate'],
-    });
-    const allAtt = allAttRes.records;
+    }).catch(() => ({ records: [] }));
 
-    if (allAtt.length === 0) return { userHistory: [], leaderboard: [], userTotalPointsThisWeek: 0 };
-
-    // User's history
-    const myAtt = allAtt.filter((a: any) => {
-      const u = Array.isArray(a.user) ? a.user[0] : a.user;
-      return u === uid;
+    const myAttRecords = allBvRecords.filter((a: any) => {
+      const rawU = Array.isArray(a.user) ? a.user[0] : a.user;
+      const uStr = String(rawU || '').toLowerCase();
+      return userKeys.has(uStr);
     });
 
-    const userHistory = myAtt
-      .filter((a: any) => a.attendanceDate)
-      .map((a: any) => ({
-        attendanceDate: a.attendanceDate || '',
-        present: a.present || false,
-        sessionTopic: '',
-      }))
-      .sort((a: any, b: any) => b.attendanceDate.localeCompare(a.attendanceDate));
+    const allAtt = allBvRecords;
+
+    const dateMap = new Map<string, boolean>();
+    myAttRecords.forEach((a: any) => {
+      if (a.attendanceDate) dateMap.set(a.attendanceDate, a.present || false);
+    });
+
+    sadhanaRecords.forEach((s: any) => {
+      const d = String(s.entryDate || '').slice(0, 10);
+      if (d && !dateMap.has(d)) {
+        let isPresent = false;
+        try {
+          const fv = typeof s.fieldValuesJson === 'string' ? JSON.parse(s.fieldValuesJson) : (s.fieldValuesJson || {});
+          isPresent = !!(
+            fv.bhaktiVriksha === true ||
+            fv.bhaktiVriksha === 1 ||
+            fv.bhaktiVriksha === 'true' ||
+            Number(fv.bhaktiVriksha) > 0 ||
+            Number(fv._pts_bhaktiVriksha) > 0
+          );
+        } catch {
+          isPresent = false;
+        }
+        dateMap.set(d, isPresent);
+      }
+    });
+
+    const userHistory = Array.from(dateMap.entries()).map(([attendanceDate, present]) => ({
+      attendanceDate,
+      present,
+      status: present ? 'P' : 'A',
+      sessionTopic: '',
+    })).sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate));
 
     // Leaderboard — get all unique member user IDs
     const memberIds = [...new Set(allAtt.map((a: any) => Array.isArray(a.user) ? a.user[0] : a.user).filter(Boolean))] as string[];
@@ -80,7 +109,7 @@ export default createEndpoint({
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const weekStartStr = weekStart.toISOString().split('T')[0];
 
-    const thisWeekPresent = myAtt.filter((a: any) => a.present && a.attendanceDate >= weekStartStr).length;
+    const thisWeekPresent = myAttRecords.filter((a: any) => a.present && a.attendanceDate >= weekStartStr).length;
 
     return { userHistory, leaderboard, userTotalPointsThisWeek: thisWeekPresent };
   },

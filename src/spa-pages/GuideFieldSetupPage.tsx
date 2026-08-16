@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Database, Home, Globe, RefreshCw, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import { RESIDENT_FIELDS, NON_RESIDENT_FIELDS } from '@/config/sadhanaFields';
-import { invalidateSadhanaFieldsCache } from 'zite-endpoints-sdk';
+import { invalidateSadhanaFieldsCache } from '@/lib/endpoints-sdk';
 
 export default function GuideFieldSetupPage() {
   const navigate = useNavigate();
@@ -63,7 +63,7 @@ export default function GuideFieldSetupPage() {
               <AlertDescription className="text-xs text-muted-foreground">
                 <strong className="text-foreground">How it works:</strong> When you edit a field in the
                 {' '}<code className="font-mono bg-card border border-border rounded px-1 py-0.5 text-xs">SadhanaFields</code>
-                {' '}table (via the Zite database tab), the change is stored in the database immediately but won't appear
+                {' '}table (via the App Database tab), the change is stored in the database immediately but won't appear
                 in the user form until the memory cache is refreshed. Clicking <strong>Sync</strong> clears the cache —
                 the very next form load will read fresh definitions from the database and rebuild the cache.
               </AlertDescription>

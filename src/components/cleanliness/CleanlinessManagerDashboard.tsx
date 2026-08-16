@@ -6,11 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronLeft, ChevronRight, Camera, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadFile } from 'zite-file-upload-sdk';
+import { uploadFile } from '@/lib/file-upload-sdk';
 import {
   getCleanlinessRooms, getCleanlinessInspections, submitCleanlinessInspection,
-} from 'zite-endpoints-sdk';
-import type { GetCleanlinessRoomsOutputType } from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
+import type { GetCleanlinessRoomsOutputType } from '@/lib/endpoints-sdk';
 
 type Room = GetCleanlinessRoomsOutputType['rooms'][0];
 

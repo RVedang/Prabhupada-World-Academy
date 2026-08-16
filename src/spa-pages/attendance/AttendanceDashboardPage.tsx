@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAttendanceDashboard } from 'zite-endpoints-sdk';
-import type { GetAttendanceDashboardOutputType } from 'zite-endpoints-sdk';
+import { getAttendanceDashboard } from '@/lib/endpoints-sdk';
+import type { GetAttendanceDashboardOutputType } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';

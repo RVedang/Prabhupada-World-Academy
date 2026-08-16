@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { subDays } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Flame, TrendingUp, MessageCircle, Phone, Leaf, Star, Calendar, BarChart3, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { toast } from 'sonner';
-import { getUserDetailForGuide, getAshrayUpgradePath, getBvAttendance, getAshrayChecklist, getUserProgressStats, getUserCrmData } from 'zite-endpoints-sdk';
-import type { GetAshrayUpgradePathOutputType, GetUserCrmDataOutputType } from 'zite-endpoints-sdk';
+import { getUserDetailForGuide, getAshrayUpgradePath, getBvAttendance, getAshrayChecklist, getUserProgressStats, getUserCrmData } from '@/lib/endpoints-sdk';
+import type { GetAshrayUpgradePathOutputType, GetUserCrmDataOutputType } from '@/lib/endpoints-sdk';
 import AshrayJourneyCard from '@/components/crm/AshrayJourneyCard';
 import TripsDuesCard from '@/components/crm/TripsDuesCard';
 import RentHistoryCard from '@/components/crm/RentHistoryCard';

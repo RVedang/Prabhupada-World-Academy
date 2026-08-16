@@ -16,7 +16,7 @@ import {
   getTagMangoConfig, saveTagMangoConfig, getTagMangoSyncLog,
   testTagMangoConnection, registerTagMangoWebhook, bulkTagMangoEnroll,
   GetTagMangoSyncLogOutputType, GetTagMangoConfigOutputType, BulkTagMangoEnrollOutputType,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { fmt } from '@/lib/fmt';
 
@@ -439,7 +439,7 @@ function RegisterWebhookSection() {
           id="webhook-url"
           value={url}
           onChange={e => setUrl(e.target.value)}
-          placeholder="https://your-app.zite.so/api/tagMangoWebhook/..."
+          placeholder="https://your-app.pwacademy.org/api/tagMangoWebhook/..."
           className="font-mono text-sm"
         />
       </div>

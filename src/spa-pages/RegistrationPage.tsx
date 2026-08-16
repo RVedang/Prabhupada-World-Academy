@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { ArrowLeft, AlertCircle, Loader2, Link as LinkIcon, CheckCircle2 } from 'lucide-react';
-import { getGuides, registerUser, checkGuideEmail, getAllResidencies, GetGuidesOutputType, GetAllResidenciesOutputType } from 'zite-endpoints-sdk';
+import { getGuides, registerUser, checkGuideEmail, getAllResidencies, GetGuidesOutputType, GetAllResidenciesOutputType } from '@/lib/endpoints-sdk';
 import { Link } from 'react-router-dom';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { motion } from 'framer-motion';
 
 const COUNTRY_CODES = [
   { code: '+91', country: 'India', flag: '🇮🇳', abbr: 'IN' },
@@ -118,7 +119,7 @@ export default function RegistrationPage() {
     }
     if (!formData.selectedGuideId) { toast.error('Please select your Mentor'); return; }
 
-    const isPwMentorSelected = formData.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA';
+    const isPwMentorSelected = formData.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' || formData.selectedGuideId === 'MENTOR-PW-ADMIN';
 
     // FOLK center only required when NOT a Prabhupada World user
     if (!isPwMentorSelected && !formData.selectedFolkResidency) {
@@ -143,7 +144,7 @@ export default function RegistrationPage() {
         if (emailCheck.isGuide) { setGuideEmailBlocked(true); setLoading(false); return; }
       }
 
-      const isPwMentorSelected = formData.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA';
+      const isPwMentorSelected = formData.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' || formData.selectedGuideId === 'MENTOR-PW-ADMIN';
       const result = await registerUser({
         fullName: nameToUse,
         phoneCountryCode: formData.phoneCountryCode,
@@ -218,7 +219,12 @@ export default function RegistrationPage() {
 
   return (
     <div className="min-h-screen w-full bg-[#fcf9f2] flex items-center justify-center p-4">
-      <div className="w-full max-w-[500px] bg-white border border-gray-200/80 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.06),_0_1px_6px_rgba(0,0,0,0.03)] p-8 md:p-10 flex flex-col gap-6 text-center">
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-[500px] bg-white border border-gray-200/80 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.06),_0_1px_6px_rgba(0,0,0,0.03)] p-8 md:p-10 flex flex-col gap-6 text-center"
+      >
         
         {/* Back Button */}
         <div className="flex items-center text-left">
@@ -307,8 +313,9 @@ export default function RegistrationPage() {
                 id="phone"
                 type="text"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
-                placeholder="Mobile number"
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                maxLength={10}
+                placeholder="Mobile number (10 digits)"
                 required
                 inputMode="numeric"
                 className="flex-1 h-10 px-4 border border-gray-200 rounded-[10px] text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] transition-all bg-white shadow-sm"
@@ -363,7 +370,7 @@ export default function RegistrationPage() {
           </div>
 
           {/* FOLK Center — hidden for Prabhupada World users */}
-          {formData.selectedGuideId !== 'MENTOR-PW-HIRANYAVARNA' && (
+          {formData.selectedGuideId !== 'MENTOR-PW-HIRANYAVARNA' && formData.selectedGuideId !== 'MENTOR-PW-ADMIN' && (
             <div className="space-y-1.5">
               <label htmlFor="folkCenter" className="text-sm font-medium text-gray-700 block mb-1">
                 FOLK Center <span className="text-red-500 font-bold">*</span>
@@ -476,7 +483,7 @@ export default function RegistrationPage() {
           </button>
 
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

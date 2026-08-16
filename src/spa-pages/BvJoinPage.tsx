@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
-import { joinBvGroupByToken } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { joinBvGroupByToken } from '@/lib/endpoints-sdk';
 import { Leaf, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 

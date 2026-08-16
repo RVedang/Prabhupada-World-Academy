@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, GuideTransferRequests, Users, Guides, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, GuideTransferRequests, Users, Guides, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -15,10 +15,10 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const targetGuideId = input.toGuideId || input.newGuideId;
-    if (!targetGuideId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'toGuideId is required' });
+    if (!targetGuideId) throw new AppError({ code: 'BAD_REQUEST', message: 'toGuideId is required' });
 
     const existing = await GuideTransferRequests.findOne({ filters: { user: context.user.id, status: 'Pending' } });
-    if (existing) throw new ZiteError({ code: 'CONFLICT', message: 'You already have a pending guide transfer request' });
+    if (existing) throw new AppError({ code: 'CONFLICT', message: 'You already have a pending guide transfer request' });
 
     // Find the guide DB record by guideId field
     const guideRecord = await Guides.findOne({ filters: { guideId: targetGuideId }, fields: ['id'] });

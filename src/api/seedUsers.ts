@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Seeds Users table with real user data from PDF — Super Guide only',
@@ -10,7 +10,7 @@ export default createEndpoint({
     status: z.string(),
   }),
   execute: async ({ input, context }: { input: any; context: any }) => {
-    if (context.user!.role !== 'Super Guide') throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+    if (context.user!.role !== 'Super Guide') throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     if (input.confirm !== 'SEED_USERS') throw new Error('Confirmation required');
 
     const usersData: Array<{

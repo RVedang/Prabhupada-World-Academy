@@ -35,13 +35,14 @@ export interface UserProfile {
   isResident?: boolean;
   createdAt?: string;
   lastLoginAt?: string;
+  segment?: 'PW' | 'FOLK';
 }
 
 /** Lightweight profile for context (avoids heavy fields) */
 export interface ProfileSummary {
   userId: string;
   fullName: string;
-  role: 'USER' | 'GUIDE' | 'SUPER_GUIDE' | 'BVSL' | 'SADHANA_MENTOR';
+  role: 'USER' | 'GUIDE' | 'SUPER_GUIDE' | 'SUPER_ADMIN' | 'BVSL' | 'SADHANA_MENTOR';
   status: UserStatus;
   /** BUG-1 FIX: BVSL is a flag not a role — any user can be BVSL */
   isBvsl: boolean;
@@ -87,6 +88,12 @@ export interface ProfileSummary {
   acknowledgedFolkLead?: boolean;
   acknowledgedTripCoordinator?: boolean;
   acknowledgedSadhanaMentor?: boolean;
+  segment?: 'PW' | 'FOLK';
+  pendingBvRejectionNotice?: boolean;
+  pendingBvApprovalNotice?: boolean;
+  pendingAshrayNoticeStatus?: string | null;
+  pendingAshrayNoticeLevel?: string | null;
+  ashrayNoticeAcknowledged?: boolean;
 }
 
 // ─── Guide Domain ────────────────────────────────────────────────────────────
@@ -182,6 +189,7 @@ export interface BvGroup {
   description?: string;
   memberCount: number;
   isActive: boolean;
+  segment?: 'PW' | 'FOLK';
 }
 
 export interface BvMember {

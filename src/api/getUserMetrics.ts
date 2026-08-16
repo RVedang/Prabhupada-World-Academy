@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, SadhanaEntries } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 
 function getISOWeekStartEnd(date: Date): { start: string; end: string } {

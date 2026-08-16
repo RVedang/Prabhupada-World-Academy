@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupRequests, BvGroups, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroupRequests, BvGroups, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get pending BV group join requests for a specific BVSL or group',

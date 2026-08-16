@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, SadhanaEntries } from '@/lib/backend-sdk';
 
 // Only the fields needed for the history view — avoids large fieldValuesJson on list
 const LIST_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',

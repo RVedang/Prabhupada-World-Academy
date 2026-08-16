@@ -1,8 +1,13 @@
-import { useAuth } from 'zite-auth-sdk';
+import React, { useEffect } from 'react';
+import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, BookOpen, Users, Award, Network, Compass, ShieldAlert } from 'lucide-react';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import TransferNoticeModal from '@/components/TransferNoticeModal';
+import { getMeetings, sendMeetingReminder } from '@/lib/endpoints-sdk';
+
+import { motion } from 'framer-motion';
 
 const FOLK_LOGO = 'https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png';
 
@@ -22,36 +27,104 @@ export default function DashboardLayout({
   role,
   headerActions,
   children,
-  maxWidth = 'max-w-6xl',
+  maxWidth = 'max-w-7xl',
   showProfile = true,
 }: DashboardLayoutProps) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
 
   const ROLE_BADGE_LABELS: Record<string, string> = {
-    GUIDE: 'Guide', 'Guide': 'Guide',
-    SUPER_GUIDE: 'Super Guide', 'Super Guide': 'Super Guide',
+    SUPER_ADMIN: 'Super Admin', 'Super Admin': 'Super Admin',
+    ADMIN: 'Admin', 'Admin': 'Admin',
+    SUPER_GUIDE: 'Super Admin', 'Super Guide': 'Super Admin',
+    GUIDE: 'Admin', 'Guide': 'Admin',
+    SUPERVISOR: 'Supervisor', 'Supervisor': 'Supervisor', 'BV_SUPERVISOR': 'Supervisor',
+    BV_MENTOR: 'BV Mentor', 'BV Mentor': 'BV Mentor', 'BB_MENTOR': 'BV Mentor', 'BB Mentor': 'BV Mentor',
+    BVSL: 'RGF',
+    RGF: 'RGF (Facilitator)',
+    RGSF: 'RGSF (Sub-Facilitator)',
+    SADHANA_MENTOR: 'Sadhana Mentor', 'Sadhana Mentor': 'Sadhana Mentor',
+    USER: 'User', 'User': 'User',
   };
-  const showRoleBadge = !!(role && ROLE_BADGE_LABELS[role]);
 
-  const currentPath = window.location.pathname;
-  const tabItems = [];
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+  const tabItems: Array<{ label: string; path: string; active: boolean; icon: any }> = [];
+
+  const userEmailStr = (user?.email || '').toLowerCase();
+  const isSuperAdminUser = !!(
+    role === 'SUPER_ADMIN' ||
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE' ||
+    userEmailStr === 'vdnd@hkmmumbai.org' ||
+    userEmailStr === 'srilaprabhupadaworld@gmail.com' ||
+    userEmailStr.includes('gaurmandal') ||
+    userEmailStr.includes('superadmin')
+  );
+
+  const effectiveRole = isSuperAdminUser ? 'SUPER_ADMIN' : (role || profile?.role);
+  const showRoleBadge = !!(effectiveRole && ROLE_BADGE_LABELS[effectiveRole]);
 
   if (profile) {
-    // 1. My Sadhana (available to all non-guides)
-    if (profile.role !== 'GUIDE' && profile.role !== 'SUPER_GUIDE') {
-      const isMySadhanaActive = ['/user/dashboard', '/sadhana', '/history', '/bhaktivriksha'].includes(currentPath);
+    const isBvAdmin = !!(
+      profile?.isBvSuperAdmin ||
+      profile?.isBvAdmin ||
+      (profile?.role as string) === 'ADMIN' ||
+      (profile?.role as string) === 'SUPER_ADMIN' ||
+      isSuperAdminUser ||
+      userEmailStr.includes('folkadmin')
+    );
+
+    const isFolkUser = profile.segment === 'FOLK' || userEmailStr.includes('gaurmandal') || userEmailStr.includes('folk.org');
+    const adminPath = isFolkUser ? '/folk-admin/dashboard' : '/pw-admin/dashboard';
+
+    // 1. Admin / Super Admin Dashboard
+    if (isBvAdmin) {
+      const isAdminActive = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-admin') || currentPath.startsWith('/super-admin');
       tabItems.push({
-        label: 'My Sadhana',
-        path: '/user/dashboard',
-        active: isMySadhanaActive,
-        icon: <BookOpen className="w-4 h-4 mr-1 md:mr-1.5" />,
+        label: isSuperAdminUser ? (isFolkUser ? 'FOLK Super Admin' : 'PW Super Admin') : (isFolkUser ? 'FOLK Admin' : 'PW Admin'),
+        path: adminPath,
+        active: isAdminActive,
+        icon: <ShieldAlert className="w-4 h-4 mr-1 md:mr-1.5" />,
       });
     }
 
-    // 2. Sadhana Mentor
-    if (profile.isSadhanaMentor) {
+    // 2. BV Supervisor Dashboard — ONLY visible for explicitly assigned Supervisors/Mentors
+    if (profile.isBvSupervisor || profile.isBvMentor) {
+      const isBvSupervisorActive = currentPath.startsWith('/bv-supervisor') || currentPath.startsWith('/supervisor');
+      tabItems.push({
+        label: 'Supervisor',
+        path: '/bv-supervisor/dashboard',
+        active: isBvSupervisorActive,
+        icon: <Network className="w-4 h-4 mr-1 md:mr-1.5" />,
+      });
+    }
+
+    // 3. RGF Dashboard — visible if assigned Facilitator/RGF
+    if (profile.isBvFacilitator || profile.isBvsl) {
+      const isBvslActive = currentPath.startsWith('/bvsl') || currentPath.startsWith('/rgf');
+      tabItems.push({
+        label: 'RGF',
+        path: '/bvsl/dashboard',
+        active: isBvslActive,
+        icon: <Users className="w-4 h-4 mr-1 md:mr-1.5" />,
+      });
+    }
+
+    // 4. RGSF Dashboard — visible if assigned Sub-Facilitator/RGSF
+    if (profile.isBvSubFacilitator) {
+      const isRgsfActive = currentPath.startsWith('/rgsf') || (currentPath.startsWith('/bvsl') && window.location.search.includes('mode=rgsf'));
+      tabItems.push({
+        label: 'RGSF',
+        path: '/bvsl/dashboard?mode=rgsf',
+        active: isRgsfActive,
+        icon: <Users className="w-4 h-4 mr-1 md:mr-1.5" />,
+      });
+    }
+
+    // 4. Sadhana Mentor Dashboard (if applicable)
+    if (profile.isSadhanaMentor || (role as string) === 'SADHANA_MENTOR') {
       const isSadhanaMentorActive = currentPath.startsWith('/mentor');
       tabItems.push({
         label: 'Sadhana Mentor',
@@ -61,56 +134,89 @@ export default function DashboardLayout({
       });
     }
 
-    // 3. BVSL Dashboard
-    if (profile.isBvsl) {
-      const isBvslActive = currentPath.startsWith('/bvsl');
+    // 5. My Sadhana (Placed just before Profile & Logout) — Only for regular members/users who fill sadhana
+    if (!isBvAdmin && !isSuperAdminUser) {
+      const isMySadhanaActive = ['/user/dashboard', '/sadhana', '/history', '/bhaktivriksha'].includes(currentPath);
       tabItems.push({
-        label: 'BVSL',
-        path: '/bvsl/dashboard',
-        active: isBvslActive,
-        icon: <Users className="w-4 h-4 mr-1 md:mr-1.5" />,
-      });
-    }
-
-    // 4. BV Mentor
-    if (profile.isBvMentor) {
-      const isBvMentorActive = currentPath.startsWith('/bv-mentor');
-      tabItems.push({
-        label: 'BV Mentor',
-        path: '/bv-mentor/dashboard',
-        active: isBvMentorActive,
-        icon: <Network className="w-4 h-4 mr-1 md:mr-1.5" />,
-      });
-    }
-
-    const isPwAdmin = currentPath.startsWith('/pw-admin') || (profile as any)?.email === 'srilaprabhupadaworld@gmail.com';
-
-    // 5. Guide Dashboard (only for non-PW Admin)
-    if (!isPwAdmin && (profile.role === 'GUIDE' || profile.role === 'SUPER_GUIDE')) {
-      const isGuideActive = currentPath.startsWith('/guide');
-      tabItems.push({
-        label: 'Guide',
-        path: '/guide/dashboard',
-        active: isGuideActive,
-        icon: <Compass className="w-4 h-4 mr-1 md:mr-1.5" />,
-      });
-    }
-
-    // 6. Super Guide Dashboard (only for non-PW Admin)
-    if (!isPwAdmin && profile.role === 'SUPER_GUIDE') {
-      const isSuperGuideActive = currentPath.startsWith('/super');
-      tabItems.push({
-        label: 'Super Guide',
-        path: '/super/dashboard',
-        active: isSuperGuideActive,
-        icon: <ShieldAlert className="w-4 h-4 mr-1 md:mr-1.5" />,
+        label: 'My Sadhana',
+        path: '/user/dashboard',
+        active: isMySadhanaActive,
+        icon: <BookOpen className="w-4 h-4 mr-1 md:mr-1.5" />,
       });
     }
   }
+  useEffect(() => {
+    if (!profile) return;
 
+    const checkUpcomingMeetings = async () => {
+      try {
+        const { meetings } = await getMeetings({});
+        const scheduled = (meetings || []).filter((m: any) => {
+          const statusLower = (m.status || '').toLowerCase();
+          return statusLower === 'scheduled';
+        });
+        
+        for (const m of scheduled) {
+          const scheduledDateStr = m.scheduledAt.includes('T') && !m.scheduledAt.endsWith('Z') && !m.scheduledAt.includes('+')
+            ? `${m.scheduledAt}+05:30`
+            : m.scheduledAt;
+          const diffMs = new Date(scheduledDateStr).getTime() - Date.now();
+          const diffMins = diffMs / (60 * 1000);
+          
+          // 1. Trigger 10-minute reminder (starts in 9 to 11 mins)
+          if (diffMins > 9 && diffMins <= 11 && !m.notification10mSent) {
+            const meetingKey = m.id;
+            const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders_10m') || '{}');
+            if (!localSentObj[meetingKey]) {
+              localSentObj[meetingKey] = true;
+              localStorage.setItem('sent_meeting_reminders_10m', JSON.stringify(localSentObj));
+
+              console.log(`[Meeting Scheduler] Triggering 10m reminder for: ${m.title}`);
+              try {
+                await sendMeetingReminder({ meetingId: m.id, reminderType: 'TEN_MINUTES' });
+              } catch (err) {
+                console.error('[Meeting Scheduler] Error triggering 10m reminder:', err);
+              }
+            }
+          }
+
+          // 2. Trigger 1-minute reminder (starts in 0.1 to 2 mins)
+          if (diffMins > 0.05 && diffMins <= 2 && !m.notification1mSent) {
+            const meetingKey = m.id;
+            const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders_1m') || '{}');
+            if (!localSentObj[meetingKey]) {
+              localSentObj[meetingKey] = true;
+              localStorage.setItem('sent_meeting_reminders_1m', JSON.stringify(localSentObj));
+
+              console.log(`[Meeting Scheduler] Triggering 1m reminder for: ${m.title}`);
+              try {
+                await sendMeetingReminder({ meetingId: m.id, reminderType: 'ONE_MINUTE' });
+              } catch (err) {
+                console.error('[Meeting Scheduler] Error triggering 1m reminder:', err);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Meeting Scheduler] Error querying meetings:', err);
+      }
+    };
+
+    // Run initial check after 2 seconds delay
+    const initialTimeout = setTimeout(checkUpcomingMeetings, 2000);
+
+    // Run every 30 seconds for precise timing
+    const interval = setInterval(checkUpcomingMeetings, 30000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [profile]);
 
   return (
     <div className="min-h-screen bg-background">
+      <TransferNoticeModal />
       <header className="border-b bg-card sticky top-0 z-50 no-print">
         <div className="container mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
@@ -121,7 +227,7 @@ export default function DashboardLayout({
                   <h1 className="text-base md:text-lg font-bold text-primary truncate leading-tight">{title}</h1>
                   {showRoleBadge && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-medium shrink-0">
-                      {ROLE_BADGE_LABELS[role!]}
+                      {ROLE_BADGE_LABELS[effectiveRole!]}
                     </span>
                   )}
                 </div>
@@ -161,9 +267,15 @@ export default function DashboardLayout({
           </div>
         </div>
       </header>
-      <main className={maxWidth === 'max-w-none' || maxWidth === 'max-w-full' ? `w-full px-4 md:px-8 py-6 md:py-8` : `container mx-auto px-4 py-6 md:py-8 ${maxWidth}`}>
+      <motion.main
+        key={currentPath}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className={maxWidth === 'max-w-none' || maxWidth === 'max-w-full' ? `w-full px-4 md:px-8 py-6 md:py-8` : `container mx-auto px-4 py-6 md:py-8 ${maxWidth}`}
+      >
         {children}
-      </main>
+      </motion.main>
     </div>
   );
 }

@@ -7,8 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Package, Phone, CalendarCheck, Users, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvslOwnReport } from 'zite-endpoints-sdk';
-import type { GetBvslOwnReportOutputType } from 'zite-endpoints-sdk';
+import { getBvslOwnReport } from '@/lib/endpoints-sdk';
+import type { GetBvslOwnReportOutputType } from '@/lib/endpoints-sdk';
 import { format, subDays, startOfMonth } from 'date-fns';
 import { EmptyState } from '@/shared';
 

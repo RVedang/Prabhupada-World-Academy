@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, TagMangoSyncLog, Users, Config } from 'zite-integrations-backend-sdk';
+import { createEndpoint, TagMangoSyncLog, Users, Config } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Webhook endpoint for TagMango order.created.completed events',

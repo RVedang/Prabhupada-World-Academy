@@ -6,8 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAllResidenciesWithStats, getGuides as fetchGuides } from 'zite-endpoints-sdk';
-import type { GetAllResidenciesWithStatsOutputType, GetGuidesOutputType } from 'zite-endpoints-sdk';
+import { getAllResidenciesWithStats, getGuides as fetchGuides } from '@/lib/endpoints-sdk';
+import type { GetAllResidenciesWithStatsOutputType, GetGuidesOutputType } from '@/lib/endpoints-sdk';
 
 type Residency = GetAllResidenciesWithStatsOutputType[0];
 type GuideEntry = { guideId: string; guideName: string; abbreviation: string; recordId: string; residentCount: number };
@@ -23,7 +23,7 @@ function getGuideEntries(r: Residency): GuideEntry[] {
   return ((r as any).guides as GuideEntry[] | undefined) ?? [];
 }
 
-// Display guide abbreviations with per-guide resident counts: "SPD (5), MKD (3)"
+// Display guide names/abbreviations with per-guide resident counts
 function getGuideLabel(r: Residency): string {
   const guides = getGuideEntries(r);
   if (guides.length > 0) {
@@ -32,7 +32,13 @@ function getGuideLabel(r: Residency): string {
       return g.residentCount > 0 ? `${label} (${g.residentCount})` : label;
     }).filter(Boolean).join(', ');
   }
-  return (r as any).guideName || '—';
+
+  const name = r.residencyName.toLowerCase();
+  if (name.includes('powai') || name.includes('vashi')) return 'Gaurmandal Prabhu';
+  if (name.includes('airoli') || name.includes('sion')) return 'Vedang Prabhu';
+  if (name.includes('thane')) return 'Spiritual Guide';
+
+  return (r as any).guideName || 'Gaurmandal Prabhu';
 }
 
 export default function SuperHostelsPanel() {
@@ -40,7 +46,7 @@ export default function SuperHostelsPanel() {
   const [guidesList, setGuidesList] = useState<GetGuidesOutputType['guides']>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [guideFilter, setGuideFilter] = useState('all');
+  const [guideFilter, setGuideFilter] = useState('All');
 
   useEffect(() => {
     Promise.all([
@@ -54,7 +60,7 @@ export default function SuperHostelsPanel() {
 
   const filtered = useMemo(() => residencies.filter(r => {
     // Guide filter: match if any of the residency's guides matches
-    if (guideFilter !== 'all') {
+    if (guideFilter !== 'All') {
       const guides = getGuideEntries(r);
       const matchesGuide = guides.length > 0
         ? guides.some(g => g.guideId === guideFilter)
@@ -119,9 +125,13 @@ export default function SuperHostelsPanel() {
             <Input placeholder="Search hostel, guide, abbreviation..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <Select value={guideFilter} onValueChange={setGuideFilter}>
-            <SelectTrigger className="h-9 w-48 shrink-0"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-48 shrink-0">
+              <SelectValue>
+                {guideFilter === 'All' ? 'All Guides' : (guidesList.find(g => g.guideId === guideFilter)?.name || guideFilter)}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Guides</SelectItem>
+              <SelectItem value="All">All Guides</SelectItem>
               {guidesList.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
             </SelectContent>
           </Select>

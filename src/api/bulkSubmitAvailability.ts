@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAvailability, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAvailability, AppError } from '@/lib/backend-sdk';
 
 const ALL_DAYS_FULL = JSON.stringify([
   { day: 'sun', time: 'full_day' },
@@ -26,7 +26,7 @@ export default createEndpoint({
       || context.user.isServiceAllocator === true;
 
     if (!canBulk) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only guides or service allocators can bulk submit availability' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only guides or service allocators can bulk submit availability' });
     }
 
     // Find which userIds already have a record this week (so we skip them)

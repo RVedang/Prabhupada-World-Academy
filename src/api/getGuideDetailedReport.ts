@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 import { requireGuideRole, normalizeAshrayLevel } from '../lib/userUtils';
+import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 import { NON_RESIDENT_FIELDS } from '../config/sadhanaFields';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'role', 'isBvSuperAdmin', 'isBvAdmin'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt', 'templateMode',
@@ -198,36 +199,34 @@ function numAvgInt(vals: (number | null | undefined)[]): number | null {
 
 const FIELD_DEFS = [
   // Resident fields
-  { key: 'ma_na_gv',         shortLabel: 'MA/GV',  maxPoints: 3,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'quotes_tulasi',    shortLabel: 'Q+T',    maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'japa_visible',     shortLabel: 'JapaV',  maxPoints: 2,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'sb',               shortLabel: 'SB',     maxPoints: 2,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'cleanliness',      shortLabel: 'Clean',  maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'report_sending',   shortLabel: 'FillDay', maxPoints: 1,   isScoring: true,  forResident: true,  forNR: false },
-  { key: 'daily_service',    shortLabel: 'Svc',    maxPoints: 2,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'rounds',           shortLabel: 'Rounds', maxPoints: 4,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'sp_reading',       shortLabel: 'Read',   maxPoints: 3,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'sleep_quality',    shortLabel: 'SleepQ', maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
-  { key: 'japa_finish_time', shortLabel: 'JapaT',  maxPoints: null, isScoring: false, forResident: true,  forNR: false },
-  { key: 'sleep_minutes',    shortLabel: 'Sleep',  maxPoints: null, isScoring: false, forResident: true,  forNR: false },
-  { key: 'study_minutes',    shortLabel: 'Study',  maxPoints: null, isScoring: false, forResident: true,  forNR: false },
-  { key: 'preaching_raw',    shortLabel: 'Preach', maxPoints: null, isScoring: false, forResident: true,  forNR: false },
-  { key: 'distribution_raw', shortLabel: 'Books',  maxPoints: null, isScoring: false, forResident: true,  forNR: false },
+  { key: 'quotes_tulasi',    shortLabel: 'Quotes/Pranam', maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'japa_visible',     shortLabel: 'Japa MTH',      maxPoints: 2,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'ma_na_gv',         shortLabel: 'DA+NA+GP+Kirtan', maxPoints: 3,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'bath',             shortLabel: 'Bath',          maxPoints: 0,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'sb',               shortLabel: 'SB Class',      maxPoints: 2,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'cleanliness',      shortLabel: 'Clean Area',    maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'daily_service',    shortLabel: 'Service',       maxPoints: 2,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'report_sending',   shortLabel: 'SameDay Fill',  maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'rounds',           shortLabel: 'Rounds',        maxPoints: 4,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'sp_reading',       shortLabel: 'Book Reading',  maxPoints: 3,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'sleep_quality',    shortLabel: 'Sleep Quality', maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
+  { key: 'japa_finish_time', shortLabel: 'Japa End',      maxPoints: null, isScoring: false, forResident: true,  forNR: false },
+  { key: 'sleep_minutes',    shortLabel: 'Sleep',     maxPoints: null, isScoring: false, forResident: true,  forNR: false },
+  { key: 'study_minutes',    shortLabel: 'Study',     maxPoints: null, isScoring: false, forResident: true,  forNR: false },
+  { key: 'preaching_raw',    shortLabel: 'Preach',    maxPoints: null, isScoring: false, forResident: true,  forNR: false },
+  { key: 'distribution_raw', shortLabel: 'Books Dist',    maxPoints: null, isScoring: false, forResident: true,  forNR: false },
   // NR fields — ordered to match the NR sadhana form (display_order 1–8 + informational)
   // Source of truth: src/config/sadhanaFields.ts → NON_RESIDENT_FIELDS
-  { key: 'wakeUptime',     shortLabel: 'WakeUp', maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 1: scored Upasaka+
-  { key: 'sleepTime',      shortLabel: 'SleepT', maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 2: scored Upasaka+
-  { key: 'chanting',       shortLabel: 'Rounds', maxPoints: 8,    isScoring: true,  forResident: false, forNR: true  }, // d/o 3
-  { key: 'reading',        shortLabel: 'Read',   maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 4
-  { key: 'hearing',        shortLabel: 'Hear',   maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 5
-  { key: 'fillingSameDay', shortLabel: 'OnTime', maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 6: scored Sevak+
-  // d/o 7: Seva — scored (4pts) for Upasaka+; leaderboard-only for Sevak/Sadhaka; N/A otherwise
-  { key: 'seva',           shortLabel: 'Seva',   maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  },
-  // d/o 8: BV — scored (4pts) for Caranashraya+; leaderboard-only for Sevak/Sadhaka/Upasaka; N/A otherwise
-  { key: 'bhaktiVriksha',  shortLabel: 'BV',     maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  },
-  // d/o 9-10: NR informational fields (no scoring)
-  { key: 'nr_preaching',   shortLabel: 'Preach', maxPoints: null, isScoring: false, forResident: false, forNR: true  },
-  { key: 'nr_books',       shortLabel: 'Books',  maxPoints: null, isScoring: false, forResident: false, forNR: true  },
+  { key: 'wakeUptime',     shortLabel: 'Wake Up',       maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 1: scored Upasaka+
+  { key: 'sleepTime',      shortLabel: 'Sleep Time',    maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 2: scored Upasaka+
+  { key: 'chanting',       shortLabel: 'Rounds',        maxPoints: 8,    isScoring: true,  forResident: false, forNR: true  }, // d/o 3
+  { key: 'reading',        shortLabel: 'Read',          maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 4
+  { key: 'hearing',        shortLabel: 'Hear',          maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 5
+  { key: 'seva',           shortLabel: 'Seva',          maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 7: Seva
+  { key: 'bhaktiVriksha',  shortLabel: 'BV',            maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 8: BV
+  { key: 'nr_preaching',   shortLabel: 'Preach',        maxPoints: null, isScoring: false, forResident: false, forNR: true  }, // d/o 9: preaching
+  { key: 'nr_books',       shortLabel: 'Books',         maxPoints: null, isScoring: false, forResident: false, forNR: true  }, // d/o 10: books
+  { key: 'fillingSameDay', shortLabel: 'SameDay Fill',  maxPoints: 4,    isScoring: true,  forResident: false, forNR: true  }, // d/o 11: scored Sevak+
 ];
 
 function aggregateEntries(entries: any[], isResident: boolean, ashrayLevel?: string | null) {
@@ -275,6 +274,16 @@ function aggregateEntries(entries: any[], isResident: boolean, ashrayLevel?: str
     const getResidentAvg = (field: string, jsonKey?: string): number | null =>
       numAvg(entries.map(e => getResidentVal(e, field, jsonKey)));
 
+    const getBathPts = (entry: any): number => {
+      const fv = parseFieldValues(entry.fieldValuesJson);
+      const val = fv.bath === true || fv.bath === 'true' || Number(fv.bath) === 1;
+      return val ? -1 : 0;
+    };
+    const getResidentNormalAvgBath = (): number | null => {
+      const src = normalEntries.length > 0 ? normalEntries : entries;
+      return numAvg(src.map(e => getBathPts(e)));
+    };
+
     // SICK/OS FIX: For fields NOT scored during sick/OS, only average non-sick/OS entries.
     // This prevents days with 0 SB/cleanliness etc (due to being sick) from dragging down weekly/monthly avgs.
     const normalEntries = entries.filter(e => !e.flagSick && !e.flagOs);
@@ -290,6 +299,7 @@ function aggregateEntries(entries: any[], isResident: boolean, ashrayLevel?: str
       japa_visible:   entries.length === 1 ? getResidentVal(entries[0], 'japaVisiblePoints', 'japa_visible')   : getResidentNormalAvg('japaVisiblePoints', 'japa_visible'),
       sb:             entries.length === 1 ? getResidentVal(entries[0], 'sbPoints', 'sb')             : getResidentNormalAvg('sbPoints', 'sb'),
       cleanliness:    entries.length === 1 ? getResidentVal(entries[0], 'cleanlinessPoints', 'cleanliness')    : getResidentNormalAvg('cleanlinessPoints', 'cleanliness'),
+      bath:           entries.length === 1 ? getBathPts(entries[0]) : getResidentNormalAvgBath(),
       // SSOT: trust DB reportSendingPoints column directly (scored for all entries including sick/OS)
       report_sending: entries.length === 1 ? getReportSendingPts(entries[0]) : numAvg(entries.map(e => getReportSendingPts(e))),
       daily_service:  entries.length === 1 ? getResidentVal(entries[0], 'dailyServicePoints', 'daily_service')   : getResidentNormalAvg('dailyServicePoints', 'daily_service'),
@@ -369,6 +379,11 @@ function aggregateEntries(entries: any[], isResident: boolean, ashrayLevel?: str
       cleanliness: (() => {
         if (entries.length === 1) return (getResidentVal(entries[0], 'cleanlinessPoints', 'cleanliness') ?? 0) >= 1 ? 'Yes' : 'No';
         const n = entries.filter((e: any) => (getResidentVal(e, 'cleanlinessPoints', 'cleanliness') ?? 0) >= 1).length;
+        return `${n}/${entries.length}d`;
+      })(),
+      bath: (() => {
+        if (entries.length === 1) return getBathPts(entries[0]) < 0 ? 'Yes' : 'No';
+        const n = entries.filter((e: any) => getBathPts(e) < 0).length;
         return `${n}/${entries.length}d`;
       })(),
       sleep_quality: (() => {
@@ -659,9 +674,10 @@ export default createEndpoint({
     endDate: z.string().optional(),
     bvslMode: z.boolean().optional(),
     mentorMode: z.boolean().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     // Authorization: only Guide, Super Guide, BVSL, or Sadhana Mentor may access reports
     requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor: (context.user as any).isBvMentor });
@@ -685,6 +701,27 @@ export default createEndpoint({
         // FIX-012: BVSL/Mentor has no guide linked — cannot scope the report
         return { users: [], fieldDefs: FIELD_DEFS, availableResidencies: [], summary: {},
           error: 'No FOLK Guide assigned to your account. Please contact your administrator.' };
+      }
+    }
+
+    const userRole = (context.user.role || 'User').toUpperCase().replace(/\s+/g, '_');
+    const userEmail = (context.user.email || '').toLowerCase();
+    const isSuperGuide = userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'PW_ADMIN' ||
+      !!context.user.isBvSuperAdmin ||
+      !!context.user.isBvAdmin ||
+      userEmail.includes('gaurmandal') ||
+      userEmail.includes('superadmin') ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com';
+
+    if (!isSuperGuide && !bvslMode && !mentorMode) {
+      const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] }).catch(() => null);
+      if (guideRecord) {
+        guideDbId = (guideRecord as any).id;
+      } else {
+        guideDbId = context.user.id;
       }
     }
 
@@ -734,10 +771,42 @@ export default createEndpoint({
       }
       users = Array.from(allUsersMap.values());
     } else {
-      // ALL = super guide — show all Active users across all guides
-      const { records } = await Users.findAll({ filters: { status: 'Active' }, fields: USER_FIELDS, limit: 2000 });
+      // ALL = super guide — show all Active users, scoped by segment if provided
+      const allUsersFilter: any = { status: 'Active' };
+      if (input.segment) allUsersFilter.segment = input.segment;
+      const { records } = await Users.findAll({ filters: allUsersFilter, fields: USER_FIELDS, limit: 2000 });
       users = records;
     }
+
+    const scopedUserIds = await getScopedHierarchyUserIds(context.user);
+
+    if (scopedUserIds !== null) {
+      users = users.filter(u => {
+        const uId = String(u.id || '').toLowerCase();
+        const userIdStr = String(u.userId || '').toLowerCase();
+        const emailStr = String(u.email || '').toLowerCase();
+        return (uId && scopedUserIds.has(uId)) || (userIdStr && scopedUserIds.has(userIdStr)) || (emailStr && scopedUserIds.has(emailStr));
+      });
+    }
+
+    // Exclude Admin, Super Admin, and System Admin accounts from member sadhana reports
+    const callerId = String(context.user?.id || context.user?.userId || '').toLowerCase();
+    const callerEmail = String(context.user?.email || '').toLowerCase();
+    users = users.filter(u => {
+      const uId = String(u.id || u.userId || '').toLowerCase();
+      const uEmail = String(u.email || '').toLowerCase();
+      const uName = String(u.fullName || '').toLowerCase();
+      const uRole = String(u.role || '').toUpperCase();
+
+      // Omit caller if caller is admin/super admin viewing report
+      if ((callerId && uId === callerId) || (callerEmail && uEmail === callerEmail)) return false;
+
+      // Omit Super Admins, System Admins, and Admins from member sadhana reports
+      if (u.isBvSuperAdmin || u.isBvAdmin || uRole === 'SUPER_ADMIN' || uRole === 'SUPER_GUIDE' || uRole === 'PW_ADMIN' || uRole === 'ADMIN') return false;
+      if (uName.includes('system admin') || uName.includes('super admin') || uId.includes('superadmin')) return false;
+
+      return true;
+    });
 
     // NR-VIS FIX: Non-residents must only appear for their own assigned guide.
     // Users are fetched broadly by residency above, so without this filter an NR whose guide is
@@ -800,15 +869,18 @@ export default createEndpoint({
         .map(r => ({ guideId: r!.id, guideName: (r as any).fullName || r!.id }));
     }
 
-    const userDbIdSet = new Set(users.map(u => u.id));
+    const userDbIdSet = new Set<string>();
+    const userIdToPrimaryId = new Map<string, string>();
+    users.forEach(u => {
+      if (u.id) { userDbIdSet.add(String(u.id)); userIdToPrimaryId.set(String(u.id), u.id); }
+      if (u.userId) { userDbIdSet.add(String(u.userId)); userIdToPrimaryId.set(String(u.userId), u.id); }
+    });
 
     // Fetch entries in date range (paginated if needed)
-    // BUG 4 FIX: Use string comparison for date-only fields — Date objects cause "Invalid time value"
     const dateFilter = reportType === 'daily'
       ? { entryDate: effectiveStart }
       : { entryDate: { gte: effectiveStart, lte: effectiveEnd } };
 
-    // Paginate until all entries in the date range are fetched (avoids 4000-record silent truncation)
     let allEntries: any[] = [];
     let entryOffset = 0;
     while (true) {
@@ -840,8 +912,9 @@ export default createEndpoint({
           offset: sOffset,
         });
         for (const e of sRecs) {
-          const uid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
-          if (!uid || !userDbIdSet.has(uid)) continue;
+          const rawUid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
+          if (!rawUid || !userDbIdSet.has(String(rawUid))) continue;
+          const uid = userIdToPrimaryId.get(String(rawUid)) || String(rawUid);
           if (!streakEntriesByUser.has(uid)) streakEntriesByUser.set(uid, []);
           streakEntriesByUser.get(uid)!.push({
             entryDate: (e.entryDate as string) || '',
@@ -856,8 +929,9 @@ export default createEndpoint({
     // Group entries by user DB ID (filter to only our users)
     const entriesByUser = new Map<string, any[]>();
     for (const e of allEntries) {
-      const uid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
-      if (!uid || !userDbIdSet.has(uid)) continue;
+      const rawUid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
+      if (!rawUid || !userDbIdSet.has(String(rawUid))) continue;
+      const uid = userIdToPrimaryId.get(String(rawUid)) || String(rawUid);
       if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
       entriesByUser.get(uid)!.push(e);
     }

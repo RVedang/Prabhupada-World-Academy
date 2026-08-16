@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvGroupRequests, BvGroups, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroupMembers, BvGroupRequests, BvGroups, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Request to join a BV group — prevents joining more than one group',
@@ -14,8 +14,8 @@ export default createEndpoint({
       filters: { groupId: input.groupId },
       fields: ['id', 'groupName', 'isActive'],
     });
-    if (!groupRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'Group not found' });
-    if (!groupRecord.isActive) throw new ZiteError({ code: 'BAD_REQUEST', message: 'Group is no longer active' });
+    if (!groupRecord) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
+    if (!groupRecord.isActive) throw new AppError({ code: 'BAD_REQUEST', message: 'Group is no longer active' });
 
     const groupDbId = groupRecord.id;
 
@@ -44,7 +44,7 @@ export default createEndpoint({
         ? await BvGroups.findOne({ id: existingGroupId, fields: ['id', 'groupName'] })
         : null;
       const existingGroupName = (existingGroup as any)?.groupName || 'another group';
-      throw new ZiteError({
+      throw new AppError({
         code: 'CONFLICT',
         message: `You are already a member of "${existingGroupName}". You cannot join more than one BV group.`,
       });

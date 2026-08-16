@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -10,10 +10,15 @@ interface Props {
 }
 
 /**
- * Role access check:
- * - BVSL is a flag (isBvsl) OR a role ('BVSL')
- * - Sadhana Mentor is a flag (isSadhanaMentor) OR a role ('SADHANA_MENTOR')
- * - BV Mentor is a flag (isBvMentor) — has access to BV_MENTOR routes
+ * Hierarchy Role access check:
+ *
+ * BV Hierarchy (highest → lowest):
+ *   Super Admin → Admin → Supervisor (BV_MENTOR) → RGF (BVSL/isBvFacilitator) → RGSF (isBvSubFacilitator, base role: User)
+ *
+ * Access rules per route:
+ *   - BV_MENTOR routes: Supervisors (isBvMentor | isBvSupervisor), Guides, Admins
+ *   - BVSL routes: RGFs (isBvsl | isBvFacilitator), Sadhana Mentors, Guides
+ *   - USER routes: Any approved user (includes RGSFs whose base role is 'User')
  */
 function hasAccess(
   role: string,
@@ -21,13 +26,32 @@ function hasAccess(
   isSadhanaMentor: boolean,
   isServiceAllocator: boolean,
   isBvMentor: boolean,
+  isBvAdmin: boolean,
+  isBvSuperAdmin: boolean,
   allowedRoles: string[],
+  isBvSupervisor?: boolean,
+  isBvFacilitator?: boolean,
+  isBvSubFacilitator?: boolean,
 ): boolean {
-  if (allowedRoles.includes(role)) return true;
-  if (isBvsl && allowedRoles.includes('BVSL')) return true;
-  if (isSadhanaMentor && allowedRoles.includes('SADHANA_MENTOR')) return true;
-  if (isServiceAllocator && allowedRoles.includes('SERVICE_ALLOCATOR')) return true;
-  if (isBvMentor && allowedRoles.includes('BV_MENTOR')) return true;
+  const normRole = (role || '').toUpperCase();
+  const normAllowed = allowedRoles.map(r => r.toUpperCase());
+
+  if (normAllowed.includes(normRole)) return true;
+  // USER routes — any approved member (note: /rgsf/dashboard uses this since RGSF base role is 'User')
+  if (normAllowed.includes('USER')) return true;
+  // Admin-tier access
+  if ((isBvAdmin || isBvSuperAdmin || normRole === 'ADMIN' || normRole === 'SUPER_ADMIN') &&
+      (normAllowed.includes('SUPER_ADMIN') || normAllowed.includes('SUPER_GUIDE') || normAllowed.includes('ADMIN') || normAllowed.includes('PW_ADMIN'))) {
+    return true;
+  }
+  // RGF (Facilitator) access — isBvsl (legacy) OR isBvFacilitator (new)
+  if ((isBvsl || isBvFacilitator) && normAllowed.includes('BVSL')) return true;
+  if (isSadhanaMentor && normAllowed.includes('SADHANA_MENTOR')) return true;
+  if (isServiceAllocator && normAllowed.includes('SERVICE_ALLOCATOR')) return true;
+  // Supervisor access — isBvMentor (legacy) OR isBvSupervisor (new)
+  if ((isBvMentor || isBvSupervisor) && normAllowed.includes('BV_MENTOR')) return true;
+  // RGSFs have base role 'User' — access to /rgsf/dashboard is granted via the USER check above.
+  // RGSFs do NOT get Supervisor (BV_MENTOR) or RGF (BVSL) dashboard access.
   return false;
 }
 
@@ -94,7 +118,12 @@ export default function ProtectedRoute({ children, allowedRoles }: Props) {
     profile.isSadhanaMentor,
     profile.isServiceAllocator ?? false,
     profile.isBvMentor ?? false,
+    profile.isBvAdmin ?? false,
+    profile.isBvSuperAdmin ?? false,
     allowedRoles,
+    (profile as any).isBvSupervisor ?? false,
+    (profile as any).isBvFacilitator ?? false,
+    (profile as any).isBvSubFacilitator ?? false,
   )) {
     return <Navigate to="/dashboard" replace />;
   }

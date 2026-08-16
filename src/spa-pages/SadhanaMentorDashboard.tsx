@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BookOpen, Users, BarChart3, Phone, MessageCircle, Flame, Search, LayoutDashboard, ArrowUpDown, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
-import { getMentorMembers } from 'zite-endpoints-sdk';
-import type { GetMentorMembersOutputType } from 'zite-endpoints-sdk';
+import { getMentorMembers } from '@/lib/endpoints-sdk';
+import type { GetMentorMembersOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { DashboardLayout } from '@/layouts';
 import { LoadingPage } from '@/shared';
@@ -137,7 +137,9 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
 
         {/* Single combined location filter */}
         <Select value={locationFilter} onValueChange={(v) => setLocationFilter(v || 'all')}>
-          <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[150px] text-xs font-medium">
+            <SelectValue>{locationFilter === 'all' ? 'All Members' : (locationOptions.find(o => o.value === locationFilter)?.label || 'All Members')}</SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {locationOptions.map(opt => (
               <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
@@ -256,8 +258,16 @@ export default function SadhanaMentorDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (profile?.userId) loadMembers();
-  }, [profile?.userId]);
+    if (profile) {
+      const isMentor = profile.isSadhanaMentor || (profile.role as string) === 'SADHANA_MENTOR' || profile.isBvSuperAdmin || profile.isBvAdmin || (profile.role as string) === 'SUPER_ADMIN' || (profile.role as string) === 'ADMIN';
+      if (!isMentor) {
+        toast.error('You do not have active Sadhana Mentor permissions');
+        navigate('/user/dashboard', { replace: true });
+        return;
+      }
+      if (profile.userId) loadMembers();
+    }
+  }, [profile, navigate]);
 
   const loadMembers = async () => {
     try {
@@ -280,39 +290,37 @@ export default function SadhanaMentorDashboard() {
     profile.residencyName ? `FOLK: ${profile.residencyName}` : null,
   ].filter(Boolean).join(' · ');
 
+  const effectiveGuideId = profile.selectedGuideId || (profile as any).guideId || (profile as any).guide || 'MENTOR-FOLK-GAURMANDAL';
+
   const tabs: TabConfig[] = [
-    { value: 'reports', label: 'Reports', icon: BarChart3 },
-    { value: 'members', label: 'Members', icon: Users },
-    ...(profile.selectedGuideId ? [{ value: 'one-to-one', label: 'One-to-One', icon: MessageSquare } as TabConfig] : []),
+    { value: 'reports', label: 'Sadhana Report', icon: BarChart3 },
+    { value: 'members', label: 'Members List', icon: Users },
+    { value: 'one-to-one', label: 'One-to-One', icon: MessageSquare },
   ];
 
   return (
     <DashboardLayout
       title={`Hare Krishna, ${profile.fullName} Prabhu`}
       subtitle={subtitle}
+      role="SADHANA_MENTOR"
       maxWidth="max-w-6xl"
     >
       {loading ? (
         <LoadingPage rows={2} />
       ) : (
-        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={2}>
+        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={3}>
           {(activeTab) => (
             <>
-              {activeTab === 'reports' && profile.selectedGuideId && (
-                <SadhanaSection guideId={profile.selectedGuideId} mentorMode={true} />
+              {activeTab === 'reports' && (
+                <SadhanaSection guideId={effectiveGuideId} mentorMode={true} />
               )}
-              {activeTab === 'reports' && !profile.selectedGuideId && (
-                <p className="text-center text-muted-foreground py-8">
-                  No FOLK Guide assigned. Please contact your administrator.
-                </p>
-              )}
-              {activeTab === 'one-to-one' && profile.selectedGuideId && (
-                <OneToOneTab guideId={profile.selectedGuideId} />
+              {activeTab === 'one-to-one' && (
+                <OneToOneTab guideId={effectiveGuideId} />
               )}
               {activeTab === 'members' && (
                 <MembersTable
                   members={members}
-                  guideName={guideName}
+                  guideName={guideName || 'FOLK Admin'}
                   onNavigate={(uid, from) => navigate(`/guide/users/${uid}`, { state: { from } })}
                 />
               )}

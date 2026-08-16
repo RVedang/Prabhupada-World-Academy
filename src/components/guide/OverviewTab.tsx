@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, CheckCircle, XCircle, TrendingUp, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuideMetrics } from 'zite-endpoints-sdk';
+import { getGuideMetrics } from '@/lib/endpoints-sdk';
 import { THRESHOLDS } from '@/types/enums';
 import StatCard from '@/shared/StatCard';
 

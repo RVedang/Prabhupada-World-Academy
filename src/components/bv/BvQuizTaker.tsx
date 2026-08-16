@@ -8,8 +8,8 @@ import {
   Trophy, ArrowLeft, Loader2, BookOpen, Circle, CheckSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvQuizDetail, submitBvQuiz } from 'zite-endpoints-sdk';
-import type { GetBvQuizDetailOutputType } from 'zite-endpoints-sdk';
+import { getBvQuizDetail, submitBvQuiz } from '@/lib/endpoints-sdk';
+import type { GetBvQuizDetailOutputType } from '@/lib/endpoints-sdk';
 import { AnimatePresence, motion } from 'framer-motion';
 
 type QuizDetail = GetBvQuizDetailOutputType;

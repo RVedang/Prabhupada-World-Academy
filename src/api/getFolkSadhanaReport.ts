@@ -1,23 +1,29 @@
 import { z } from 'zod';
-import { createEndpoint, Users, FolkResidencies, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, FolkResidencies, SadhanaEntries, Guides } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 
+function parseFieldValues(json: string | null | undefined): Record<string, any> {
+  if (!json) return {};
+  try { return JSON.parse(json); } catch { return {}; }
+}
+
 const RESIDENT_FIELD_DEFS = [
-  { key: 'ma_na_gv',         shortLabel: 'MA/GV',   maxPoints: 3,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'quotes_tulasi',    shortLabel: 'Q+T',     maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'japa_visible',     shortLabel: 'JapaV',   maxPoints: 2,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'sb',               shortLabel: 'SB',      maxPoints: 2,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'cleanliness',      shortLabel: 'Clean',   maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'report_sending',   shortLabel: 'FillDay', maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'daily_service',    shortLabel: 'Svc',     maxPoints: 2,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'rounds',           shortLabel: 'Rounds',  maxPoints: 4,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'sp_reading',       shortLabel: 'Read',    maxPoints: 3,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'sleep_quality',    shortLabel: 'SleepQ',  maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
-  { key: 'japa_finish_time', shortLabel: 'JapaT',   maxPoints: null, isScoring: false, forResident: true, forNR: false },
-  { key: 'sleep_minutes',    shortLabel: 'Sleep',   maxPoints: null, isScoring: false, forResident: true, forNR: false },
-  { key: 'study_minutes',    shortLabel: 'Study',   maxPoints: null, isScoring: false, forResident: true, forNR: false },
-  { key: 'preaching_raw',    shortLabel: 'Preach',  maxPoints: null, isScoring: false, forResident: true, forNR: false },
-  { key: 'distribution_raw', shortLabel: 'Books',   maxPoints: null, isScoring: false, forResident: true, forNR: false },
+  { key: 'quotes_tulasi',    shortLabel: 'Quotes/Pranam', maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'japa_visible',     shortLabel: 'Japa MTH',      maxPoints: 2,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'ma_na_gv',         shortLabel: 'DA+NA+GP+Kirtan', maxPoints: 3,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'bath',             shortLabel: 'Bath',          maxPoints: 0,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'sb',               shortLabel: 'SB Class',      maxPoints: 2,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'cleanliness',      shortLabel: 'Clean Area',    maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'daily_service',    shortLabel: 'Service',       maxPoints: 2,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'report_sending',   shortLabel: 'SameDay Fill',  maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'rounds',           shortLabel: 'Rounds',        maxPoints: 4,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'sp_reading',       shortLabel: 'Book Reading',  maxPoints: 3,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'sleep_quality',    shortLabel: 'Sleep Quality', maxPoints: 1,    isScoring: true,  forResident: true, forNR: false },
+  { key: 'japa_finish_time', shortLabel: 'Japa End',      maxPoints: null, isScoring: false, forResident: true, forNR: false },
+  { key: 'sleep_minutes',    shortLabel: 'Sleep',     maxPoints: null, isScoring: false, forResident: true, forNR: false },
+  { key: 'study_minutes',    shortLabel: 'Study',     maxPoints: null, isScoring: false, forResident: true, forNR: false },
+  { key: 'preaching_raw',    shortLabel: 'Preach',    maxPoints: null, isScoring: false, forResident: true, forNR: false },
+  { key: 'distribution_raw', shortLabel: 'Books Dist',    maxPoints: null, isScoring: false, forResident: true, forNR: false },
 ];
 
 /** Average of all non-null numeric values (includes 0) */
@@ -59,7 +65,7 @@ export default createEndpoint({
     endDate: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
     requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl });
 
@@ -81,12 +87,43 @@ export default createEndpoint({
       uOffset += 2000;
     }
 
+    const userRole = (context.user.role || 'User').toUpperCase().replace(/\s+/g, '_');
+    const userEmail = (context.user.email || '').toLowerCase();
+    const isSuperGuide = userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'PW_ADMIN' ||
+      !!context.user.isBvSuperAdmin ||
+      !!context.user.isBvAdmin ||
+      userEmail.includes('gaurmandal') ||
+      userEmail.includes('superadmin') ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com';
+
+    let guideRecord: any = null;
+    if (!isSuperGuide) {
+      guideRecord = await Guides.findOne({
+        filters: { email: context.user.email, isActive: true },
+        fields: ['id', 'folkResidencies'],
+      }).catch(() => null);
+    }
+
+    const guideRids: string[] = guideRecord
+      ? (Array.isArray(guideRecord.folkResidencies)
+          ? guideRecord.folkResidencies
+          : (guideRecord.folkResidencies ? [guideRecord.folkResidencies] : []))
+      : [];
+
     const residents = allUsers.filter(u => {
       const resId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
-      return u.residencyApproved && resId && !u.temporaryResidencyEnabled;
+      const isApprovedRes = u.residencyApproved && resId && !u.temporaryResidencyEnabled;
+      if (!isApprovedRes) return false;
+      if (!isSuperGuide) {
+        return guideRids.includes(resId);
+      }
+      return true;
     });
 
-    if (residents.length === 0) return { folkRows: [], fieldDefs: RESIDENT_FIELD_DEFS };
+    if (residents.length === 0) return { folkRows: [], fieldDefs: RESIDENT_FIELD_DEFS, title: isSuperGuide ? "All Residencies" : "My Residency" };
 
     const residentIdSet = new Set(residents.map(u => u.id));
 
@@ -108,6 +145,7 @@ export default createEndpoint({
           'maNaGvPoints', 'quotesTulasiPoints', 'japaVisiblePoints',
           'cleanlinessPoints', 'reportSendingPoints', 'dailyServicePoints', 'sleepQualityPoints',
           'japaFinishTime', 'sleepMinutes', 'studyMinutes', 'preachingMinutes', 'booksDistributed',
+          'fieldValuesJson',
         ],
         limit: 2000,
         offset: eOffset,
@@ -157,6 +195,7 @@ export default createEndpoint({
         quotesTulasiPoints: number | null; japaVisiblePoints: number | null;
         cleanlinessPoints: number | null; reportSendingPoints: number | null;
         dailyServicePoints: number | null; sleepQualityPoints: number | null;
+        bathPoints: number | null;
         japaTimeMins: number | null; sleepMins: number | null;
         studyMins: number | null; preachingTotal: number | null; booksTotal: number | null;
         scorePercent: number | null;
@@ -183,6 +222,12 @@ export default createEndpoint({
         const preachingTotal = entries.reduce((s, e) => s + (Number(e.preachingMinutes) || 0), 0) || null;
         const booksTotal     = entries.reduce((s, e) => s + (Number(e.booksDistributed) || 0), 0) || null;
 
+        const getBathPts = (e: any): number => {
+          const fv = parseFieldValues(e.fieldValuesJson);
+          const val = fv.bath === true || fv.bath === 'true' || Number(fv.bath) === 1;
+          return val ? -1 : 0;
+        };
+
         submitted.push({
           flagSick, flagOs,
           roundsCount:         fieldAvgAll(entries, 'roundsCount'),
@@ -197,6 +242,7 @@ export default createEndpoint({
           cleanlinessPoints:   fieldAvgAll(normSrc, 'cleanlinessPoints'),
           dailyServicePoints:  fieldAvgAll(normSrc, 'dailyServicePoints'),
           sleepQualityPoints:  fieldAvgAll(normSrc, 'sleepQualityPoints'),
+          bathPoints:          numAvgAll(normSrc.map(getBathPts)),
           japaTimeMins, sleepMins, studyMins, preachingTotal, booksTotal,
           // Weighted % = sum(totalScore) / sum(maxScore) — prevents Sick/OS day
           // inflation (max=8 easy days vs normal max=20 days in weekly/monthly views)
@@ -226,6 +272,7 @@ export default createEndpoint({
         cleanliness:     numAvgAll(normPool.map(s => s.cleanlinessPoints)),
         daily_service:   numAvgAll(normPool.map(s => s.dailyServicePoints)),
         sleep_quality:   numAvgAll(normPool.map(s => s.sleepQualityPoints)),
+        bath:            numAvgAll(normPool.map(s => s.bathPoints)),
         // Informational fields
         japa_finish_time: numAvgNonZero(normPool.map(s => s.japaTimeMins)),
         sleep_minutes:    numAvgNonZero(normPool.map(s => s.sleepMins)),
@@ -246,6 +293,7 @@ export default createEndpoint({
         cleanliness:     numAvgAll(normPool.map(s => s.cleanlinessPoints)),
         daily_service:   numAvgAll(normPool.map(s => s.dailyServicePoints)),
         sleep_quality:   numAvgAll(normPool.map(s => s.sleepQualityPoints)),
+        bath:            numAvgAll(normPool.map(s => s.bathPoints)),
         japa_finish_time: null, sleep_minutes: null, study_minutes: null,
         preaching_raw: null, distribution_raw: null,
       };
@@ -272,6 +320,12 @@ export default createEndpoint({
     }
 
     folkRows.sort((a, b) => (b.weightedScore ?? -1) - (a.weightedScore ?? -1));
-    return { folkRows, fieldDefs: RESIDENT_FIELD_DEFS };
+
+    const residencyNames = residencyIds.map(id => (residencyNameMap[id] || '').replace(/^FOLK\s+/i, '') || id);
+    const title = isSuperGuide
+      ? "All Residencies"
+      : (residencyNames.length > 0 ? residencyNames.join(', ') : 'My Residency');
+
+    return { folkRows, fieldDefs: RESIDENT_FIELD_DEFS, title };
   },
 });

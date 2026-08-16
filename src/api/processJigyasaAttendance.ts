@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, JigyasaRegistrations, JigyasaSessionAttendance, JigyasaProcessedFiles, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, JigyasaRegistrations, JigyasaSessionAttendance, JigyasaProcessedFiles, AppError } from '@/lib/backend-sdk';
 
 const rowSchema = z.object({
   email: z.string().optional(),
@@ -24,14 +24,14 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user.role;
     if (role !== 'Super Guide' && role !== 'Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can upload attendance' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can upload attendance' });
     }
 
     // Check if already processed
     const existing = await JigyasaProcessedFiles.findOne({
       filters: { fileName: input.fileName, fileType: 'Attendance' },
     });
-    if (existing) throw new ZiteError({ code: 'CONFLICT', message: 'This attendance file has already been processed' });
+    if (existing) throw new AppError({ code: 'CONFLICT', message: 'This attendance file has already been processed' });
 
     const validRows = input.rows.filter(r => r.email?.trim());
     let newRegistrations = 0;

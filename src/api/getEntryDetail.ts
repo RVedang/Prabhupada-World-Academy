@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, SadhanaEntries, Users, SadhanaFields } from 'zite-integrations-backend-sdk';
+import { createEndpoint, SadhanaEntries, Users, SadhanaFields } from '@/lib/backend-sdk';
 
 // Human-readable labels for common field keys
 const FIELD_LABEL_MAP: Record<string, string> = {
@@ -12,8 +12,8 @@ const FIELD_LABEL_MAP: Record<string, string> = {
   fillingSameDay: 'Filled Same Day (On Time)', on_time: 'On Time',
   seva: 'Seva', bhaktiVriksha: 'Bhakti Vriksha Attendance',
   cleanliness: 'Cleanliness', daily_service: 'Daily Service',
-  report_sending: 'Filling Same Day', ma_na_gv: 'MA/NA/GV',
-  quotes_tulasi: 'Quotes/Tulasi', japa_visible: 'Japa Visible',
+  report_sending: 'Filling Same Day', ma_na_gv: 'DA+NA+GP+Kirtan',
+  quotes_tulasi: 'Soulful Japa/Vaishnava Pranam', japa_visible: 'Japa Visibly Done in MTH/Balcony',
   japa_finish_time: 'Japa Finish Time', sleep_minutes: 'Sleep Hours', sleepTime: 'Sleep Time',
   sleep_quality: 'Sleep Quality', study_minutes: 'Study (min)',
   preaching_raw: 'Preaching (min)', preaching_minutes: 'Preaching (min)',
@@ -63,7 +63,7 @@ export default createEndpoint({
     entryDate: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input }: { input: any }) => {
     let entry: any;
 
     if (input.entryId) {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, Services } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, Services } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Mark a service allocation as done',

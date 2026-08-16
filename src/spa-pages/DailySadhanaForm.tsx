@@ -8,8 +8,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Calendar, Save, BookOpen, Leaf, Send, AlertTriangle, Home, Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { getSadhanaFormData, submitSadhana, setTemporaryResidency, getAllResidencies, getCleanlinessForSadhana, requestCleanlinessReview, GetSadhanaFormDataOutputType, GetAllResidenciesOutputType } from 'zite-endpoints-sdk';
+import { getSadhanaFormData, submitSadhana, setTemporaryResidency, getAllResidencies, getCleanlinessForSadhana, requestCleanlinessReview, GetSadhanaFormDataOutputType, GetAllResidenciesOutputType } from '@/lib/endpoints-sdk';
 const SADHANA_SUBMITTED_KEY_PREFIX = 'sadhana_submitted_';
 import { markSubmittedToday, scheduleSadhanaReminder } from '@/utils/sadhanaNotification';
 import { useDebouncedCallback } from 'use-debounce';
@@ -72,6 +73,8 @@ export default function DailySadhanaForm() {
 
   const userId = profile?.userId || '';
   const ashrayLevel = profile?.ashrayLevel || '';
+  const userEmailLower = (profile?.userId || '').toLowerCase();
+  const isFolkUser = profile?.segment === 'FOLK' || (profile as any)?.isFolkUser === true || userEmailLower.includes('folk.org') || userEmailLower.includes('gaurmandal');
   const [userRoleFromDb, setUserRoleFromDb] = useState<string | null>(null);
   const userRole = userRoleFromDb || profile?.role || 'USER';
   // P1-003 FIX: also check isBvsl flag from profile
@@ -431,8 +434,8 @@ export default function DailySadhanaForm() {
             <p className="text-sm text-muted-foreground">Today or up to 7 days back.</p>
           </div>
 
-          {/* Temporary FOLK Residency toggle — only shown for non-official-residents */}
-          {!isOfficialResident && (
+          {/* Temporary FOLK Residency toggle — only shown for FOLK department non-official-residents */}
+          {isFolkUser && !isOfficialResident && (
             <div className="bg-card border rounded-xl p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -448,16 +451,19 @@ export default function DailySadhanaForm() {
               {tempResidencyEnabled && (
                 <div className="space-y-1.5">
                   <Label className="text-sm text-muted-foreground">Select FOLK Residency you are visiting:</Label>
-                  <select
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  <Select
                     value={tempResidencyId || ''}
-                    onChange={e => !tempSaving && e.target.value && handleTempResidencySelect(e.target.value)}
+                    onValueChange={value => !tempSaving && value && handleTempResidencySelect(value)}
                   >
-                    <option value="">— Select a residency —</option>
-                    {residencies.map(r => (
-                      <option key={r.residencyId} value={r.residencyId}>{r.residencyName}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="— Select a residency —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {residencies.map((r: any) => (
+                        <SelectItem key={r.residencyId} value={r.residencyId}>{r.residencyName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {tempSaving && <p className="text-xs text-muted-foreground">Updating residency…</p>}
                   {tempResidencyId && !tempSaving && (
                     <p className="text-xs text-primary font-medium">
@@ -470,12 +476,18 @@ export default function DailySadhanaForm() {
           )}
 
           {isSickOrOs && (
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
-                {isSick && isOS ? '🤒 ✈️ Sick & Out of Station' : isSick ? '🤒 Sick' : '✈️ Out of Station'}
-                {isResident ? ` — rounds + reading scored out of 8 pts (+ 1 for same-day)` : ` — only reading and chanting are scored (max ${sickMaxScore} pts)`}
-              </p>
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3.5 flex items-start gap-2.5 shadow-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 text-sm">
+                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                  {isSick && isOS ? '🤒 ✈️ Marked as Sick & Out of Station' : isSick ? '🤒 Marked as Sick' : '✈️ Marked as Out of Station'}
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+                  {isResident
+                    ? 'Temple morning program is exempted. Your score will be evaluated only from Chanting (Rounds) + Book Reading (maximum 7 points) plus 1 bonus point for same-day submission.'
+                    : `Temple attendance is exempted. Your score is evaluated only from Chanting Rounds + Book Reading (max ${sickMaxScore} points).`}
+                </p>
+              </div>
             </div>
           )}
 
@@ -520,7 +532,7 @@ export default function DailySadhanaForm() {
           {!isResident && ashrayLevel && <NRScoringCriteria ashrayLevel={ashrayLevel} />}
 
           {/* Scoring Criteria Reference */}
-          <ScoringCriteriaPanel />
+          <ScoringCriteriaPanel isResident={isResident} />
 
           {/* Summary + Submit */}
           <div className="bg-card border rounded-xl p-4 shadow-sm space-y-4">
@@ -639,12 +651,12 @@ function SadhanaFields({ fields, formValues, ashrayLevel, entryDate, residencyBu
   }
   return (
     <>
-      {[...fields].sort((a, b) => a.displayOrder - b.displayOrder).filter(field => !hiddenFieldKeys?.has(field.fieldKey)).map(field => {
+      {[...fields].sort((a, b) => a.displayOrder - b.displayOrder).filter(field => field.fieldKey !== 'bhaktiVriksha' && !hiddenFieldKeys?.has(field.fieldKey)).map(field => {
         // Show all fields — for NR users, some fields may not be scored at their ashray level
         const applicableForLevel = isFieldVisibleForUser(field as any, ashrayLevel, entryDate);
         // SAD-H03 FIX: grey out non-scored fields when sick/OS
         const isNotScoredSickOs = !!(isSickOrOs && sickOsKeys && !sickOsKeys.has(field.fieldKey));
-        const isNotApplicable = !applicableForLevel;
+        const isNotApplicable = !isResident && Boolean(ashrayLevel) && ashrayLevel !== 'None' && ashrayLevel !== 'none' && !applicableForLevel;
         const isCleanlinessAutoFilled = !!(cleanlinessAutoFill?.enabled && field.fieldKey === 'cleanliness');
         
         if (isCleanlinessAutoFilled) {

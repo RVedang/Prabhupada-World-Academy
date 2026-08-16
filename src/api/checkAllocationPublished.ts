@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Config } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Config } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Check if the allocation for a week has been published by a guide',

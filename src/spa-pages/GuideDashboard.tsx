@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Users as UsersIcon, CheckSquare, BarChart3, Database, CalendarCheck, Bu
 import { FEATURES } from '@/config/features';
 import GuideServicesTab from '@/components/services/GuideServicesTab';
 import OneToOneTab from '@/components/guide/OneToOneTab';
-import { getCurrentGuide, getPendingApprovals, getGuideRequests, getResidencyTransferRequests } from 'zite-endpoints-sdk';
+import { getCurrentGuide, getPendingApprovals, getGuideRequests, getResidencyTransferRequests } from '@/lib/endpoints-sdk';
 import { DashboardLayout } from '@/layouts';
 import { LoadingPage } from '@/shared';
 import TabTransition from '@/components/TabTransition';
@@ -129,7 +129,6 @@ export default function GuideDashboard() {
       subtitle="FOLK Guide"
       role="GUIDE"
       maxWidth="max-w-none"
-      showProfile={false}
     >
       {/* Mobile Select Tab Selector */}
       <div className="block md:hidden mb-4">

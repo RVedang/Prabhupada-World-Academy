@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Plus, RefreshCw, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
-import { getUserSkills, tagUserSkill, removeUserSkill, getAvailableSkills, manageCatalogSkill } from 'zite-endpoints-sdk';
-import type { GetUserSkillsOutputType } from 'zite-endpoints-sdk';
+import { getUserSkills, tagUserSkill, removeUserSkill, getAvailableSkills, manageCatalogSkill } from '@/lib/endpoints-sdk';
+import type { GetUserSkillsOutputType } from '@/lib/endpoints-sdk';
 
 type UserEntry = GetUserSkillsOutputType['users'][0];
 

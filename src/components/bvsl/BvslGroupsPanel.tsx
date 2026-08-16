@@ -10,8 +10,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Users, Plus, Calendar, ChevronRight, Pencil, Trash2, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { createBvGroup, updateBvGroup, deleteBvGroup } from 'zite-endpoints-sdk';
-import type { GetBvslGroupsOutputType } from 'zite-endpoints-sdk';
+import { createBvGroup, updateBvGroup, deleteBvGroup } from '@/lib/endpoints-sdk';
+import type { GetBvslGroupsOutputType } from '@/lib/endpoints-sdk';
 
 type Group = GetBvslGroupsOutputType['groups'][0];
 
@@ -161,52 +161,90 @@ export default function BvslGroupsPanel({ bvslId, groups, onGroupSelect, onRefre
           <p>No groups yet. Create your first BV group.</p>
         </CardContent></Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {groups.map(g => (
-            <Card key={g.groupId} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onGroupSelect(g.groupId)}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex-1 min-w-0 truncate">{g.groupName}</CardTitle>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <EditGroupDialog group={g} onSave={onRefresh} />
-                    <DeleteGroupButton group={g} onDeleted={onRefresh} />
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            <Card
+              key={g.groupId}
+              className="group relative cursor-pointer rounded-2xl border border-border/80 bg-card shadow-xs hover:shadow-lg hover:border-primary/40 transition-all duration-200 overflow-hidden flex flex-col justify-between"
+              onClick={() => onGroupSelect(g.groupId)}
+            >
+              {/* Decorative top accent line */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-primary via-orange-500 to-amber-500 opacity-90 group-hover:opacity-100 transition-opacity" />
+
+              <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                {/* Header */}
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-base font-bold text-foreground truncate group-hover:text-primary transition-colors">
+                          {g.groupName}
+                        </h4>
+                        {g.description ? (
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{g.description}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/60 italic mt-0.5">Bhakti Vriksha Reading Group</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                      <EditGroupDialog group={g} onSave={onRefresh} />
+                      <DeleteGroupButton group={g} onDeleted={onRefresh} />
+                      <div className="p-1 rounded-lg hover:bg-muted text-muted-foreground group-hover:text-primary transition-colors">
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                {g.description && <p className="text-xs text-muted-foreground">{g.description}</p>}
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex gap-3 text-sm">
-                  <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{g.memberCount} members</span>
-                  <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{g.totalSessions} sessions</span>
+
+                {/* Metrics Badges */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 text-muted-foreground font-medium border border-border/40">
+                      <Users className="w-3.5 h-3.5 text-primary" />
+                      <strong className="text-foreground font-semibold">{g.memberCount}</strong> members
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 text-muted-foreground font-medium border border-border/40">
+                      <Calendar className="w-3.5 h-3.5 text-orange-500" />
+                      <strong className="text-foreground font-semibold">{g.totalSessions}</strong> sessions
+                    </span>
+                    {g.presentToday > 0 && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        {g.presentToday} present today
+                      </span>
+                    )}
+                  </div>
+
+                  {/* WhatsApp Invite Button */}
+                  <Button
+                    size="sm"
+                    className="w-full h-8 text-xs font-semibold rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 dark:text-emerald-400 border border-emerald-300/60 dark:border-emerald-800/80 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-1.5 mt-2"
+                    onClick={e => {
+                      e.stopPropagation();
+                      const joinUrl = g.joinToken
+                        ? `${window.location.origin}/join-group?token=${g.joinToken}`
+                        : window.location.origin;
+                      const lines = [
+                        `🙏 Hare Krishna!`,
+                        ``,
+                        `You are invited to join *${g.groupName}* — a Bhakti Vriksha group`,
+                        g.bvslName ? `led by *${g.bvslName}*` : '',
+                        g.guideName ? `under the guidance of *${g.guideName}*.` : '',
+                        ``,
+                        `Click to join: ${joinUrl}`,
+                      ].filter(Boolean);
+                      window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
+                    }}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-emerald-500/10" />
+                    WhatsApp Invite
+                  </Button>
                 </div>
-                {g.presentToday > 0 && (
-                  <Badge className="mt-2 bg-green-500 text-xs">{g.presentToday} present today</Badge>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 w-full h-7 text-xs border-green-500 text-green-700"
-                  onClick={e => {
-                    e.stopPropagation();
-                    const joinUrl = g.joinToken
-                      ? `${window.location.origin}/join-group?token=${g.joinToken}`
-                      : window.location.origin;
-                    const lines = [
-                      `🙏 Hare Krishna!`,
-                      ``,
-                      `You are invited to join *${g.groupName}* — a Bhakti Vriksha group`,
-                      g.bvslName ? `led by *${g.bvslName}*` : '',
-                      g.guideName ? `under the guidance of *${g.guideName}*.` : '',
-                      ``,
-                      `Click to join: ${joinUrl}`,
-                    ].filter(Boolean);
-                    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
-                  }}
-                >
-                  <MessageCircle className="w-3 h-3 mr-1" />WhatsApp Invite
-                </Button>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>

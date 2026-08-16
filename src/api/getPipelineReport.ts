@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   createEndpoint, Users, Guides,
   SadhanaEntries, OneToOneMeetings, BvslPreachingEntries,
-} from 'zite-integrations-backend-sdk';
+} from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 
 const USER_FIELDS = [

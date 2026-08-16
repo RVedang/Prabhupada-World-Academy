@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Users, Search, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { getScoresDrilldown } from 'zite-endpoints-sdk';
+import { getScoresDrilldown } from '@/lib/endpoints-sdk';
 
 interface RecordItem { id: string; primary: string; secondary: string; detail: string; date: string; badges: string[]; extra?: Record<string, any> }
 interface VolItem { id: string; name: string; points: number; count: number }

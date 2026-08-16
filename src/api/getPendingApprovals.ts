@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, FolkResidencies, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, FolkResidencies, Guides } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'fullName', 'phone', 'email', 'ashrayLevel', 'residency',
@@ -23,30 +23,36 @@ export default createEndpoint({
     // Fetch all pending users from the database
     const { records: pendingRecords } = await Users.findAll({ filters: pendingFilter, fields: USER_FIELDS, limit: 1000 });
 
-    const isHiranyavarnaOrPwAdmin = userEmail === 'srilaprabhupadaworld@gmail.com' || context.user.isPwAdmin;
+    const userSegment = context.user.segment || (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
 
     const checkIsPwUser = (u: any) => {
       const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
       const guideStr = (String(rawG || '') + ' ' + String(u.selectedGuideId || '') + ' ' + String(u.guideName || '')).toLowerCase();
       return !!(u.isPrabhupadaWorldUser) ||
+        (u.segment === 'PW') ||
         guideStr.includes('mentor-pw-hiranyavarna') ||
-        guideStr.includes('hiranyavarna');
+        guideStr.includes('mentor-pw-admin') ||
+        guideStr.includes('hiranyavarna') ||
+        guideStr.includes('prabhupadaworld');
     };
 
-    if (isHiranyavarnaOrPwAdmin) {
-      // Hiranyavarna Prabhu / PW Admin sees ONLY Prabhupada World registrations
-      allUsers = pendingRecords.filter(u => checkIsPwUser(u));
+    if (userSegment === 'PW') {
+      const isPwSuperAdmin = userEmail === 'srilaprabhupadaworld@gmail.com' || userEmail === 'vdnd@hkmmumbai.org' || context.user.isBvSuperAdmin;
+      allUsers = pendingRecords.filter(u => {
+        if (!checkIsPwUser(u)) return false;
+        if (isPwSuperAdmin) return true;
+        const selectedG = String(u.selectedGuideId || '').toLowerCase();
+        return selectedG === 'mentor-pw-admin' || selectedG.includes('admin') || selectedG.includes(userEmail);
+      });
     } else {
-      const scope = isSuperGuide ? null : await getGuideScope(context.user.email);
+      const isFolkSuperAdmin = userEmail.includes('gaurmandal') || userEmail.includes('folk.org') || userEmail.includes('superguide') || context.user.isBvSuperAdmin;
+      const scope = isFolkSuperAdmin ? null : await getGuideScope(context.user.email);
       const sId = (scope?.guideId || '').toLowerCase();
       const sName = (scope?.guideName || '').toLowerCase();
 
       allUsers = pendingRecords.filter(u => {
-        // Hide Prabhupada World (Hiranyavarna Das) registrations from Super FOLK Guide / FOLK guides
-        if (checkIsPwUser(u)) {
-          return false;
-        }
-        if (isSuperGuide) return true; // Super FOLK Guide sees all FOLK registrations
+        if (checkIsPwUser(u)) return false;
+        if (isFolkSuperAdmin) return true;
         const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
         const uGuide = String(rawG || '').toLowerCase();
         if (!rawG) return true;

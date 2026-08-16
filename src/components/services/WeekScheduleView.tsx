@@ -7,8 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { CalendarDays, AlertCircle } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { toast } from 'sonner';
-import { requestUnavailability } from 'zite-endpoints-sdk';
-import type { GetWeeklyScheduleOutputType } from 'zite-endpoints-sdk';
+import { requestUnavailability } from '@/lib/endpoints-sdk';
+import type { GetWeeklyScheduleOutputType } from '@/lib/endpoints-sdk';
 import ServiceStatusBadge from './ServiceStatusBadge';
 
 type ScheduleItem = GetWeeklyScheduleOutputType['schedule'][0];

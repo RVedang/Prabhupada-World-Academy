@@ -14,12 +14,12 @@ import {
   getGuideRequests, approveGuideTransfer, approveAshrayUpgrade,
   getResidencyTransferRequests, approveResidencyTransfer, getGuides,
   getCleanlinessReviews, resolveCleanlinessReview,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 import type {
   GetPendingApprovalsOutputType, GetResidenciesForGuideOutputType,
   GetGuideRequestsOutputType, GetResidencyTransferRequestsOutputType,
   GetGuidesOutputType,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 import { useNavigate } from 'react-router-dom';
 import { fmt } from '@/lib/fmt';
 import { EmptyState, ConfirmDialog, AsyncButton } from '@/shared';
@@ -31,13 +31,14 @@ type AshrayRequest = GetGuideRequestsOutputType['ashrayUpgrades'][0];
 type ResidencyTransfer = GetResidencyTransferRequestsOutputType[0];
 
 interface ApprovalsTabProps {
-  guideId: string;
+  guideId?: string;
   reviewerGuideId?: string;
   isSuperGuide?: boolean;
+  isPwAdmin?: boolean;
   onCountLoaded?: (count: number) => void;
 }
 
-export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = false, onCountLoaded }: ApprovalsTabProps) {
+export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGuide = false, isPwAdmin = false, onCountLoaded }: ApprovalsTabProps) {
   const navigate = useNavigate();
   const actionGuideId = reviewerGuideId || guideId;
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
@@ -178,7 +179,7 @@ export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = 
   const getResidencyName = (id: string) =>
     residencies.find((r: any) => r.residencyId === id)?.residencyName || 'Unknown';
 
-  const defaultSubTab = isSuperGuide 
+  const defaultSubTab = (isSuperGuide && !isPwAdmin)
     ? (guideTransfers.length > 0 ? 'transfers' : (residencyTransfers.length > 0 ? 'folk_transfer' : 'registrations'))
     : (pendingUsers.length > 0 ? 'registrations' : (ashrayUpgrades.length > 0 ? 'ashray' : 'registrations'));
 
@@ -197,7 +198,7 @@ export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = 
             </TabsTrigger>
           )}
 
-          {(isSuperGuide || guideTransfers.length > 0) && (
+          {!isPwAdmin && !isSuperGuide && guideTransfers.length > 0 && (
             <TabsTrigger value="transfers" className="gap-1 text-xs sm:text-sm">
               <ArrowRightLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Guide Transfers</span>
@@ -206,7 +207,7 @@ export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = 
             </TabsTrigger>
           )}
 
-          {(isSuperGuide || residencyTransfers.length > 0) && (
+          {!isPwAdmin && (isSuperGuide || residencyTransfers.length > 0) && (
             <TabsTrigger value="folk_transfer" className="gap-1 text-xs sm:text-sm">
               <Home className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">FOLK Transfer</span>
@@ -258,9 +259,11 @@ export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = 
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {user.ashrayLevel && <Badge variant="outline">✨ {user.ashrayLevel}</Badge>}
-                            {user.residencyUserClaim
-                              ? <Badge variant="secondary">🏠 {user.selectedFolkResidency ? getResidencyName(user.selectedFolkResidency) : 'Resident'}</Badge>
-                              : <Badge variant="outline">Non-Resident</Badge>}
+                            {!isPwAdmin && (
+                              user.residencyUserClaim
+                                ? <Badge variant="secondary">🏠 {user.selectedFolkResidency ? getResidencyName(user.selectedFolkResidency) : 'Resident'}</Badge>
+                                : <Badge variant="outline">Non-Resident</Badge>
+                            )}
                             {user.createdAt && <span className="text-xs text-muted-foreground">{fmt.date(user.createdAt)}</span>}
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -288,7 +291,7 @@ export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = 
                           <th className="text-left p-2 font-medium bg-card">Email</th>
                           <th className="text-left p-2 font-medium bg-card">Phone</th>
                           <th className="text-left p-2 font-medium bg-card">Ashraya</th>
-                          <th className="text-left p-2 font-medium bg-card">Residency</th>
+                          {!isPwAdmin && <th className="text-left p-2 font-medium bg-card">Residency</th>}
                           <th className="text-left p-2 font-medium bg-card">Registered</th>
                           <th className="text-right p-2 font-medium bg-card">Actions</th>
                         </tr>
@@ -304,11 +307,13 @@ export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = 
                                 ? <Badge variant="outline" className="text-xs">✨ {user.ashrayLevel}</Badge>
                                 : <span className="text-muted-foreground text-xs">—</span>}
                             </td>
-                            <td className="p-2">
-                              {user.residencyUserClaim
-                                ? <Badge variant="secondary">🏠 {user.selectedFolkResidency ? getResidencyName(user.selectedFolkResidency) : 'Resident'}</Badge>
-                                : <Badge variant="outline">Non-Resident</Badge>}
-                            </td>
+                            {!isPwAdmin && (
+                              <td className="p-2">
+                                {user.residencyUserClaim
+                                  ? <Badge variant="secondary">🏠 {user.selectedFolkResidency ? getResidencyName(user.selectedFolkResidency) : 'Resident'}</Badge>
+                                  : <Badge variant="outline">Non-Resident</Badge>}
+                              </td>
+                            )}
                             <td className="p-2 text-muted-foreground">{fmt.date(user.createdAt)}</td>
                             <td className="p-2 text-right space-x-2">
                               <Button size="sm" variant="outline" onClick={() => openEdit(user)}>
@@ -333,85 +338,84 @@ export default function ApprovalsTab({ guideId, reviewerGuideId, isSuperGuide = 
         </TabsContent>
 
         {/* ── Guide Transfer Requests ── */}
-        <TabsContent value="transfers">
-          <Card>
-            <CardHeader>
-              <CardTitle>Guide Transfer Requests</CardTitle>
-              <CardDescription>Users requesting to be transferred to your group</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {guideTransfers.length === 0 ? (
-                <EmptyState icon={ArrowRightLeft} title="No pending transfer requests" />
-              ) : (
-                <>
-                  <div className="block md:hidden space-y-4">
-                    {guideTransfers.map(req => (
-                      <Card key={req.logId} className="border">
-                        <CardContent className="pt-4 space-y-3">
-                          <div>
-                            <button className="font-semibold text-left hover:underline text-primary cursor-pointer flex items-center gap-1" onClick={() => navigate(`/guide/users/${req.userId}`)}>
-                              {req.userName}<ExternalLink className="w-3 h-3" />
-                            </button>
-                            <p className="text-sm text-muted-foreground">{req.userEmail}</p>
-                            <p className="text-xs font-semibold text-primary mt-1">
-                              Transfer: <span className="text-foreground font-normal">{req.fromGuideName}</span> ➔ <span className="text-foreground font-normal">{req.toGuideName}</span>
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">{fmt.dateFull(String(req.timestamp ?? ''))}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <AsyncButton size="sm" onClickAsync={() => handleTransferAction(req, 'approve')}>
-                              <CheckCircle className="w-3.5 h-3.5 mr-1" /> Accept
-                            </AsyncButton>
-                            <AsyncButton size="sm" variant="destructive" onClickAsync={() => handleTransferAction(req, 'reject')}>
-                              <XCircle className="w-3.5 h-3.5 mr-1" /> Decline
-                            </AsyncButton>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                  <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 z-10">
-                        <tr className="border-b">
-                          <th className="text-left p-2 font-medium bg-card">Name</th>
-                          <th className="text-left p-2 font-medium bg-card">Email</th>
-                          <th className="text-left p-2 font-medium bg-card">Transfer Request</th>
-                          <th className="text-left p-2 font-medium bg-card">Requested On</th>
-                          <th className="text-right p-2 font-medium bg-card">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {guideTransfers.map(req => (
-                          <tr key={req.logId} className="border-b hover:bg-muted/30">
-                            <td className="p-2 font-medium">
-                              <button className="hover:underline text-primary cursor-pointer text-left flex items-center gap-1" onClick={() => navigate(`/guide/users/${req.userId}`)}>
-                                {req.userName}<ExternalLink className="w-3 h-3" />
-                              </button>
-                            </td>
-                            <td className="p-2 text-muted-foreground">{req.userEmail}</td>
-                            <td className="p-2 text-muted-foreground font-normal">
-                              {req.fromGuideName} ➔ {req.toGuideName}
-                            </td>
-                            <td className="p-2 text-muted-foreground">{fmt.dateFull(String(req.timestamp ?? ''))}</td>
-                            <td className="p-2 text-right space-x-2">
+        {!isPwAdmin && !isSuperGuide && (
+          <TabsContent value="transfers">
+            <Card>
+              <CardHeader>
+                <CardTitle>Guide Transfer Requests</CardTitle>
+                <CardDescription>Devotees requesting to change their guide</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {guideTransfers.length === 0 ? (
+                  <EmptyState icon={ArrowRightLeft} title="No pending guide transfer requests" />
+                ) : (
+                  <>
+                    {/* Mobile */}
+                    <div className="block md:hidden space-y-4">
+                      {guideTransfers.map(req => (
+                        <Card key={req.logId} className="border">
+                          <CardContent className="pt-4 space-y-3">
+                            <div>
+                              <p className="font-semibold">{req.userName}</p>
+                              <p className="text-sm text-muted-foreground">{req.userEmail}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {req.fromGuideName} ➔ {req.toGuideName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{fmt.dateFull(String(req.timestamp ?? ''))}</p>
+                            </div>
+                            <div className="flex gap-2">
                               <AsyncButton size="sm" onClickAsync={() => handleTransferAction(req, 'approve')}>
-                                <CheckCircle className="w-4 h-4 mr-1" /> Accept
+                                <CheckCircle className="w-3.5 h-3.5 mr-1" /> Accept
                               </AsyncButton>
                               <AsyncButton size="sm" variant="destructive" onClickAsync={() => handleTransferAction(req, 'reject')}>
-                                <XCircle className="w-4 h-4 mr-1" /> Decline
+                                <XCircle className="w-3.5 h-3.5 mr-1" /> Decline
                               </AsyncButton>
-                            </td>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+
+                    {/* Desktop */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 z-10">
+                          <tr className="border-b">
+                            <th className="text-left p-2 font-medium bg-card">Name</th>
+                            <th className="text-left p-2 font-medium bg-card">Email</th>
+                            <th className="text-left p-2 font-medium bg-card">Transfer Request</th>
+                            <th className="text-left p-2 font-medium bg-card">Requested On</th>
+                            <th className="text-right p-2 font-medium bg-card">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                        </thead>
+                        <tbody>
+                          {guideTransfers.map(req => (
+                            <tr key={req.logId} className="border-b hover:bg-muted/30">
+                              <td className="p-2 font-medium">{req.userName}</td>
+                              <td className="p-2 text-muted-foreground">{req.userEmail}</td>
+                              <td className="p-2 text-muted-foreground font-normal">
+                                {req.fromGuideName} ➔ {req.toGuideName}
+                              </td>
+                              <td className="p-2 text-muted-foreground">{fmt.dateFull(String(req.timestamp ?? ''))}</td>
+                              <td className="p-2 text-right space-x-2">
+                                <AsyncButton size="sm" onClickAsync={() => handleTransferAction(req, 'approve')}>
+                                  <CheckCircle className="w-4 h-4 mr-1" /> Accept
+                                </AsyncButton>
+                                <AsyncButton size="sm" variant="destructive" onClickAsync={() => handleTransferAction(req, 'reject')}>
+                                  <XCircle className="w-4 h-4 mr-1" /> Decline
+                                </AsyncButton>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {/* ── Ashray Upgrade Requests ── */}
         <TabsContent value="ashray">

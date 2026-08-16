@@ -5,8 +5,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Star, Eye, EyeOff, CheckCircle2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getServiceRatingsForDate, submitServiceRating } from 'zite-endpoints-sdk';
-import type { GetServiceRatingsForDateOutputType } from 'zite-endpoints-sdk';
+import { getServiceRatingsForDate, submitServiceRating } from '@/lib/endpoints-sdk';
+import type { GetServiceRatingsForDateOutputType } from '@/lib/endpoints-sdk';
 
 type ServiceItem = GetServiceRatingsForDateOutputType['services'][0];
 

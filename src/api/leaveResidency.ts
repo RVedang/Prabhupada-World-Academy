@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ResidencyTransferRequests, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, ResidencyTransferRequests, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -11,14 +11,14 @@ export default createEndpoint({
     if (!context.user) throw new Error('Unauthorized');
 
     const user = await Users.findOne({ id: context.user.id, fields: ['id', 'residency'] });
-    if (!user) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const residencyId = Array.isArray(user.residency) ? user.residency[0] : user.residency;
-    if (!residencyId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'You are not in a residency' });
+    if (!residencyId) throw new AppError({ code: 'BAD_REQUEST', message: 'You are not in a residency' });
 
     // Check for existing pending request
     const existing = await ResidencyTransferRequests.findOne({ filters: { user: context.user.id, status: 'Pending' } });
-    if (existing) throw new ZiteError({ code: 'CONFLICT', message: 'You already have a pending residency request' });
+    if (existing) throw new AppError({ code: 'CONFLICT', message: 'You already have a pending residency request' });
 
     await ResidencyTransferRequests.create({
       record: {

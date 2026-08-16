@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -34,7 +34,7 @@ export default createEndpoint({
 
     if (Object.keys(updates).length === 0) return { success: true };
 
-    // Primary write: use Zite user sync record ID (guaranteed to match the right row)
+    // Primary write: use App user sync record ID (guaranteed to match the right row)
     await Users.update({ id: context.user.id, record: updates });
 
     // Invalidate cached profile so next load reflects the change

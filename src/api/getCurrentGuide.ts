@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Guides, Users, SadhanaEntries, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Guides, Users, SadhanaEntries, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 
 const GUIDE_FIELDS = ['id', 'email', 'isActive', 'fullName', 'phone', 'abbreviation', 'folkResidencies'];
@@ -46,7 +46,7 @@ export default createEndpoint({
     }
 
     if (!guideRecord) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
     }
 
     const todayStr = getTodayIST();

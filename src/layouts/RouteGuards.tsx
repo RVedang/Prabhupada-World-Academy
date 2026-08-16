@@ -3,7 +3,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { AlertTriangle, WifiOff } from 'lucide-react';
 
@@ -93,17 +93,17 @@ export function StatusRoute({
 }
 
 /**
- * Guard for /zite-auth (magic link + OAuth callback page).
+ * Guard for /auth-callback (magic link + OAuth callback page).
  *
  * Strategy:
  *   1. While authLoading → show spinner (with 15s stuck-error fallback)
  *   2. Auth done + profile already loaded (any status) → go straight to /dashboard.
  *      DashboardRouter handles PENDING / REJECTED / INACTIVE / role routing — no need
- *      to block on ZiteAuthPage's resolveUserLogin endpoint call.
- *   3. Auth done + no profile + user exists → ZiteAuthPage renders. It has a hard
+ *      to block on AuthCallbackPage's resolveUserLogin endpoint call.
+ *   3. Auth done + no profile + user exists → AuthCallbackPage renders. It has a hard
  *      20-second absolute timeout that force-navigates to /dashboard, so the user
  *      can NEVER be stuck here for more than 20 seconds.
- *   4. Auth done + no user → ZiteAuthPage handles loginWithRedirect.
+ *   4. Auth done + no user → AuthCallbackPage handles loginWithRedirect.
  */
 export function AuthCallbackGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
@@ -206,7 +206,7 @@ export function AuthCallbackGuard({ children }: { children: React.ReactNode }) {
   // pending/rejected — DashboardRouter redirects them to the right page.
   if (profile) return <Navigate to="/dashboard" replace />;
 
-  // No profile yet: let ZiteAuthPage run. It will call resolveUserLogin to set up the
+  // No profile yet: let AuthCallbackPage run. It will call resolveUserLogin to set up the
   // profile, and has a hard 20-second absolute timeout to /dashboard as an escape hatch.
   return <>{children}</>;
 }

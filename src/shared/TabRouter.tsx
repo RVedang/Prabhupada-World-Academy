@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Menu, ChevronDown } from 'lucide-react';
+import TabTransition from '@/components/TabTransition';
 
 export interface TabConfig {
   value: string;
@@ -59,7 +60,7 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const active = el.querySelector('[data-state="active"]') as HTMLElement | null;
+    const active = el.querySelector('[data-active]') as HTMLElement | null;
     if (active) {
       active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
     }
@@ -67,9 +68,17 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
 
   useEffect(() => {
     if (ignoreUrlHash) return;
+    
+    // Sync hash on initial mount to fix client-side hydration state mismatch
+    const hash = window.location.hash.slice(1);
+    const initialTab = tabs.find(t => t.value === hash);
+    if (initialTab) {
+      setActiveTab(initialTab.value);
+    }
+
     const onPop = () => {
-      const hash = window.location.hash.slice(1);
-      const validTab = tabs.find(t => t.value === hash);
+      const currentHash = window.location.hash.slice(1);
+      const validTab = tabs.find(t => t.value === currentHash);
       if (validTab) setActiveTab(validTab.value);
     };
     window.addEventListener('popstate', onPop);
@@ -84,23 +93,10 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
     }
   }, [ignoreUrlHash]);
 
-  // Use grid layout only when desktopCols is explicitly set AND tab count is small
-  const useGrid = desktopCols != null && tabs.length <= 6;
   const activeLabel = tabs.find(t => t.value === activeTab)?.label || 'Menu';
   const ActiveIcon = tabs.find(t => t.value === activeTab)?.icon;
 
-  // Split tabs into visible + overflow for desktop when many tabs
-  const hasOverflow = tabs.length > VISIBLE_COUNT;
-  const visibleTabs = hasOverflow ? tabs.slice(0, VISIBLE_COUNT) : tabs;
-  const overflowTabs = hasOverflow ? tabs.slice(VISIBLE_COUNT) : [];
-  // If active tab is in overflow, we need to show it in visible area
-  const activeInOverflow = hasOverflow && overflowTabs.some(t => t.value === activeTab);
-  const displayVisibleTabs = activeInOverflow
-    ? [...visibleTabs.slice(0, VISIBLE_COUNT - 1), tabs.find(t => t.value === activeTab)!]
-    : visibleTabs;
-  const displayOverflowTabs = activeInOverflow
-    ? [visibleTabs[VISIBLE_COUNT - 1], ...overflowTabs.filter(t => t.value !== activeTab)]
-    : overflowTabs;
+  const visibleTabs = tabs;
 
   return (
     <Tabs value={activeTab} onValueChange={handleChange} className="w-full">
@@ -113,7 +109,7 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
           />
         )}
         {/* Right fade */}
-        {!hasOverflow && showRightFade && (
+        {showRightFade && (
           <div className="absolute right-0 top-0 bottom-0 w-8 z-10 pointer-events-none rounded-r-md"
             style={{ background: 'linear-gradient(to left, hsl(var(--background)) 0%, transparent 100%)' }}
           />
@@ -121,21 +117,21 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
 
         <div
           ref={scrollRef}
-          className="overflow-x-auto scrollbar-hide"
+          className="w-full overflow-x-auto overflow-y-hidden scrollbar-none [&::-webkit-scrollbar]:hidden py-0.5"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <TabsList
-            className={useGrid ? 'grid w-full' : 'flex w-max min-w-full'}
-            style={useGrid ? { gridTemplateColumns: `repeat(${desktopCols}, minmax(0, 1fr))` } : undefined}
+            className="w-full h-9 bg-muted/40 p-1 rounded-full border border-border/50 shadow-xs flex items-center justify-between gap-1 overflow-y-hidden"
           >
-            {displayVisibleTabs.map(tab => {
+            {tabs.map(tab => {
               const Icon = tab.icon;
               return (
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
-                  className="flex items-center gap-1.5 shrink-0 whitespace-nowrap px-4"
+                  className="flex items-center justify-center gap-1.5 whitespace-nowrap px-2.5 sm:px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 border-transparent bg-transparent text-muted-foreground hover:text-foreground data-[active]:bg-white data-[active]:text-foreground data-[active]:shadow-xs data-[active]:font-semibold data-[active]:border data-[active]:border-border/40 dark:data-[active]:bg-white/15 dark:data-[active]:text-foreground h-7 shrink-0 flex-1"
                 >
-                  {Icon && <Icon className="w-4 h-4 shrink-0" />}
+                  {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
                   <span>{tab.label}</span>
                   {tab.badge != null && tab.badge > 0 && (
                     <span className="ml-0.5 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
@@ -145,45 +141,6 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
                 </TabsTrigger>
               );
             })}
-
-            {/* "More" dropdown for overflow tabs */}
-            {hasOverflow && displayOverflowTabs.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="flex items-center gap-1 shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md cursor-pointer"
-                    type="button"
-                  >
-                    More
-                    <ChevronDown className="w-3.5 h-3.5" />
-                    {/* Show badge dot if any overflow tab has a badge */}
-                    {displayOverflowTabs.some(t => t.badge && t.badge > 0) && (
-                      <span className="w-2 h-2 bg-destructive rounded-full" />
-                    )}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[180px]">
-                  {displayOverflowTabs.map(tab => {
-                    const Icon = tab.icon;
-                    return (
-                      <DropdownMenuItem
-                        key={tab.value}
-                        onClick={() => handleChange(tab.value)}
-                        className="cursor-pointer"
-                      >
-                        {Icon && <Icon className="w-4 h-4 mr-2 shrink-0" />}
-                        <span className="flex-1">{tab.label}</span>
-                        {tab.badge != null && tab.badge > 0 && (
-                          <span className="ml-2 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                            {tab.badge}
-                          </span>
-                        )}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </TabsList>
         </div>
       </div>
@@ -191,8 +148,8 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
       {/* Mobile Navigation — categorized drawer */}
       <div className="md:hidden mb-6 no-print">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
+          <SheetTrigger className="w-full">
+            <Button variant="outline" className="w-full justify-between" asChild={false}>
               <span className="flex items-center gap-2">
                 {ActiveIcon && <ActiveIcon className="w-4 h-4" />}
                 {activeLabel}
@@ -231,7 +188,9 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
         </Sheet>
       </div>
 
-      {children(activeTab, handleChange)}
+      <TabTransition activeTab={activeTab}>
+        {children(activeTab, handleChange)}
+      </TabTransition>
     </Tabs>
   );
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, UnavailabilityRequests, ServiceAllocations, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, UnavailabilityRequests, ServiceAllocations, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Approve or reject an unavailability request. If approved and allocation exists, promote backup user.',
@@ -15,12 +15,12 @@ export default createEndpoint({
     const role = context.user.role || '';
     const isGuide = role === 'Guide' || role === 'Super Guide' || context.user.isServiceAllocator === true;
     if (!isGuide) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only guides or service allocators can approve unavailability requests' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only guides or service allocators can approve unavailability requests' });
     }
 
     const request = await UnavailabilityRequests.findOne({ id: input.requestId });
     if (!request) {
-      throw new ZiteError({ code: 'NOT_FOUND', message: 'Request not found' });
+      throw new AppError({ code: 'NOT_FOUND', message: 'Request not found' });
     }
 
     const newStatus = input.action === 'approve' ? 'Approved' : 'Rejected';

@@ -42,7 +42,8 @@ env:
     value: placeholder_cron_secret_change_me
 
   - variable: ZITE_VAPID_PUBLIC_KEY
-    value: placeholder_vapid_public_change_me
+    value: BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE
 
   - variable: ZITE_VAPID_PRIVATE_KEY
-    value: placeholder_vapid_private_change_me
+    value: vkYwOKyr1RhRONW-oh3kMz3FHMBI9pJLyPsOkWDzDRQ
+

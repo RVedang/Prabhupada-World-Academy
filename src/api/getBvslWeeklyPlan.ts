@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvslWeeklyPlans } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvslWeeklyPlans } from '@/lib/backend-sdk';
 
 const dayOut = z.object({
   goal1: z.string(), goal2: z.string(),

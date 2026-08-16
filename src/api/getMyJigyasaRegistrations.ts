@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, JigyasaRegistrations, JigyasaSessionAttendance } from 'zite-integrations-backend-sdk';
+import { createEndpoint, JigyasaRegistrations, JigyasaSessionAttendance } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get Jigyasa registrations for the logged-in affiliate volunteer',

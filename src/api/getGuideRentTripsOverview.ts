@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, Trips, RentPayments, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, Trips, RentPayments, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   authenticated: true,
@@ -38,7 +38,7 @@ export default createEndpoint({
       !!((context.user as any).isFolkLead) ||
       !!((context.user as any).isTripCoordinator);
 
-    if (!isAuthorized) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+    if (!isAuthorized) throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
 
     const isSuperGuide = role === 'Super Guide';
 

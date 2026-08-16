@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvslPreachingEntries, BvSessions, BvAttendance, BvGroups, BvGroupMembers } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvslPreachingEntries, BvSessions, BvAttendance, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: "BVSL's own BV preaching + session report (attendance queried by group+date directly)",

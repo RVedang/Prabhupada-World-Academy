@@ -5,8 +5,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Users, ChevronRight, Leaf, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuideGroupStats } from 'zite-endpoints-sdk';
-import type { GetGuideGroupStatsOutputType } from 'zite-endpoints-sdk';
+import { getGuideGroupStats } from '@/lib/endpoints-sdk';
+import type { GetGuideGroupStatsOutputType } from '@/lib/endpoints-sdk';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
@@ -15,38 +15,46 @@ type GroupStat = GetGuideGroupStatsOutputType['groups'][0];
 
 function GroupCard({ group, onClick }: { group: GroupStat; onClick: () => void }) {
   const isVacant = group.memberCount === 0;
-  const rateColor = group.attendanceRate >= 75 ? 'text-green-600' : group.attendanceRate >= 50 ? 'text-yellow-600' : 'text-red-500';
+  const rateColor = group.attendanceRate >= 75 ? 'text-emerald-600 dark:text-emerald-400' : group.attendanceRate >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-500';
   return (
     <Card
-      className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${isVacant ? 'border-l-muted-foreground opacity-70' : 'border-l-primary'}`}
+      className={`group relative cursor-pointer rounded-2xl border border-border/80 bg-card shadow-xs hover:shadow-lg hover:border-primary/40 transition-all duration-200 overflow-hidden flex flex-col justify-between ${isVacant ? 'opacity-75' : ''}`}
       onClick={onClick}
     >
-      <CardContent className="pt-4 pb-4">
+      <div className={`h-1.5 w-full bg-gradient-to-r ${isVacant ? 'from-muted-foreground/30 to-muted-foreground/10' : 'from-primary via-orange-500 to-amber-500'} opacity-90 group-hover:opacity-100 transition-opacity`} />
+      <CardContent className="p-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <Leaf className={`w-4 h-4 shrink-0 ${isVacant ? 'text-muted-foreground' : 'text-primary'}`} />
-              <span className="font-semibold truncate">{group.groupName}</span>
-              {isVacant && <Badge variant="outline" className="text-xs text-muted-foreground shrink-0">Vacant</Badge>}
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-base text-foreground truncate group-hover:text-primary transition-colors">{group.groupName}</span>
+                  {isVacant && <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">Vacant</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  RGF: {group.bvslName || '—'} · {group.memberCount} members
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mb-2">
-              BVSL: {group.bvslName || '—'} · {group.memberCount} members
-            </p>
+
             {isVacant ? (
-              <p className="text-xs text-muted-foreground italic">No members yet — share the join link to invite</p>
+              <p className="text-xs text-muted-foreground/70 italic pt-1">No members yet — share the join link to invite</p>
             ) : (
-              <div className="flex items-center gap-3">
-                <span className={`text-lg font-bold ${rateColor}`}>{group.attendanceRate}%</span>
-                <span className="text-xs text-muted-foreground">
-                  {group.presentCount}/{group.totalSessions} sessions
+              <div className="flex items-center gap-2.5 pt-1 flex-wrap">
+                <span className={`text-base font-extrabold ${rateColor}`}>{group.attendanceRate}%</span>
+                <span className="text-xs text-muted-foreground font-medium">
+                  ({group.presentCount}/{group.totalSessions} sessions)
                 </span>
-                <Badge variant="outline" className={`text-xs ${rateColor} border-current`}>
+                <Badge variant="outline" className={`text-[10px] font-semibold ${rateColor} border-current/40 px-2 py-0.5`}>
                   {group.attendanceRate >= 75 ? 'Good' : group.attendanceRate >= 50 ? 'Fair' : 'Needs Attention'}
                 </Badge>
               </div>
             )}
           </div>
-          <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
+          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary shrink-0 transition-colors" />
         </div>
       </CardContent>
     </Card>
@@ -118,7 +126,7 @@ export default function GuideBvTab({ guideId, bvslMode, residencyIds }: Props) {
         <CardContent className="py-12 text-center text-muted-foreground">
           <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">No BV groups found</p>
-          <p className="text-sm mt-1">BV groups will appear here once BVSLs create them.</p>
+          <p className="text-sm mt-1">BV groups will appear here once RGFs create them.</p>
         </CardContent>
       </Card>
     );

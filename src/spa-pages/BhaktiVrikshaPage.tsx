@@ -11,15 +11,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { format, subMonths, subDays } from 'date-fns';
-import { getUserBvStatus, getBvAttendance, requestJoinBvGroup, leaveBvGroup } from 'zite-endpoints-sdk';
-import type { GetUserBvStatusOutputType, GetBvAttendanceOutputType } from 'zite-endpoints-sdk';
+import { getUserBvStatus, getBvAttendance, requestJoinBvGroup, leaveBvGroup, acknowledgeBvApprovalNotice, acknowledgeBvRejectionNotice } from '@/lib/endpoints-sdk';
+import type { GetUserBvStatusOutputType, GetBvAttendanceOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import BvCalendarView from '@/components/bv/BvCalendarView';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
 
 export default function BhaktiVrikshaPage() {
-  const { profile } = useUserProfile();
+  const { profile, refreshProfile } = useUserProfile();
   const navigate = useNavigate();
   const [bvStatus, setBvStatus] = useState<GetUserBvStatusOutputType | null>(null);
   const [bvData, setBvData] = useState<GetBvAttendanceOutputType | null>(null);
@@ -28,6 +28,31 @@ export default function BhaktiVrikshaPage() {
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
   const [leavingGroup, setLeavingGroup] = useState(false);
   const [regModalOpen, setRegModalOpen] = useState(false);
+  const [clearingNotice, setClearingNotice] = useState(false);
+
+  const handleAcknowledgeApproval = async () => {
+    setClearingNotice(true);
+    try {
+      await acknowledgeBvApprovalNotice({});
+      await refreshProfile();
+    } catch {
+      toast.error('Failed to acknowledge approval notice');
+    } finally {
+      setClearingNotice(false);
+    }
+  };
+
+  const handleAcknowledgeRejection = async () => {
+    setClearingNotice(true);
+    try {
+      await acknowledgeBvRejectionNotice({});
+      await refreshProfile();
+    } catch {
+      toast.error('Failed to acknowledge rejection notice');
+    } finally {
+      setClearingNotice(false);
+    }
+  };
 
   useEffect(() => { if (profile?.userId) load(); }, [profile?.userId]);
 
@@ -115,6 +140,73 @@ export default function BhaktiVrikshaPage() {
 
       <main className="container mx-auto px-4 py-6 max-w-4xl space-y-5">
 
+        {/* Welcome Notice (One-time) */}
+        {profile?.pendingBvApprovalNotice && bvStatus?.myGroup && (
+          <Card className="border-2 border-green-500 bg-green-50/50 dark:bg-green-950/20 shadow-md">
+            <CardContent className="pt-5 pb-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-lg text-green-900 dark:text-green-100 flex items-center gap-1.5">
+                    🎉 Application Accepted!
+                  </h3>
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    Your Bhakti Vriksha application has been accepted! You have been successfully assigned to the reading group: <strong>{bvStatus.myGroup.groupName}</strong>.
+                  </p>
+                  <div className="pt-2 text-xs space-y-1 text-green-700 dark:text-green-300">
+                    <p>👨‍🏫 <strong>Reading Group Facilitator (RGF):</strong> {bvStatus.myGroup.bvslName || 'Unassigned'}</p>
+                    <p>👥 <strong>Sub-Facilitator (RGSF):</strong> {bvStatus.myGroup.rgsfName || 'None'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button
+                  onClick={handleAcknowledgeApproval}
+                  disabled={clearingNotice}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold shadow-sm text-xs px-4 py-2"
+                >
+                  {clearingNotice && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                  OK, start!
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Rejection Notice (One-time) */}
+        {profile?.pendingBvRejectionNotice && (
+          <Card className="border-2 border-destructive bg-destructive/5 shadow-md">
+            <CardContent className="pt-5 pb-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                  <XCircle className="w-6 h-6 text-destructive" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-lg text-destructive flex items-center gap-1.5">
+                    Application Update
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your application to join Bhakti Vriksha was rejected. Please contact your supervisor or spiritual guide for further guidance.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button
+                  variant="outline"
+                  onClick={handleAcknowledgeRejection}
+                  disabled={clearingNotice}
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10 text-xs px-4 py-2"
+                >
+                  {clearingNotice && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                  Acknowledge
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Group Info Card */}
         {bvStatus?.myGroup ? (
           <Card className="border-l-4 border-l-primary">
@@ -163,23 +255,26 @@ export default function BhaktiVrikshaPage() {
               </div>
             </CardContent>
           </Card>
-        ) : (profile?.bvRegistrationStatus === 'Pending Approval' || bvStatus?.pendingRequest) ? (
-          <Card className="border-l-4 border-l-orange-400 bg-orange-50/40 dark:bg-orange-950/20">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-start gap-3">
-                <Clock className="w-8 h-8 text-orange-500 shrink-0 mt-0.5" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-base">Bhakti Vriksha Registration Pending</p>
-                    <Badge variant="outline" className="border-orange-400 text-orange-600 bg-orange-100 dark:bg-orange-900/40">
-                      Awaiting Admin Approval
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Your registration has been received! A Bhakti Vriksha Admin will approve your request and assign you to an active Reading Group shortly.
-                  </p>
-                </div>
+        ) : ((profile as any)?.bvRegistrationStatus === 'Pending Approval' || (profile as any)?.bvRegistrationStatus === 'Pending' || bvStatus?.pendingRequest) ? (
+          <Card className="border-2 border-dashed border-orange-300/80 bg-orange-50/50 dark:bg-orange-950/20">
+            <CardContent className="py-8 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center mx-auto text-orange-600">
+                <Clock className="w-6 h-6 animate-pulse" />
               </div>
+              <div>
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <p className="font-bold text-lg text-orange-700 dark:text-orange-300">Bhakti Vriksha Registration Pending</p>
+                  <Badge variant="outline" className="border-orange-400 text-orange-600 bg-orange-100 dark:bg-orange-900/40 font-medium">
+                    Awaiting Admin Approval
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                  Your Bhakti Vriksha details have been submitted! An Admin will review your application and assign you to an active Reading Group shortly.
+                </p>
+              </div>
+              <Button size="lg" disabled className="mt-2 font-semibold shadow-sm gap-2 bg-orange-100 text-orange-700 border border-orange-300 dark:bg-orange-900/60 dark:text-orange-200 dark:border-orange-700 cursor-not-allowed opacity-90">
+                <Clock className="w-4 h-4 text-orange-600" /> Pending Approval
+              </Button>
             </CardContent>
           </Card>
         ) : (

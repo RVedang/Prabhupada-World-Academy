@@ -4,8 +4,8 @@ import { ChevronLeft, ChevronRight, Save, BookOpen, ExternalLink } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { getBvslWeeklyPlan, saveBvslWeeklyPlan, getBvslBooksSummary } from 'zite-endpoints-sdk';
-import type { GetBvslWeeklyPlanOutputType } from 'zite-endpoints-sdk';
+import { getBvslWeeklyPlan, saveBvslWeeklyPlan, getBvslBooksSummary } from '@/lib/endpoints-sdk';
+import type { GetBvslWeeklyPlanOutputType } from '@/lib/endpoints-sdk';
 import WeeklyPlanDayCard from './WeeklyPlanDayCard';
 
 type DayData = {
@@ -144,7 +144,7 @@ export default function BvslWeeklyPlanTab({ userEmail }: Props) {
               <BookOpen className="w-4 h-4 text-amber-600" />
               <span className="text-sm text-amber-800 dark:text-amber-300">No books logged this week</span>
             </div>
-            <a href="https://sankirtan.zite.so" target="_blank" rel="noopener noreferrer"
+            <a href="https://sankirtan.pwacademy.org" target="_blank" rel="noopener noreferrer"
               className="text-xs text-amber-700 dark:text-amber-400 underline flex items-center gap-1">
               Log at Sankirtan <ExternalLink className="w-3 h-3" />
             </a>

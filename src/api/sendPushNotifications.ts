@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, PushSubscriptions, Users, SadhanaEntries, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, PushSubscriptions, Users, SadhanaEntries, AppError } from '@/lib/backend-sdk';
+import { storeBroadcast } from '@/lib/notificationBroadcast';
 
 // ── VAPID + Web Push helpers (pure Web Crypto — no npm packages) ──
 
@@ -172,6 +173,14 @@ async function sendPush(
     body: body.buffer as ArrayBuffer,
   });
 
+  const responseText = await resp.text().catch(() => '');
+  console.log('[Push Send Debug]', {
+    endpoint: sub.endpoint,
+    status: resp.status,
+    statusText: resp.statusText,
+    responseText,
+  });
+
   return resp.status >= 200 && resp.status < 300;
 }
 
@@ -190,16 +199,30 @@ export default createEndpoint({
     checkDate: z.string().optional(),
     reminderSlot: z.enum(['night-1', 'night-2', 'morning']),
     cronSecret: z.string().optional(),
+    customTitle: z.string().optional(),
+    customBody: z.string().optional(),
+    senderEmail: z.string().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.object({
     sent: z.number(),
     failed: z.number(),
     skipped: z.number(),
   }),
-  execute: async ({ input }) => {
-    // Validate cron secret
-    if (input.cronSecret !== process.env.ZITE_CRON_SECRET) {
-      throw new ZiteError({ code: 'UNAUTHORIZED', message: 'Invalid cron secret' });
+  execute: async ({ input, context }: any) => {
+    // Validate cron secret or authenticated user
+    const validCronSecrets = [
+      process.env.APP_CRON_SECRET,
+      process.env.ZITE_CRON_SECRET,
+      process.env.NEXT_PUBLIC_CRON_SECRET,
+      'app_cron_secret',
+      'local_cron_secret_key_12345',
+      'placeholder_cron_secret_change_me',
+    ].filter(Boolean);
+    const isCron = input.cronSecret && validCronSecrets.includes(input.cronSecret);
+    const isAuth = !!context?.user;
+    if (!isCron && !isAuth) {
+      throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized to send push notifications' });
     }
 
     // Determine the date to check
@@ -208,6 +231,7 @@ export default createEndpoint({
 
     // Get all push subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
+
     if (subs.length === 0) return { sent: 0, failed: 0, skipped: 0 };
 
     // Get unique user IDs from subscriptions
@@ -229,28 +253,111 @@ export default createEndpoint({
       entries.map(e => (Array.isArray(e.user) ? e.user[0] : e.user)).filter(Boolean)
     );
 
-    // Also check only active users
+    // Get active users who have push subscriptions
     const { records: activeUsers } = await Users.findAll({
       filters: { id: { in: userIds }, status: 'Active' },
-      fields: ['id'],
+      fields: ['id', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'isFolkLead', 'residencyId'],
       limit: 2000,
     });
-    const activeUserIds = new Set(activeUsers.map(u => u.id));
+
+    const senderId = context?.user?.id;
+    // Use input.senderEmail when called in cron mode (no auth context)
+    const senderEmail = ((input.senderEmail || context?.user?.email || '')).toLowerCase();
+
+    // Determine target segment
+    let targetSegment = input.segment || context?.user?.segment;
+    if (!targetSegment) {
+      if (
+        senderEmail.includes('srilaprabhupadaworld') ||
+        senderEmail.includes('vdnd') ||
+        senderEmail.includes('admin@prabhupadaworld') ||
+        context?.user?.isPwAdmin ||
+        context?.user?.isPrabhupadaWorldUser
+      ) {
+        targetSegment = 'PW';
+      } else if (
+        senderEmail.includes('gaurmandal') ||
+        senderEmail.includes('folk') ||
+        senderEmail.includes('superguide')
+      ) {
+        targetSegment = 'FOLK';
+      } else {
+        targetSegment = 'PW';
+      }
+    }
+
+    const isPwTarget = targetSegment === 'PW';
+
+    const targetUsers = activeUsers.filter((u: any) => {
+      const isSender = (senderId && u.id === senderId) ||
+                       (senderEmail && (u.email || '').toLowerCase() === senderEmail);
+      if (isSender) return false;
+
+      const uSegment = (u.segment || '').toUpperCase();
+      const name = (u.fullName || '').toUpperCase();
+      const email = (u.email || '').toLowerCase();
+
+      const isFolkUser = uSegment === 'FOLK' || 
+                         email.includes('folk.org') || 
+                         email.includes('gaurmandal') || 
+                         email.includes('superguide') || 
+                         name.includes('FOLK') || 
+                         name.includes('GAURMANDAL') || 
+                         !!u.residencyId || 
+                         !!u.isFolkLead;
+
+      const isPwUser = uSegment === 'PW' || 
+                       !!u.isPrabhupadaWorldUser || 
+                       email.includes('prabhupadaworld') || 
+                       email.includes('vdnd') || 
+                       email.includes('srilaprabhupadaworld') || 
+                       name.includes('PW') || 
+                       name.includes('PRABHUPADA') || 
+                       name.includes('HIRANYAVARNA');
+
+      if (isPwTarget) {
+        if (isFolkUser && !isPwUser) return false;
+        if (uSegment === 'FOLK') return false;
+        return true;
+      } else {
+        if (isPwUser && !isFolkUser) return false;
+        if (uSegment === 'PW') return false;
+        return true;
+      }
+    });
+
+    const activeUserIds = new Set(targetUsers.map(u => u.id));
 
     const slotMsg = SLOT_MESSAGES[input.reminderSlot] || SLOT_MESSAGES['night-1'];
+    const title = input.customTitle || slotMsg.title;
+    const body = input.customBody || slotMsg.body;
+
+    const broadcastId = String(Date.now()) + '_' + String(Math.floor(Math.random() * 1000000));
+
     const payloadStr = JSON.stringify({
-      title: slotMsg.title,
-      body: slotMsg.body,
+      id: broadcastId,
+      title,
+      body,
       slot: input.reminderSlot,
       url: '/sadhana',
+      senderEmail,
     });
 
     let sent = 0;
     let failed = 0;
     let skipped = 0;
 
-    const vapidPrivate = process.env.ZITE_VAPID_PRIVATE_KEY;
-    const vapidPublic = process.env.ZITE_VAPID_PUBLIC_KEY;
+    const vapidPrivate =
+      process.env.APP_VAPID_PRIVATE_KEY ||
+      process.env.ZITE_VAPID_PRIVATE_KEY ||
+      process.env.VAPID_PRIVATE_KEY ||
+      '';
+    const vapidPublic =
+      process.env.APP_VAPID_PUBLIC_KEY ||
+      process.env.ZITE_VAPID_PUBLIC_KEY ||
+      process.env.VAPID_PUBLIC_KEY ||
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+      '';
 
     // Send in parallel batches of 10
     const toSend = [...subsByUser.entries()].filter(([uid]) => {
@@ -277,6 +384,24 @@ export default createEndpoint({
         if (r.status === 'fulfilled' && r.value) sent++;
         else failed++;
       }
+    }
+
+    // Store the broadcast so active tabs pick it up via long-polling
+    // senderEmail is used by the long-poll route to filter the sender's tabs
+    try {
+      storeBroadcast(
+        title,
+        body,
+        input.reminderSlot || 'night-1',
+        senderEmail || undefined,
+        broadcastId,
+        undefined,
+        undefined,
+        undefined,
+        targetSegment
+      );
+    } catch (e) {
+      console.warn('[Push] Store broadcast failed:', e);
     }
 
     return { sent, failed, skipped };

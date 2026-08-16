@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from 'date-fns';
 import { toast } from 'sonner';
-import { getServiceCalendar } from 'zite-endpoints-sdk';
-import type { GetServiceCalendarOutputType } from 'zite-endpoints-sdk';
+import { getServiceCalendar } from '@/lib/endpoints-sdk';
+import type { GetServiceCalendarOutputType } from '@/lib/endpoints-sdk';
 
 type ServiceEntry = GetServiceCalendarOutputType['entries'][0]['services'][0];
 

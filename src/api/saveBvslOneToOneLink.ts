@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'BVSL saves their own 1:1 booking link',

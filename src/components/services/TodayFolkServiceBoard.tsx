@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { RefreshCw, CheckCircle2, Clock, AlertCircle, PlusCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getTodayServiceBoard, selfAllocate, markServiceDone, updateChecklistProgress, releaseServiceAllocation, GetTodayServiceBoardOutputType } from 'zite-endpoints-sdk';
+import { getTodayServiceBoard, selfAllocate, markServiceDone, updateChecklistProgress, releaseServiceAllocation, GetTodayServiceBoardOutputType } from '@/lib/endpoints-sdk';
 import { getCurrentServiceWeekStart } from '@/lib/serviceWeek';
 import { format } from 'date-fns';
 

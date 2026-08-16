@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvMemberRegistrations, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, BvMemberRegistrations, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
 
@@ -19,11 +19,12 @@ export default createEndpoint({
     weeklyReadingHours: z.string().max(100).optional(),
     weeklyHearingHours: z.string().max(100).optional(),
     ashrayLevel: z.string().max(100),
-    pwClassesAttending: z.enum(['5.30 a.m.', '9.30 a.m.', 'Tuesday weekly special', 'none']),
+    pwClassesAttending: z.string().max(100),
     inTouchWithTemple: z.boolean(),
     templeName: z.string().max(200).optional(),
     devoteeName: z.string().max(200).optional(),
     timePreference: z.string().max(200),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -31,15 +32,27 @@ export default createEndpoint({
     status: z.string(),
   }),
   execute: async ({ input, context }: any) => {
-    if (!context.user) throw new Error('Unauthorized');
-
     const userId = context.user.id;
     const userEmail = (context.user.email || '').toLowerCase();
     const phoneE164 = `${input.phoneCountryCode}${input.phone.replace(/\D/g, '')}`;
 
+    let userRecord = await Users.findOne({
+      id: userId,
+      fields: ['id', 'userId', 'isPrabhupadaWorldUser', 'segment', 'guide', 'selectedGuideId', 'guideName'],
+    }).catch(() => null);
+
+    if (!userRecord && userEmail) {
+      userRecord = await Users.findOne({ filters: { email: userEmail } }).catch(() => null);
+    }
+
+    const isPwByGuide = !!(userRecord?.isPrabhupadaWorldUser) || userRecord?.segment === 'PW';
+    const segment = input.segment || userRecord?.segment || (isPwByGuide ? 'PW' : 'FOLK');
+    const isPw = segment === 'PW';
+
     const registrationRecord = {
       id: `BVREG-${userId}`,
-      userId,
+      userId: userRecord?.userId || userId,
+      userDbId: userRecord?.id || userId,
       email: userEmail,
       fullName: input.fullName,
       phoneCountryCode: input.phoneCountryCode,
@@ -59,6 +72,8 @@ export default createEndpoint({
       templeName: input.templeName || '',
       devoteeName: input.devoteeName || '',
       timePreference: input.timePreference,
+      isPrabhupadaWorldUser: isPw,
+      segment: segment,
       status: 'Pending Approval',
       submittedAt: new Date().toISOString(),
     };
@@ -72,13 +87,16 @@ export default createEndpoint({
     }
 
     // Update main User record with spiritual & profile fields
+    const targetId = userRecord?.id || userId;
     await Users.update({
-      id: userId,
+      id: targetId,
       record: {
         fullName: input.fullName,
         phone: input.phone,
         ashrayLevel: input.ashrayLevel === 'none' ? null : input.ashrayLevel,
         bvRegistrationStatus: 'Pending Approval',
+        segment: segment,
+        isPrabhupadaWorldUser: isPw,
       },
     }).catch(() => {});
 

@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Search, Phone, MessageCircle, ExternalLink, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvslMembers, removeGroupMember } from 'zite-endpoints-sdk';
-import type { GetBvslMembersOutputType } from 'zite-endpoints-sdk';
+import { getBvslMembers, removeGroupMember } from '@/lib/endpoints-sdk';
+import type { GetBvslMembersOutputType } from '@/lib/endpoints-sdk';
 import { EmptyState, ConfirmDialog } from '@/shared';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { normalizePhoneForLinks } from '@/lib/userUtils';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type Member = GetBvslMembersOutputType['members'][0];
 
@@ -20,6 +21,8 @@ interface Props { bvslId: string; }
 
 export default function BvslMembersTable({ bvslId }: Props) {
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
+  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -93,7 +96,7 @@ export default function BvslMembersTable({ bvslId }: Props) {
             </div>
             {distinctGroups.length > 1 && (
               <div className="min-w-[140px]">
-                <Select value={groupFilter} onValueChange={setGroupFilter}>
+                <Select value={groupFilter} onValueChange={(val) => setGroupFilter(val || 'all')}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="All Groups" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Groups</SelectItem>
@@ -102,24 +105,32 @@ export default function BvslMembersTable({ bvslId }: Props) {
                 </Select>
               </div>
             )}
-            <div className="min-w-[140px]">
-              <Select value={residencyFilter} onValueChange={(v: any) => setResidencyFilter(v)}>
+            {isFolk && (
+              <div className="min-w-[140px]">
+                <Select value={residencyFilter} onValueChange={(v: any) => setResidencyFilter(v)}>
+                  <SelectTrigger className="h-9">
+                    {residencyFilter === 'all' ? 'All Members' : residencyFilter === 'residents' ? 'Residents' : 'Non-Residents'}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Members</SelectItem>
+                    <SelectItem value="residents">Residents</SelectItem>
+                    <SelectItem value="non_residents">Non-Residents</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="min-w-[160px]">
+              <Select value={ashrayFilter} onValueChange={(val) => setAshrayFilter(val || 'all')}>
                 <SelectTrigger className="h-9">
-                  {residencyFilter === 'all' ? 'All Members' : residencyFilter === 'residents' ? 'Residents' : 'Non-Residents'}
+                  <SelectValue>{ashrayFilter === 'all' ? 'All Levels' : (ashrayFilter.charAt(0).toUpperCase() + ashrayFilter.slice(1).toLowerCase())}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Members</SelectItem>
-                  <SelectItem value="residents">Residents</SelectItem>
-                  <SelectItem value="non_residents">Non-Residents</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-[130px]">
-              <Select value={ashrayFilter} onValueChange={setAshrayFilter}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All Levels" /></SelectTrigger>
-                <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
-                  {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  {ASHRAY_LEVELS.map(l => (
+                    <SelectItem key={l} value={l}>
+                      {l.charAt(0).toUpperCase() + l.slice(1).toLowerCase()}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -142,7 +153,14 @@ export default function BvslMembersTable({ bvslId }: Props) {
                     <CardContent className="pt-4 pb-3 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 cursor-pointer" onClick={() => navigate(`/guide/users/${m.userId}`)}>
-                          <p className="font-semibold text-sm truncate">{m.fullName}</p>
+                          <p className="font-semibold text-sm truncate flex items-center gap-1.5">
+                            {(m as any).isRgsf && (
+                              <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider px-1.5 py-0 shrink-0">
+                                RGSF
+                              </Badge>
+                            )}
+                            <span className="truncate">{m.fullName}</span>
+                          </p>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {m.groupName && <Badge variant="secondary" className="text-xs">{m.groupName}</Badge>}
                             {m.ashrayLevel && <Badge variant="outline" className="text-xs">{m.ashrayLevel}</Badge>}
@@ -191,7 +209,16 @@ export default function BvslMembersTable({ bvslId }: Props) {
                         className="border-b hover:bg-accent cursor-pointer"
                         onClick={() => navigate(`/guide/users/${m.userId}`)}
                       >
-                        <td className="p-2 font-medium">{m.fullName}</td>
+                        <td className="p-2 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            {(m as any).isRgsf && (
+                              <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider px-1.5 py-0 shrink-0">
+                                RGSF
+                              </Badge>
+                            )}
+                            <span>{m.fullName}</span>
+                          </div>
+                        </td>
                         <td className="p-2 text-muted-foreground">
                           {m.groupName ? <Badge variant="secondary" className="text-xs">{m.groupName}</Badge> : '—'}
                         </td>

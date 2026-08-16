@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, AttendanceRecords, AttendanceSessions, AttendanceEvents, AttendanceVolunteers, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AttendanceRecords, AttendanceSessions, AttendanceEvents, AttendanceVolunteers, AppError } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
 
 export default createEndpoint({
@@ -19,12 +19,12 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user.role || '';
     if (role !== 'Guide' && role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can access this' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can access this' });
     }
 
     const scope = await getGuideScope(context.user.email);
     if (!scope && role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide scope not found' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide scope not found' });
     }
 
     const limit = Math.min(input.limit || 50, 200);

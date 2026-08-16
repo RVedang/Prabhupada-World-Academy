@@ -4,9 +4,9 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from 'zite-auth-sdk';
-import { getUserProfile } from 'zite-endpoints-sdk';
-import type { GetUserProfileOutputType } from 'zite-endpoints-sdk';
+import { useAuth } from '@/lib/auth-sdk';
+import { getUserProfile } from '@/lib/endpoints-sdk';
+import type { GetUserProfileOutputType } from '@/lib/endpoints-sdk';
 
 export type UserProfileData = NonNullable<GetUserProfileOutputType['user']>;
 

@@ -8,7 +8,7 @@
  * Default date = today (IST / server local date).
  */
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, Guides, FolkResidencies, ZiteError, UsersRecordType, SadhanaEntriesRecordType } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, Guides, FolkResidencies, AppError, UsersRecordType, SadhanaEntriesRecordType } from '@/lib/backend-sdk';
 
 // ── Output schemas ────────────────────────────────────────────────────────────
 
@@ -114,7 +114,7 @@ export default createEndpoint({
     const targetDate = input.date ?? today;
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-      throw new ZiteError({
+      throw new AppError({
         code: 'BAD_REQUEST',
         message: 'Invalid date format. Use yyyy-mm-dd (e.g. 2026-04-13)',
       });

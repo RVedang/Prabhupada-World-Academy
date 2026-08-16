@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, Email } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, Email } from '@/lib/backend-sdk';
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
@@ -45,15 +45,15 @@ export default createEndpoint({
     date: z.string(),
     recipients: z.array(z.object({ name: z.string(), email: z.string() })),
   }),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: { round: 1 | 2 | 3 }; context: any }) => {
     // Only Super Guides can trigger reminders
     if (context.user!.role !== 'Super Guide') {
       throw new Error('Unauthorised: Super Guide role required');
     }
 
     const targetDate = input.round === 1 ? getISTDate(0) : getISTDate(-1);
-    const copy = ROUND_COPY[input.round];
-    const sadhanaUrl = `${process.env.ZITE_APP_URL ?? ''}/sadhana`;
+    const copy = ROUND_COPY[input.round as 1 | 2 | 3];
+    const sadhanaUrl = `${process.env.APP_APP_URL ?? ''}/sadhana`;
 
     // Collect all active users with emails
     const activeUsers: { id: string; email: string; fullName: string }[] = [];
@@ -61,12 +61,14 @@ export default createEndpoint({
     while (true) {
       const { records, hasMore } = await Users.findAll({
         filters: { status: 'Active' },
-        fields: ['id', 'email', 'fullName'],
+        fields: ['id', 'email', 'fullName', 'segment'],
         limit: 500,
         offset,
       });
       for (const u of records) {
-        if (u.email && u.id) {
+        const email = (u.email || '').toLowerCase();
+        const isFolk = u.segment === 'FOLK' || email.includes('gaurmandal') || email.includes('folk.org');
+        if (u.email && u.id && !isFolk) {
           activeUsers.push({ id: u.id, email: u.email, fullName: u.fullName ?? 'Prabhu' });
         }
       }

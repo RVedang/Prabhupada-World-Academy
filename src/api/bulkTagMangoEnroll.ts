@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { enrollUserOnTagMango, resolveApiKey } from '../lib/tagMangoEnroll';
 
 export default createEndpoint({
@@ -17,11 +17,11 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }) => {
     if (context.user.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
 
     const apiKey = await resolveApiKey();
-    if (!apiKey) throw new ZiteError({ code: 'BAD_REQUEST', message: 'TagMango API key not configured' });
+    if (!apiKey) throw new AppError({ code: 'BAD_REQUEST', message: 'TagMango API key not configured' });
 
     // Fetch all active users with an ashray level who are not yet enrolled
     const allUsers: { id: string; fullName?: string; email?: string; phone?: string; ashrayLevel?: string; tagMangoEnrollmentStatus?: string; tagMangoEnrollmentAttempts?: number }[] = [];

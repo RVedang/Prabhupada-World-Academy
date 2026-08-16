@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AttendanceSessions, ChallengeEnrollments } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AttendanceSessions, ChallengeEnrollments } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get challenge dashboard summary for Guides/Super Guides',

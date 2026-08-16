@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Users, Trash2, UserPlus, UserMinus, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuideGroups, createGroup, addGroupMember, removeGroupMember, GetGuideGroupsOutputType } from 'zite-endpoints-sdk';
+import { getGuideGroups, createGroup, addGroupMember, removeGroupMember, GetGuideGroupsOutputType } from '@/lib/endpoints-sdk';
 
 interface GroupsTabProps {
   guideId: string;

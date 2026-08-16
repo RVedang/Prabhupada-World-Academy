@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, UnavailabilityRequests } from 'zite-integrations-backend-sdk';
+import { createEndpoint, UnavailabilityRequests } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Request unavailability for a specific date (resident submits a leave request)',

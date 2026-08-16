@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, Users, AttendanceRecords, AttendanceSessions, AttendanceEvents, Guides, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, Guides, FolkResidencies, AppError } from '@/lib/backend-sdk';
+
+import getGuides from './getGuides';
 
 export default createEndpoint({
   description: 'Get attendance report for Super Guide (all users, all centers)',
@@ -15,27 +17,53 @@ export default createEndpoint({
     search: z.string().optional(),
     offset: z.number().optional(),
     limit: z.number().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
-    if (context.user.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guides only' });
+  execute: async ({ input, context }: { input: any; context: any }) => {
+    const userRole = (context.user?.role || '').toUpperCase();
+    const userEmail = (context.user?.email || '').toLowerCase();
+    const isAllowed = userRole === 'SUPER_GUIDE' || userRole === 'SUPER GUIDE' || userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'PW_ADMIN' || !!context.user?.isBvAdmin || !!context.user?.isBvSuperAdmin || !!context.user?.isPwAdmin;
+    if (!isAllowed) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guides and Admins only' });
+    }
+
+    const isSuperGuide = userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'PW_ADMIN' ||
+      !!context.user?.isBvSuperAdmin ||
+      userEmail.includes('gaurmandal') ||
+      userEmail.includes('superadmin') ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com';
+
+    let guideDbId: string | null = input.guideId === 'ALL' ? null : (input.guideId || null);
+    if (!isSuperGuide) {
+      const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] }).catch(() => null);
+      if (guideRecord) {
+        guideDbId = (guideRecord as any).id;
+      } else {
+        guideDbId = context.user.id;
+      }
     }
 
     const limit = Math.min(input.limit || 50, 200);
     const offset = input.offset || 0;
 
     // Fetch lookup data in parallel
-    const [eventsRes, sessionsRes, guidesRes, centersRes] = await Promise.all([
+    const [eventsRes, sessionsRes, guidesListRes, centersRes] = await Promise.all([
       AttendanceEvents.findAll({ filters: {}, limit: 200, fields: ['id', 'title'] }),
       AttendanceSessions.findAll({ filters: {}, limit: 500, fields: ['id', 'name', 'event'] }),
-      Guides.findAll({ filters: { isActive: true } as any, limit: 200, fields: ['id', 'fullName', 'folkResidencies'] }),
+      getGuides.execute({ input: { segment: input.segment }, context }),
       FolkResidencies.findAll({ filters: { isActive: true } as any, limit: 100, fields: ['id', 'residencyName'] }),
     ]);
 
+    const guideOptions = (guidesListRes.guides || []).map((g: any) => ({ id: g.guideId, name: g.name }));
+
     const eventMap = new Map(eventsRes.records.map(e => [e.id, e.title || '']));
     const sessionMap = new Map(sessionsRes.records.map(s => [s.id, { name: s.name || '', eventId: Array.isArray(s.event) ? s.event[0] : s.event }]));
-    const guideMap = new Map(guidesRes.records.map(g => [g.id, g.fullName || '']));
+    const guideMap = new Map((guidesListRes.guides || []).map((g: any) => [g.guideId, g.name]));
     const centerMap = new Map(centersRes.records.map(c => [c.id, c.residencyName || '']));
 
     // Build record filters
@@ -53,9 +81,9 @@ export default createEndpoint({
 
     // If guideId or residencyId filter, scope user IDs first
     let scopedUserIds: string[] | undefined;
-    if (input.guideId || input.residencyId || input.ashrayLevel || input.search) {
-      const userFilters: any = { status: 'Active' };
-      if (input.guideId) userFilters.guide = input.guideId;
+    if (guideDbId || input.residencyId || input.ashrayLevel || input.search) {
+      const userFilters: any = {};
+      if (guideDbId) userFilters.guide = guideDbId;
       if (input.residencyId) userFilters.residency = input.residencyId;
       if (input.ashrayLevel) userFilters.ashrayLevel = input.ashrayLevel;
 
@@ -78,7 +106,7 @@ export default createEndpoint({
         return {
           records: [], stats: { totalCheckins: 0, uniqueParticipants: 0, levelBreakdown: [], centerBreakdown: [] },
           filterOptions: {
-            guides: guidesRes.records.map(g => ({ id: g.id, name: g.fullName || '' })),
+            guides: guideOptions,
             centers: centersRes.records.map(c => ({ id: c.id, name: c.residencyName || '' })),
             events: eventsRes.records.map(e => ({ id: e.id, title: e.title || '' })),
             sessions: sessionsRes.records.map(s => ({ id: s.id, name: s.name || '', eventId: (Array.isArray(s.event) ? s.event[0] : s.event) || '' })),
@@ -89,11 +117,33 @@ export default createEndpoint({
       recFilters.user = { in: scopedUserIds };
     }
 
-    const { records: allRecords } = await AttendanceRecords.findAll({
-      filters: recFilters,
-      limit: 2000,
-      fields: ['id', 'session', 'date', 'user', 'source'],
-    });
+    const bvAttFilters: any = {};
+    if (input.startDate) bvAttFilters.attendanceDate = { ...(bvAttFilters.attendanceDate || {}), gte: input.startDate };
+    if (input.endDate) bvAttFilters.attendanceDate = { ...(bvAttFilters.attendanceDate || {}), lte: input.endDate };
+    if (scopedUserIds && scopedUserIds.length > 0) bvAttFilters.user = { in: scopedUserIds };
+
+    const [stdRes, bvRes] = await Promise.all([
+      AttendanceRecords.findAll({
+        filters: recFilters,
+        limit: 2000,
+        fields: ['id', 'session', 'date', 'user', 'source'],
+      }),
+      BvAttendance.findAll({
+        filters: { ...bvAttFilters, present: true } as any,
+        limit: 2000,
+        fields: ['id', 'attendanceDate', 'user', 'sessionTopic', 'group'],
+      }).catch(() => ({ records: [] })),
+    ]);
+
+    const formattedBvRecords = (bvRes.records || []).map((b: any) => ({
+      id: b.id,
+      session: b.sessionTopic || 'Bhakti Vriksha Session',
+      date: b.attendanceDate,
+      user: Array.isArray(b.user) ? b.user[0] : b.user,
+      source: 'Bhakti Vriksha',
+    }));
+
+    const allRecords = [...stdRes.records, ...formattedBvRecords];
 
     allRecords.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
@@ -160,7 +210,11 @@ export default createEndpoint({
         centerBreakdown: Object.entries(centerCounts).map(([centerName, count]) => ({ centerName, count })),
       },
       filterOptions: {
-        guides: guidesRes.records.map(g => ({ id: g.id, name: g.fullName || '' })),
+        guides: (guidesListRes.guides || []).map((g: any) => ({
+          id: g.guideId || g.id,
+          name: g.name,
+          isPrabhupadaWorldMentor: !!g.isPrabhupadaWorldMentor,
+        })),
         centers: centersRes.records.map(c => ({ id: c.id, name: c.residencyName || '' })),
         events: eventsRes.records.map(e => ({ id: e.id, title: e.title || '' })),
         sessions: sessionsRes.records.map(s => ({ id: s.id, name: s.name || '', eventId: (Array.isArray(s.event) ? s.event[0] : s.event) || '' })),

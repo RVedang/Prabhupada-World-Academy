@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, RentPayments, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, RentPayments, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   authenticated: true,
@@ -13,11 +13,11 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }) => {
     const payment = await RentPayments.findOne({ id: input.paymentId, fields: ['id', 'user'] });
-    if (!payment) throw new ZiteError({ code: 'NOT_FOUND', message: 'Rent payment not found' });
+    if (!payment) throw new AppError({ code: 'NOT_FOUND', message: 'Rent payment not found' });
 
     const paymentUserId = Array.isArray(payment.user) ? payment.user[0] : payment.user;
     if (paymentUserId !== context.user!.id) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only request corrections for your own rent payments' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'You can only request corrections for your own rent payments' });
     }
 
     await RentPayments.update({

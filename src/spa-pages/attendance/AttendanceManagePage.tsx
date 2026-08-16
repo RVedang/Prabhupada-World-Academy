@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   getAttendanceEventsAdmin, createAttendanceEvent, createAttendanceSession,
   manageAttendanceVolunteers,
-} from 'zite-endpoints-sdk';
-import type { GetAttendanceEventsAdminOutputType } from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
+import type { GetAttendanceEventsAdminOutputType } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

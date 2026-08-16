@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Trips, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Trips, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   authenticated: true,
@@ -13,12 +13,12 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }) => {
     const trip = await Trips.findOne({ id: input.tripId, fields: ['id', 'user'] });
-    if (!trip) throw new ZiteError({ code: 'NOT_FOUND', message: 'Trip not found' });
+    if (!trip) throw new AppError({ code: 'NOT_FOUND', message: 'Trip not found' });
 
     // Verify this trip belongs to the requesting user
     const tripUserId = Array.isArray(trip.user) ? trip.user[0] : trip.user;
     if (tripUserId !== context.user!.id) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only request corrections for your own trips' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'You can only request corrections for your own trips' });
     }
 
     await Trips.update({

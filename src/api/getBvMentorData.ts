@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, AppError } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
 
 export default createEndpoint({
@@ -18,12 +18,12 @@ export default createEndpoint({
     }) as any;
 
     if (!userRecord?.isBvMentor) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'BV Mentor access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'BV Mentor access required' });
     }
 
     const rawId: string = userRecord.bvMentorGuideId;
     if (!rawId) {
-      throw new ZiteError({
+      throw new AppError({
         code: 'NOT_FOUND',
         message: 'No guide assigned to your BV Mentor account. Please ask a Super Guide to assign you to a guide.',
       });
@@ -48,7 +48,7 @@ export default createEndpoint({
     }
 
     if (!resolvedGuideId) {
-      throw new ZiteError({
+      throw new AppError({
         code: 'NOT_FOUND',
         message: 'Could not resolve the assigned guide. Please ask a Super Guide to reassign your BV Mentor role.',
       });

@@ -1,17 +1,19 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Download, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvAdminTable } from 'zite-endpoints-sdk';
+import { getBvAdminTable } from '@/lib/endpoints-sdk';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 
 interface Row {
   userId: string;
   name: string;
   ashrayLevel: string | null;
+  groupId?: string;
   groupName: string;
   bvslName: string;
   isResident: boolean;
@@ -41,6 +43,7 @@ function getWeekRange(type: 'this_week' | 'prev_week'): { start: string; end: st
 }
 
 export default function BvAdminDataTable({ groupId, bvslId, guideId }: Props) {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [dates, setDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +81,7 @@ export default function BvAdminDataTable({ groupId, bvslId, guideId }: Props) {
 
   const exportCsv = () => {
     const dateHeaders = dates.map(d => format(new Date(d + 'T00:00:00'), 'd MMM yy'));
-    const headers = ['Full Name', 'Group', 'BVSL', 'Level (Ashraya)', 'Resident', ...dateHeaders, 'Week Total'];
+    const headers = ['Full Name', 'Group', 'RGF', 'Level (Ashraya)', 'Resident', ...dateHeaders, 'Week Total'];
     const csvRows = filteredRows.map(r => [
       r.name,
       r.groupName,
@@ -186,7 +189,19 @@ export default function BvAdminDataTable({ groupId, bvslId, guideId }: Props) {
                 {filteredRows.map((r, i) => (
                   <tr key={r.userId + i} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="py-2 pr-3 font-medium whitespace-nowrap">{r.name || '—'}</td>
-                    <td className="py-2 pr-3 text-xs text-muted-foreground whitespace-nowrap">{r.groupName || '—'}</td>
+                    <td className="py-2 pr-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {r.groupId ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/bvsl/groups/${r.groupId}`)}
+                          className="text-primary font-medium hover:underline text-left"
+                        >
+                          {r.groupName}
+                        </button>
+                      ) : (
+                        r.groupName || '—'
+                      )}
+                    </td>
                     <td className="py-2 pr-3 text-muted-foreground text-xs">{r.ashrayLevel || '—'}</td>
                     {dates.map(d => {
                       const val = r.attendance[d] ?? 0;

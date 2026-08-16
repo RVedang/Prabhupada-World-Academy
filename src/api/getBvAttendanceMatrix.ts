@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get attendance matrix for a BV group — dates x members grid (queries attendance directly by group+date)',

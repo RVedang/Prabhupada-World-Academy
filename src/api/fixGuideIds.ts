@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, AppError } from '@/lib/backend-sdk';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -16,7 +16,7 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }) => {
     if (context.user!.role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
     }
     const dryRun = input.dryRun !== false; // default dry run for safety
 

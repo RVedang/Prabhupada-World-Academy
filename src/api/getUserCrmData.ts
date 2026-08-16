@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, AshrayUpgradeRequests, Trips, RentPayments, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AshrayUpgradeRequests, Trips, RentPayments, AppError } from '@/lib/backend-sdk';
 
 async function resolveUser(id: string) {
   const byDbId = await Users.findOne({ id, fields: ['id', 'userId', 'fullName'] }).catch(() => undefined);
@@ -62,10 +62,10 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
-    if (!input.userId) throw new ZiteError({ code: 'BAD_REQUEST', message: 'userId is required' });
+    if (!input.userId) throw new AppError({ code: 'BAD_REQUEST', message: 'userId is required' });
 
     const userRecord = await resolveUser(input.userId);
-    if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const isOwnData = context.user.id === userRecord.id;
     const isGuide = ['Guide', 'Super Guide', 'BVSL', 'Sadhana Mentor'].includes(context.user.role || '')
@@ -74,7 +74,7 @@ export default createEndpoint({
       || !!((context.user as any).isTripCoordinator);
 
     if (!isOwnData && !isGuide) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Access denied' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Access denied' });
     }
 
     const [tripsRes, rentRes, ashrayRes] = await Promise.all([

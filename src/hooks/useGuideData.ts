@@ -4,12 +4,12 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import { getGuideUsers, getPendingApprovals, getAllResidencies } from 'zite-endpoints-sdk';
+import { getGuideUsers, getPendingApprovals, getAllResidencies } from '@/lib/endpoints-sdk';
 import type {
   GetGuideUsersOutputType,
   GetPendingApprovalsOutputType,
   GetAllResidenciesOutputType,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 
 // getPendingApprovals returns an array directly
 export type PendingApproval = GetPendingApprovalsOutputType[0];

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
-  createEndpoint, ZiteError, AttendanceParticipants, AttendanceRecords,
+  createEndpoint, AppError, AttendanceParticipants, AttendanceRecords,
   AttendanceSessions, Users,
-} from 'zite-integrations-backend-sdk';
+} from '@/lib/backend-sdk';
 import { normalizePhone } from '@/lib/phoneNormalize';
 
 export default createEndpoint({
@@ -21,7 +21,7 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     const session = await AttendanceSessions.findOne({ id: input.sessionId });
-    if (!session) throw new ZiteError({ code: 'NOT_FOUND', message: 'Session not found' });
+    if (!session) throw new AppError({ code: 'NOT_FOUND', message: 'Session not found' });
 
     const eventId = Array.isArray(session.event) ? session.event[0] : session.event;
     const norm = normalizePhone(input.phone);
@@ -29,13 +29,13 @@ export default createEndpoint({
     // Check if phone exists in Users
     const { records: users } = await Users.findAll({ filters: { phone: { contains: norm.replace('+', '') } }, limit: 5 });
     if (users.some(u => normalizePhone(u.phone || '') === norm)) {
-      throw new ZiteError({ code: 'CONFLICT', message: 'This phone is already registered as a user. Please use the attendance form instead.' });
+      throw new AppError({ code: 'CONFLICT', message: 'This phone is already registered as a user. Please use the attendance form instead.' });
     }
 
     // Check if phone exists in Participants
     const { records: parts } = await AttendanceParticipants.findAll({ filters: { phone: { contains: norm.replace('+', '') } }, limit: 5 });
     if (parts.some(p => normalizePhone(p.phone || '') === norm)) {
-      throw new ZiteError({ code: 'CONFLICT', message: 'This phone is already registered. Please use the attendance form instead.' });
+      throw new AppError({ code: 'CONFLICT', message: 'This phone is already registered. Please use the attendance form instead.' });
     }
 
     const participant = await AttendanceParticipants.create({

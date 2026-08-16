@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, UserSkills, Users, SkillCatalog, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, UserSkills, Users, SkillCatalog, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Tag a skill to a user',
@@ -12,11 +12,11 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input }) => {
     if (!input.skillId && !input.skillName) {
-      throw new ZiteError({ code: 'BAD_REQUEST', message: 'skillId or skillName is required' });
+      throw new AppError({ code: 'BAD_REQUEST', message: 'skillId or skillName is required' });
     }
 
     const user = await Users.findOne({ filters: { userId: input.userId }, fields: ['id'] });
-    if (!user) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     let skillDbId = input.skillId;
 
@@ -34,7 +34,7 @@ export default createEndpoint({
         });
         skillDbId = newSkill.id;
       } else {
-        throw new ZiteError({ code: 'NOT_FOUND', message: 'Skill not found' });
+        throw new AppError({ code: 'NOT_FOUND', message: 'Skill not found' });
       }
     }
 

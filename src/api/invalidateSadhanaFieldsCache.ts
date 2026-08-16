@@ -6,11 +6,11 @@
  * from the SadhanaFields database table (and re-populate the cache).
  *
  * Use this whenever you edit fields in the SadhanaFields DB table via the
- * Zite database tab or the GuideFieldSetupPage — changes won't be visible
+ * App Database tab or the GuideFieldSetupPage — changes won't be visible
  * to users until the cache is cleared.
  */
 import { z } from 'zod';
-import { createEndpoint, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate, serverCacheKeys } from '../lib/serverCache';
 import { FIELD_CACHE_KEY_RESIDENT, FIELD_CACHE_KEY_NR } from './getSadhanaFormData';
 
@@ -31,7 +31,7 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }) => {
     if (!ALLOWED_ROLES.has(context.user!.role as string)) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide or admin role required to invalidate the cache.' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Guide or admin role required to invalidate the cache.' });
     }
 
     const scope = input.scope ?? 'fields';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from 'zite-auth-sdk';
+import { useAuth } from '@/lib/auth-sdk';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Calendar, LogIn, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { deleteAccount } from 'zite-endpoints-sdk';
+import { deleteAccount } from '@/lib/endpoints-sdk';
 import { toast } from 'sonner';
 
 interface Props {

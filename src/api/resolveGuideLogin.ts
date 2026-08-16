@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides } from '@/lib/backend-sdk';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
 import { generateUniqueUserId } from '../lib/userIdGen';
 

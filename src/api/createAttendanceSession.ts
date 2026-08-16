@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ZiteError, AttendanceSessions } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AppError, AttendanceSessions } from '@/lib/backend-sdk';
 
 function generateToken(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -24,7 +24,7 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user.role || '';
     if (!['Guide', 'Super Guide', 'BVSL'].includes(role) && !context.user.isBvsl) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Not authorized' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Not authorized' });
     }
     const shareToken = generateToken();
     const session = await AttendanceSessions.create({

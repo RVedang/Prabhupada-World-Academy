@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, Guides, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, Guides, FolkResidencies } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 
 const memberSchema = z.object({
@@ -58,22 +58,51 @@ export default createEndpoint({
   execute: async ({ context }) => {
     const currentUser = await Users.findOne({
       id: context.user!.id,
-      fields: ['id', 'guide'],
+      fields: ['id', 'userId', 'fullName', 'guide', 'bvReportingAdminId', 'bvReportingAdminName', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
     });
 
     const guideId = Array.isArray(currentUser?.guide)
       ? currentUser!.guide[0]
       : currentUser?.guide;
 
-    if (!guideId) return { members: [], guideName: '' };
+    const adminId = (currentUser as any)?.bvReportingAdminId || guideId || (currentUser as any)?.id;
 
-    const guideRecord = await Guides.findOne({ id: guideId, fields: ['id', 'fullName'] });
-    const guideName = (guideRecord as any)?.fullName || '';
+    const guideRecord = guideId
+      ? await Guides.findOne({ id: guideId, fields: ['id', 'fullName'] })
+      : null;
+    const guideName = (guideRecord as any)?.fullName || (currentUser as any)?.bvReportingAdminName || 'FOLK Admin';
 
-    const { records: users } = await Users.findAll({
-      filters: { guide: guideId, status: 'Active' },
-      fields: ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt'],
-      limit: 500,
+    // Fetch all active users
+    const { records: allUsers } = await Users.findAll({
+      filters: { status: 'Active' },
+      fields: ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'bvReportingAdminId'],
+      limit: 1000,
+    });
+
+    // Filter users under this Admin (or all users if Super Admin / Admin)
+    const isSuperOrAdmin = !!(currentUser?.isBvSuperAdmin || currentUser?.isBvAdmin || (currentUser?.role || '').toUpperCase().includes('ADMIN'));
+
+    const currentDbId = String(currentUser?.id || '').toLowerCase();
+    const currentUid = String(currentUser?.userId || '').toLowerCase();
+    const currentEmail = String(context.user?.email || '').toLowerCase();
+
+    const users = allUsers.filter((u: any) => {
+      // Exclude the Sadhana Mentor themselves from the list
+      const uId = String(u.id || '').toLowerCase();
+      const uUserId = String(u.userId || '').toLowerCase();
+      const uEmail = String(u.email || '').toLowerCase();
+      if (uId === currentDbId || uUserId === currentUid || (currentEmail && uEmail === currentEmail)) {
+        return false;
+      }
+
+      if (isSuperOrAdmin) return true;
+      const uGuide = Array.isArray(u.guide) ? u.guide[0] : u.guide;
+      const uAdmin = u.bvReportingAdminId;
+      return (
+        (adminId && (uGuide === adminId || uAdmin === adminId || u.id === adminId)) ||
+        (guideId && (uGuide === guideId || uAdmin === guideId)) ||
+        (!adminId && !guideId)
+      );
     });
 
     if (users.length === 0) return { members: [], guideName };

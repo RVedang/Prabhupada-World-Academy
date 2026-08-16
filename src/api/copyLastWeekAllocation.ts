@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Copy last week service allocations to this week',
@@ -13,7 +13,7 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input }) => {
     const thisWeekStr = input.thisWeekStartDate || input.weekStartDate;
-    if (!thisWeekStr) throw new ZiteError({ code: 'BAD_REQUEST', message: 'thisWeekStartDate is required' });
+    if (!thisWeekStr) throw new AppError({ code: 'BAD_REQUEST', message: 'thisWeekStartDate is required' });
 
     const thisWeek = new Date(thisWeekStr);
     const lastWeek = new Date(thisWeek.getTime() - 7 * 86400_000);

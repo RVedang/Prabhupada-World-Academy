@@ -41,26 +41,10 @@ export interface StaticFieldDef {
 
 export const RESIDENT_FIELDS: StaticFieldDef[] = [
   {
-    fieldKey: 'ma_na_gv',
-    fieldLabel: 'MA, NA, Guru Vandana',
+    fieldKey: 'quotes_tulasi',
+    fieldLabel: 'Soulful Japa/ Holy Name Quotes + Vaishnava Pranam Mantra',
     fieldType: 'radio',
     displayOrder: 1,
-    isRequired: true,
-    contributesToScore: true,
-    isResidentForm: true,
-    contextTag: 'today_morning',
-    options: [
-      { value: 3, label: 'Attended full 23 minutes' },
-      { value: 2, label: '18 to 22 minutes' },
-      { value: 1, label: '12 to 17 minutes' },
-      { value: 0, label: 'Less than 12 minutes / Not attended' },
-    ],
-  },
-  {
-    fieldKey: 'quotes_tulasi',
-    fieldLabel: 'Quotes + Tulasi Pranama',
-    fieldType: 'radio',
-    displayOrder: 2,
     isRequired: true,
     contributesToScore: true,
     isResidentForm: true,
@@ -71,10 +55,41 @@ export const RESIDENT_FIELDS: StaticFieldDef[] = [
     ],
   },
   {
+    fieldKey: 'japa_visible',
+    fieldLabel: 'Japa visibly done in MTH/Balcony for 40 minutes (Sunday: 120 minutes) during morning program.',
+    fieldType: 'radio',
+    displayOrder: 2,
+    isRequired: true,
+    contributesToScore: true,
+    isResidentForm: true,
+    contextTag: 'today_morning',
+    options: [
+      { value: 2, label: '35 to 40 minutes (Sunday: 105 to 120 mins)' },
+      { value: 1, label: '20 to 35 minutes (Sunday: 60 to 105 mins)' },
+      { value: 0, label: 'Less than 20 minutes (Sunday: less than 60 mins)' },
+    ],
+  },
+  {
+    fieldKey: 'ma_na_gv',
+    fieldLabel: 'DA + NA + GP + Kirtan',
+    fieldType: 'radio',
+    displayOrder: 3,
+    isRequired: true,
+    contributesToScore: true,
+    isResidentForm: true,
+    contextTag: 'today_morning',
+    options: [
+      { value: 3, label: 'Attended full 30 minutes' },
+      { value: 2, label: 'Attended 20-29 minutes' },
+      { value: 1, label: 'Attended 10 to 19 minutes' },
+      { value: 0, label: 'Less than 10 minutes / Not attended' },
+    ],
+  },
+  {
     fieldKey: 'bath',
     fieldLabel: 'Attending without taking a bath',
     fieldType: 'toggle',
-    displayOrder: 3,
+    displayOrder: 4,
     isRequired: true,
     contributesToScore: true,
     isResidentForm: true,
@@ -82,21 +97,6 @@ export const RESIDENT_FIELDS: StaticFieldDef[] = [
     options: [
       { value: 1, label: 'No' },
       { value: -1, label: 'Yes' },
-    ],
-  },
-  {
-    fieldKey: 'japa_visible',
-    fieldLabel: 'Japa visibly done in MTH/Balcony during 30 min / 60 min Morning Program',
-    fieldType: 'radio',
-    displayOrder: 4,
-    isRequired: true,
-    contributesToScore: true,
-    isResidentForm: true,
-    contextTag: 'today_morning',
-    options: [
-      { value: 2, label: '25-30 min / 50-60 min' },
-      { value: 1, label: '10–25 min / 20–50 min' },
-      { value: 0, label: 'Less than 10 min / Less than 20 min' },
     ],
   },
   {
@@ -442,6 +442,7 @@ export const NON_RESIDENT_FIELDS: StaticFieldDef[] = [
 
 /** Convert a StaticFieldDef to the shape expected by getSadhanaFormData output */
 export function toFormField(f: StaticFieldDef, id?: string) {
+  const isChanting = f.fieldKey === 'chanting';
   return {
     fieldId: id || `static_${f.fieldKey}`,
     fieldKey: f.fieldKey,
@@ -451,8 +452,8 @@ export function toFormField(f: StaticFieldDef, id?: string) {
     isRequired: f.isRequired,
     contributesToScore: f.contributesToScore,
     maxPoints: 0,
-    minValue: 0,
-    maxValue: 100,
+    minValue: f.minValue ?? 0,
+    maxValue: f.maxValue ?? (isChanting ? 192 : 1200),
     group: 'General',
     helpText: null as string | null,
     contextTag: (f.contextTag ?? null) as ContextTag | null,

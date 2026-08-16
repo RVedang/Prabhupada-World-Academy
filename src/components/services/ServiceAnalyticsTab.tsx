@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Cell } from 'recharts';
 import { Trophy, TrendingDown, Users, Target, AlertTriangle, RefreshCw, BarChart2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getServiceAnalytics } from 'zite-endpoints-sdk';
-import type { GetServiceAnalyticsOutputType } from 'zite-endpoints-sdk';
+import { getServiceAnalytics } from '@/lib/endpoints-sdk';
+import type { GetServiceAnalyticsOutputType } from '@/lib/endpoints-sdk';
 
 interface Props { residencyId?: string; }
 

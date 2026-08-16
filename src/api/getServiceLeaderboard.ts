@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, ServiceRatings, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, ServiceRatings, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get service quality leaderboard based on anonymous peer ratings. Guides see full names; residents see top 3 anonymized + own rank.',

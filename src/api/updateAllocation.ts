@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAllocations, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Update or delete a service allocation',
@@ -16,7 +16,7 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input }) => {
     const record = await ServiceAllocations.findOne({ id: input.allocationId });
-    if (!record) throw new ZiteError({ code: 'NOT_FOUND', message: 'Allocation not found' });
+    if (!record) throw new AppError({ code: 'NOT_FOUND', message: 'Allocation not found' });
 
     if (input.delete) {
       await ServiceAllocations.delete({ id: input.allocationId });
@@ -29,7 +29,7 @@ export default createEndpoint({
       const weekDate = record.weekDate;
 
       if (!serviceId || !weekDate) {
-        throw new ZiteError({ code: 'BAD_REQUEST', message: 'Cannot determine service or week for this allocation' });
+        throw new AppError({ code: 'BAD_REQUEST', message: 'Cannot determine service or week for this allocation' });
       }
 
       const { records: allForWeek } = await ServiceAllocations.findAll({

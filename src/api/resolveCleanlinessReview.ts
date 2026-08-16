@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, CleanlinessReviewRequests, CleanlinessInspections, SadhanaEntries, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, CleanlinessReviewRequests, CleanlinessInspections, SadhanaEntries, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Approve or dismiss a cleanliness review request',
@@ -11,8 +11,8 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }) => {
     const review = await CleanlinessReviewRequests.findOne({ id: input.reviewId });
-    if (!review) throw new ZiteError({ code: 'NOT_FOUND', message: 'Review not found' });
-    if (review.status !== 'Pending') throw new ZiteError({ code: 'CONFLICT', message: 'Review already resolved' });
+    if (!review) throw new AppError({ code: 'NOT_FOUND', message: 'Review not found' });
+    if (review.status !== 'Pending') throw new AppError({ code: 'CONFLICT', message: 'Review already resolved' });
 
     if (input.action === 'approve') {
       // Update inspection score to 1

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
@@ -14,10 +14,16 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const callerRole = context.user.role || '';
-    const isSuperGuide = callerRole === 'Super Guide';
-    const isAuthorized = isSuperGuide || callerRole === 'Guide' || callerRole === 'BVSL';
-    if (!isAuthorized) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+    const callerRole = (context.user.role || '').toUpperCase();
+    const isAuthorized = !!(
+      context.user.isBvSuperAdmin ||
+      context.user.isBvAdmin ||
+      callerRole.includes('SUPER') ||
+      callerRole.includes('ADMIN') ||
+      callerRole.includes('GUIDE') ||
+      callerRole.includes('BVSL')
+    );
+    if (!isAuthorized) throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
 
     // Resolve the user record (primary path: DB UUID)
     let userRecord = await Users.findOne({
@@ -30,14 +36,21 @@ export default createEndpoint({
         fields: ['id', 'role', 'isBvsl', 'residency', 'guide'],
       });
     }
-    if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: `User ${input.userId} not found` });
+    if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: `User ${input.userId} not found` });
+
+    const isSuperGuide = !!(
+      context.user.isBvSuperAdmin ||
+      context.user.isBvAdmin ||
+      callerRole.includes('SUPER') ||
+      callerRole.includes('ADMIN')
+    );
 
     // Regular guides: verify user is in their center
     if (!isSuperGuide) {
       const scope = await getGuideScope(context.user.email);
-      if (!scope) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide record not found' });
+      if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide record not found' });
       if (!isUserInGuideScope(scope, userRecord)) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only tag users in your center' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'You can only tag users in your center' });
       }
     }
 

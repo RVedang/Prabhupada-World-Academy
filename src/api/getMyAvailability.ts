@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAvailability } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAvailability } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get the availability for the current user for a given week',

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 import { migrateUserCourse } from '../lib/tagMangoEnroll';
 
@@ -43,7 +43,15 @@ export default createEndpoint({
     const oldLevel = target.ashrayLevel || '';
     const newLevel = input.ashrayLevel;
 
-    await Users.update({ id: target.id, record: { ashrayLevel: newLevel } });
+    await Users.update({
+      id: target.id,
+      record: {
+        ashrayLevel: newLevel,
+        pendingAshrayNoticeStatus: 'approved',
+        pendingAshrayNoticeLevel: newLevel,
+        ashrayNoticeAcknowledged: false,
+      },
+    });
 
     // TagMango migration if level changed and user was enrolled
     let tagMangoMigration: any = undefined;

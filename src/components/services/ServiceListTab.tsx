@@ -5,8 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Trash2, Clock, Users, Timer } from 'lucide-react';
 import { toast } from 'sonner';
-import { getServices, createService, updateService, deleteService } from 'zite-endpoints-sdk';
-import type { GetServicesOutputType } from 'zite-endpoints-sdk';
+import { getServices, createService, updateService, deleteService } from '@/lib/endpoints-sdk';
+import type { GetServicesOutputType } from '@/lib/endpoints-sdk';
 import ServiceFormDialog from './ServiceFormDialog';
 
 type Service = GetServicesOutputType['services'][0];

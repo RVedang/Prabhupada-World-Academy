@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Config, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Config, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { resolveApiKey } from '../lib/tagMangoEnroll';
 
 export default createEndpoint({
@@ -10,17 +10,17 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user.role;
     if (role !== 'Guide' && role !== 'Super Guide') {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can revoke access' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can revoke access' });
     }
 
     const apiKey = await resolveApiKey();
-    if (!apiKey) throw new ZiteError({ code: 'BAD_REQUEST', message: 'TagMango API key not configured' });
+    if (!apiKey) throw new AppError({ code: 'BAD_REQUEST', message: 'TagMango API key not configured' });
 
     const user = await Users.findOne({
       id: input.userId,
       fields: ['id', 'email', 'ashrayLevel', 'residency', 'enrolledLevel'],
     });
-    if (!user) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     // Resolve mangoId from course config
     const level = user.enrolledLevel || user.ashrayLevel;
@@ -50,7 +50,7 @@ export default createEndpoint({
     }
 
     if (!mangoId) {
-      throw new ZiteError({ code: 'BAD_REQUEST', message: `No course mapping found for level "${level}"` });
+      throw new AppError({ code: 'BAD_REQUEST', message: `No course mapping found for level "${level}"` });
     }
 
     const response = await fetch('https://api-prod-new.tagmango.com/integration/action/revoke-user', {

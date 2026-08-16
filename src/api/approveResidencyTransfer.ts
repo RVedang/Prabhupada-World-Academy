@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ResidencyTransferRequests, Users, Guides, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ResidencyTransferRequests, Users, Guides, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -19,23 +19,31 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const id = input.requestId || input.rowId || input.logId;
-    if (!id) throw new ZiteError({ code: 'BAD_REQUEST', message: 'requestId is required' });
+    if (!id) throw new AppError({ code: 'BAD_REQUEST', message: 'requestId is required' });
 
     const request = await ResidencyTransferRequests.findOne({ id });
-    if (!request) throw new ZiteError({ code: 'NOT_FOUND', message: 'Transfer request not found' });
-    if ((request.status as string) !== 'Pending') throw new ZiteError({ code: 'CONFLICT', message: 'Request already reviewed' });
+    if (!request) throw new AppError({ code: 'NOT_FOUND', message: 'Transfer request not found' });
+    if ((request.status as string) !== 'Pending') throw new AppError({ code: 'CONFLICT', message: 'Request already reviewed' });
 
-    // Authorization: only guides of the receiving residency (toResidency) or Super Guide can approve
-    const isSuperGuide = context.user.role === 'Super Guide';
-    if (!isSuperGuide) {
+    // Authorization: Super Admins, Admins, Super Guides, or guides of receiving residency can approve/reject
+    const userRoleStr = (context.user.role || '').toUpperCase();
+    const isAuthorizedAdmin = !!(
+      (context.user as any).isBvSuperAdmin ||
+      (context.user as any).isBvAdmin ||
+      userRoleStr.includes('SUPER') ||
+      userRoleStr.includes('ADMIN') ||
+      context.user.role === 'Super Guide'
+    );
+
+    if (!isAuthorizedAdmin) {
       const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id', 'folkResidencies'] });
-      if (!guideRecord) throw new ZiteError({ code: 'FORBIDDEN', message: 'You are not a guide' });
+      if (!guideRecord) throw new AppError({ code: 'FORBIDDEN', message: 'You do not have guide authorization to review transfer requests' });
 
       const guideResidencies = Array.isArray(guideRecord.folkResidencies) ? guideRecord.folkResidencies : guideRecord.folkResidencies ? [guideRecord.folkResidencies] : [];
       const toResidencyId = Array.isArray(request.toResidency) ? request.toResidency[0] : request.toResidency as string;
 
       if (!toResidencyId || !guideResidencies.includes(toResidencyId)) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'Only guides of the receiving residency can approve this transfer' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'Only guides of the receiving residency can approve this transfer' });
       }
     }
 

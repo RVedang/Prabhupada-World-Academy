@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,12 +12,15 @@ import { toast } from 'sonner';
 import {
   getGuideUsers, getGuides, tagUserAsBvsl, assignGuide, tagUserAsFolkLead,
   tagUserAsTripCoordinator, tagUserAsBvMentor, tagUserAsSadhanaMentor, assignBvRole,
-} from 'zite-endpoints-sdk';
-import type { GetGuideUsersOutputType, GetGuidesOutputType } from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
+import type { GetGuideUsersOutputType, GetGuidesOutputType } from '@/lib/endpoints-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { fmt } from '@/lib/fmt';
 import { scoreColor } from '@/lib/scoring';
 import { EmptyState, ConfirmDialog } from '@/shared';
+
+import MultiRoleAssignModal from './MultiRoleAssignModal';
 
 type User = GetGuideUsersOutputType['users'][0] & { _guideId: string; _guideName: string };
 type GuideEntry = GetGuidesOutputType['guides'][0];
@@ -30,15 +34,44 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 
 interface SuperUsersPanelProps {
   isPwAdmin?: boolean;
+  segment?: 'PW' | 'FOLK';
 }
 
-export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelProps) {
+export default function SuperUsersPanel({ isPwAdmin = false, segment }: SuperUsersPanelProps) {
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
+  const userEmail = (profile?.userId || '').toLowerCase();
+
+  const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
+  const isPwMode = effectiveSegment === 'PW';
+
+  const isSuperAdmin = !!(
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'srilaprabhupadaworld@gmail.com' ||
+    userEmail.includes('gaurmandal')
+  );
+
   const [users, setUsers] = useState<User[]>([]);
   const [guides, setGuides] = useState<GuideEntry[]>([]);
+
+  const myGuideId = useMemo(() => {
+    const myEmail = ((profile as any)?.email || profile?.userId || userEmail || '').toLowerCase();
+    const matched = guides.find(g => (g.email || '').toLowerCase() === myEmail || (g.guideId || '').toLowerCase() === myEmail);
+    return matched ? matched.guideId : (profile?.userId || '');
+  }, [guides, profile, userEmail]);
+
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [guideFilter, setGuideFilter] = useState('all');
+  const [guideFilter, setGuideFilter] = useState(() => (isSuperAdmin ? 'all' : myGuideId));
+
+  useEffect(() => {
+    if (profile && !isSuperAdmin && myGuideId) {
+      setGuideFilter(myGuideId);
+    }
+  }, [profile, isSuperAdmin, myGuideId]);
+
   const [ashrayFilter, setAshrayFilter] = useState('all');
   const [residentFilter, setResidentFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('fullName');
@@ -49,6 +82,17 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
   const [bvMentorDialog, setBvMentorDialog] = useState<{ user: User; action: 'tag' | 'untag' } | null>(null);
   const [sadhanaMentorDialog, setSadhanaMentorDialog] = useState<{ user: User; action: 'tag' | 'untag' } | null>(null);
   const [bvRoleDialog, setBvRoleDialog] = useState<{ user: User; newRole: string; roleLabel: string } | null>(null);
+  const [multiRoleUser, setMultiRoleUser] = useState<User | null>(null);
+  // Hierarchy parent-picker dialog — shown when assigning Supervisor/RGF/RGSF
+  const [hierarchyDialog, setHierarchyDialog] = useState<{
+    user: User;
+    newRole: string;
+    roleLabel: string;
+    parentLabel: string;          // "Admin" | "Supervisor" | "RGF"
+    parentOptions: { id: string; name: string }[];
+    parentId: string;
+    parentName: string;
+  } | null>(null);
 
   const ROLE_LABELS: Record<string, string> = {
     MEMBER: 'Regular Member',
@@ -63,22 +107,50 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const { guides: guideList } = await getGuides({});
+      const { guides: guideList } = await getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' });
       setGuides(guideList);
-      const results = await Promise.all(
-        guideList.map((g: any) =>
-          getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
-            .then((r: any) => r.users.map((u: any) => ({ ...u, _guideId: g.guideId, _guideName: g.name })))
-            .catch(() => [] as User[])
-        )
-      );
-      const seen = new Set<string>();
-      const all: User[] = [];
-      results.flat().forEach(u => { if (!seen.has(u.userId)) { seen.add(u.userId); all.push(u); } });
+
+      // Fetch all registered members (active, pending, unassigned, newly registered)
+      const allUsersRes = await getGuideUsers({ guideId: 'ALL', statusFilter: 'all' }).catch(() => ({ users: [] }));
+      const rawUsers: any[] = allUsersRes.users || [];
+
+      // Create comprehensive mentor lookup map (guides + raw users)
+      const guideNameMap = new Map<string, string>();
+      guideList.forEach((g: any) => {
+        const name = g.name || g.fullName || g.guideName || '';
+        if (g.guideId) guideNameMap.set(g.guideId, name);
+        if (g.id) guideNameMap.set(g.id, name);
+        if (g.userId) guideNameMap.set(g.userId, name);
+      });
+      rawUsers.forEach((u: any) => {
+        const name = u.fullName || u.name || '';
+        if (u.userId) guideNameMap.set(u.userId, name);
+        if (u.id) guideNameMap.set(u.id, name);
+      });
+
+      const all: User[] = rawUsers.map((u: any) => {
+        const gId = u.selectedGuideId || u.guideId || u.guide || u.mentorId || (isPwAdmin ? 'MENTOR-PW-HIRANYAVARNA' : 'MENTOR-FOLK-GAURMANDAL');
+        let gName = u.selectedGuideName || u.guideName || u.mentorName || u.selectedMentorName || '';
+
+        // Resolve mentor name if missing or raw ID
+        if (!gName || gName === gId || gName.includes('-') || /\d{4}/.test(gName)) {
+          gName = guideNameMap.get(gId) || (isPwAdmin ? 'Hiranyavarna Prabhu (Super Admin)' : 'Gaurmandal Prabhu (Super Guide)');
+        }
+
+        return {
+          ...u,
+          _guideId: gId,
+          _guideName: gName,
+        };
+      });
+
       setUsers(all);
-    } catch { toast.error('Failed to load users'); }
-    finally { setLoading(false); }
-  }, []);
+    } catch {
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  }, [isPwAdmin]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -104,10 +176,10 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
     if (!bvslDialog) return;
     try {
       await tagUserAsBvsl({ userId: bvslDialog.user.userId, action: bvslDialog.action });
-      toast.success(bvslDialog.action === 'tag' ? 'BVSL role assigned' : 'BVSL role removed');
+      toast.success(bvslDialog.action === 'tag' ? 'RGF role assigned' : 'RGF role removed');
       loadData();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to update BVSL role');
+      toast.error(err?.message || 'Failed to update RGF role');
     }
   };
 
@@ -165,25 +237,265 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
     }
   };
 
-  const handleAssignBvRole = async (userId: string, role: string) => {
+  const handleAssignBvRole = async (userId: string, role: string, parentId?: string, parentName?: string) => {
     try {
-      await assignBvRole({ userId, role: role as any });
+      const res = await assignBvRole({ userId, role: role as any, parentId, parentName });
       toast.success('Bhakti Vriksha role updated');
-      loadData();
-    } catch {
-      toast.error('Failed to update role');
+      setUsers(prev => prev.map(u => {
+        const matches = u.userId === userId || (u as any).userDbId === userId || u.id === userId;
+        if (matches) {
+          const isSup = role === 'SUPERVISOR';
+          const isFac = role === 'FACILITATOR';
+          const isSub = role === 'SUB_FACILITATOR';
+          const isAdmin = role === 'ADMIN';
+          return {
+            ...u,
+            role: isAdmin ? 'Admin' : isSup ? 'Guide' : isFac ? 'RGF' : 'User',
+            isBvAdmin: isAdmin,
+            isBvSupervisor: isSup,
+            isBvFacilitator: isFac,
+            isBvSubFacilitator: isSub,
+            isBvsl: isFac,
+            isBvMentor: isSup,
+            bvReportingAdminId: isSup ? parentId : (res as any)?.bvReportingAdminId || null,
+            bvReportingAdminName: isSup ? parentName : (res as any)?.bvReportingAdminName || null,
+            bvReportingSupervisorId: isFac ? parentId : (res as any)?.bvReportingSupervisorId || null,
+            bvReportingSupervisorName: isFac ? parentName : (res as any)?.bvReportingSupervisorName || null,
+            bvReportingFacilitatorId: isSub ? parentId : (res as any)?.bvReportingFacilitatorId || null,
+            bvReportingFacilitatorName: isSub ? parentName : (res as any)?.bvReportingFacilitatorName || null,
+          };
+        }
+        return u;
+      }));
+      await loadData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update role');
     }
   };
 
-  const filtered = useMemo(() => {
+  const isUserInCurrentDepartment = useCallback((u: any, isPw: boolean) => {
+    // 1. Strict segment-based database check (prioritized)
+    if (u.segment === 'PW') return isPw;
+    if (u.segment === 'FOLK') return !isPw;
+
+    // 2. Fallbacks based on names, emails, and residency records
+    const name = (u.fullName || '').toUpperCase();
+    const email = (u.email || '').toUpperCase();
+    const isFolkUser = name.includes('FOLK') || email.includes('FOLK') || name.includes('GAURMANDAL') || email.includes('GAURMANDAL') || !!u.residencyId || !!u.isFolkLead;
+    const isPwUser = name.includes('PW') || name.includes('PRABHUPADA') || email.includes('PW') || email.includes('PRABHUPADA') || name.includes('HIRANYAVARNA') || email.includes('HIRANYAVARNA');
+
+    if (isPw) {
+      if (isFolkUser && !isPwUser) return false;
+      return true;
+    } else {
+      if (isPwUser && !isFolkUser) return false;
+      return true;
+    }
+  }, []);
+
+  const formatDevoteeName = (u: any) => {
+    if (u.fullName && !u.fullName.includes('@')) return u.fullName;
+    if (u.name && !u.name.includes('@')) return u.name;
+    if (u.displayName && !u.displayName.includes('@')) return u.displayName;
+    const email = (u.email || u.id || u.userId || '').toLowerCase();
+    if (email.includes('admin@prabhupadaworld') || email.includes('admin@prabhupada')) return 'PW System Administrator';
+    if (email.includes('srilaprabhupadaworld') || email.includes('vdnd@hkmmumbai')) return 'Hiranyavarna Das (PW)';
+    if (email.includes('gaurmandal')) return 'Gaurmandal Das (FOLK)';
+    if (email.includes('bvsupervisor')) return 'PW BV Supervisor';
+    if (email.includes('folkadmin')) return 'FOLK System Administrator';
+    if (u.email && u.email.includes('@')) {
+      const parts = u.email.split('@')[0].split(/[._-]/);
+      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+    }
+    return String(u.userId || u.id || 'Devotee');
+  };
+
+  // Build parent option lists from already-loaded users (filtered strictly by department: PW vs FOLK)
+  const bvAdminsList = useMemo(() => {
+    const list = users
+      .filter(u => (u as any).isBvAdmin || (u as any).isBvSuperAdmin || u.role === 'Admin' || u.role === 'PW_ADMIN' || u.role === 'SUPER_ADMIN' || u.role === 'SUPER_GUIDE')
+      .filter(u => isUserInCurrentDepartment(u, !!isPwAdmin))
+      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u), rawUser: u }))
+      .filter(u => u.id.length > 0);
+
+    // Fallback: Add current logged-in profile if admin
+    if (profile && (profile.isBvAdmin || profile.isBvSuperAdmin || (profile.role as string) === 'ADMIN' || (profile.role as string) === 'SUPER_ADMIN')) {
+      const myId = String(profile.userId || (profile as any).id || '');
+      if (myId && !list.some(item => item.id === myId)) {
+        list.unshift({ id: myId, name: `${profile.fullName || 'Admin'} (Super Admin)`, rawUser: profile });
+      }
+    }
+
+    if (list.length === 0) {
+      // Fallback to all guides loaded
+      guides.forEach(g => {
+        if (g.guideId && g.name) list.push({ id: g.guideId, name: formatDevoteeName(g), rawUser: g });
+      });
+    }
+
+    if (list.length === 0) {
+      if (isPwAdmin) {
+        list.push({ id: 'USER-SUPERADMIN-PW', name: 'Hiranyavarna Das Prabhu (Super Admin)', rawUser: null });
+      } else {
+        list.push({ id: 'USER-SUPERADMIN-FOLK', name: 'Gaurmandal Das Prabhu (Super Admin)', rawUser: null });
+      }
+    }
+    return list;
+  }, [users, guides, isPwAdmin, isUserInCurrentDepartment, profile]);
+
+  const bvSupervisorsList = useMemo(() => {
+    const list = users
+      .filter(u => (u as any).isBvSupervisor || (u as any).isBvMentor || u.role === 'Guide')
+      .filter(u => isUserInCurrentDepartment(u, !!isPwAdmin))
+      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u), rawUser: u }))
+      .filter(u => u.id.length > 0);
+    return list.length > 0 ? list : bvAdminsList;
+  }, [users, isPwAdmin, isUserInCurrentDepartment, bvAdminsList]);
+
+  const bvFacilitatorsList = useMemo(() => {
+    const list = users
+      .filter(u => (u as any).isBvFacilitator || (u as any).isBvsl || u.role === 'BVSL' || u.role === 'RGF')
+      .filter(u => isUserInCurrentDepartment(u, !!isPwAdmin))
+      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u), rawUser: u }))
+      .filter(u => u.id.length > 0);
+    return list.length > 0 ? list : bvSupervisorsList;
+  }, [users, isPwAdmin, isUserInCurrentDepartment, bvSupervisorsList]);
+
+  // Opens the correct dialog depending on the target role
+  const handleRoleDropdownChange = (user: User, newRole: string) => {
+    if (!newRole) return;
+    const roleLabel = ROLE_LABELS[newRole] || newRole;
+
+    if (newRole === 'SUPERVISOR') {
+      const opts = bvAdminsList;
+      const def = opts[0] || { id: '', name: '' };
+      setHierarchyDialog({
+        user, newRole, roleLabel,
+        parentLabel: 'Admin (will report to)',
+        parentOptions: opts,
+        parentId: def.id, parentName: def.name,
+      });
+    } else if (newRole === 'FACILITATOR') {
+      const opts = bvSupervisorsList;
+      const def = opts[0] || { id: '', name: '' };
+      setHierarchyDialog({
+        user, newRole, roleLabel,
+        parentLabel: 'Supervisor (will report to)',
+        parentOptions: opts,
+        parentId: def.id, parentName: def.name,
+      });
+    } else if (newRole === 'SUB_FACILITATOR') {
+      const opts = bvFacilitatorsList;
+      const def = opts[0] || { id: '', name: '' };
+      setHierarchyDialog({
+        user, newRole, roleLabel,
+        parentLabel: 'Reading Group Facilitator (will report to)',
+        parentOptions: opts,
+        parentId: def.id, parentName: def.name,
+      });
+    } else {
+      // MEMBER or ADMIN — no parent picker needed, use simple confirm dialog
+      setBvRoleDialog({ user, newRole, roleLabel });
+    }
+  };
+
+  const openParentDialog = (user: User) => {
+    const currentBvRole = (user as any).isBvSubFacilitator ? 'SUB_FACILITATOR' :
+                          ((user as any).isBvFacilitator || (user as any).isBvsl) ? 'FACILITATOR' :
+                          ((user as any).isBvSupervisor || (user as any).isBvMentor) ? 'SUPERVISOR' : 'MEMBER';
+
+    if (currentBvRole === 'SUPERVISOR') {
+      const opts = bvAdminsList;
+      const def = opts[0] || { id: '', name: '' };
+      setHierarchyDialog({
+        user, newRole: 'SUPERVISOR', roleLabel: 'BV Supervisor',
+        parentLabel: 'Admin (will report to)',
+        parentOptions: opts,
+        parentId: (user as any).bvReportingAdminId || def.id,
+        parentName: (user as any).bvReportingAdminName || def.name,
+      });
+    } else if (currentBvRole === 'FACILITATOR') {
+      const opts = bvSupervisorsList;
+      const def = opts[0] || { id: '', name: '' };
+      setHierarchyDialog({
+        user, newRole: 'FACILITATOR', roleLabel: 'Facilitator (RGF)',
+        parentLabel: 'Supervisor (will report to)',
+        parentOptions: opts,
+        parentId: (user as any).bvReportingSupervisorId || def.id,
+        parentName: (user as any).bvReportingSupervisorName || def.name,
+      });
+    } else if (currentBvRole === 'SUB_FACILITATOR') {
+      const opts = bvFacilitatorsList;
+      const def = opts[0] || { id: '', name: '' };
+      setHierarchyDialog({
+        user, newRole: 'SUB_FACILITATOR', roleLabel: 'Sub Facilitator (RGSF)',
+        parentLabel: 'Reading Group Facilitator (will report to)',
+        parentOptions: opts,
+        parentId: (user as any).bvReportingFacilitatorId || def.id,
+        parentName: (user as any).bvReportingFacilitatorName || def.name,
+      });
+    } else {
+      const opts = bvFacilitatorsList.length > 0 ? bvFacilitatorsList : bvSupervisorsList;
+      const def = opts[0] || { id: '', name: '' };
+      setHierarchyDialog({
+        user, newRole: 'MEMBER', roleLabel: 'Member',
+        parentLabel: 'Reporting Facilitator / Supervisor',
+        parentOptions: opts,
+        parentId: (user as any).bvReportingFacilitatorId || def.id,
+        parentName: (user as any).bvReportingFacilitatorName || def.name,
+      });
+    }
+  };
+
+  const baseUsers = useMemo(() => {
     let r = users;
+
+    // Filter strictly by the current department segment (PW vs FOLK) for both Admins and Super Admins
+    r = r.filter(u => isUserInCurrentDepartment(u, isPwMode));
+
+    // Operational roles below Admin (Supervisors, Mentors) filter to members under their direct supervision scope
+    const isDepartmentAdmin = isSuperAdmin || profile?.isBvAdmin || (profile?.role as string) === 'ADMIN';
+    if (!isDepartmentAdmin) {
+      const myEmail = ((profile as any)?.email || profile?.userId || userEmail || '').toLowerCase();
+      const myName = (profile?.fullName || '').toLowerCase();
+      const targetGuideId = (myGuideId || '').toLowerCase();
+
+      r = r.filter(u => {
+        const uGuideId = (u._guideId || u.selectedGuideId || '').toLowerCase();
+        const uGuideName = (u._guideName || '').toLowerCase();
+        const uEmail = (u.email || u.userId || '').toLowerCase();
+
+        return (
+          (targetGuideId && uGuideId === targetGuideId) ||
+          (myEmail && uGuideId === myEmail) ||
+          (myName && myName.length > 3 && uGuideName.includes(myName)) ||
+          (myEmail && uEmail === myEmail)
+        );
+      });
+    }
+
+    return r;
+  }, [users, profile, userEmail, isSuperAdmin, isPwMode, isUserInCurrentDepartment, myGuideId]);
+
+  const filtered = useMemo(() => {
+    let r = baseUsers;
+
     if (guideFilter !== 'all') r = r.filter(u => u._guideId === guideFilter);
     if (ashrayFilter !== 'all') r = r.filter(u => u.ashrayLevel === ashrayFilter);
     if (!isPwAdmin) {
       if (residentFilter === 'residents') r = r.filter(u => u.residencyUserClaim && u.residencyGuideVerified);
-      if (residentFilter === 'non_residents') r = r.filter(u => !(u.residencyUserClaim && u.residencyGuideVerified));
+      else if (residentFilter === 'non_residents') r = r.filter(u => !u.residencyUserClaim || !u.residencyGuideVerified);
     }
-    if (search) r = r.filter(u => u.fullName.toLowerCase().includes(search.toLowerCase()));
+
+    if (search) {
+      const q = search.toLowerCase();
+      r = r.filter(u =>
+        u.fullName.toLowerCase().includes(q) ||
+        (u.phone || '').includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u._guideName || '').toLowerCase().includes(q)
+      );
+    }
     return [...r].sort((a, b) => {
       let av: any, bv: any;
       if (sortKey === 'fullName') { av = a.fullName; bv = b.fullName; }
@@ -196,7 +508,7 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
       if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
       return sortDir === 'asc' ? av - bv : bv - av;
     });
-  }, [users, guideFilter, ashrayFilter, residentFilter, search, sortKey, sortDir, isPwAdmin]);
+  }, [users, guideFilter, ashrayFilter, residentFilter, search, sortKey, sortDir, isPwAdmin, isSuperAdmin, myGuideId, profile, userEmail]);
 
   if (loading) return <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>;
 
@@ -213,38 +525,62 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-3 items-end">
-              <div className="relative flex-1 min-w-[160px]">
-                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search by name..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+              <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                <label className="text-xs font-medium text-muted-foreground">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="Search by name..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+                </div>
               </div>
-              <Select value={guideFilter} onValueChange={(v) => setGuideFilter(v || 'all')}>
-                <SelectTrigger className="h-9 w-44 shrink-0"><SelectValue placeholder={isPwAdmin ? "All Mentors" : "All Guides"} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{isPwAdmin ? "All Mentors" : "All Guides"}</SelectItem>
-                  {guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={ashrayFilter} onValueChange={(v) => setAshrayFilter(v || 'all')}>
-                <SelectTrigger className="h-9 w-40 shrink-0"><SelectValue placeholder="All Levels" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Levels</SelectItem>
-                  {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {!isPwAdmin && (
-                <Select value={residentFilter} onValueChange={(v) => setResidentFilter(v || 'all')}>
+              {isSuperAdmin && (
+                <div className="flex flex-col gap-1 min-w-[160px]">
+                  <label className="text-xs font-medium text-muted-foreground">Mentors</label>
+                  <Select value={guideFilter} onValueChange={(v) => setGuideFilter(v || 'all')}>
+                    <SelectTrigger className="h-9 w-44 shrink-0">
+                      <SelectValue>{guideFilter === 'all' ? "All Mentors" : guides.find(g => g.guideId === guideFilter)?.name}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Mentors</SelectItem>
+                      {guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="flex flex-col gap-1 min-w-[140px]">
+                <label className="text-xs font-medium text-muted-foreground">Levels</label>
+                <Select value={ashrayFilter} onValueChange={(v) => setAshrayFilter(v || 'all')}>
                   <SelectTrigger className="h-9 w-40 shrink-0">
-                    {residentFilter === 'all' ? 'All Users' : residentFilter === 'residents' ? 'Residents Only' : 'Non-Residents'}
+                    <SelectValue>{ashrayFilter === 'all' ? "All Levels" : ashrayFilter}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Users</SelectItem>
-                    <SelectItem value="residents">Residents Only</SelectItem>
-                    <SelectItem value="non_residents">Non-Residents</SelectItem>
+                    <SelectItem value="all">All Levels</SelectItem>
+                    {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              {!isPwAdmin && (
+                <div className="flex flex-col gap-1 min-w-[140px]">
+                  <label className="text-xs font-medium text-muted-foreground">Residency</label>
+                  <Select value={residentFilter} onValueChange={(v) => setResidentFilter(v || 'all')}>
+                    <SelectTrigger className="h-9 w-40 shrink-0">
+                      <SelectValue>
+                        {residentFilter === 'all' ? 'All Users' : residentFilter === 'residents' ? 'Residents Only' : 'Non-Residents'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      <SelectItem value="residents">Residents Only</SelectItem>
+                      <SelectItem value="non_residents">Non-Residents</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">{filtered.length} of {users.length} users shown</p>
+            {(search !== '' || ashrayFilter !== 'all' || residentFilter !== 'all') && (
+              <p className="text-xs text-muted-foreground">
+                {filtered.length} of {baseUsers.length} members shown
+              </p>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -253,21 +589,22 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
               <thead className="sticky top-0 z-10">
                 <tr className="border-b">
                   <Th col="fullName" label="Name" />
-                  <Th col="guideName" label={isPwAdmin ? "Mentor" : "Guide"} />
+                  <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Bhakti Vriksha Role</th>
+                  <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Parent</th>
+                  {isPwAdmin ? (
+                    <Th col="guideName" label="Admin" />
+                  ) : (
+                    <Th col="guideName" label="FOLK Guide" />
+                  )}
                   <Th col="ashrayLevel" label="Ashraya Level" />
                   <Th col="latestScore" label="Weekly Score" />
                   <Th col="latestEntryDate" label="Latest Entry" />
-                  {!isPwAdmin && <Th col="isResident" label="Resident" />}
-                  <th className="text-left px-3 py-2 font-medium text-xs bg-muted">{isPwAdmin ? "Assign Mentor" : "Assign Guide"}</th>
-                  {isPwAdmin ? (
-                    <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Bhakti Vriksha Role</th>
-                  ) : (
+                  {!isPwAdmin && (
                     <>
-                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">BVSL</th>
+                      <Th col="isResident" label="Resident" />
                       <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Sadhana Mentor</th>
                       <th className="text-left px-3 py-2 font-medium text-xs bg-muted">FOLK Lead</th>
                       <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Trip Coord.</th>
-                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">BV Mentor</th>
                     </>
                   )}
                 </tr>
@@ -275,77 +612,181 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={isPwAdmin ? 7 : 12}>
+                    <td colSpan={isPwAdmin ? 7 : 11}>
                       <EmptyState icon={Users} title="No users found" description="Try adjusting your filters." />
                     </td></tr>
                 ) : filtered.map(u => {
-                  const isResident = !!(u.residencyUserClaim && u.residencyGuideVerified);
+                  const isResident = !!(
+                    (u.residencyUserClaim && u.residencyGuideVerified) ||
+                    (u.residencyClaimed && u.residencyApproved) ||
+                    u.isResident
+                  );
+                  const myId = ((profile as any)?.id || profile?.userId || '').toLowerCase();
+                  const myEmail = ((profile as any)?.email || profile?.userId || userEmail || '').toLowerCase();
+                  const myName = (profile?.fullName || '').toLowerCase();
+
+                  const uId = (u.id || u.userId || '').toLowerCase();
+                  const uEmail = (u.email || u.userId || '').toLowerCase();
+                  const uName = (u.fullName || '').toLowerCase();
+
+                  const isSelf = !!(
+                    (myId && uId && myId === uId) ||
+                    (myEmail && uEmail && (myEmail.includes('@') || uEmail.includes('@')) && myEmail === uEmail) ||
+                    (myName && uName && myName.length > 3 && myName === uName) ||
+                    (myEmail && uId && myEmail === uId) ||
+                    (myId && uEmail && myId === uEmail)
+                  );
+                  const isBvUser = !!(
+                    (u as any).isBvMember ||
+                    (u as any).isBvAdmin ||
+                    (u as any).isBvSupervisor ||
+                    (u as any).isBvMentor ||
+                    (u as any).isBvFacilitator ||
+                    (u as any).isBvsl ||
+                    (u as any).isBvSubFacilitator ||
+                    u.segment === 'PW' ||
+                    (u as any).bvGroupId ||
+                    (u as any).bvReportingFacilitatorId ||
+                    (u as any).bvReportingSupervisorId ||
+                    (u as any).bvReportingAdminId
+                  );
                   const currentBvRole = (u as any).isBvAdmin ? 'ADMIN' :
                     (u as any).isBvSupervisor ? 'SUPERVISOR' :
+                    ((u as any).isBvFacilitator || (u as any).isBvsl) ? 'FACILITATOR' :
                     (u as any).isBvSubFacilitator ? 'SUB_FACILITATOR' :
-                    ((u as any).isBvFacilitator || u.isBvsl || u.role === 'BVSL') ? 'FACILITATOR' :
-                    'MEMBER';
+                    isBvUser ? 'MEMBER' : 'NA';
+
+                  const canEditRole = isSuperAdmin || isPwAdmin || !!(profile as any)?.isBvAdmin || (profile?.role as string) === 'ADMIN';
 
                   return (
                     <tr key={u.userId} className="border-b hover:bg-accent/40 cursor-pointer"
                       onClick={() => navigate(`/guide/users/${u.userId}`)}>
-                      <td className="px-3 py-2 font-medium">
+                      {/* 1. Name */}
+                      <td className="px-3 py-2 font-medium sticky left-0 bg-background z-1 border-r border-border/40 shadow-sm">
                         {u.fullName}
-                        {currentBvRole === 'SUPERVISOR' && <Badge className="ml-1 text-xs bg-amber-600">Supervisor</Badge>}
-                        {currentBvRole === 'FACILITATOR' && <Badge className="ml-1 text-xs bg-purple-600">RGF</Badge>}
-                        {currentBvRole === 'SUB_FACILITATOR' && <Badge className="ml-1 text-xs bg-blue-600">RGSF</Badge>}
-                        {currentBvRole === 'ADMIN' && <Badge className="ml-1 text-xs bg-red-600">BV Admin</Badge>}
                       </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{u._guideName}</td>
+                      {/* 2. Bhakti Vriksha Role */}
+                      <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                        {currentBvRole === 'NA' ? (
+                          <span className="text-muted-foreground/60 text-xs font-normal px-2.5 py-1 bg-muted/30 border border-border/50 rounded inline-block">NA</span>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-auto min-h-[30px] py-1 px-2 text-xs flex items-center justify-between gap-1.5 border-dashed border-primary/60 hover:border-primary hover:bg-primary/10 min-w-[150px] cursor-pointer inline-flex w-full"
+                            disabled={!canEditRole}
+                            onClick={() => setMultiRoleUser(u)}
+                            title="Click to assign or edit Bhakti Vriksha roles and parent reporting hierarchy"
+                          >
+                            <div className="flex items-center gap-1 flex-wrap max-w-[220px]">
+                              {currentBvRole === 'ADMIN' && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 font-semibold rounded shrink-0">Admin</span>}
+                              {currentBvRole === 'SUPERVISOR' && <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 font-semibold rounded shrink-0">Supervisor</span>}
+                              {currentBvRole === 'FACILITATOR' && <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 font-semibold rounded shrink-0">RGF</span>}
+                              {currentBvRole === 'SUB_FACILITATOR' && <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 font-semibold rounded shrink-0">RGSF</span>}
+                              {currentBvRole === 'MEMBER' && (
+                                <span className="text-muted-foreground text-xs font-normal">Member</span>
+                              )}
+                            </div>
+                            {canEditRole && <span className="text-[10px] text-primary font-semibold ml-1 shrink-0">✏️ Edit</span>}
+                          </Button>
+                        )}
+                      </td>
+                      {/* 3. Parent */}
+                      {(() => {
+                        const isUserAdmin = !!((u as any).isBvAdmin || (u as any).isBvSuperAdmin || u.role === 'ADMIN' || u.role === 'SUPER_ADMIN' || u.role === 'PW_ADMIN');
+                        const superAdminDisplayName = (u as any).bvReportingAdminName ||
+                          (isPwAdmin ? 'Hiranyavarna Das (Super Admin)' : 'Gaurmandal Das (Super Admin)');
+                        return (
+                          <td className="px-3 py-2 text-xs" onClick={e => { e.stopPropagation(); if (canEditRole && !isUserAdmin && currentBvRole !== 'NA') openParentDialog(u); }}>
+                            {isUserAdmin ? (
+                              <span className="text-muted-foreground font-medium cursor-default">{superAdminDisplayName}</span>
+                            ) : currentBvRole === 'NA' ? (
+                              <span className="text-muted-foreground/60 font-normal cursor-default">—</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="text-left hover:underline focus:outline-none cursor-pointer flex items-center gap-1 group"
+                                title="Click to change reporting parent hierarchy"
+                              >
+                                <span className="text-muted-foreground font-medium group-hover:text-primary">
+                                  {(() => {
+                                    if (currentBvRole === 'SUPERVISOR') {
+                                      return (u as any).bvReportingAdminName
+                                        ? `${(u as any).bvReportingAdminName} (Admin)`
+                                        : 'Unassigned (Admin)';
+                                    }
+                                    if (currentBvRole === 'FACILITATOR') {
+                                      return (u as any).bvReportingSupervisorName
+                                        ? `${(u as any).bvReportingSupervisorName} (Supervisor)`
+                                        : 'Unassigned (Supervisor)';
+                                    }
+                                    if (currentBvRole === 'SUB_FACILITATOR') {
+                                      return (u as any).bvReportingFacilitatorName
+                                        ? `${(u as any).bvReportingFacilitatorName} (RGF)`
+                                        : 'Unassigned (RGF)';
+                                    }
+                                    // Regular Member
+                                    const facName = (u as any).bvReportingFacilitatorName;
+                                    const supName = (u as any).bvReportingSupervisorName || (u as any).supervisorName || (u as any).bvSupervisorName;
+                                    const adminName = (u as any).bvReportingAdminName;
+
+                                    if (facName) return `${facName} (RGF)`;
+                                    if (supName) return `${supName} (Supervisor)`;
+                                    if (adminName) return `${adminName} (Admin)`;
+
+                                    const guideDisplayName = u._guideName && !u._guideName.includes('-')
+                                      ? u._guideName
+                                      : (isPwAdmin ? 'Hiranyavarna Prabhu (PW)' : 'Gaurmandal Prabhu (FOLK)');
+                                    return `${guideDisplayName} (Admin)`;
+                                  })()}
+                                </span>
+                                {canEditRole && <span className="text-[10px] text-primary/70 group-hover:text-primary">✏️</span>}
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })()}
+                      {/* 4. Admin / Guide */}
+                      <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                        {(() => {
+                          const currentGid = u.selectedGuideId || u._guideId || '';
+                          const matchedGuide = guides.find(g =>
+                            g.guideId === currentGid ||
+                            (g as any).id === currentGid ||
+                            (g as any).userId === currentGid
+                          );
+                          const displayName = matchedGuide
+                            ? matchedGuide.name
+                            : (u._guideName && !u._guideName.includes('-') ? u._guideName : (isPwAdmin ? 'Hiranyavarna Prabhu (Super Admin)' : 'Gaurmandal Prabhu (Super Guide)'));
+
+                          return (
+                            <Select value={matchedGuide?.guideId || currentGid || ''} onValueChange={gid => gid && handleAssignGuide(u.userId, gid)} disabled={assigningGuide === u.userId || isSelf || (!isSuperAdmin && currentBvRole === 'ADMIN')}>
+                              <SelectTrigger className="h-7 text-xs w-44">
+                                <SelectValue>{displayName}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()}
+                      </td>
+                      {/* 5. Ashraya Level */}
                       <td className="px-3 py-2 text-xs">{u.ashrayLevel || '—'}</td>
+                      {/* 6. Weekly Score */}
                       <td className="px-3 py-2">
                         {u.latestScore != null
                           ? <span className={`font-semibold ${scoreColor(u.latestScore, isResident)}`}>{u.latestScore}%</span>
                           : <span className="text-muted-foreground">—</span>}
                       </td>
+                      {/* 7. Latest Entry */}
                       <td className="px-3 py-2 text-xs text-muted-foreground">{fmt.date(u.latestEntryDate)}</td>
                       {!isPwAdmin && (
-                        <td className="px-3 py-2 text-center">
-                          {isResident ? <Home className="w-4 h-4 text-primary inline" /> : <span className="text-muted-foreground text-xs">—</span>}
-                        </td>
-                      )}
-                      <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                        <Select value={u.selectedGuideId || u._guideId || ''} onValueChange={gid => handleAssignGuide(u.userId, gid)} disabled={assigningGuide === u.userId}>
-                          <SelectTrigger className="h-7 text-xs w-36">
-                            <SelectValue>
-                              {guides.find(g => g.guideId === (u.selectedGuideId || u._guideId))?.name || (u.selectedGuideId || u._guideId)}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-
-                      {isPwAdmin ? (
-                        <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                          <Select value={currentBvRole} onValueChange={r => setBvRoleDialog({ user: u, newRole: r, roleLabel: ROLE_LABELS[r] || r })}>
-                            <SelectTrigger className="h-7 text-xs w-44">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="min-w-[280px]">
-                              <SelectItem value="MEMBER">Regular Member</SelectItem>
-                              <SelectItem value="SUB_FACILITATOR">Sub-Facilitator (RGSF)</SelectItem>
-                              <SelectItem value="FACILITATOR">Facilitator (RGF)</SelectItem>
-                              <SelectItem value="SUPERVISOR">BV Supervisor</SelectItem>
-                              <SelectItem value="ADMIN">BV Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </td>
-                      ) : (
                         <>
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                            <button
-                              className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isBvsl || u.role === 'BVSL') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
-                              onClick={() => setBvslDialog({ user: u, action: (u.isBvsl || u.role === 'BVSL') ? 'untag' : 'tag' })}>
-                              {(u.isBvsl || u.role === 'BVSL') ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
-                            </button>
+                          <td className="px-3 py-2 text-center">
+                            {isResident ? <Home className="w-4 h-4 text-primary inline" /> : <span className="text-muted-foreground text-xs">—</span>}
                           </td>
+                          {/* 1. Sadhana Mentor */}
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
@@ -353,6 +794,7 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
                               {(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
                             </button>
                           </td>
+                          {/* 2. FOLK Lead */}
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u as any).isFolkLead ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
@@ -360,18 +802,12 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
                               {(u as any).isFolkLead ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
                             </button>
                           </td>
+                          {/* 3. Trip Coord. */}
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u as any).isTripCoordinator ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
                               onClick={() => setTripCoordDialog({ user: u, action: (u as any).isTripCoordinator ? 'untag' : 'tag' })}>
                               {(u as any).isTripCoordinator ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
-                            </button>
-                          </td>
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                            <button
-                              className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u as any).isBvMentor ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
-                              onClick={() => { setBvMentorDialog({ user: u, action: (u as any).isBvMentor ? 'untag' : 'tag' }); setBvMentorGuideId(''); }}>
-                              {(u as any).isBvMentor ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
                             </button>
                           </td>
                         </>
@@ -389,10 +825,10 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
       <ConfirmDialog
         open={!!bvslDialog}
         onOpenChange={o => !o && setBvslDialog(null)}
-        title={bvslDialog?.action === 'tag' ? 'Assign BVSL Role' : 'Remove BVSL Role'}
+        title={bvslDialog?.action === 'tag' ? 'Assign RGF Role' : 'Remove RGF Role'}
         description={bvslDialog?.action === 'tag'
-          ? `Assign ${bvslDialog?.user.fullName} as BVSL? They will gain access to the BVSL dashboard.`
-          : `Remove BVSL role from ${bvslDialog?.user.fullName}?`}
+          ? `Assign ${bvslDialog?.user.fullName} as RGF? They will gain access to the RGF dashboard.`
+          : `Remove RGF role from ${bvslDialog?.user.fullName}?`}
         confirmLabel="Confirm"
         onConfirm={handleBvslAction}
       />
@@ -484,6 +920,90 @@ export default function SuperUsersPanel({ isPwAdmin = false }: SuperUsersPanelPr
               setBvRoleDialog(null);
             }
           }}
+        />
+      )}
+
+      {/* Hierarchy Parent-Picker Dialog — for Supervisor / RGF / RGSF assignment */}
+      {hierarchyDialog && (
+        <AlertDialog open onOpenChange={o => { if (!o) setHierarchyDialog(null); }}>
+          <AlertDialogContent className="max-w-md w-full p-6 bg-card border border-border rounded-2xl shadow-xl space-y-4 overflow-hidden">
+            <AlertDialogHeader className="space-y-1 text-left">
+              <AlertDialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <Users className="w-5 h-5 text-primary shrink-0" />
+                Assign Reporting Parent ({hierarchyDialog.roleLabel})
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-muted-foreground space-y-1">
+                <span className="block">Please select who <span className="font-semibold text-foreground">{hierarchyDialog.user.fullName}</span> will report to.</span>
+                <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                  ℹ️ Changing the reporting authority will also change the user's group.
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <div className="py-2 space-y-2">
+              <label className="text-xs font-bold text-foreground block">
+                {hierarchyDialog.parentLabel}
+              </label>
+              {hierarchyDialog.parentOptions.length === 0 ? (
+                <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-xl p-3">
+                  ⚠️ No {hierarchyDialog.parentLabel.split(' ')[0]}s found in the system yet. Please assign that role first before assigning this one.
+                </p>
+              ) : (
+                <Select
+                  value={hierarchyDialog.parentId}
+                  onValueChange={(id: string | null) => {
+                    if (!id) return;
+                    const selected = hierarchyDialog.parentOptions.find(p => p.id === id);
+                    const selectedName = selected?.name || '';
+                    setHierarchyDialog(prev => prev ? { ...prev, parentId: id, parentName: selectedName } : null);
+                  }}
+                >
+                  <SelectTrigger className="w-full h-9 text-xs">
+                    <SelectValue placeholder={`Select ${hierarchyDialog.parentLabel.split(' ')[0]}…`}>
+                      {hierarchyDialog.parentOptions.find(p => p.id === hierarchyDialog.parentId)?.name || hierarchyDialog.parentName || `Select ${hierarchyDialog.parentLabel.split(' ')[0]}…`}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hierarchyDialog.parentOptions.map(opt => (
+                      <SelectItem key={opt.id} value={opt.id} className="text-xs">{opt.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <AlertDialogFooter className="pt-3 border-t border-border flex flex-row items-center justify-end gap-2.5">
+              <AlertDialogCancel onClick={() => setHierarchyDialog(null)} className="h-9 px-4 text-xs font-semibold rounded-xl cursor-pointer">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!hierarchyDialog.parentId || hierarchyDialog.parentOptions.length === 0}
+                onClick={async () => {
+                  if (!hierarchyDialog) return;
+                  await handleAssignBvRole(
+                    hierarchyDialog.user.userId,
+                    hierarchyDialog.newRole,
+                    hierarchyDialog.parentId,
+                    hierarchyDialog.parentName,
+                  );
+                  setHierarchyDialog(null);
+                }}
+                className="h-9 px-4 text-xs font-semibold rounded-xl cursor-pointer"
+              >
+                Confirm & Assign
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {multiRoleUser && (
+        <MultiRoleAssignModal
+          open={!!multiRoleUser}
+          user={multiRoleUser}
+          isSuperAdmin={isSuperAdmin}
+          adminsList={bvAdminsList}
+          supervisorsList={bvSupervisorsList}
+          facilitatorsList={bvFacilitatorsList}
+          onClose={() => setMultiRoleUser(null)}
+          onSaved={() => loadData()}
         />
       )}
     </>

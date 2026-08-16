@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
+import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residentSince'];
 
@@ -12,16 +13,27 @@ export default createEndpoint({
     endDate: z.string(),           // YYYY-MM-DD
     guideId: z.string().optional(),
     residencyId: z.string().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     requireGuideRole(context.user.role, {
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
     });
 
-    const isSuperGuide = context.user.role === 'Super Guide';
+    const userRole = (context.user.role || 'User').toUpperCase().replace(/\s+/g, '_');
+    const userEmail = (context.user.email || '').toLowerCase();
+    const isSuperGuide = userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'PW_ADMIN' ||
+      !!context.user.isBvSuperAdmin ||
+      !!context.user.isBvAdmin ||
+      userEmail.includes('gaurmandal') ||
+      userEmail.includes('superadmin') ||
+      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'srilaprabhupadaworld@gmail.com';
 
     // 1. Find guide record for scoping (regular guide only)
     let guideRecord: any = null;
@@ -29,11 +41,14 @@ export default createEndpoint({
       guideRecord = await Guides.findOne({
         filters: { email: context.user.email, isActive: true },
         fields: ['id', 'folkResidencies'],
-      });
+      }).catch(() => null);
     }
 
     // 2. Build user query filters
     const filters: any = { status: 'Active' };
+    if (input.segment) {
+      filters.segment = input.segment;
+    }
     if (!isSuperGuide && guideRecord) {
       filters.guide = guideRecord.id;
     }
@@ -67,6 +82,16 @@ export default createEndpoint({
         }
         allUsers = Array.from(userMap.values());
       }
+    }
+
+    const scopedUserIds = await getScopedHierarchyUserIds(context.user);
+    if (scopedUserIds !== null) {
+      allUsers = allUsers.filter(u => {
+        const uId = String(u.id || '').toLowerCase();
+        const userIdStr = String(u.userId || '').toLowerCase();
+        const emailStr = String(u.email || '').toLowerCase();
+        return (uId && scopedUserIds.has(uId)) || (userIdStr && scopedUserIds.has(userIdStr)) || (emailStr && scopedUserIds.has(emailStr));
+      });
     }
 
     // Only registered users (have userId + fullName), excluding guides
@@ -138,22 +163,30 @@ export default createEndpoint({
     const residencyMap = new Map<string, string>();
     if (resIds.length > 0) {
       const { records: residencies } = await FolkResidencies.findAll({
-        fields: ['id', 'residencyName'],
+        fields: ['id', 'residencyId', 'residencyName'],
         limit: 200,
       });
       for (const r of residencies) {
-        residencyMap.set(r.id, (r as any).residencyName || '');
+        if (r.id) {
+          residencyMap.set(r.id, (r as any).residencyName || '');
+          if ((r as any).residencyId) residencyMap.set((r as any).residencyId, (r as any).residencyName || '');
+        }
       }
     }
 
-    // 8. Fetch all guides and build guideMap
+    // 8. Fetch all guides and build guideLookup (extremely robust, same as getGuideUsers)
     const { records: allGuides } = await Guides.findAll({
-      fields: ['id', 'fullName'],
+      fields: ['id', 'fullName', 'abbreviation', 'email'],
       limit: 500,
     });
-    const guideMap = new Map<string, string>();
+    const guideLookup = new Map<string, string>();
     for (const g of allGuides) {
-      guideMap.set(g.id, g.fullName || '');
+      if (g.id) {
+        guideLookup.set(g.id.toLowerCase(), g.fullName || g.id);
+        if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.fullName);
+        if (g.abbreviation) guideLookup.set(g.abbreviation.toLowerCase(), g.fullName);
+        if (g.email) guideLookup.set(g.email.toLowerCase(), g.fullName);
+      }
     }
 
     // 9. Sort users alphabetically and build matrix
@@ -193,7 +226,7 @@ export default createEndpoint({
       const gid = Array.isArray(u.guide) ? u.guide[0] : u.guide;
       if (gid && !seenGuideIds.has(gid)) {
         seenGuideIds.add(gid);
-        guidesInScope.push({ id: gid, name: guideMap.get(gid) || 'Unknown' });
+        guidesInScope.push({ id: gid, name: guideLookup.get(String(gid).toLowerCase()) || 'Unknown' });
       }
     }
     guidesInScope.sort((a, b) => a.name.localeCompare(b.name));
@@ -203,7 +236,6 @@ export default createEndpoint({
         const resId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
         const guideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
 
-        // Determine residency type
         let residencyType: string;
         if (u.isScholar) {
           residencyType = 'Scholar';
@@ -217,8 +249,8 @@ export default createEndpoint({
           id: u.id,
           fullName: u.fullName || '',
           userId: u.userId || '',
-          residencyName: resId ? (residencyMap.get(resId) || '') : '',
-          guideName: guideId ? (guideMap.get(guideId) || '') : '',
+          residencyName: resId ? (residencyMap.get(String(resId)) || residencyMap.get(String(resId).toLowerCase()) || resId) : '',
+          guideName: guideId ? (guideLookup.get(String(guideId).toLowerCase()) || guideId) : '',
           guideId: guideId || '',
           residencyType,
         };

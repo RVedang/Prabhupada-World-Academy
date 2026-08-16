@@ -4,25 +4,48 @@ import { Label } from '@/components/ui/label';
 import BvSection from '@/components/guide/BvSection';
 import SuperGuideBvSection from './SuperGuideBvSection';
 import SuperBvPreachingAnalytics from './SuperBvPreachingAnalytics';
-import { getGuides } from 'zite-endpoints-sdk';
-import type { GetGuidesOutputType } from 'zite-endpoints-sdk';
+import { getGuides } from '@/lib/endpoints-sdk';
+import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { BarChart3, TrendingUp } from 'lucide-react';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type SubTab = 'overview' | 'preaching';
 
 const SUB_TABS: { value: SubTab; label: string; icon: React.ElementType; desc: string }[] = [
   { value: 'overview',  label: 'BV Overview',         icon: BarChart3,   desc: 'Attendance, sessions, and group stats' },
-  { value: 'preaching', label: 'Preaching Analytics', icon: TrendingUp,  desc: 'Center-wise BVSL preaching field breakdown' },
+  { value: 'preaching', label: 'Preaching Analytics', icon: TrendingUp,  desc: 'Center-wise Facilitator (RGF) preaching field breakdown' },
 ];
 
-export default function SuperBvReportTab() {
+interface SuperBvReportTabProps {
+  isPwAdmin?: boolean;
+  segment?: 'PW' | 'FOLK';
+}
+
+export default function SuperBvReportTab({ isPwAdmin = false, segment }: SuperBvReportTabProps) {
+  const { profile } = useUserProfile();
+  const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
+  const isSuperAdmin = !!(
+    userEmail.includes('gaurmandal') ||
+    userEmail.includes('superadmin') ||
+    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'srilaprabhupadaworld@gmail.com'
+  );
+
   const [guides, setGuides]               = useState<GetGuidesOutputType['guides']>([]);
-  const [selectedGuide, setSelectedGuide] = useState('all');
+  const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin ? 'all' : userEmail));
   const [subTab, setSubTab]               = useState<SubTab>('overview');
 
+  const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
+
   useEffect(() => {
-    getGuides({}).then(r => setGuides(r.guides)).catch(() => {});
-  }, []);
+    getGuides({ segment: effectiveSegment }).then(r => setGuides(r.guides)).catch(() => {});
+  }, [effectiveSegment]);
+
+  useEffect(() => {
+    if (profile && !isSuperAdmin) {
+      setSelectedGuide(userEmail);
+    }
+  }, [profile, isSuperAdmin, userEmail]);
 
   return (
     <div className="space-y-4">
@@ -47,18 +70,22 @@ export default function SuperBvReportTab() {
       {/* ── BV Overview (existing) ── */}
       {subTab === 'overview' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <Label className="text-sm shrink-0">Filter by Guide:</Label>
-            <Select value={selectedGuide} onValueChange={setSelectedGuide}>
-              <SelectTrigger className="w-52 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Guides (Overview)</SelectItem>
-                {guides.map(g => (
-                  <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {isSuperAdmin && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <Label className="text-sm shrink-0">{isPwAdmin ? "Filter by Admin / Mentor:" : "Filter by Guide:"}</Label>
+              <Select value={selectedGuide} onValueChange={(v) => setSelectedGuide(v || 'all')}>
+                <SelectTrigger className="w-56 h-9">
+                  <SelectValue>{selectedGuide === 'all' ? (isPwAdmin ? "All Admins (Overview)" : "All Guides (Overview)") : guides.find((g: any) => g.guideId === selectedGuide)?.name}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{isPwAdmin ? "All Admins (Overview)" : "All Guides (Overview)"}</SelectItem>
+                  {guides.map((g: any) => (
+                    <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {selectedGuide === 'all'
             ? <SuperGuideBvSection />
             : <BvSection guideId={selectedGuide} />

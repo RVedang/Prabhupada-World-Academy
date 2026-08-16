@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, Guides } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, Guides } from '@/lib/backend-sdk';
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 
 export default createEndpoint({

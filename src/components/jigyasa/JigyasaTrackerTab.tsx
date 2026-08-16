@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, FileText, CheckCircle2, Download, Search, ChevronLeft, ChevronRight, Loader2, AlertCircle, Clock, Users, BarChart3, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDebouncedCallback } from 'use-debounce';
-import { getJigyasaTracker, processJigyasaRegistration, processJigyasaAttendance } from 'zite-endpoints-sdk';
-import type { GetJigyasaTrackerOutputType } from 'zite-endpoints-sdk';
+import { getJigyasaTracker, processJigyasaRegistration, processJigyasaAttendance } from '@/lib/endpoints-sdk';
+import type { GetJigyasaTrackerOutputType } from '@/lib/endpoints-sdk';
 import { parseRegistrationCsv, parseAttendanceCsv, extractDateFromFilename } from '@/lib/jigyasaCsvParser';
 import { exportToCsv } from '@/utils/exportCsv';
 import { format } from 'date-fns';
+
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type RegRecord = GetJigyasaTrackerOutputType['registrations'][0];
 type SessionRecord = GetJigyasaTrackerOutputType['sessionRecords'][0];
@@ -29,6 +31,13 @@ interface Props {
 }
 
 export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUpload = true }: Props) {
+  const { profile } = useUserProfile();
+  const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
+  const isPw =
+    profile?.segment === 'PW' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin')) ||
+    userEmail === 'srilaprabhupadaworld@gmail.com' ||
+    userEmail === 'vdnd@hkmmumbai.org';
   const [activeTab, setActiveTab] = useState<'summary' | 'sessions' | 'files'>('summary');
   const [loading, setLoading] = useState(true);
   const [registrations, setRegistrations] = useState<RegRecord[]>([]);
@@ -82,9 +91,9 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
     try {
       const text = await file.text();
       const rows = parseRegistrationCsv(text);
-      if (rows.length === 0) { toast.error('No valid rows found in CSV'); return; }
-      const res = await processJigyasaRegistration({ fileName: file.name, rows });
-      toast.success(`Processed ${res.created} registrations from ${file.name}`);
+      if (rows.length === 0) { toast.error('No valid registration rows found in CSV'); return; }
+      const res = await processJigyasaRegistration({ fileName: file.name, rows } as any);
+      toast.success(`Imported ${res.processed} registrations. ${res.newCount} new, ${res.updatedCount} updated.`);
       load();
     } catch (err: any) {
       toast.error(err.message || 'Failed to process registration CSV');
@@ -97,12 +106,8 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
   const handleAttUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const sessionDate = extractDateFromFilename(file.name);
-    if (!sessionDate) {
-      toast.error('Filename must contain a date in YYYY-MM-DD format (e.g. Attendance_2026-06-17.csv)');
-      if (attInputRef.current) attInputRef.current.value = '';
-      return;
-    }
+    const match = file.name.match(/Attendance_(\d{4}-\d{2}-\d{2})/i);
+    const sessionDate = match ? match[1] : format(new Date(), 'yyyy-MM-dd');
     setUploadingAtt(true);
     try {
       const text = await file.text();
@@ -173,24 +178,26 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
         />
       </div>
 
-      {/* Filters */}
+      {/* Filters & Export */}
       <Card>
         <CardContent className="pt-4 pb-3">
           <div className="flex flex-wrap gap-2 items-end">
-            <div className="min-w-[140px]">
-              <label className="text-xs text-muted-foreground mb-1 block">Centre</label>
-              <Select value={centre || 'all'} onValueChange={v => { setCentre(v === 'all' ? '' : v); setOffset(0); }}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Centres</SelectItem>
-                  {(stats?.centres || []).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isPw && (
+              <div className="min-w-[140px]">
+                <label className="text-xs text-muted-foreground mb-1 block">Centre</label>
+                <Select value={centre || 'all'} onValueChange={v => { setCentre(v === 'all' ? '' : v); setOffset(0); }}>
+                  <SelectTrigger className="h-9"><SelectValue>{centre ? centre : 'All Centres'}</SelectValue></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Centres</SelectItem>
+                    {(stats?.centres || []).filter(c => !c.includes('Prabhupada World') && !c.includes('PW')).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="min-w-[140px]">
               <label className="text-xs text-muted-foreground mb-1 block">Affiliate</label>
               <Select value={affiliate || 'all'} onValueChange={v => { setAffiliate(v === 'all' ? '' : v); setOffset(0); }}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue>{affiliate ? affiliate : 'All Affiliates'}</SelectValue></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Affiliates</SelectItem>
                   {(stats?.affiliates || []).map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
@@ -220,13 +227,13 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
         </TabsList>
 
         <TabsContent value="summary" className="mt-4">
-          <SummaryTable records={registrations} loading={loading} />
+          <SummaryTable records={registrations} loading={loading} isPw={isPw} />
           {totalCount > 0 && (
             <PaginationBar offset={offset} setOffset={setOffset} hasMore={hasMore} totalCount={totalCount} />
           )}
         </TabsContent>
         <TabsContent value="sessions" className="mt-4">
-          <SessionPivotTable data={pivotData} loading={loading} />
+          <SessionPivotTable data={pivotData} loading={loading} isPw={isPw} />
         </TabsContent>
         <TabsContent value="files" className="mt-4">
           <FilesTable records={processedFiles} loading={loading} />
@@ -339,7 +346,7 @@ function PaginationBar({ offset, setOffset, hasMore, totalCount }: {
   );
 }
 
-function SummaryTable({ records, loading }: { records: RegRecord[]; loading: boolean }) {
+function SummaryTable({ records, loading, isPw }: { records: RegRecord[]; loading: boolean; isPw?: boolean }) {
   if (loading) return <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (records.length === 0) return <EmptyState message="No registrations found" />;
 
@@ -356,7 +363,7 @@ function SummaryTable({ records, loading }: { records: RegRecord[]; loading: boo
               </div>
               <p className="text-xs text-muted-foreground">{r.email}</p>
               <div className="flex gap-2 text-xs text-muted-foreground">
-                {r.centreName && <span>{r.centreName}</span>}
+                {!isPw && r.centreName && <span>{r.centreName}</span>}
                 {r.affiliateName && <><span>·</span><span>{r.affiliateName}</span></>}
               </div>
               <p className="text-xs font-mono text-muted-foreground">{r.totalDuration}</p>
@@ -370,7 +377,7 @@ function SummaryTable({ records, loading }: { records: RegRecord[]; loading: boo
               <th className="text-left p-3 font-medium text-muted-foreground">Name</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Email</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
-              <th className="text-left p-3 font-medium text-muted-foreground">Centre</th>
+              {!isPw && <th className="text-left p-3 font-medium text-muted-foreground">Centre</th>}
               <th className="text-left p-3 font-medium text-muted-foreground">Affiliate</th>
               <th className="text-right p-3 font-medium text-muted-foreground">Sessions</th>
               <th className="text-right p-3 font-medium text-muted-foreground">Total Duration</th>
@@ -381,7 +388,7 @@ function SummaryTable({ records, loading }: { records: RegRecord[]; loading: boo
                   <td className="p-3 font-medium">{r.name}</td>
                   <td className="p-3 text-muted-foreground">{r.email}</td>
                   <td className="p-3 text-muted-foreground">{r.phone}</td>
-                  <td className="p-3">{r.centreName}</td>
+                  {!isPw && <td className="p-3">{r.centreName}</td>}
                   <td className="p-3">{r.affiliateName}</td>
                   <td className="p-3 text-right font-medium">{r.totalSessions}</td>
                   <td className="p-3 text-right font-mono text-xs">{r.totalDuration}</td>
@@ -395,7 +402,7 @@ function SummaryTable({ records, loading }: { records: RegRecord[]; loading: boo
   );
 }
 
-function SessionPivotTable({ data, loading }: { data: PivotData; loading: boolean }) {
+function SessionPivotTable({ data, loading, isPw }: { data: PivotData; loading: boolean; isPw?: boolean }) {
   if (loading) return <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (data.people.length === 0) return <EmptyState message="No session records found" />;
 
@@ -409,7 +416,7 @@ function SessionPivotTable({ data, loading }: { data: PivotData; loading: boolea
               <div>
                 <p className="font-medium text-sm">{p.name}</p>
                 <p className="text-xs text-muted-foreground">{p.email}</p>
-                {p.centreName && <p className="text-xs text-muted-foreground">{p.centreName}</p>}
+                {!isPw && p.centreName && <p className="text-xs text-muted-foreground">{p.centreName}</p>}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {data.dates.map(d => {
@@ -431,7 +438,7 @@ function SessionPivotTable({ data, loading }: { data: PivotData; loading: boolea
             <thead>
               <tr className="border-b">
                 <th className="text-left p-2.5 font-medium text-muted-foreground sticky left-0 bg-card z-10 min-w-[150px]">Name</th>
-                <th className="text-left p-2.5 font-medium text-muted-foreground min-w-[120px]">Centre</th>
+                {!isPw && <th className="text-left p-2.5 font-medium text-muted-foreground min-w-[120px]">Centre</th>}
                 {data.dates.map(d => (
                   <th key={d} className="text-center p-2.5 font-medium text-muted-foreground whitespace-nowrap min-w-[60px]">
                     <div className="text-[10px] leading-tight">{format(new Date(d + 'T00:00:00'), 'MMM d')}</div>
@@ -447,7 +454,7 @@ function SessionPivotTable({ data, loading }: { data: PivotData; loading: boolea
                     <div>{p.name}</div>
                     <div className="text-[11px] text-muted-foreground font-normal">{p.email}</div>
                   </td>
-                  <td className="p-2.5 text-muted-foreground text-xs">{p.centreName}</td>
+                  {!isPw && <td className="p-2.5 text-muted-foreground text-xs">{p.centreName}</td>}
                   {data.dates.map(d => {
                     const mins = p.dateMap[d] ?? 0;
                     return (

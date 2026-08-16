@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
-import { getEntryDetail, getBvPreachingEntry, GetEntryDetailOutputType, GetBvPreachingEntryOutputType } from 'zite-endpoints-sdk';
+import { getEntryDetail, getBvPreachingEntry, GetEntryDetailOutputType, GetBvPreachingEntryOutputType } from '@/lib/endpoints-sdk';
 
 type EntryData = NonNullable<GetEntryDetailOutputType['entry']>;
 type BvEntry = NonNullable<GetBvPreachingEntryOutputType['entry']>;

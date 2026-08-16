@@ -1,4 +1,4 @@
-import { Users, Config, FolkResidencies, ZiteError } from 'zite-integrations-backend-sdk';
+import { Users, Config, FolkResidencies, AppError } from '@/lib/backend-sdk';
 
 const DEFAULT_TAGMANGO_API_URL = 'https://api-prod-new.tagmango.com/integration/action/migrate-user';
 
@@ -12,7 +12,7 @@ export async function resolveApiKey(): Promise<string | undefined> {
     filters: { configKey: 'tagmango_api_key' },
   });
   if (dbRecord?.configValue) return dbRecord.configValue;
-  return process.env.ZITE_TAGMANGO_API_KEY || undefined;
+  return process.env.APP_TAGMANGO_API_KEY || undefined;
 }
 
 export async function resolveApiUrl(): Promise<string> {

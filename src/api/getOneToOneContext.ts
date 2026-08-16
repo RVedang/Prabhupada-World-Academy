@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, BvAttendance } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, BvAttendance } from '@/lib/backend-sdk';
 
 function getMondayOfWeek(dateStr: string): string {
   const d = new Date(dateStr.split('T')[0] + 'T00:00:00');

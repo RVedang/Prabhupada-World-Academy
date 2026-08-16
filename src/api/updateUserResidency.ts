@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
@@ -17,24 +17,24 @@ export default createEndpoint({
     const role = context.user.role || '';
     const isSuperGuide = role === 'Super Guide';
     const isAuthorized = ['Super Guide', 'Guide', 'BVSL', 'Sadhana Mentor'].includes(role);
-    if (!isAuthorized) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+    if (!isAuthorized) throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
 
     if (input.makeResident && !input.residencyId) {
-      throw new ZiteError({ code: 'BAD_REQUEST', message: 'A FOLK residency must be selected when making a user a resident' });
+      throw new AppError({ code: 'BAD_REQUEST', message: 'A FOLK residency must be selected when making a user a resident' });
     }
 
     // Regular guides: verify user is in their center
     if (!isSuperGuide) {
       const scope = await getGuideScope(context.user.email);
-      if (!scope) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide record not found' });
+      if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide record not found' });
 
       const userRecord = await Users.findOne({
         id: input.userId,
         fields: ['id', 'residency', 'guide'],
       });
-      if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+      if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
       if (!isUserInGuideScope(scope, userRecord)) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only update residency for users in your center' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'You can only update residency for users in your center' });
       }
     }
 

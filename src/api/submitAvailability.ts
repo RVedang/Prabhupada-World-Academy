@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAvailability, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, ServiceAvailability, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Submit or update availability for the current user (or a resident if guide is submitting on their behalf)',
@@ -20,7 +20,7 @@ export default createEndpoint({
     let targetUserId = context.user.id;
     if (input.userId && input.userId !== context.user.id) {
       if (!isGuide) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'Only guides or service allocators can submit availability on behalf of residents' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'Only guides or service allocators can submit availability on behalf of residents' });
       }
       targetUserId = input.userId;
     }

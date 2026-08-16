@@ -13,17 +13,21 @@ import {
   tagUserAsTripCoordinator, tagUserAsB, bulkUpdateUserFlags,
   retryTagMangoEnrollment, revoketagmangoaccess, toggleCleanlinessManager,
   GetGuideUsersOutputType,
-} from 'zite-endpoints-sdk';
+} from '@/lib/endpoints-sdk';
 import { hasBvslRole, hasMentorRole, ASHRAY_LEVELS } from '@/types/enums';
 import {
   Star, StarOff, GraduationCap, Users, BookOpen, Home, Globe,
   UserCheck, UserX, Settings2, ChevronRight, Wrench, Leaf, Crown,
-  Map as MapIcon, RotateCw, ShieldOff, Sparkles,
+  Map as MapIcon, RotateCw, ShieldOff, Sparkles, LayoutGrid, ListFilter, CheckSquare, Command, Search, ShieldCheck
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { fmt } from '@/lib/fmt';
 import { EmptyState, ConfirmDialog } from '@/shared';
 import AshrayLevelDropdown from '@/components/guide/AshrayLevelDropdown';
+import DevoteePipelineTab from '@/components/crm/DevoteePipelineTab';
+import MentorTaskCenterTab from '@/components/crm/MentorTaskCenterTab';
+import GlobalCommandPalette from '@/components/crm/GlobalCommandPalette';
+import Devotee360Drawer from '@/components/crm/Devotee360Drawer';
 
 type GuideUser = GetGuideUsersOutputType['users'][0];
 type Residency = { id: string; residencyName: string };
@@ -33,6 +37,11 @@ type RoleFilter = 'all' | 'bvsl' | 'mentor' | 'regular' | 'bv_mentor' | 'folk_le
 
 export default function UsersTab({ guideId }: UsersTabProps) {
   const navigate = useNavigate();
+
+  // ── CRM View Mode State ──────────────────────────────────────────────────
+  const [crmViewMode, setCrmViewMode] = useState<'list' | 'pipeline' | 'mentor_tasks'>('list');
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [selected360User, setSelected360User] = useState<any | null>(null);
 
   // ── Data ─────────────────────────────────────────────────────────────────
   const [users, setUsers] = useState<GuideUser[]>([]);
@@ -99,10 +108,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
     try {
       await tagUserAsBvsl({ userId: bvslDialog.user.userId, action: bvslDialog.action });
       toast.success(bvslDialog.action === 'tag'
-        ? `${bvslDialog.user.fullName} assigned as BVSL! Share: ${window.location.origin}/bvsl`
-        : 'BVSL role removed', { duration: 8000 });
+        ? `${bvslDialog.user.fullName} assigned as RGF (Facilitator)!`
+        : 'RGF (Facilitator) role removed', { duration: 8000 });
       setBvslDialog(null); loadUsers();
-    } catch (err: any) { toast.error(err?.message || 'Failed to update BVSL role'); }
+    } catch (err: any) { toast.error(err?.message || 'Failed to update Facilitator role'); }
   };
 
   const handleMentorAction = async () => {
@@ -130,10 +139,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
     try {
       await tagUserAsBvMentor({ userId: bvMentorDialog.user.userId, action: bvMentorDialog.action });
       toast.success(bvMentorDialog.action === 'tag'
-        ? `${bvMentorDialog.user.fullName} assigned as BV Mentor! They can now access the BV Mentor dashboard.`
-        : `BV Mentor role removed from ${bvMentorDialog.user.fullName}`, { duration: 6000 });
+        ? `${bvMentorDialog.user.fullName} assigned as Supervisor! They can now access the Supervisor dashboard.`
+        : `Supervisor role removed from ${bvMentorDialog.user.fullName}`, { duration: 6000 });
       setBvMentorDialog(null); loadUsers();
-    } catch (err: any) { toast.error(err?.message || 'Failed to update BV Mentor role'); }
+    } catch (err: any) { toast.error(err?.message || 'Failed to update Supervisor role'); }
   };
 
   const handleFolkLeadAction = async () => {
@@ -360,10 +369,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Users</SelectItem>
-                  <SelectItem value="bvsl">BVSL Only</SelectItem>
+                  <SelectItem value="bvsl">RGF Only</SelectItem>
                   <SelectItem value="mentor">Sadhana Mentor Only</SelectItem>
                   <SelectItem value="regular">Regular Users</SelectItem>
-                  <SelectItem value="bv_mentor">BV Mentor</SelectItem>
+                  <SelectItem value="bv_mentor">Supervisor</SelectItem>
                   <SelectItem value="folk_lead">FOLK Lead</SelectItem>
                   <SelectItem value="trip_coordinator">Trip Coordinator</SelectItem>
                   <SelectItem value="b">B's Only</SelectItem>
@@ -420,9 +429,9 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                             {user.residencyApproved && <Badge variant="outline" className="text-xs border-primary text-primary py-0">🏠 Resident</Badge>}
                             {(user as any).isB && <Badge className="text-xs py-0 bg-yellow-500 text-yellow-950">B</Badge>}
                             {(user as any).isOtherCenter && <Badge className="text-xs py-0 bg-sky-500">Other Center</Badge>}
-                            {hasBvslRole(user.role, user.isBvsl) && <Badge className="text-xs py-0 bg-purple-500">BVSL</Badge>}
+                            {hasBvslRole(user.role, user.isBvsl) && <Badge className="text-xs py-0 bg-purple-500">RGF</Badge>}
                             {hasMentorRole(user.role, user.isSadhanaMentor) && <Badge className="text-xs py-0 bg-teal-600">Mentor</Badge>}
-                            {(user as any).isBvMentor && <Badge className="text-xs py-0 bg-emerald-600">BV Mentor</Badge>}
+                            {(user as any).isBvMentor && <Badge className="text-xs py-0 bg-emerald-600">Supervisor</Badge>}
                             {user.isScholar && <Badge className="text-xs py-0 bg-indigo-500">🎓 Scholar</Badge>}
                             {user.isServiceAllocator && <Badge className="text-xs py-0 bg-orange-500">Manager</Badge>}
                             {(user as any).isCleanlinessManager && <Badge className="text-xs py-0 bg-cyan-600">🧹 CM</Badge>}
@@ -465,9 +474,9 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                       <th className="text-left p-2 font-medium bg-card">Other Ctr</th>
                       <th className="text-left p-2 font-medium bg-card">Residency</th>
                       <th className="text-left p-2 font-medium bg-card">Account</th>
-                      <th className="text-left p-2 font-medium bg-card">BVSL</th>
+                      <th className="text-left p-2 font-medium bg-card">RGF</th>
                       <th className="text-left p-2 font-medium bg-card">Mentor</th>
-                      <th className="text-left p-2 font-medium bg-card">BV Mentor</th>
+                      <th className="text-left p-2 font-medium bg-card">Supervisor</th>
                       <th className="text-left p-2 font-medium bg-card">Scholar</th>
                       <th className="text-left p-2 font-medium bg-card">Manager</th>
                       <th className="text-left p-2 font-medium bg-card">FOLK Lead</th>
@@ -493,9 +502,9 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                           {user.fullName}
                           {(user as any).isB && <Badge className="ml-1 bg-yellow-500 text-yellow-950 text-xs">B</Badge>}
                           {(user as any).isOtherCenter && <Badge className="ml-1 bg-sky-500 text-xs">Other Ctr</Badge>}
-                          {hasBvslRole(user.role, user.isBvsl) && <Badge className="ml-1 bg-purple-500 text-xs">BVSL</Badge>}
+                          {hasBvslRole(user.role, user.isBvsl) && <Badge className="ml-1 bg-purple-500 text-xs">RGF</Badge>}
                           {hasMentorRole(user.role, user.isSadhanaMentor) && <Badge className="ml-1 bg-teal-600 text-xs">Mentor</Badge>}
-                          {(user as any).isBvMentor && <Badge className="ml-1 bg-emerald-600 text-xs">BV Mentor</Badge>}
+                          {(user as any).isBvMentor && <Badge className="ml-1 bg-emerald-600 text-xs">Supervisor</Badge>}
                           {user.isScholar && <Badge className="ml-1 bg-indigo-500 text-xs">🎓</Badge>}
                           {user.isServiceAllocator && <Badge className="ml-1 bg-orange-500 text-xs">Manager</Badge>}
                           {(user as any).isCleanlinessManager && <Badge className="ml-1 bg-cyan-600 text-xs">🧹 CM</Badge>}
@@ -711,9 +720,9 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                     {u.residencyApproved && <Badge variant="outline" className="text-xs border-primary text-primary py-0">🏠 Resident</Badge>}
                     {(u as any).isB && <Badge className="text-xs py-0 bg-yellow-500 text-yellow-950">B</Badge>}
                     {(u as any).isOtherCenter && <Badge className="text-xs py-0 bg-sky-500">Other Center</Badge>}
-                    {isBvsl && <Badge className="text-xs py-0 bg-purple-500">BVSL</Badge>}
+                    {isBvsl && <Badge className="text-xs py-0 bg-purple-500">RGF</Badge>}
                     {isMentor && <Badge className="text-xs py-0 bg-teal-600">Mentor</Badge>}
-                    {(u as any).isBvMentor && <Badge className="text-xs py-0 bg-emerald-600">BV Mentor</Badge>}
+                    {(u as any).isBvMentor && <Badge className="text-xs py-0 bg-emerald-600">Supervisor</Badge>}
                     {u.isScholar && <Badge className="text-xs py-0 bg-indigo-500">🎓 Scholar</Badge>}
                     {u.isServiceAllocator && <Badge className="text-xs py-0 bg-orange-500">Manager</Badge>}
                     {(u as any).isCleanlinessManager && <Badge className="text-xs py-0 bg-cyan-600">🧹 CM</Badge>}
@@ -742,10 +751,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                     </Button>
                   )}
 
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pt-2">BVSL Role</p>
+                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pt-2">RGF Role</p>
                   <Button variant="outline" className={`w-full justify-start h-11 ${isBvsl ? 'border-purple-400 text-purple-700' : ''}`}
                     onClick={() => { closeSheet(); setBvslDialog({ user: u, action: isBvsl ? 'untag' : 'tag' }); }}>
-                    {isBvsl ? <><StarOff className="w-4 h-4 mr-2" />Remove BVSL Role</> : <><Star className="w-4 h-4 mr-2" />Assign as BVSL</>}
+                    {isBvsl ? <><StarOff className="w-4 h-4 mr-2" />Remove RGF Role</> : <><Star className="w-4 h-4 mr-2" />Assign as RGF (Facilitator)</>}
                   </Button>
 
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pt-2">Sadhana Mentor</p>
@@ -754,10 +763,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                     {isMentor ? <><StarOff className="w-4 h-4 mr-2" />Remove Mentor Role</> : <><GraduationCap className="w-4 h-4 mr-2" />Assign as Sadhana Mentor</>}
                   </Button>
 
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pt-2">BV Mentor</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pt-2">Supervisor Role</p>
                   <Button variant="outline" className={`w-full justify-start h-11 ${(u as any).isBvMentor ? 'border-emerald-400 text-emerald-700' : ''}`}
                     onClick={() => { closeSheet(); setBvMentorDialog({ user: u, action: (u as any).isBvMentor ? 'untag' : 'tag' }); }}>
-                    {(u as any).isBvMentor ? <><StarOff className="w-4 h-4 mr-2" />Remove BV Mentor Role</> : <><Leaf className="w-4 h-4 mr-2" />Assign as BV Mentor</>}
+                    {(u as any).isBvMentor ? <><StarOff className="w-4 h-4 mr-2" />Remove Supervisor Role</> : <><Leaf className="w-4 h-4 mr-2" />Assign as Supervisor</>}
                   </Button>
 
                   {!u.residencyApproved && (
@@ -827,10 +836,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
 
       {/* ── Confirm Dialogs ── */}
       <ConfirmDialog open={!!bvslDialog} onOpenChange={o => !o && setBvslDialog(null)}
-        title={bvslDialog?.action === 'tag' ? 'Assign BVSL Role' : 'Remove BVSL Role'}
+        title={bvslDialog?.action === 'tag' ? 'Assign RGF Role' : 'Remove RGF Role'}
         description={bvslDialog?.action === 'tag'
-          ? `Assign ${bvslDialog?.user.fullName} as a BVSL? They will gain access to the BVSL dashboard.`
-          : `Remove BVSL role from ${bvslDialog?.user.fullName}?`}
+          ? `Assign ${bvslDialog?.user.fullName} as an RGF (Facilitator)? They will gain access to the RGF dashboard.`
+          : `Remove RGF role from ${bvslDialog?.user.fullName}?`}
         confirmLabel="Confirm" onConfirm={handleBvslAction} />
 
       <ConfirmDialog open={!!mentorDialog} onOpenChange={o => !o && setMentorDialog(null)}
@@ -848,10 +857,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
         confirmLabel="Confirm" onConfirm={handleServiceAllocatorAction} />
 
       <ConfirmDialog open={!!bvMentorDialog} onOpenChange={o => !o && setBvMentorDialog(null)}
-        title={bvMentorDialog?.action === 'tag' ? 'Assign BV Mentor Role' : 'Remove BV Mentor Role'}
+        title={bvMentorDialog?.action === 'tag' ? 'Assign Supervisor Role' : 'Remove Supervisor Role'}
         description={bvMentorDialog?.action === 'tag'
-          ? `Assign ${bvMentorDialog?.user.fullName} as a BV Mentor? They will get access to a dedicated BV Mentor dashboard.`
-          : `Remove BV Mentor role from ${bvMentorDialog?.user.fullName}? They will lose access to the BV Mentor dashboard.`}
+          ? `Assign ${bvMentorDialog?.user.fullName} as a Supervisor? They will get access to a dedicated Supervisor dashboard.`
+          : `Remove Supervisor role from ${bvMentorDialog?.user.fullName}? They will lose access to the Supervisor dashboard.`}
         confirmLabel="Confirm" onConfirm={handleBvMentorAction} />
 
       <ConfirmDialog open={!!folkLeadDialog} onOpenChange={o => !o && setFolkLeadDialog(null)}

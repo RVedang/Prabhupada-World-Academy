@@ -5,7 +5,7 @@
  * fetched from /api/openApiSpec.
  */
 import { useEffect, useRef, useState } from 'react';
-import { openApiSpec } from 'zite-endpoints-sdk';
+import { openApiSpec } from '@/lib/endpoints-sdk';
 
 declare global {
   interface Window {

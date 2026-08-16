@@ -6,7 +6,7 @@ import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getBvStats } from 'zite-endpoints-sdk';
+import { getBvStats } from '@/lib/endpoints-sdk';
 import FieldTrendChart from '@/components/stats/FieldTrendChart';
 import type { FieldConfig } from '@/components/stats/FieldTrendChart';
 
@@ -113,7 +113,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds }: Props)
             BV Field Trends (Group Averages)
             {groupStats && (
               <span className="text-xs font-normal text-muted-foreground">
-                · {groupStats.totalUsers} BVSLs · {groupStats.totalSubmitted ?? 0} entries
+                · {groupStats.totalUsers} Facilitators · {groupStats.totalSubmitted ?? 0} entries
               </span>
             )}
           </CardTitle>
@@ -137,51 +137,55 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds }: Props)
         </CardContent>
       </Card>
 
-      {/* Individual BVSL stats */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="text-sm font-semibold">Individual BVSL Stats</CardTitle>
-            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger className="h-8 w-[220px]">
-                <SelectValue placeholder="Select a BVSL…" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                {userList.map((u: any) => (
-                  <SelectItem key={u.userId} value={String(u.userId)}>
-                    {u.fullName}
-                    {u.submittedCount > 0 && (
-                      <span className="ml-2 text-xs text-muted-foreground">{u.submittedCount}d</span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      {/* Individual RGF stats (Supervisor dashboard only) */}
+      {!bvslMode && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="text-sm font-semibold">Individual RGF Stats</CardTitle>
+              <Select value={selectedUserId} onValueChange={(val) => setSelectedUserId(val || '')}>
+                <SelectTrigger className="h-8 w-[220px]">
+                  <SelectValue>
+                    {userList.find((u: any) => String(u.userId) === selectedUserId)?.fullName || "Select an RGF…"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {userList.map((u: any) => (
+                    <SelectItem key={u.userId} value={String(u.userId)}>
+                      {u.fullName}
+                      {u.submittedCount > 0 && (
+                        <span className="ml-2 text-xs text-muted-foreground">{u.submittedCount}d</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {selectedUserInfo && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              <span className="px-2.5 py-1 rounded-full bg-muted text-xs font-medium">{selectedUserInfo.fullName}</span>
-              <span className="px-2.5 py-1 rounded-full bg-muted text-xs">{selectedUserInfo.submittedCount}/{selectedUserInfo.totalDays}d submitted</span>
-              <span className="px-2.5 py-1 rounded-full bg-muted text-xs font-bold text-primary">
-                Avg {minutesToHHMM(selectedUserInfo.avgTotalPreachingMinutes)}
-              </span>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent>
-          {!selectedUserId ? (
-            <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">
-              Select a BVSL above to view their individual field trends
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">
-              Individual per-BVSL trend data requires separate entry fetch.
-              Use the Report tab to view this BVSL's data for a specific date range.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {selectedUserInfo && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="px-2.5 py-1 rounded-full bg-muted text-xs font-medium">{selectedUserInfo.fullName}</span>
+                <span className="px-2.5 py-1 rounded-full bg-muted text-xs">{selectedUserInfo.submittedCount}/{selectedUserInfo.totalDays}d submitted</span>
+                <span className="px-2.5 py-1 rounded-full bg-muted text-xs font-bold text-primary">
+                  Avg {minutesToHHMM(selectedUserInfo.avgTotalPreachingMinutes)}
+                </span>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {!selectedUserId ? (
+              <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">
+                Select an RGF above to view their individual field trends
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">
+                Individual per-RGF trend data requires separate entry fetch.
+                Use the Report tab to view this RGF's data for a specific date range.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

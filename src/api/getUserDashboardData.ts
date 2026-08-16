@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, SadhanaEntries } from '@/lib/backend-sdk';
 import { computeStreak, daysAgo } from '../lib/streakUtils';
 
 // Minimal field sets

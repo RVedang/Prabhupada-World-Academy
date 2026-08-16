@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
@@ -19,16 +19,16 @@ export default createEndpoint({
 
     if (!isSuperGuide) {
       const scope = await getGuideScope(context.user.email);
-      if (!scope) throw new ZiteError({ code: 'FORBIDDEN', message: 'Guide access required' });
+      if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
 
       // Verify the user belongs to this guide's center
       const userRecord = await Users.findOne({
         id: input.userId,
         fields: ['id', 'residency', 'guide'],
       });
-      if (!userRecord) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found' });
+      if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
       if (!isUserInGuideScope(scope, userRecord)) {
-        throw new ZiteError({ code: 'FORBIDDEN', message: 'You can only reject users in your center' });
+        throw new AppError({ code: 'FORBIDDEN', message: 'You can only reject users in your center' });
       }
     }
 

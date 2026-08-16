@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvslWeeklyPlans } from 'zite-integrations-backend-sdk';
+import { createEndpoint, BvslWeeklyPlans } from '@/lib/backend-sdk';
 import { format, startOfWeek } from 'date-fns';
 
 const daySchema = z.object({

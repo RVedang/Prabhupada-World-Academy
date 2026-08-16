@@ -10,10 +10,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Home, Loader2, RefreshCw, User, CalendarDays, Clock, MapPin, ExternalLink, CalendarClock } from 'lucide-react';
-import { leaveResidency, requestGuideTransfer, requestResidencyTransfer, setFolkCenter, getMyGuideOneToOne } from 'zite-endpoints-sdk';
+import { leaveResidency, requestGuideTransfer, requestResidencyTransfer, setFolkCenter, getMyGuideOneToOne } from '@/lib/endpoints-sdk';
 import { differenceInDays, differenceInMonths, format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
-import type { GetGuidesOutputType, GetAllResidenciesOutputType } from 'zite-endpoints-sdk';
+import type { GetGuidesOutputType, GetAllResidenciesOutputType } from '@/lib/endpoints-sdk';
 
 interface Props {
   email: string;

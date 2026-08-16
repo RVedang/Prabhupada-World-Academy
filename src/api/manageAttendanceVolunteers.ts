@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
-  createEndpoint, ZiteError, AttendanceVolunteers, Users,
-} from 'zite-integrations-backend-sdk';
+  createEndpoint, AppError, AttendanceVolunteers, Users,
+} from '@/lib/backend-sdk';
 
 export default createEndpoint({
   authenticated: true,
@@ -22,12 +22,12 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const role = context.user.role || '';
     if (!['Guide', 'Super Guide', 'BVSL'].includes(role) && !context.user.isBvsl) {
-      throw new ZiteError({ code: 'FORBIDDEN', message: 'Not authorized' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Not authorized' });
     }
 
     if (input.action === 'add' && input.userEmail) {
       const user = await Users.findOne({ filters: { email: input.userEmail } });
-      if (!user) throw new ZiteError({ code: 'NOT_FOUND', message: 'User not found with that email' });
+      if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'User not found with that email' });
       // Check existing
       const existing = await AttendanceVolunteers.findOne({ filters: { user: user.id, session: input.sessionId } });
       if (!existing) {

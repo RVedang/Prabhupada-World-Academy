@@ -10,13 +10,15 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import GroupSelect from '@/components/bvsl/GroupSelect';
 import {
   Plus, Trash2, CheckCircle2, Circle, ChevronDown, ChevronUp,
   BookOpen, ArrowLeft, BarChart2, Users, Loader2, GripVertical, FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createBvQuiz, getBvQuizzes, getBvQuizSubmissions, deleteBvQuiz } from 'zite-endpoints-sdk';
-import type { GetBvQuizzesOutputType } from 'zite-endpoints-sdk';
+import { createBvQuiz, getBvQuizzes, getBvQuizSubmissions, deleteBvQuiz } from '@/lib/endpoints-sdk';
+import type { GetBvQuizzesOutputType } from '@/lib/endpoints-sdk';
 import { useEffect } from 'react';
 import { format } from 'date-fns';
 
@@ -523,17 +525,17 @@ export default function BvslQuizPanel({ bvslId, groups }: Props) {
   return (
     <div className="space-y-4">
       {/* Group selector + New Quiz */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-2 flex-wrap">
-          {groups.map(g => (
-            <button
-              key={g.id}
-              onClick={() => setSelectedGroupId(g.id)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${selectedGroupId === g.id ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary'}`}
-            >
-              {g.groupName}
-            </button>
-          ))}
+      <div className="flex items-center justify-between flex-wrap gap-3 bg-card p-3 rounded-xl border border-border/80 shadow-xs">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
+            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Select Reading Group:</span>
+          </div>
+          <GroupSelect
+            groups={groups}
+            selectedGroupId={selectedGroupId}
+            onSelectGroup={setSelectedGroupId}
+          />
         </div>
         <Button size="sm" onClick={() => { setEditingQuiz(null); setView('create'); }}>
           <Plus className="w-4 h-4 mr-1" /> New Quiz

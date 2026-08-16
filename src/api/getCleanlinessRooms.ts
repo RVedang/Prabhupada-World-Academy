@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Config, CleanlinessRooms, Users } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Config, CleanlinessRooms, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get all cleanliness rooms for a residency',

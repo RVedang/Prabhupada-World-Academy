@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AshrayUpgradeRequests, ZiteError } from 'zite-integrations-backend-sdk';
+import { createEndpoint, AshrayUpgradeRequests, AppError } from '@/lib/backend-sdk';
 import { ASHRAY_LEVELS } from '../types/enums';
 
 // Use canonical ASHRAY_LEVELS from enums — single source of truth for level ordering
@@ -33,7 +33,7 @@ export default createEndpoint({
       const currentIdx = ASHRAY_ORDER.indexOf(currentLevel);
       const requestedIdx = ASHRAY_ORDER.indexOf(requestedLevel);
       if (requestedIdx <= currentIdx && currentIdx !== -1 && requestedIdx !== -1) {
-        throw new ZiteError({ code: 'BAD_REQUEST', message: 'Requested level must be higher than current level' });
+        throw new AppError({ code: 'BAD_REQUEST', message: 'Requested level must be higher than current level' });
       }
     }
 
@@ -41,7 +41,7 @@ export default createEndpoint({
     const existing = await AshrayUpgradeRequests.findOne({
       filters: { userId: context.user.userId || context.user.id, status: 'Pending' },
     });
-    if (existing) throw new ZiteError({ code: 'CONFLICT', message: 'You already have a pending upgrade request' });
+    if (existing) throw new AppError({ code: 'CONFLICT', message: 'You already have a pending upgrade request' });
 
     const record = await AshrayUpgradeRequests.create({
       record: {

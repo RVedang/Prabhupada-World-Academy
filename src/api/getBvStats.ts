@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, BvslPreachingEntries, BvGroups, BvGroupMembers } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Users, Guides, BvslPreachingEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 
 const BV_FIELDS = [

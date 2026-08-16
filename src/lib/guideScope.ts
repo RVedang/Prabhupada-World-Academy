@@ -8,7 +8,7 @@
 // Do NOT import it from frontend files — it uses the backend SDK.
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { Guides, FolkResidencies } from 'zite-integrations-backend-sdk';
+import { Guides, FolkResidencies } from '@/lib/backend-sdk';
 
 export interface GuideScope {
   /** The DB record ID (UUID) of this guide in the Guides table */
@@ -17,6 +17,7 @@ export interface GuideScope {
   residencyIds: string[];
   /** The full name of the guide to resolve name-based direct assignments */
   guideName?: string;
+  isSuperAdminScope?: boolean;
 }
 
 /**
@@ -45,12 +46,20 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
     };
   }
 
-  if (!guide && (emailLower.includes('super') || emailLower.includes('admin'))) {
+  if (!guide && (
+    emailLower.includes('super') ||
+    emailLower.includes('admin') ||
+    emailLower.includes('gaurmandal') ||
+    emailLower.includes('hiranyavarna') ||
+    emailLower === 'vdnd@hkmmumbai.org' ||
+    emailLower === 'srilaprabhupadaworld@gmail.com'
+  )) {
     guide = {
       id: 'GUIDE-ADMIN-001',
       fullName: 'Super Guide Admin',
       email: email,
       folkResidencies: [],
+      isSuperAdminScope: true,
     };
   }
 
@@ -63,7 +72,7 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
     residencyIds = (guide.folkResidencies as string).split(',').map((s: string) => s.trim());
   }
 
-  return { guideId: guide.id, residencyIds, guideName: guide.fullName };
+  return { guideId: guide.id, residencyIds, guideName: guide.fullName, isSuperAdminScope: !!(guide as any).isSuperAdminScope };
 }
 
 /**
@@ -103,6 +112,8 @@ export function isUserInGuideScope(
   scope: GuideScope,
   userRecord: { residency?: string | string[] | null; guide?: string | string[] | null },
 ): boolean {
+  if (!scope) return false;
+  if ((scope as any).isSuperAdminScope || scope.guideId === 'GUIDE-ADMIN-001') return true;
   const userResidencyId = Array.isArray(userRecord.residency)
     ? userRecord.residency[0]
     : userRecord.residency;

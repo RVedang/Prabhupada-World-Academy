@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Config } from 'zite-integrations-backend-sdk';
+import { createEndpoint, Config } from '@/lib/backend-sdk';
 
 const KEY_PREFIX = 'service_published_';
 
