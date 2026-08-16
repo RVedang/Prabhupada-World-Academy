@@ -36,8 +36,8 @@ const TTL = 10 * 1000; // 10 seconds — updates quickly when role changes
 // Prabhupada World Mentors
 const PW_SUPER_ADMIN = {
   guideId: 'MENTOR-PW-HIRANYAVARNA',
-  name: 'Hiranyavarna Prabhu (Super Admin)',
-  abbr: 'HVP',
+  name: 'Hiranyavarna Das',
+  abbr: 'HVD',
   email: 'vdnd@hkmmumbai.org',
   isPrabhupadaWorldMentor: true,
 };
@@ -207,13 +207,23 @@ export default createEndpoint({
 
     const effectiveSegment = input.segment;
 
+    const sortGuides = (list: any[]) => {
+      return [...list].sort((a, b) => {
+        const isAPw = !!a.isPrabhupadaWorldMentor;
+        const isBPw = !!b.isPrabhupadaWorldMentor;
+        if (isAPw && !isBPw) return -1;
+        if (!isAPw && isBPw) return 1;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    };
+
     if (effectiveSegment === 'PW') {
-      return { guides: allGuides.pw };
+      return { guides: sortGuides(allGuides.pw) };
     } else if (effectiveSegment === 'FOLK') {
-      return { guides: allGuides.folk };
+      return { guides: sortGuides(allGuides.folk) };
     }
 
-    return { guides: allGuides.all };
+    return { guides: sortGuides(allGuides.all) };
   },
 });
 
