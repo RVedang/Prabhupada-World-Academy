@@ -115,10 +115,8 @@ export default createEndpoint({
           const isFolkRole =
             roleUpper === 'GUIDE' ||
             roleUpper === 'SUPER_GUIDE' ||
-            roleUpper === 'BVSL' ||
-            u.isBvSupervisor === true ||
-            u.isBvFacilitator === true ||
-            u.isBvsl === true ||
+            roleUpper === 'ADMIN' ||
+            roleUpper === 'SUPER_ADMIN' ||
             u.isBvAdmin === true ||
             u.isBvSuperAdmin === true;
 
