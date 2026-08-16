@@ -38,7 +38,7 @@ const PW_SUPER_ADMIN = {
   guideId: 'MENTOR-PW-HIRANYAVARNA',
   name: 'Hiranyavarna Das',
   abbr: 'HVD',
-  email: 'vdnd@hkmmumbai.org',
+  email: 'hrvd@hkmmumbai.org',
   isPrabhupadaWorldMentor: true,
 };
 
@@ -164,7 +164,7 @@ export default createEndpoint({
           const segmentUpper = (u.segment || '').toUpperCase();
           const nameLower = (u.fullName || '').toLowerCase();
           const emailLower = (u.email || '').toLowerCase();
-          const isHiranya = nameLower.includes('hiranya') || emailLower.includes('hiranya') || emailLower.includes('vdnd@hkmmumbai');
+          const isHiranya = emailLower.includes('hrvd@hkmmumbai') || emailLower.includes('vdnd@hkmmumbai');
           if (isHiranya) return false;
 
           // Filter out demo admin account
@@ -186,7 +186,7 @@ export default createEndpoint({
 
       // Conditionally show PW_SUPER_ADMIN only if active in Users table
       const hasSuperAdminUser = userRecords.some(u => 
-        (u.email || '').toLowerCase().trim() === 'vdnd@hkmmumbai.org' && 
+        (u.email || '').toLowerCase().trim() === 'hrvd@hkmmumbai.org' && 
         u.status === 'Active' && 
         (u.role === 'Super Admin' || u.isBvSuperAdmin === true)
       );
@@ -230,8 +230,10 @@ export default createEndpoint({
 function dedupeGuides(list: any[]) {
   const seen = new Set();
   return list.filter(g => {
-    if (!g.guideId || seen.has(g.guideId)) return false;
-    seen.add(g.guideId);
+    const emailKey = (g.email || '').toLowerCase().trim();
+    if (!emailKey) return true;
+    if (seen.has(emailKey)) return false;
+    seen.add(emailKey);
     return true;
   });
 }
