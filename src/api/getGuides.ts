@@ -42,14 +42,6 @@ const PW_SUPER_ADMIN = {
   isPrabhupadaWorldMentor: true,
 };
 
-const PW_ADMIN = {
-  guideId: 'MENTOR-PW-ADMIN',
-  name: 'PW System Administrator (Admin)',
-  abbr: 'PW-ADM',
-  email: 'admin@prabhupadaworld.org',
-  isPrabhupadaWorldMentor: true,
-};
-
 // FOLK Super Guide
 const FOLK_SUPER_GUIDE = {
   guideId: 'MENTOR-FOLK-GAURMANDAL',
@@ -68,7 +60,7 @@ const DEFAULT_FOLK_GUIDES = [
 export default createEndpoint({
   description: 'Get all active guides for registration / forms (server-cached 10s)',
   inputSchema: z.object({
-    segment: z.enum(['PW', 'FOLK']).optional(),
+    segment: z.enum(['PW', 'FOLK', 'ALL']).optional(),
   }),
   outputSchema: z.object({
     guides: z.array(z.object({
@@ -105,15 +97,18 @@ export default createEndpoint({
           const emailLower = (u.email || '').toLowerCase();
           const nameLower = (u.fullName || '').toLowerCase();
 
+          // Filter out demo admin account
+          if (emailLower === 'admin@prabhupadaworld.org' || nameLower.includes('pw system administrator')) {
+            return false;
+          }
+
           const isPwUser =
             segmentUpper === 'PW' ||
             u.isPrabhupadaWorldUser === true ||
             emailLower.includes('prabhupada') ||
             emailLower === 'vdnd@hkmmumbai.org' ||
-            emailLower === 'admin@prabhupadaworld.org' ||
             nameLower.includes('hiranya') ||
-            nameLower.includes('prabhupada world') ||
-            nameLower.includes('pw system administrator');
+            nameLower.includes('prabhupada world');
 
           if (isPwUser) return false;
 
@@ -149,6 +144,12 @@ export default createEndpoint({
           const emailLower = (u.email || '').toLowerCase();
           const isHiranya = nameLower.includes('hiranya') || emailLower.includes('hiranya') || emailLower.includes('vdnd@hkmmumbai');
           if (isHiranya) return false;
+
+          // Filter out demo admin account
+          if (emailLower === 'admin@prabhupadaworld.org' || nameLower.includes('pw system administrator')) {
+            return false;
+          }
+
           return (roleUpper === 'ADMIN' || u.isBvAdmin === true) &&
                  (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&
                  u.status === 'Active';
@@ -161,9 +162,7 @@ export default createEndpoint({
           isPrabhupadaWorldMentor: true,
         }));
 
-      const finalPwAdmins = dbPwAdmins.length > 0 ? dbPwAdmins : [PW_ADMIN];
-
-      const pwList = dedupeGuides([PW_SUPER_ADMIN, ...finalPwAdmins]);
+      const pwList = dedupeGuides([PW_SUPER_ADMIN, ...dbPwAdmins]);
       const folkList = dedupeGuides(listToReturn);
       const allList = dedupeGuides([...pwList, ...folkList]);
 
@@ -174,9 +173,7 @@ export default createEndpoint({
       };
     }, TTL);
 
-    const userEmail = (context?.user?.email || '').toLowerCase();
-    const userSegment = context?.user?.segment ?? (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
-    const effectiveSegment = input.segment || userSegment;
+    const effectiveSegment = input.segment;
 
     if (effectiveSegment === 'PW') {
       return { guides: allGuides.pw };

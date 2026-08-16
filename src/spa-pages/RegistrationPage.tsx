@@ -67,6 +67,9 @@ export default function RegistrationPage() {
 
   const ashrayLevel = hasTakenExam ? selectedExamLevel : 'Jigyasa';
 
+  const selectedGuide = guides.find((g: any) => g.guideId === formData.selectedGuideId);
+  const isPwMentorSelected = !!selectedGuide?.isPrabhupadaWorldMentor;
+
   useEffect(() => {
     if (!phonePrefillDone.current) {
       phonePrefillDone.current = true;
@@ -84,10 +87,10 @@ export default function RegistrationPage() {
   const loadGuides = async () => {
     setLoadingGuides(true);
     try {
-      const result = await getGuides({});
+      const result = await getGuides({ segment: 'ALL' });
       setGuides(result.guides);
     } catch {
-      toast.error('Failed to load guides. Please try again.');
+      toast.error('Failed to load mentors. Please try again.');
     } finally { setLoadingGuides(false); }
   };
 
@@ -117,10 +120,6 @@ export default function RegistrationPage() {
       toast.error('Please enter a valid phone number (at least 7 digits)');
       return;
     }
-    if (!formData.selectedGuideId) { toast.error('Please select your Mentor'); return; }
-
-    const isPwMentorSelected = formData.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' || formData.selectedGuideId === 'MENTOR-PW-ADMIN';
-
     // FOLK center only required when NOT a Prabhupada World user
     if (!isPwMentorSelected && !formData.selectedFolkResidency) {
       toast.error('Please select your FOLK Center'); return;
@@ -144,7 +143,6 @@ export default function RegistrationPage() {
         if (emailCheck.isGuide) { setGuideEmailBlocked(true); setLoading(false); return; }
       }
 
-      const isPwMentorSelected = formData.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' || formData.selectedGuideId === 'MENTOR-PW-ADMIN';
       const result = await registerUser({
         fullName: nameToUse,
         phoneCountryCode: formData.phoneCountryCode,
@@ -370,7 +368,7 @@ export default function RegistrationPage() {
           </div>
 
           {/* FOLK Center — hidden for Prabhupada World users */}
-          {formData.selectedGuideId !== 'MENTOR-PW-HIRANYAVARNA' && formData.selectedGuideId !== 'MENTOR-PW-ADMIN' && (
+          {formData.selectedGuideId && !isPwMentorSelected && (
             <div className="space-y-1.5">
               <label htmlFor="folkCenter" className="text-sm font-medium text-gray-700 block mb-1">
                 FOLK Center <span className="text-red-500 font-bold">*</span>
@@ -407,7 +405,7 @@ export default function RegistrationPage() {
           )}
 
           {/* Residency Toggle — hidden for Prabhupada World users */}
-          {formData.selectedGuideId !== 'MENTOR-PW-HIRANYAVARNA' && (
+          {formData.selectedGuideId && !isPwMentorSelected && (
             <div className="space-y-3">
               <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-md shadow-sm">
                 <label htmlFor="residency" className="cursor-pointer text-sm font-medium text-gray-700">Staying in FOLK Residency?</label>
