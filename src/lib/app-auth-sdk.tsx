@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('auth_email') : null;
     const isMockMode = typeof window !== 'undefined' && (
       localStorage.getItem('auth_mock_mode') === 'true' ||
-      !!storedEmail
+      !isFirebaseEnabled
     );
 
     if (isMockMode && storedEmail) {
