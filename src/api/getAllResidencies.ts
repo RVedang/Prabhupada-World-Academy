@@ -3,7 +3,7 @@ import { createEndpoint, FolkResidencies } from '@/lib/backend-sdk';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
 
 const CACHE_KEY = 'ref:residencies_v3';
-const TTL = 60 * 60 * 1000; // 1 hour — residencies change very rarely
+const TTL = 5 * 1000; // 5 seconds — updates instantly when centers are added/deleted
 
 const DEFAULT_RESIDENCIES = [
   { residencyId: 'FOLK-MUMBAI', residencyName: 'HKM Mumbai FOLK Center' },
