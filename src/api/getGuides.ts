@@ -80,7 +80,31 @@ export default createEndpoint({
 
       const SYSTEM_GUIDE_IDS = ['GUIDE-000', 'GUIDE-SUPER-PWA-GUIDE', 'GUIDE-001', 'GUIDE-ADMIN-001'];
       const folkGuidesFromDb = guideRecords
-        .filter(g => !SYSTEM_GUIDE_IDS.includes(g.guideId || g.id))
+        .filter(g => {
+          if (SYSTEM_GUIDE_IDS.includes(g.guideId || g.id)) return false;
+
+          // Cross-reference with Users table to check if they were deleted/modified
+          if (g.email) {
+            const emailLower = g.email.toLowerCase().trim();
+            const correspondingUser = userRecords.find(u => (u.email || '').toLowerCase().trim() === emailLower);
+            if (correspondingUser) {
+              // If user exists, status must be Active and role must be a guide/admin role
+              const roleUpper = (correspondingUser.role || '').toUpperCase();
+              const isGuideOrAdmin =
+                roleUpper === 'GUIDE' ||
+                roleUpper === 'SUPER_GUIDE' ||
+                roleUpper === 'ADMIN' ||
+                roleUpper === 'SUPER_ADMIN' ||
+                correspondingUser.isBvAdmin === true ||
+                correspondingUser.isBvSuperAdmin === true;
+
+              if (correspondingUser.status !== 'Active' || !isGuideOrAdmin) {
+                return false;
+              }
+            }
+          }
+          return true;
+        })
         .map(g => ({
           guideId: g.id || g.guideId,
           name: formatGuideName(g.fullName || g.name, g.email),
@@ -148,7 +172,7 @@ export default createEndpoint({
             return false;
           }
 
-          return (roleUpper === 'ADMIN' || u.isBvAdmin === true) &&
+          return (roleUpper === 'ADMIN' || u.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || u.isBvSuperAdmin === true) &&
                  (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&
                  u.status === 'Active';
         })
@@ -160,7 +184,17 @@ export default createEndpoint({
           isPrabhupadaWorldMentor: true,
         }));
 
-      const pwList = dedupeGuides([PW_SUPER_ADMIN, ...dbPwAdmins]);
+      // Conditionally show PW_SUPER_ADMIN only if active in Users table
+      const hasSuperAdminUser = userRecords.some(u => 
+        (u.email || '').toLowerCase().trim() === 'vdnd@hkmmumbai.org' && 
+        u.status === 'Active' && 
+        (u.role === 'Super Admin' || u.isBvSuperAdmin === true)
+      );
+
+      const pwList = dedupeGuides([
+        ...(hasSuperAdminUser ? [PW_SUPER_ADMIN] : []),
+        ...dbPwAdmins
+      ]);
       const folkList = dedupeGuides(listToReturn);
       const allList = dedupeGuides([...pwList, ...folkList]);
 
