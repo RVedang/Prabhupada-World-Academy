@@ -51,7 +51,7 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
     emailLower.includes('admin') ||
     emailLower.includes('gaurmandal') ||
     emailLower.includes('hiranyavarna') ||
-    emailLower === 'vdnd@hkmmumbai.org' ||
+    emailLower === 'hrvd@hkmmumbai.org' ||
     emailLower === 'srilaprabhupadaworld@gmail.com'
   )) {
     guide = {

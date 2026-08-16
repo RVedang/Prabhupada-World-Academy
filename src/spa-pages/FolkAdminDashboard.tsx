@@ -39,7 +39,7 @@ export default function FolkAdminDashboard() {
     profile?.role === 'SUPER_GUIDE' ||
     userEmail.includes('gaurmandal') ||
     userEmail.includes('superadmin') ||
-    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'hrvd@hkmmumbai.org' ||
     userEmail === 'srilaprabhupadaworld@gmail.com'
   );
 
@@ -55,7 +55,7 @@ export default function FolkAdminDashboard() {
     if (profile) {
       if (!isBvAdminUser) {
         navigate('/user/folk-dashboard', { replace: true });
-      } else if (!isFolk && (userEmail === 'vdnd@hkmmumbai.org' || userEmail === 'srilaprabhupadaworld@gmail.com')) {
+      } else if (!isFolk && (userEmail === 'hrvd@hkmmumbai.org' || userEmail === 'srilaprabhupadaworld@gmail.com')) {
         navigate('/pw-admin/dashboard', { replace: true });
       }
     }

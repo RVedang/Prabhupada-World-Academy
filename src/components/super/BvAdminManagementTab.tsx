@@ -27,7 +27,7 @@ export default function BvAdminManagementTab() {
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'hrvd@hkmmumbai.org' ||
     userEmail === 'srilaprabhupadaworld@gmail.com' ||
     userEmail.includes('gaurmandal')
   );

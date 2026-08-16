@@ -88,7 +88,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
 
   const userEmailLower = (user?.email || '').toLowerCase();
   const isSuperAdmin = userEmailLower === 'srilaprabhupadaworld@gmail.com' ||
-                        userEmailLower === 'vdnd@hkmmumbai.org' ||
+                        userEmailLower === 'hrvd@hkmmumbai.org' ||
                         (profile as any)?.isBvSuperAdmin ||
                         profile?.role === 'SUPER_ADMIN' ||
                         (profile?.role as string)?.toUpperCase()?.includes('SUPER');

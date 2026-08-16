@@ -80,7 +80,7 @@ export default createEndpoint({
       !!context.user.isBvAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin') ||
-      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'hrvd@hkmmumbai.org' ||
       userEmail === 'srilaprabhupadaworld@gmail.com';
 
     // 1. Find guide record for scoping (regular guide only)

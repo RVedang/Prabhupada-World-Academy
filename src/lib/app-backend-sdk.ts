@@ -262,7 +262,7 @@ function getMockTable(tableName: string): Map<string, any> {
     if (tableName === 'Users') {
       const now = new Date().toISOString();
       const defaultUsers = [
-        { id: 'vdnd@hkmmumbai.org', userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
+        { id: 'hrvd@hkmmumbai.org', userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'srilaprabhupadaworld@gmail.com', userId: 'USER-SUPERADMIN-PW-2', fullName: 'Hiranyavarna Das (PW)', email: 'srilaprabhupadaworld@gmail.com', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'gaurmandal@folk.org', userId: 'USER-SUPERADMIN-FOLK', fullName: 'Gaurmandal Das (FOLK Super Admin)', email: 'gaurmandal@folk.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'gaurmandal@hkmmumbai.org', userId: 'USER-SUPERADMIN-FOLK-2', fullName: 'Gaurmandal Das (FOLK)', email: 'gaurmandal@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },

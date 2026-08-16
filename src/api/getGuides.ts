@@ -130,7 +130,7 @@ export default createEndpoint({
             segmentUpper === 'PW' ||
             u.isPrabhupadaWorldUser === true ||
             emailLower.includes('prabhupada') ||
-            emailLower === 'vdnd@hkmmumbai.org' ||
+            emailLower === 'hrvd@hkmmumbai.org' ||
             nameLower.includes('hiranya') ||
             nameLower.includes('prabhupada world');
 
@@ -164,7 +164,7 @@ export default createEndpoint({
           const segmentUpper = (u.segment || '').toUpperCase();
           const nameLower = (u.fullName || '').toLowerCase();
           const emailLower = (u.email || '').toLowerCase();
-          const isHiranya = emailLower.includes('hrvd@hkmmumbai') || emailLower.includes('vdnd@hkmmumbai');
+          const isHiranya = emailLower.includes('hrvd@hkmmumbai');
           if (isHiranya) return false;
 
           // Filter out demo admin account

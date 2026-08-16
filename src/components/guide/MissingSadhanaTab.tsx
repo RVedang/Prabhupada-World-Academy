@@ -535,7 +535,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
     profile?.role === 'SUPER_GUIDE' ||
     userEmail.includes('gaurmandal') ||
     userEmail.includes('superadmin') ||
-    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'hrvd@hkmmumbai.org' ||
     userEmail === 'srilaprabhupadaworld@gmail.com'
   );
 

@@ -183,12 +183,12 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     profile?.segment === 'PW' ||
     (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin')) ||
     userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail === 'vdnd@hkmmumbai.org';
+    userEmail === 'hrvd@hkmmumbai.org';
 
   const isSuperAdmin = !!(
     userEmail.includes('gaurmandal') ||
     userEmail.includes('superadmin') ||
-    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'hrvd@hkmmumbai.org' ||
     userEmail === 'srilaprabhupadaworld@gmail.com'
   );
 

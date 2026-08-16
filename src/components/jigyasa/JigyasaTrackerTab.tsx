@@ -37,7 +37,7 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
     profile?.segment === 'PW' ||
     (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin')) ||
     userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail === 'vdnd@hkmmumbai.org';
+    userEmail === 'hrvd@hkmmumbai.org';
   const [activeTab, setActiveTab] = useState<'summary' | 'sessions' | 'files'>('summary');
   const [loading, setLoading] = useState(true);
   const [registrations, setRegistrations] = useState<RegRecord[]>([]);

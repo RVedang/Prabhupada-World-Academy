@@ -57,7 +57,7 @@ export default function DashboardLayout({
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE' ||
-    userEmailStr === 'vdnd@hkmmumbai.org' ||
+    userEmailStr === 'hrvd@hkmmumbai.org' ||
     userEmailStr === 'srilaprabhupadaworld@gmail.com' ||
     userEmailStr.includes('gaurmandal') ||
     userEmailStr.includes('superadmin')

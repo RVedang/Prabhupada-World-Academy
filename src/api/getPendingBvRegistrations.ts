@@ -19,7 +19,7 @@ export default createEndpoint({
       role === 'SUPER_ADMIN' ||
       role === 'ADMIN' ||
       userEmail === 'srilaprabhupadaworld@gmail.com' || 
-      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'hrvd@hkmmumbai.org' ||
       userEmail.includes('admin') ||
       context.user.isBvAdmin || 
       context.user.isBvSuperAdmin ||

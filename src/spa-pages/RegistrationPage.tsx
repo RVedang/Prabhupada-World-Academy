@@ -349,8 +349,8 @@ export default function RegistrationPage() {
                         if (!matched) return val;
                         return matched.isPrabhupadaWorldMentor ? (
                           <span className="flex items-center gap-2">
-                            <span className="text-[10px] bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">Prabhupada World</span>
                             {matched.name || matched.abbr}
+                            <span className="text-[10px] bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">Prabhupada World</span>
                           </span>
                         ) : (
                           matched.name || matched.abbr
@@ -363,8 +363,8 @@ export default function RegistrationPage() {
                       <SelectItem key={guide.guideId} value={guide.guideId}>
                         {guide.isPrabhupadaWorldMentor ? (
                           <span className="flex items-center gap-2">
-                            <span className="text-[10px] bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">Prabhupada World</span>
                             {guide.name}
+                            <span className="text-[10px] bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">Prabhupada World</span>
                           </span>
                         ) : guide.name || guide.abbr}
                       </SelectItem>

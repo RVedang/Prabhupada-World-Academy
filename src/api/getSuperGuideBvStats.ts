@@ -131,7 +131,7 @@ export default createEndpoint({
         uRole === 'SUPER ADMIN' ||
         uName.includes('system admin') ||
         uName.includes('super admin') ||
-        uEmail === 'vdnd@hkmmumbai.org' ||
+        uEmail === 'hrvd@hkmmumbai.org' ||
         uEmail === 'srilaprabhupadaworld@gmail.com' ||
         uEmail === 'gaurmandal@folk.org' ||
         uEmail === 'admin@prabhupadaworld.org' ||

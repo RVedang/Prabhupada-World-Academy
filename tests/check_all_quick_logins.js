@@ -1,7 +1,7 @@
 const { chromium } = require('@playwright/test');
 
 const QUICK_LOGINS = [
-  { label: 'PW Super Admin', email: 'vdnd@hkmmumbai.org', expectedRoute: '/pw-admin/dashboard' },
+  { label: 'PW Super Admin', email: 'hrvd@hkmmumbai.org', expectedRoute: '/pw-admin/dashboard' },
   { label: 'FOLK Super Admin', email: 'gaurmandal@folk.org', expectedRoute: '/folk-admin/dashboard' },
   { label: 'PW Admin', email: 'admin@prabhupadaworld.org', expectedRoute: '/pw-admin/dashboard' },
   { label: 'FOLK Admin', email: 'folkadmin@folk.org', expectedRoute: '/folk-admin/dashboard' },

@@ -22,7 +22,7 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
     userRole === 'SUPER_GUIDE' ||
     contextUser.isBvSuperAdmin ||
     userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'hrvd@hkmmumbai.org' ||
     userEmail.includes('gaurmandal') ||
     userEmail.includes('superadmin')
   );

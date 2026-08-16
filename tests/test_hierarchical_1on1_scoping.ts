@@ -32,7 +32,7 @@ async function testHierarchyScoping() {
   console.log(`   - Sample members:`, adminData.users.map((u: any) => u.fullName).join(', ') || 'None');
 
   // 5. Super Admin User Context
-  const superAdminContext = { user: { id: 'SUPERADMIN-001', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true } };
+  const superAdminContext = { user: { id: 'SUPERADMIN-001', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true } };
   const superAdminData = await (getBvslOneToOneData as any).execute({ input: {}, context: superAdminContext });
   console.log('\n5. Super Admin 1:1 Call Reports:');
   console.log(`   - Visible users count: ${superAdminData.users.length}`);

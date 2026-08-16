@@ -14,7 +14,7 @@ async function runDirectTest() {
   console.log('1. Devotee resolved user profile:', devoteeLogin.user?.fullName, devoteeLogin.user?.userId);
 
   // 2. PW Super Admin context
-  const superAdminContext = { user: { id: 'usr_superadmin_pw', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true } };
+  const superAdminContext = { user: { id: 'usr_superadmin_pw', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true } };
   const superAdminLogin = await resolveUserLogin.execute({ input: {}, context: superAdminContext });
   console.log('2. PW Super Admin resolved user profile:', superAdminLogin.user?.fullName, superAdminLogin.user?.userId);
 

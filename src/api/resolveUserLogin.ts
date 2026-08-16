@@ -161,7 +161,7 @@ export default createEndpoint({
     if (context.user.email && isMockAuthEnabled) {
       const emailLower = context.user.email.toLowerCase();
       const defaults: Record<string, any> = {
-        'vdnd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
+        'hrvd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
         'srilaprabhupadaworld@gmail.com': { userId: 'USER-SUPERADMIN-PW-2', fullName: 'Hiranyavarna Das (PW)', email: 'srilaprabhupadaworld@gmail.com', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
         'gaurmandal@folk.org': { userId: 'USER-SUPERADMIN-FOLK', fullName: 'Gaurmandal Das (FOLK Super Admin)', email: 'gaurmandal@folk.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
         'gaurmandal@hkmmumbai.org': { userId: 'USER-SUPERADMIN-FOLK-2', fullName: 'Gaurmandal Das (FOLK)', email: 'gaurmandal@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
@@ -342,7 +342,7 @@ export default createEndpoint({
         isBvSuperAdmin: !!(
           userRecord.isBvSuperAdmin ||
           (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
-          (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' ||
+          (userEmail || '').toLowerCase() === 'hrvd@hkmmumbai.org' ||
           (userEmail || '').toLowerCase().includes('gaurmandal') ||
           (userEmail || '').toLowerCase().includes('folk.org') ||
           userRecord.role === 'Super Guide' ||
@@ -353,7 +353,7 @@ export default createEndpoint({
           userRecord.isBvAdmin ||
           userRecord.isBvSuperAdmin ||
           (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
-          (userEmail || '').toLowerCase() === 'vdnd@hkmmumbai.org' ||
+          (userEmail || '').toLowerCase() === 'hrvd@hkmmumbai.org' ||
           (userEmail || '').toLowerCase().includes('gaurmandal') ||
           userRecord.role === 'Super Guide' ||
           userRecord.role === 'SUPER_GUIDE'

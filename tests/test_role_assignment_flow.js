@@ -39,7 +39,7 @@ async function runTest() {
   console.log('1. Devotee User Profile resolved:', devoteeLogin.data?.user?.fullName, devoteeLogin.data?.user?.userId);
   const devoteeId = devoteeLogin.data?.user?.userId || 'USER-001';
 
-  const superAdminLogin = await makeRequest('resolveUserLogin', {}, { 'x-user-email': 'vdnd@hkmmumbai.org' });
+  const superAdminLogin = await makeRequest('resolveUserLogin', {}, { 'x-user-email': 'hrvd@hkmmumbai.org' });
   console.log('2. PW Super Admin User Profile resolved:', superAdminLogin.data?.user?.fullName, superAdminLogin.data?.user?.userId);
 
   // Step 1: Submit BV Group Join Request as Devotee
@@ -58,7 +58,7 @@ async function runTest() {
   const approveRes = await makeRequest(
     'approveAndAssignBvMember',
     { registrationId: pendingReg.id || 'REG-TEST-001', groupId: sampleGroup?.id || 'BV-GP-001' },
-    { 'x-user-email': 'vdnd@hkmmumbai.org' }
+    { 'x-user-email': 'hrvd@hkmmumbai.org' }
   );
   console.log('6. PW Super Admin approved & assigned user to group:', approveRes.data);
 
@@ -66,7 +66,7 @@ async function runTest() {
 
   // A. Test ADMIN Role
   console.log('\n--- TESTING ADMIN ROLE ASSIGNMENT ---');
-  const assignAdmin = await makeRequest('assignBvRole', { userId: devoteeId, role: 'ADMIN' }, { 'x-user-email': 'vdnd@hkmmumbai.org' });
+  const assignAdmin = await makeRequest('assignBvRole', { userId: devoteeId, role: 'ADMIN' }, { 'x-user-email': 'hrvd@hkmmumbai.org' });
   console.log('Assigned ADMIN role result:', assignAdmin.data);
 
   const profileAdmin = await makeRequest('getUserProfile', { userId: devoteeId }, { 'x-user-email': 'devotee@gmail.com' });
@@ -79,7 +79,7 @@ async function runTest() {
 
   // B. Test SUPERVISOR Role
   console.log('\n--- TESTING SUPERVISOR ROLE ASSIGNMENT ---');
-  const assignSupervisor = await makeRequest('assignBvRole', { userId: devoteeId, role: 'SUPERVISOR', parentId: 'USER-SUPERADMIN-PW' }, { 'x-user-email': 'vdnd@hkmmumbai.org' });
+  const assignSupervisor = await makeRequest('assignBvRole', { userId: devoteeId, role: 'SUPERVISOR', parentId: 'USER-SUPERADMIN-PW' }, { 'x-user-email': 'hrvd@hkmmumbai.org' });
   console.log('Assigned SUPERVISOR role result:', assignSupervisor.data);
 
   const profileSupervisor = await makeRequest('getUserProfile', { userId: devoteeId }, { 'x-user-email': 'devotee@gmail.com' });
@@ -92,7 +92,7 @@ async function runTest() {
 
   // C. Test FACILITATOR (RGF) Role
   console.log('\n--- TESTING RGF (FACILITATOR) ROLE ASSIGNMENT ---');
-  const assignRgf = await makeRequest('assignBvRole', { userId: devoteeId, role: 'FACILITATOR', parentId: 'SUPERVISOR-001' }, { 'x-user-email': 'vdnd@hkmmumbai.org' });
+  const assignRgf = await makeRequest('assignBvRole', { userId: devoteeId, role: 'FACILITATOR', parentId: 'SUPERVISOR-001' }, { 'x-user-email': 'hrvd@hkmmumbai.org' });
   console.log('Assigned FACILITATOR (RGF) role result:', assignRgf.data);
 
   const profileRgf = await makeRequest('getUserProfile', { userId: devoteeId }, { 'x-user-email': 'devotee@gmail.com' });
@@ -105,7 +105,7 @@ async function runTest() {
 
   // D. Test SUB_FACILITATOR (RGSF) Role
   console.log('\n--- TESTING RGSF (SUB-FACILITATOR) ROLE ASSIGNMENT ---');
-  const assignRgsf = await makeRequest('assignBvRole', { userId: devoteeId, role: 'SUB_FACILITATOR', parentId: 'RGF-001' }, { 'x-user-email': 'vdnd@hkmmumbai.org' });
+  const assignRgsf = await makeRequest('assignBvRole', { userId: devoteeId, role: 'SUB_FACILITATOR', parentId: 'RGF-001' }, { 'x-user-email': 'hrvd@hkmmumbai.org' });
   console.log('Assigned SUB_FACILITATOR (RGSF) role result:', assignRgsf.data);
 
   const profileRgsf = await makeRequest('getUserProfile', { userId: devoteeId }, { 'x-user-email': 'devotee@gmail.com' });
@@ -118,7 +118,7 @@ async function runTest() {
 
   // E. Test ROLE REMOVAL (Setting back to MEMBER)
   console.log('\n--- TESTING ROLE REMOVAL (MEMBER) ---');
-  const removeRole = await makeRequest('assignBvRole', { userId: devoteeId, role: 'MEMBER' }, { 'x-user-email': 'vdnd@hkmmumbai.org' });
+  const removeRole = await makeRequest('assignBvRole', { userId: devoteeId, role: 'MEMBER' }, { 'x-user-email': 'hrvd@hkmmumbai.org' });
   console.log('Removed role (Set to MEMBER) result:', removeRole.data);
 
   const profileMember = await makeRequest('getUserProfile', { userId: devoteeId }, { 'x-user-email': 'devotee@gmail.com' });

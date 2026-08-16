@@ -51,7 +51,7 @@ export default createEndpoint({
       callerRole.includes('SUPER') ||
       callerRole === 'PW_ADMIN' ||
       userEmail === 'srilaprabhupadaworld@gmail.com' ||
-      userEmail === 'vdnd@hkmmumbai.org'
+      userEmail === 'hrvd@hkmmumbai.org'
     );
 
     const { records: allMeetings } = await Meetings.findAll({ limit: 1000 });

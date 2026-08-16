@@ -23,7 +23,7 @@ export default createEndpoint({
       callerRole.includes('ADMIN') ||
       callerRole.includes('SUPER') ||
       callerRole.includes('GUIDE') ||
-      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'hrvd@hkmmumbai.org' ||
       userEmail === 'srilaprabhupadaworld@gmail.com' ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('admin')

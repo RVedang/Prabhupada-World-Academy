@@ -48,7 +48,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment }: SuperUse
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'hrvd@hkmmumbai.org' ||
     userEmail === 'srilaprabhupadaworld@gmail.com' ||
     userEmail.includes('gaurmandal')
   );
@@ -299,7 +299,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment }: SuperUse
     if (u.displayName && !u.displayName.includes('@')) return u.displayName;
     const email = (u.email || u.id || u.userId || '').toLowerCase();
     if (email.includes('admin@prabhupadaworld') || email.includes('admin@prabhupada')) return 'PW System Administrator';
-    if (email.includes('srilaprabhupadaworld') || email.includes('vdnd@hkmmumbai')) return 'Hiranyavarna Das (PW)';
+    if (email.includes('srilaprabhupadaworld') || email.includes('hrvd@hkmmumbai')) return 'Hiranyavarna Das (PW)';
     if (email.includes('gaurmandal')) return 'Gaurmandal Das (FOLK)';
     if (email.includes('bvsupervisor')) return 'PW BV Supervisor';
     if (email.includes('folkadmin')) return 'FOLK System Administrator';

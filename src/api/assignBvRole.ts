@@ -36,7 +36,7 @@ export default createEndpoint({
       context.user.isBvSuperAdmin ||
       callerRole.includes('SUPER') ||
       userEmail === 'srilaprabhupadaworld@gmail.com' ||
-      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'hrvd@hkmmumbai.org' ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin')
     );

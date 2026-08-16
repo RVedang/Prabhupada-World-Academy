@@ -713,7 +713,7 @@ export default createEndpoint({
       !!context.user.isBvAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin') ||
-      userEmail === 'vdnd@hkmmumbai.org' ||
+      userEmail === 'hrvd@hkmmumbai.org' ||
       userEmail === 'srilaprabhupadaworld@gmail.com';
 
     if (!isSuperGuide && !bvslMode && !mentorMode) {

@@ -27,7 +27,7 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment }: SuperBv
   const isSuperAdmin = !!(
     userEmail.includes('gaurmandal') ||
     userEmail.includes('superadmin') ||
-    userEmail === 'vdnd@hkmmumbai.org' ||
+    userEmail === 'hrvd@hkmmumbai.org' ||
     userEmail === 'srilaprabhupadaworld@gmail.com'
   );
 

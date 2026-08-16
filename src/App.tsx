@@ -315,7 +315,7 @@ function DashboardRouter() {
 
   // Super Admin / Admin
   const isSuperAdmin = userEmailLower === 'srilaprabhupadaworld@gmail.com' ||
-                    userEmailLower === 'vdnd@hkmmumbai.org' ||
+                    userEmailLower === 'hrvd@hkmmumbai.org' ||
                     (profile as any)?.isPwAdmin ||
                     profile?.isBvSuperAdmin ||
                     profile?.role === 'SUPER_ADMIN';

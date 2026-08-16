@@ -37,7 +37,7 @@ export default createEndpoint({
     };
 
     if (userSegment === 'PW') {
-      const isPwSuperAdmin = userEmail === 'srilaprabhupadaworld@gmail.com' || userEmail === 'vdnd@hkmmumbai.org' || context.user.isBvSuperAdmin;
+      const isPwSuperAdmin = userEmail === 'srilaprabhupadaworld@gmail.com' || userEmail === 'hrvd@hkmmumbai.org' || context.user.isBvSuperAdmin;
       allUsers = pendingRecords.filter(u => {
         if (!checkIsPwUser(u)) return false;
         if (isPwSuperAdmin) return true;
