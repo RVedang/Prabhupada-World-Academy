@@ -8,6 +8,7 @@ import { AlertCircle, XCircle, Loader2, WifiOff, CheckCircle } from 'lucide-reac
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { resolveUserLogin } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { motion } from 'framer-motion';
 
 export default function AuthCallbackPage() {
   const { user, isLoading, loginWithRedirect, logout } = useAuth();
@@ -110,52 +111,75 @@ export default function AuthCallbackPage() {
 
   // ── Loading screen ────────────────────────────────────────────────────────
   if (isLoading || resolving) {
-    // Phase label tells the user (and helps debug) which step we're on
-    const phaseTitle = isLoading ? 'Authenticating…' : 'Loading your account…';
-    const phaseDesc = isLoading
-      ? 'Verifying your sign-in token'
-      : 'Setting up your profile';
+    let statusText = 'Connecting to Google Services...';
+    if (elapsed >= 8000) {
+      statusText = 'Preparing your dashboard...';
+    } else if (elapsed >= 5000) {
+      statusText = 'Retrieving your profile...';
+    } else if (elapsed >= 2000) {
+      statusText = 'Verifying Google credentials...';
+    }
 
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      <div className="min-h-screen bg-[#fefdfa] flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border border-gray-200/80 shadow-[0_10px_35px_rgba(0,0,0,0.05)] rounded-2xl p-6">
+          <CardHeader className="text-center pb-2">
+            <div className="flex justify-center mb-6">
+              <Loader2 className="w-12 h-12 text-[#ea6506] animate-spin" />
             </div>
-            <CardTitle>{phaseTitle}</CardTitle>
-            <CardDescription>{phaseDesc}</CardDescription>
+            <CardTitle className="text-xl font-bold text-gray-900 tracking-tight">Signing you in securely</CardTitle>
+            <CardDescription className="text-sm text-gray-500">Please wait while we verify your credentials</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Progressive messaging based on elapsed time */}
-            {elapsed < 10_000 && (
-              <>
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-              </>
-            )}
+          <CardContent className="space-y-6 pt-4">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <motion.p
+                key={statusText}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.3 }}
+                className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-center"
+              >
+                {statusText}
+              </motion.p>
+              
+              <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden shadow-inner">
+                <motion.div
+                  className="bg-[#ea6506] h-full rounded-full"
+                  initial={{ width: "5%" }}
+                  animate={{
+                    width: elapsed >= 20000 ? "95%" : 
+                           elapsed >= 10000 ? "80%" :
+                           elapsed >= 8000 ? "70%" :
+                           elapsed >= 5000 ? "50%" :
+                           elapsed >= 2000 ? "30%" : "12%"
+                  }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
+            </div>
 
-            {elapsed >= 10_000 && elapsed < 20_000 && (
-              <p className="text-sm text-muted-foreground text-center py-2">
+            {elapsed >= 10000 && elapsed < 20000 && (
+              <p className="text-xs text-muted-foreground text-center py-2 animate-pulse">
                 This is taking longer than usual — almost there…
               </p>
             )}
 
             {/* After 20s the hard timeout fires, so this rarely shows — but just in case */}
-            {elapsed >= 20_000 && (
+            {elapsed >= 20000 && (
               <>
-                <Alert>
-                  <WifiOff className="h-4 w-4" />
-                  <AlertTitle>Having trouble connecting</AlertTitle>
-                  <AlertDescription>
+                <Alert className="bg-amber-50/50 border-amber-100 text-amber-900">
+                  <WifiOff className="h-4 w-4 text-amber-600" />
+                  <AlertTitle className="font-semibold text-sm">Having trouble connecting</AlertTitle>
+                  <AlertDescription className="text-xs">
                     Redirecting you to the dashboard — your session should still be valid.
                   </AlertDescription>
                 </Alert>
                 <div className="flex flex-col gap-2 pt-1">
-                  <Button className="w-full" onClick={() => { window.location.href = '/dashboard'; }}>
+                  <Button className="w-full h-10 font-semibold cursor-pointer shadow-sm text-sm" onClick={() => { window.location.href = '/dashboard'; }}>
                     Go to Dashboard Now
                   </Button>
-                  <Button variant="outline" className="w-full" onClick={() => logout({ returnTo: window.location.origin })}>
+                  <Button variant="outline" className="w-full h-10 font-semibold cursor-pointer text-sm" onClick={() => logout({ returnTo: window.location.origin })}>
                     Logout &amp; Start Over
                   </Button>
                 </div>
