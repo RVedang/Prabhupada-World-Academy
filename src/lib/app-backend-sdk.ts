@@ -1,4 +1,4 @@
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
@@ -56,10 +56,23 @@ function initFirestoreOnStartup() {
         firestoreDb.settings({ ignoreUndefinedProperties: true });
       } catch (e) {}
     } else {
-      _hasValidCredentials = false;
-      firestoreDb = null;
-      if (process.env.NODE_ENV === 'production') {
-        console.error('❌ CRITICAL ERROR: Firebase Service Account credentials not found or invalid in production environment!');
+      // Fallback: try Application Default Credentials (ADC).
+      // Firebase App Hosting automatically injects ADC at runtime so the
+      // server can connect to Firestore without a service account key file.
+      try {
+        if (getApps().length === 0) {
+          initializeApp({ credential: applicationDefault(), projectId });
+        }
+        firestoreDb = getFirestore();
+        firestoreDb.settings({ ignoreUndefinedProperties: true });
+        _hasValidCredentials = true;
+        console.log('[Firebase Admin] Initialized using Application Default Credentials (App Hosting ADC).');
+      } catch (adcError: any) {
+        _hasValidCredentials = false;
+        firestoreDb = null;
+        if (process.env.NODE_ENV === 'production') {
+          console.error('❌ CRITICAL ERROR: Firebase Service Account credentials not found or invalid in production environment!');
+        }
       }
     }
   } catch (e: any) {
