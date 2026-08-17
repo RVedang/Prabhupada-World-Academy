@@ -260,7 +260,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
         const emailLower = (u.email || '').toLowerCase();
         const roleUpper = (u.role || '').toUpperCase();
         const isFolk = u.segment === 'FOLK' || emailLower.includes('gaurmandal') || emailLower.includes('folk.org');
-        const isPw = u.segment === 'PW' || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('vdnd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
+        const isPw = u.segment === 'PW' || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('hrvd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
         return isPw && !isFolk;
       });
       setRegisteredUsers(pwUsers);

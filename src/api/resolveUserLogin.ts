@@ -7,13 +7,13 @@ function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean, 
   const emailLower = (email || '').toLowerCase();
   const isFolk = segment === 'FOLK' || emailLower.includes('gaurmandal') || emailLower.includes('folk.org') || emailLower.includes('superguide');
   if (role === 'Super Admin' || role === 'SUPER_ADMIN' || role === 'Admin' || role === 'ADMIN') {
-    return isFolk ? '/folk-admin/dashboard' : '/pw-admin/dashboard';
+    return isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
   }
-  if (role === 'Super Guide' || role === 'SUPER_GUIDE') return '/super/dashboard';
+  if (role === 'Super Guide' || role === 'SUPER_GUIDE') return '/folk-guide/dashboard';
   // BV role flags take priority over base role for Guide-level users
   if (isBvSupervisor) return '/bv-supervisor/dashboard';
   if (isBvSubFacilitator) return '/rgsf/dashboard';
-  if (role === 'Guide' || role === 'GUIDE') return '/guide/dashboard';
+  if (role === 'Guide' || role === 'GUIDE') return '/folk-guide/dashboard';
   if (role === 'BVSL') return '/bvsl/dashboard';
   if (role === 'Sadhana Mentor') return '/mentor/dashboard';
   if (isBvsl || isBvFacilitator) return '/bvsl/dashboard';

@@ -43,7 +43,7 @@ import { useAuth } from '@/lib/auth-sdk';
 
 // ── Super Guide & Admin pages ──
 import PwAdminDashboard from './spa-pages/PwAdminDashboard';
-import FolkAdminDashboard from './spa-pages/FolkAdminDashboard';
+import FolkGuideDashboard from './spa-pages/FolkGuideDashboard';
 
 // ── BVSL, RGF & RGSF pages ──
 import BvslDashboard from './spa-pages/BvslDashboard';
@@ -191,16 +191,16 @@ export default function App() {
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
             {/* Guide */}
-            <Route path="/guide/dashboard" element={<Navigate to="/folk-admin/dashboard" replace />} />
+            <Route path="/guide/dashboard" element={<Navigate to="/folk-guide/dashboard" replace />} />
             <Route path="/guide/field-setup" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN']}><GuideFieldSetupPage /></ProtectedRoute>} />
             <Route path="/guide/users/:userId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR']}><GuideUserDetailPage /></ProtectedRoute>} />
             <Route path="/guide/bv-group/:groupId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BV_MENTOR', 'ADMIN', 'PW_ADMIN', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />
             <Route path="/bvsl/groups/:groupId" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'GUIDE', 'SUPER_GUIDE', 'BV_MENTOR', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />
-            <Route path="/guide/stats" element={<Navigate to="/folk-admin/dashboard" replace />} />
+            <Route path="/guide/stats" element={<Navigate to="/folk-guide/dashboard" replace />} />
 
             {/* Super Guide & Super Admin */}
-            <Route path="/super/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN']}><FolkAdminDashboard /></ProtectedRoute>} />
-            <Route path="/folk-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'USER']}><FolkAdminDashboard /></ProtectedRoute>} />
+            <Route path="/super/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN']}><FolkGuideDashboard /></ProtectedRoute>} />
+            <Route path="/folk-guide/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'USER']}><FolkGuideDashboard /></ProtectedRoute>} />
             <Route path="/pw-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
             <Route path="/super-admin/dashboard" element={<ProtectedRoute allowedRoles={['SUPER_GUIDE', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'USER']}><PwAdminDashboard /></ProtectedRoute>} />
 
@@ -319,7 +319,7 @@ function DashboardRouter() {
                     profile?.role === 'SUPER_ADMIN';
 
   if (isSuperAdmin || profile.isBvAdmin || (profile.role as string) === 'ADMIN') {
-    return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/folk-admin/dashboard${suffix}`} replace />;
+    return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/folk-guide/dashboard${suffix}`} replace />;
   }
 
   // Supervisor
@@ -338,7 +338,7 @@ function DashboardRouter() {
   // Guide / Mentor
   const userRoleStr = (profile.role as string) || '';
   if (userRoleStr === 'SUPER_GUIDE' || userRoleStr === 'GUIDE' || userRoleStr === 'Super Guide' || userRoleStr === 'Guide') {
-    return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/folk-admin/dashboard${suffix}`} replace />;
+    return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/folk-guide/dashboard${suffix}`} replace />;
   }
 
   // Default: regular user — route by department (determined by mentor chosen at registration)

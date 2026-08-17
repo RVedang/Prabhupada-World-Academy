@@ -19,7 +19,7 @@ interface SuperAttendanceTabProps {
 export default function SuperAttendanceTab({ segment }: SuperAttendanceTabProps = {}) {
   const { profile } = useUserProfile();
   const userEmail = (profile?.userId || '').toLowerCase();
-  const effectiveSegment = segment || profile?.segment || (userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') ? 'PW' : 'FOLK');
+  const effectiveSegment = segment || profile?.segment || (userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') ? 'PW' : 'FOLK');
   const isPw = effectiveSegment === 'PW';
 
   const isSuperAdmin = !!(

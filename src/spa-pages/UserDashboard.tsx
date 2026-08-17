@@ -31,12 +31,12 @@ export default function UserDashboard() {
   useEffect(() => {
     if (profile) {
       const userEmail = (profile.userId || '').toLowerCase();
-      const isSuperAdmin = profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN' || userEmail.includes('gaurmandal') || userEmail.includes('srilaprabhupadaworld') || userEmail.includes('vdnd');
-      const isAdmin = isSuperAdmin || profile.isBvAdmin || profile.role === 'ADMIN';
+      const isSuperAdmin = profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN' || userEmail.includes('gaurmandal') || userEmail.includes('srilaprabhupadaworld') || userEmail.includes('hrvd');
+      const isAdmin = isSuperAdmin || profile.isBvAdmin || (profile.role as string) === 'ADMIN';
 
       if (isAdmin) {
         const isFolk = profile.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk');
-        navigate(isFolk ? '/folk-admin/dashboard' : '/pw-admin/dashboard', { replace: true });
+        navigate(isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard', { replace: true });
       }
     }
   }, [profile, navigate]);

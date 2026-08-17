@@ -75,7 +75,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   const { profile } = useUserProfile();
   const navigate = useNavigate();
   const userEmail = (profile?.userId || '').toLowerCase();
-  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
 
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('weekly');

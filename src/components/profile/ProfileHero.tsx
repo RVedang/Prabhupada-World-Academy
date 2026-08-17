@@ -20,7 +20,7 @@ interface Props {
   isSuperAdmin?: boolean;
 }
 
-export default function ProfileHero({ fullName, email, isResident, ashrayLevel, isBvsl, isSadhanaMentor, isFolkLead, isTripCoordinator, isBvMentor, isSuperAdmin }: Props) {
+export default function ProfileHero({ fullName, email, isResident, ashrayLevel, role, isBvsl, isSadhanaMentor, isFolkLead, isTripCoordinator, isBvMentor, isSuperAdmin }: Props) {
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
@@ -70,7 +70,23 @@ export default function ProfileHero({ fullName, email, isResident, ashrayLevel, 
         <h2 className="text-2xl font-bold">{fullName}</h2>
         <p className="text-sm text-muted-foreground">{email}</p>
         <div className="flex flex-wrap gap-2 mt-2">
-          {isSuperAdmin && <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">👑 Super Admin</Badge>}
+          {(() => {
+            const isFolk = email.toLowerCase().includes('gaurmandal') || email.toLowerCase().includes('folk.org') || role === 'Guide' || role === 'Super Guide' || role === 'GUIDE' || role === 'SUPER_GUIDE';
+            let roleBadgeText = '';
+            if (isSuperAdmin) {
+              roleBadgeText = isFolk ? '👑 Super Guide' : '👑 Super Admin';
+            } else if (role === 'Guide' || role === 'GUIDE' || role === 'Admin' || role === 'ADMIN') {
+              roleBadgeText = isFolk ? 'Guide' : 'Admin';
+            } else if (role === 'Super Guide' || role === 'SUPER_GUIDE') {
+              roleBadgeText = '👑 Super Guide';
+            }
+            if (!roleBadgeText) return null;
+            return (
+              <Badge className={isSuperAdmin || roleBadgeText.includes('👑') ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30" : "bg-primary/10 text-primary border border-primary/30"}>
+                {roleBadgeText}
+              </Badge>
+            );
+          })()}
           {isBvsl && <Badge className="bg-primary/10 text-primary border border-primary/30">📖 RGF (Facilitator)</Badge>}
           {isSadhanaMentor && <Badge className="bg-amber-100 text-amber-800 border border-amber-300">🎓 Sadhana Mentor</Badge>}
           {isBvMentor && <Badge className="bg-purple-100 text-purple-800 border border-purple-300">👁️ Supervisor</Badge>}

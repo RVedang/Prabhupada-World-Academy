@@ -27,7 +27,7 @@ import {
   getPendingApprovals, getGuideRequests, getResidencyTransferRequests, getCleanlinessReviews, getPendingBvRegistrations,
 } from '@/lib/endpoints-sdk';
 
-export default function FolkAdminDashboard() {
+export default function FolkGuideDashboard() {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const navigate = useNavigate();

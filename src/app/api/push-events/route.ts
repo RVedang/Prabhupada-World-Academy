@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
         const isPwUser = uSegment === 'PW' || 
                          !!u.isPrabhupadaWorldUser || 
                          uEmail.includes('prabhupadaworld') || 
-                         uEmail.includes('vdnd') || 
+                         uEmail.includes('hrvd') || 
                          uEmail.includes('srilaprabhupadaworld') || 
                          uName.includes('PW') || 
                          uName.includes('PRABHUPADA') || 

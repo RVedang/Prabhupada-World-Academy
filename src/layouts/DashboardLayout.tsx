@@ -34,11 +34,18 @@ export default function DashboardLayout({
   const navigate = useNavigate();
   const { profile } = useUserProfile();
 
+  const userEmailStr = (user?.email || '').toLowerCase();
+  const isFolkUser = profile?.segment === 'FOLK' || userEmailStr.includes('gaurmandal') || userEmailStr.includes('folk.org');
+
   const ROLE_BADGE_LABELS: Record<string, string> = {
-    SUPER_ADMIN: 'Super Admin', 'Super Admin': 'Super Admin',
-    ADMIN: 'Admin', 'Admin': 'Admin',
-    SUPER_GUIDE: 'Super Guide', 'Super Guide': 'Super Guide',
-    GUIDE: 'Guide', 'Guide': 'Guide',
+    SUPER_ADMIN: isFolkUser ? 'Super Guide' : 'Super Admin', 
+    'Super Admin': isFolkUser ? 'Super Guide' : 'Super Admin',
+    ADMIN: isFolkUser ? 'Guide' : 'Admin', 
+    'Admin': isFolkUser ? 'Guide' : 'Admin',
+    SUPER_GUIDE: 'Super Guide', 
+    'Super Guide': 'Super Guide',
+    GUIDE: 'Guide', 
+    'Guide': 'Guide',
     SUPERVISOR: 'Supervisor', 'Supervisor': 'Supervisor', 'BV_SUPERVISOR': 'Supervisor',
     BV_MENTOR: 'BV Mentor', 'BV Mentor': 'BV Mentor', 'BB_MENTOR': 'BV Mentor', 'BB Mentor': 'BV Mentor',
     BVSL: 'RGF',
@@ -51,7 +58,7 @@ export default function DashboardLayout({
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
   const tabItems: Array<{ label: string; path: string; active: boolean; icon: any }> = [];
 
-  const userEmailStr = (user?.email || '').toLowerCase();
+
   const isSuperAdminUser = !!(
     role === 'SUPER_ADMIN' ||
     profile?.isBvSuperAdmin ||
@@ -77,11 +84,11 @@ export default function DashboardLayout({
     );
 
     const isFolkUser = profile.segment === 'FOLK' || userEmailStr.includes('gaurmandal') || userEmailStr.includes('folk.org');
-    const adminPath = isFolkUser ? '/folk-admin/dashboard' : '/pw-admin/dashboard';
+    const adminPath = isFolkUser ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
 
     // 1. Admin / Super Admin Dashboard
     if (isBvAdmin) {
-      const isAdminActive = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-admin') || currentPath.startsWith('/super-admin');
+      const isAdminActive = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-guide') || currentPath.startsWith('/super-admin');
       tabItems.push({
         label: isSuperAdminUser ? (isFolkUser ? 'FOLK Super Guide' : 'PW Super Admin') : (isFolkUser ? 'FOLK Guide' : 'PW Admin'),
         path: adminPath,

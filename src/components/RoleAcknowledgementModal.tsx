@@ -90,9 +90,9 @@ export default function RoleAcknowledgementModal() {
     setModalOpen(false);
     
     // Check if admin role was removed and user is on admin route
-    const wasAdminRemoved = roleNotice?.removed.some(r => r.includes('Admin'));
+    const wasAdminRemoved = roleNotice?.removed.some(r => r.includes('Admin') || r.includes('Guide'));
     const currentPath = window.location.pathname;
-    const isAdminPath = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-admin') || currentPath.startsWith('/super-admin');
+    const isAdminPath = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-guide') || currentPath.startsWith('/super-admin');
 
     await refreshProfile();
     setRoleNotice(null);
@@ -135,7 +135,7 @@ export default function RoleAcknowledgementModal() {
 
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                An Administrator has updated your administrative access and responsibilities:
+                Your account access and responsibilities have been updated:
               </p>
 
               {roleNotice.added.length > 0 && (

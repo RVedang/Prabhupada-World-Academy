@@ -32,7 +32,7 @@ export default createEndpoint({
     if (!targetSegment) {
       if (
         callerEmail.includes('srilaprabhupadaworld') ||
-        callerEmail.includes('vdnd') ||
+        callerEmail.includes('hrvd') ||
         callerEmail.includes('admin@prabhupadaworld') ||
         context.user?.isPwAdmin ||
         context.user?.isPrabhupadaWorldUser
@@ -92,7 +92,7 @@ export default createEndpoint({
       const isPwUser = uSegment === 'PW' || 
                        !!u.isPrabhupadaWorldUser || 
                        email.includes('prabhupadaworld') || 
-                       email.includes('vdnd') || 
+                       email.includes('hrvd') || 
                        email.includes('srilaprabhupadaworld') || 
                        name.includes('PW') || 
                        name.includes('PRABHUPADA') || 

@@ -115,14 +115,14 @@ export default function ProfilePage() {
     !!(profile as any).isBvSuperAdmin ||
     userEmail.includes('gaurmandal') ||
     userEmail.includes('srilaprabhupadaworld') ||
-    userEmail.includes('vdnd') ||
+    userEmail.includes('hrvd') ||
     userEmail.includes('folkadmin') ||
     userEmail.includes('superadmin');
 
   const isPwUser = !!(profile as any).isPrabhupadaWorldUser || profile.segment === 'PW';
   const showGuideResidencyCard = !isPwUser && !isSuperAdmin;
   const isFolk = profile.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk');
-  const adminDashboardPath = isFolk ? '/folk-admin/dashboard' : '/pw-admin/dashboard';
+  const adminDashboardPath = isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
 
   return (
     <div className="min-h-screen bg-background">

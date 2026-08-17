@@ -78,7 +78,7 @@ interface Props { guideId: string; bvslMode?: boolean; mentorMode?: boolean; }
 export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Props) {
   const { profile } = useUserProfile();
   const userEmail = (profile?.userId || '').toLowerCase();
-  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
 
   const [period, setPeriod] = useState<Period>('30d');
   const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(isPw ? 'all' : 'resident');

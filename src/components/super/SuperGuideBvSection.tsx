@@ -26,7 +26,7 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 export default function SuperGuideBvSection() {
   const { profile } = useUserProfile();
   const userEmail = (profile?.userId || '').toLowerCase();
-  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
 
   // Bug 11 fix: compute week options inside component so they're fresh on each render
   const weekOptions = useMemo(() => Array.from({ length: 12 }, (_, i) => {

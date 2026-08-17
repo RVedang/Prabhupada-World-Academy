@@ -144,14 +144,14 @@ export default createEndpoint({
 
     // Collect department-scoped unique Admins for dropdown filtering
     const callerEmail = (context.user?.email || '').toLowerCase();
-    const isCallerPw = context.user?.segment === 'PW' || context.user?.isPwAdmin || callerEmail.includes('srilaprabhupadaworld') || callerEmail.includes('vdnd');
+    const isCallerPw = context.user?.segment === 'PW' || context.user?.isPwAdmin || callerEmail.includes('srilaprabhupadaworld') || callerEmail.includes('hrvd');
 
     const allAdminsSet = new Set<string>();
     allUsers.forEach((u: any) => {
       if (u.isBvAdmin || u.isBvSuperAdmin || u.role === 'Admin' || u.role === 'ADMIN' || u.role === 'Super Admin' || u.role === 'SUPER_ADMIN') {
         const name = u.fullName || u.name || u.email;
         const isUserFolk = u.segment === 'FOLK' || (u.email || '').includes('gaurmandal') || (u.fullName || '').includes('FOLK');
-        const isUserPw = u.segment === 'PW' || (u.email || '').includes('srilaprabhupadaworld') || (u.email || '').includes('vdnd') || (u.fullName || '').includes('PW') || (u.fullName || '').includes('Prabhupada');
+        const isUserPw = u.segment === 'PW' || (u.email || '').includes('srilaprabhupadaworld') || (u.email || '').includes('hrvd') || (u.fullName || '').includes('PW') || (u.fullName || '').includes('Prabhupada');
         if (isCallerPw) {
           if (isUserPw || (!isUserFolk && !name.toUpperCase().includes('FOLK'))) {
             if (name) allAdminsSet.add(name);

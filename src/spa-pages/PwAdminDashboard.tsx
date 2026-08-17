@@ -57,7 +57,7 @@ export default function PwAdminDashboard() {
         const targetUserDashboard = isFolk ? '/user/folk-dashboard' : '/user/pw-dashboard';
         navigate(targetUserDashboard, { replace: true });
       } else if (isFolk) {
-        navigate('/folk-admin/dashboard', { replace: true });
+        navigate('/folk-guide/dashboard', { replace: true });
       }
     }
   }, [profile, isBvAdminUser, isFolk, navigate]);

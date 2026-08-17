@@ -539,7 +539,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
     userEmail === 'srilaprabhupadaworld@gmail.com'
   );
 
-  const isPw = segment === 'PW' || profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld');
+  const isPw = segment === 'PW' || profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
 
   const [period, setPeriod] = useState<Period>('last-week');
   const [customStart, setCustomStart] = useState(() => format(subWeeks(new Date(), 2), 'yyyy-MM-dd'));
@@ -737,7 +737,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
               {data!.guides
                 .filter((g: any) =>
                   isPw
-                    ? (g.isPrabhupadaWorldMentor || g.email?.includes('prabhupada') || g.email?.includes('hkmmumbai') || g.email?.includes('vdnd'))
+                    ? (g.isPrabhupadaWorldMentor || g.email?.includes('prabhupada') || g.email?.includes('hkmmumbai') || g.email?.includes('hrvd'))
                     : (!g.isPrabhupadaWorldMentor && !g.email?.includes('prabhupada') && !g.email?.toLowerCase().includes('pw') && !g.name?.includes('Prabhupada World') && !g.name?.includes('PW System'))
                 )
                 .map((g: any) => (
