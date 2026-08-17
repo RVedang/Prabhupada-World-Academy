@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Prabhupada World Academy",
   description: "Track your Sadhana and Services",
+  icons: {
+    icon: "https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png",
+  },
 };
 
 export default function RootLayout({
