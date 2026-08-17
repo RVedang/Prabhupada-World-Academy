@@ -5,7 +5,7 @@ import { serverCacheInvalidate } from '../lib/serverCache';
 
 function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean, isBvSupervisor?: boolean, isBvFacilitator?: boolean, isBvSubFacilitator?: boolean, email?: string, segment?: string): string {
   const emailLower = (email || '').toLowerCase();
-  const isFolk = segment === 'FOLK' || emailLower.includes('gaurmandal') || emailLower.includes('folk.org') || emailLower.includes('superguide');
+  const isFolk = segment === 'FOLK' || emailLower.includes('gaurmandal') || emailLower.includes('folk.org') || emailLower.includes('superguide') || emailLower.includes('vdnd');
   if (role === 'Super Admin' || role === 'SUPER_ADMIN' || role === 'Admin' || role === 'ADMIN') {
     return isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
   }

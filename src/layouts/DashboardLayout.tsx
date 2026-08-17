@@ -35,7 +35,7 @@ export default function DashboardLayout({
   const { profile } = useUserProfile();
 
   const userEmailStr = (user?.email || '').toLowerCase();
-  const isFolkUser = profile?.segment === 'FOLK' || userEmailStr.includes('gaurmandal') || userEmailStr.includes('folk.org');
+  const isFolkUser = profile?.segment === 'FOLK' || userEmailStr.includes('gaurmandal') || userEmailStr.includes('folk.org') || userEmailStr.includes('vdnd');
 
   const ROLE_BADGE_LABELS: Record<string, string> = {
     SUPER_ADMIN: isFolkUser ? 'Super Guide' : 'Super Admin', 

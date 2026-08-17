@@ -59,7 +59,7 @@ function buildProfile(userObj: any): ProfileData {
 
   // Determine segment ('PW' | 'FOLK')
   let segment: 'PW' | 'FOLK' = userObj.segment ?? 'PW';
-  if (userEmail.includes('gaurmandal') || userEmail.includes('folk.org')) {
+  if (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') || userEmail.includes('vdnd')) {
     segment = 'FOLK';
   } else if (userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld')) {
     segment = 'PW';

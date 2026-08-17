@@ -252,6 +252,7 @@ function buildProfileResult({
       pendingAshrayNoticeStatus: userRecord.pendingAshrayNoticeStatus || null,
       pendingAshrayNoticeLevel: userRecord.pendingAshrayNoticeLevel || null,
       ashrayNoticeAcknowledged: !!(userRecord.ashrayNoticeAcknowledged),
+      segment: userRecord.segment || ((userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('folk.org') || (userEmail || '').toLowerCase().includes('vdnd') ? 'FOLK' : 'PW'),
     },
   };
 }

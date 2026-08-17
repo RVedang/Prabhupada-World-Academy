@@ -308,7 +308,7 @@ function DashboardRouter() {
   // ── BV Hierarchy Routing (top → bottom) ──
 
   const userEmailLower = (user?.email || '').toLowerCase();
-  const isFolk = profile.segment === 'FOLK' || userEmailLower.includes('gaurmandal') || userEmailLower.includes('folk.org');
+  const isFolk = profile.segment === 'FOLK' || userEmailLower.includes('gaurmandal') || userEmailLower.includes('folk.org') || userEmailLower.includes('vdnd');
   const isPw = !isFolk;
 
   // Super Admin / Admin
