@@ -320,7 +320,7 @@ export default function SadhanaMentorDashboard() {
               {activeTab === 'members' && (
                 <MembersTable
                   members={members}
-                  guideName={guideName || 'FOLK Admin'}
+                  guideName={guideName || 'FOLK Guide'}
                   onNavigate={(uid, from) => navigate(`/guide/users/${uid}`, { state: { from } })}
                 />
               )}

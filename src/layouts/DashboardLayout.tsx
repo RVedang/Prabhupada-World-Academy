@@ -37,8 +37,8 @@ export default function DashboardLayout({
   const ROLE_BADGE_LABELS: Record<string, string> = {
     SUPER_ADMIN: 'Super Admin', 'Super Admin': 'Super Admin',
     ADMIN: 'Admin', 'Admin': 'Admin',
-    SUPER_GUIDE: 'Super Admin', 'Super Guide': 'Super Admin',
-    GUIDE: 'Admin', 'Guide': 'Admin',
+    SUPER_GUIDE: 'Super Guide', 'Super Guide': 'Super Guide',
+    GUIDE: 'Guide', 'Guide': 'Guide',
     SUPERVISOR: 'Supervisor', 'Supervisor': 'Supervisor', 'BV_SUPERVISOR': 'Supervisor',
     BV_MENTOR: 'BV Mentor', 'BV Mentor': 'BV Mentor', 'BB_MENTOR': 'BV Mentor', 'BB Mentor': 'BV Mentor',
     BVSL: 'RGF',
@@ -83,7 +83,7 @@ export default function DashboardLayout({
     if (isBvAdmin) {
       const isAdminActive = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-admin') || currentPath.startsWith('/super-admin');
       tabItems.push({
-        label: isSuperAdminUser ? (isFolkUser ? 'FOLK Super Admin' : 'PW Super Admin') : (isFolkUser ? 'FOLK Admin' : 'PW Admin'),
+        label: isSuperAdminUser ? (isFolkUser ? 'FOLK Super Guide' : 'PW Super Admin') : (isFolkUser ? 'FOLK Guide' : 'PW Admin'),
         path: adminPath,
         active: isAdminActive,
         icon: <ShieldAlert className="w-4 h-4 mr-1 md:mr-1.5" />,

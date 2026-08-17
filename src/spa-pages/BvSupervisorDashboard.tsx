@@ -62,7 +62,7 @@ export default function BvSupervisorDashboard() {
       subtitle={[
         `Hare Krishna ${defaultName} Prabhu`,
         (profile as any)?.bvReportingAdminName
-          ? `Admin: ${(profile as any).bvReportingAdminName}`
+          ? `${isFolk ? 'Guide' : 'Admin'}: ${(profile as any).bvReportingAdminName}`
           : null,
       ].filter(Boolean).join(' · ')}
       role="SUPERVISOR"

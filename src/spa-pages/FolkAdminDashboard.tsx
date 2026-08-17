@@ -44,8 +44,8 @@ export default function FolkAdminDashboard() {
   );
 
   const dashboardTitle = isSuperAdmin
-    ? "FOLK Super Admin Dashboard"
-    : "FOLK Admin Dashboard";
+    ? "FOLK Super Guide Dashboard"
+    : "FOLK Guide Dashboard";
 
   const isFolk = profile?.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk.org');
 
@@ -138,7 +138,7 @@ export default function FolkAdminDashboard() {
   return (
     <DashboardLayout
       title={dashboardTitle}
-      subtitle={`Hare Krishna ${cleanAdminName || 'Admin'} Prabhu!`}
+      subtitle={`Hare Krishna ${cleanAdminName || 'Guide'} Prabhu!`}
       role={dashboardRole}
       maxWidth="max-w-none"
     >

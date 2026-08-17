@@ -70,7 +70,7 @@ export default createEndpoint({
     const guideRecord = guideId
       ? await Guides.findOne({ id: guideId, fields: ['id', 'fullName'] })
       : null;
-    const guideName = (guideRecord as any)?.fullName || (currentUser as any)?.bvReportingAdminName || 'FOLK Admin';
+    const guideName = (guideRecord as any)?.fullName || (currentUser as any)?.bvReportingAdminName || 'FOLK Guide';
 
     // Fetch all active users
     const { records: allUsers } = await Users.findAll({

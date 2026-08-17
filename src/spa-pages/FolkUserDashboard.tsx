@@ -115,7 +115,7 @@ export default function FolkUserDashboard() {
               <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500 text-white uppercase tracking-wide">Testing</span>
             </div>
             <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
-              Bhakti Vriksha registrations from this dashboard will appear in the <strong>FOLK Admin / Super Admin</strong> panel.
+              Bhakti Vriksha registrations from this dashboard will appear in the <strong>FOLK Guide / Super Guide</strong> panel.
             </p>
           </div>
         </div>

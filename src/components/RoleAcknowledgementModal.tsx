@@ -25,10 +25,10 @@ export default function RoleAcknowledgementModal() {
     const segment = profile.segment || 'PW';
 
     if (profile.isBvSuperAdmin) {
-      activeRoles.push(segment === 'FOLK' ? 'FOLK Super Admin' : 'PW Super Admin');
+      activeRoles.push(segment === 'FOLK' ? 'FOLK Super Guide' : 'PW Super Admin');
     }
     if (profile.isBvAdmin && !profile.isBvSuperAdmin) {
-      activeRoles.push(segment === 'FOLK' ? 'FOLK Admin' : 'PW Admin');
+      activeRoles.push(segment === 'FOLK' ? 'FOLK Guide' : 'PW Admin');
     }
 
     if (profile.isSadhanaMentor || profile.role === 'SADHANA_MENTOR') {
