@@ -146,7 +146,7 @@ export default function NotificationCard() {
         {status === 'not-setup' && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Enable push notifications to receive Sadhana reminders directly on your device.
+              Enable push notifications to receive Sadhana reminders or meeting reminders.
             </p>
             <Button onClick={handleEnable} disabled={busy} className="w-full">
               {busy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BellRing className="w-4 h-4 mr-2" />}
@@ -158,7 +158,7 @@ export default function NotificationCard() {
         {status === 'enabled' && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Push notifications are active for this device. You will receive customized Sadhana reminders as scheduled by Super Admin.
+              Push notifications are active for this device. You will receive customized Sadhana or meeting reminders.
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={busy}>
@@ -175,7 +175,7 @@ export default function NotificationCard() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Disable Notifications?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      You won't receive sadhana reminders anymore. You can re-enable anytime.
+                      You won't receive Sadhana or meeting reminders anymore. You can re-enable anytime.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

@@ -119,8 +119,15 @@ export default function ProfilePage() {
     userEmail.includes('folkadmin') ||
     userEmail.includes('superadmin');
 
+  const isBvAdminUser =
+    isSuperAdmin ||
+    profile.role === 'ADMIN' ||
+    profile.role === 'GUIDE' ||
+    !!(profile as any).isBvAdmin ||
+    userEmail.includes('vdnd');
+
   const isPwUser = !!(profile as any).isPrabhupadaWorldUser || profile.segment === 'PW';
-  const showGuideResidencyCard = !isPwUser && !isSuperAdmin;
+  const showGuideResidencyCard = !isPwUser && !isBvAdminUser;
   const isFolk = profile.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk');
   const adminDashboardPath = isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
 
@@ -128,7 +135,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center gap-3 max-w-7xl">
-          <Button variant="ghost" size="sm" onClick={() => navigate(isSuperAdmin ? adminDashboardPath : '/user/dashboard')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(isBvAdminUser ? adminDashboardPath : '/user/dashboard')}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <h1 className="text-xl font-bold">My Profile</h1>
