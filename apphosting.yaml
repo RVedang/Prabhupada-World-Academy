@@ -15,7 +15,7 @@ env:
     value: AIzaSyDxT99fYHhqdvRl11lxJ9WarcKrv0y41Jc
 
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    value: bvpw108.firebaseapp.com
+    value: academy.prabhupadaworld.com
 
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     value: bvpw108
