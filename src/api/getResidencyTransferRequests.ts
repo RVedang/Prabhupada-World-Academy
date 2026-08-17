@@ -16,13 +16,10 @@ export default createEndpoint({
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
-      userRole === 'ADMIN' ||
-      userEmail.includes('admin') ||
+      userEmail.includes('superadmin') ||
       userEmail === 'hrvd@hkmmumbai.org' ||
       userEmail === 'srilaprabhupadaworld@gmail.com' ||
-      context.user.isBvSuperAdmin ||
-      context.user.isBvAdmin ||
-      context.user.isPwAdmin;
+      !!context.user.isBvSuperAdmin;
 
     // Determine which residency IDs this guide manages
     let allowedResidencyIds: string[] = [];

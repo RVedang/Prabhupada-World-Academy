@@ -294,6 +294,7 @@ function getMockTable(tableName: string): Map<string, any> {
         { id: 'GUIDE-SUPER-FOLK-GUIDE', fullName: 'Gaurmandal Prabhu (FOLK)', email: 'gaurmandal@folk.org', abbr: 'FOLK', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-001', fullName: 'Spiritual Guide', email: 'guide@gmail.com', abbr: 'SG', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', abbr: 'PW-ADM', isActive: true, segment: 'PW' },
+        { id: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', abbr: 'VDND', isActive: true, segment: 'FOLK' },
       ];
       defaultGuides.forEach(g => {
         if (!mockStore[tableName].has(g.id)) {
