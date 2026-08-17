@@ -51,8 +51,8 @@ function buildProfile(userObj: any): ProfileData {
 
   // BV Hierarchy flags
   const userEmail = (userObj.email || userObj.id || '').toLowerCase();
-  const isBvSuperAdmin = !!(userObj.isBvSuperAdmin || role === 'SUPER_ADMIN' || role === 'SUPER_GUIDE' || userEmail === 'srilaprabhupadaworld@gmail.com' || userEmail === 'hrvd@hkmmumbai.org' || userEmail.includes('gaurmandal') || userEmail.includes('superadmin'));
-  const isBvAdmin = !!(userObj.isBvAdmin || isBvSuperAdmin || role === 'ADMIN' || role === 'GUIDE' || userEmail.includes('folkadmin'));
+  const isBvSuperAdmin = !!(userObj.isBvSuperAdmin || role === 'SUPER_ADMIN' || role === 'SUPER_GUIDE' || role === 'Super Guide' || userEmail === 'srilaprabhupadaworld@gmail.com' || userEmail === 'hrvd@hkmmumbai.org' || userEmail.includes('gaurmandal') || userEmail.includes('superadmin'));
+  const isBvAdmin = !!(userObj.isBvAdmin || isBvSuperAdmin || role === 'ADMIN' || role === 'GUIDE' || role === 'Guide' || userEmail.includes('folkadmin'));
   const isBvSupervisor = !!(userObj.isBvSupervisor || userObj.isBvMentor);
   const isBvFacilitator = !!(userObj.isBvFacilitator);
   const isBvSubFacilitator = !!(userObj.isBvSubFacilitator);
@@ -61,7 +61,7 @@ function buildProfile(userObj: any): ProfileData {
   let segment: 'PW' | 'FOLK' = userObj.segment ?? 'PW';
   if (userEmail.includes('gaurmandal') || userEmail.includes('folk.org')) {
     segment = 'FOLK';
-  } else if (userEmail.includes('vdnd') || userEmail.includes('srilaprabhupadaworld')) {
+  } else if (userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld')) {
     segment = 'PW';
   }
 

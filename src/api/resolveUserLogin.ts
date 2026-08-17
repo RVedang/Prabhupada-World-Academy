@@ -356,7 +356,9 @@ export default createEndpoint({
           (userEmail || '').toLowerCase() === 'hrvd@hkmmumbai.org' ||
           (userEmail || '').toLowerCase().includes('gaurmandal') ||
           userRecord.role === 'Super Guide' ||
-          userRecord.role === 'SUPER_GUIDE'
+          userRecord.role === 'SUPER_GUIDE' ||
+          userRecord.role === 'Guide' ||
+          userRecord.role === 'GUIDE'
         ),
         isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),
         isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
