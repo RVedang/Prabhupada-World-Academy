@@ -138,7 +138,7 @@ export default function FolkAdminDashboard() {
   return (
     <DashboardLayout
       title={dashboardTitle}
-      subtitle={`Hare Krishna ${cleanAdminName || 'Guide'} Prabhu!`}
+      subtitle={`Hare Krishna ${(cleanAdminName || 'Guide').split(' ')[0]} Prabhu!`}
       role={dashboardRole}
       maxWidth="max-w-none"
     >

@@ -73,7 +73,7 @@ export default function BvMentorDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${mentorName || 'Prabhu'} Prabhu!`}
+      title={`Hare Krishna ${(mentorName || 'Prabhu').split(' ')[0]} Prabhu!`}
       subtitle="BV Supervisor / Mentor"
       role="BV_MENTOR"
       maxWidth="max-w-7xl"

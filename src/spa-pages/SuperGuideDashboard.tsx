@@ -112,7 +112,7 @@ export default function SuperGuideDashboard() {
   return (
     <DashboardLayout
       title="Super FOLK Guide Dashboard"
-      subtitle={guideName ? `Hare Krishna ${guideName} Prabhu!` : undefined}
+      subtitle={guideName ? `Hare Krishna ${guideName.split(' ')[0]} Prabhu!` : undefined}
       role="SUPER_GUIDE"
       maxWidth="max-w-none"
     >

@@ -125,7 +125,7 @@ export default function GuideDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${guideName} Prabhu!`}
+      title={`Hare Krishna ${(guideName || 'Guide').split(' ')[0]} Prabhu!`}
       subtitle="FOLK Guide"
       role="GUIDE"
       maxWidth="max-w-none"
