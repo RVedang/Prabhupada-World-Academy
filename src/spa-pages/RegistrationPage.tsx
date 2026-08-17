@@ -221,7 +221,7 @@ export default function RegistrationPage() {
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-[500px] bg-white border border-gray-200/80 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.06),_0_1px_6px_rgba(0,0,0,0.03)] p-8 md:p-10 flex flex-col gap-6 text-center"
+        className="w-full max-w-[500px] bg-white border border-gray-200/80 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.06),_0_1px_6px_rgba(0,0,0,0.03)] p-5 sm:p-8 md:p-10 flex flex-col gap-6 text-center"
       >
         
         {/* Back Button */}
@@ -316,7 +316,7 @@ export default function RegistrationPage() {
                 placeholder="Mobile number (10 digits)"
                 required
                 inputMode="numeric"
-                className="flex-1 h-10 px-4 border border-gray-200 rounded-[10px] text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] transition-all bg-white shadow-sm"
+                className="flex-1 min-w-0 h-10 px-4 border border-gray-200 rounded-[10px] text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] transition-all bg-white shadow-sm"
               />
             </div>
           </div>
