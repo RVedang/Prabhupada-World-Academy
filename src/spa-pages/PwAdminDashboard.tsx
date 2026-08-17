@@ -64,7 +64,7 @@ export default function PwAdminDashboard() {
 
   const dashboardRole = isSuperAdmin ? "SUPER_ADMIN" : (isBvAdminUser ? "ADMIN" : "USER");
   const defaultAdminName = "Hiranyavarna Das";
-  const [adminName, setAdminName] = useState(defaultAdminName);
+  const [adminName, setAdminName] = useState(profile?.fullName || defaultAdminName);
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';

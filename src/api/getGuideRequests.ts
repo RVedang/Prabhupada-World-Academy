@@ -42,7 +42,7 @@ export default createEndpoint({
       ? allRequests
       : allRequests.filter((r: any) => {
           const toId = Array.isArray(r.toGuide) ? r.toGuide[0] : r.toGuide;
-          return toId && toId === guideDbId;
+          return toId && (toId === guideDbId || toId === context.user.id);
         });
 
     // Resolve user details for guide transfers
@@ -119,7 +119,7 @@ export default createEndpoint({
         if (isPwMember) return false; // Super FOLK Guide does not see PW member Ashray requests
         if (isSuperGuide) return true;
         const userGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-        return userGuideId && userGuideId === guideDbId;
+        return userGuideId && (userGuideId === guideDbId || userGuideId === context.user.id);
       });
 
       filteredAshray.forEach((r: any) => {

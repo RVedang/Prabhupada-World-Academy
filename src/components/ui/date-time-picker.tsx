@@ -12,6 +12,8 @@ interface DateTimePickerProps {
   type?: 'datetime' | 'date';
   placeholder?: string;
   disabled?: boolean;
+  min?: string;
+  max?: string;
 }
 
 const MONTH_NAMES = [
@@ -27,6 +29,8 @@ export function DateTimePicker({
   type = 'datetime',
   placeholder = 'Select date & time',
   disabled = false,
+  min,
+  max,
 }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -316,16 +320,36 @@ export function DateTimePicker({
                   today.getFullYear() === cell.date.getFullYear();
               })();
 
+              const isDisabled = (() => {
+                const cellDateOnly = new Date(cell.date.getFullYear(), cell.date.getMonth(), cell.date.getDate());
+                if (min) {
+                  const minD = new Date(min);
+                  const minDateOnly = new Date(minD.getFullYear(), minD.getMonth(), minD.getDate());
+                  if (cellDateOnly < minDateOnly) return true;
+                }
+                if (max) {
+                  const maxD = new Date(max);
+                  const maxDateOnly = new Date(maxD.getFullYear(), maxD.getMonth(), maxD.getDate());
+                  if (cellDateOnly > maxDateOnly) return true;
+                }
+                return false;
+              })();
+
               return (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleSelectDate(cell.date)}
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && handleSelectDate(cell.date)}
                   className={cn(
-                    "h-8 w-8 rounded-lg flex items-center justify-center font-medium transition-all cursor-pointer relative",
-                    cell.isPadding ? "text-muted-foreground/30 hover:bg-transparent" : "text-foreground hover:bg-accent/60",
-                    isToday && "border border-primary text-primary font-bold",
-                    isSelected && "bg-primary text-primary-foreground font-semibold shadow-md hover:bg-primary/95 hover:text-primary-foreground"
+                    "h-8 w-8 rounded-lg flex items-center justify-center font-medium transition-all relative",
+                    isDisabled 
+                      ? "text-muted-foreground/20 cursor-not-allowed hover:bg-transparent"
+                      : cell.isPadding 
+                        ? "text-muted-foreground/30 hover:bg-transparent cursor-pointer" 
+                        : "text-foreground hover:bg-accent/60 cursor-pointer",
+                    isToday && !isDisabled && "border border-primary text-primary font-bold",
+                    isSelected && !isDisabled && "bg-primary text-primary-foreground font-semibold shadow-md hover:bg-primary/95 hover:text-primary-foreground"
                   )}
                 >
                   {cell.day}

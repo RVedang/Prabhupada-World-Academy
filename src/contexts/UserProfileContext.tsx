@@ -11,7 +11,7 @@ type ProfileCtx = {
   profile: ProfileData;
   isLoading: boolean;
   profileError: string | null;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<ProfileData>;
   /** Directly set profile from known user data (used by login resolution pages) */
   forceSetProfile: (userData: any) => void;
 };
@@ -20,8 +20,8 @@ const Ctx = createContext<ProfileCtx>({
   profile: null,
   isLoading: true,
   profileError: null,
-  refreshProfile: async () => {},
-  forceSetProfile: () => {},
+  refreshProfile: async () => null,
+  forceSetProfile: () => { },
 });
 
 // BUG-1 FIX: role is USER | GUIDE | SUPER_GUIDE only.
@@ -121,7 +121,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
   const profileRef = useRef<ProfileData>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const loadedEmailRef   = useRef<string | null>(null);
+  const loadedEmailRef = useRef<string | null>(null);
   const lastFetchedAtRef = useRef<number>(0); // Timestamp of last successful profile fetch
 
   const setAndCacheProfile = (p: ProfileData) => {
@@ -141,10 +141,10 @@ export default function UserProfileProvider({ children }: { children: React.Reac
         if (Date.now() - lastTs > 60 * 60 * 1000) {
           updateLastLogin({}).then(() => {
             localStorage.setItem(LAST_LOGIN_KEY, String(Date.now()));
-          }).catch(() => {});
+          }).catch(() => { });
         }
       } catch {
-        updateLastLogin({}).catch(() => {});
+        updateLastLogin({}).catch(() => { });
       }
     } else {
       loadedEmailRef.current = null;
@@ -201,10 +201,12 @@ export default function UserProfileProvider({ children }: { children: React.Reac
 
     try {
       const res = await getUserProfile({ email });
-      if (timedOut) return;
+      if (timedOut) return null;
       clearTimeout(timeoutId);
+      let built: ProfileData = null;
       if (res?.user) {
-        setAndCacheProfile(buildProfile(res.user));
+        built = buildProfile(res.user);
+        setAndCacheProfile(built);
         loadedEmailRef.current = email;
         lastFetchedAtRef.current = Date.now();
       } else {
@@ -213,10 +215,11 @@ export default function UserProfileProvider({ children }: { children: React.Reac
       }
       if (!background) setIsLoading(false);
       else setIsLoading(false); // ensure loading clears even after initial
+      return built;
     } catch (e) {
       clearTimeout(timeoutId);
-      if (timedOut) return;
-      if (background) return; // Silent failure — keep cached profile visible
+      if (timedOut) return null;
+      if (background) return null; // Silent failure — keep cached profile visible
       console.error('Profile load error:', e);
       if (retryCount < MAX_RETRIES) {
         const backoff = 2000 * Math.pow(2, retryCount); // exponential: 2s, 4s, 8s, 16s
@@ -225,13 +228,14 @@ export default function UserProfileProvider({ children }: { children: React.Reac
       }
       setProfileError('Could not load your profile. Please check your connection and tap Retry.');
       setIsLoading(false);
+      return null;
     }
   };
 
   const refreshProfile = async () => {
-    if (!user?.email) return;
+    if (!user?.email) return null;
     loadedEmailRef.current = null;
-    await load(user.email);
+    return await load(user.email);
   };
 
   const forceSetProfile = (userData: any) => {

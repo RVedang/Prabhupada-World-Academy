@@ -40,11 +40,11 @@ export default function PendingApprovalPage() {
   const handleCheckStatus = async () => {
     setChecking(true);
     try {
-      await refreshProfile(); // clears cache + re-fetches from sheet
+      const updatedProfile = await refreshProfile(); // clears cache + re-fetches from sheet
       // AUTH-013 FIX: Route directly based on updated profile status — no full re-auth cycle
-      if (profile?.status === 'ACTIVE') {
+      if (updatedProfile?.status === 'ACTIVE') {
         navigate('/dashboard', { replace: true });
-      } else if (profile?.status === 'REJECTED') {
+      } else if (updatedProfile?.status === 'REJECTED') {
         navigate('/rejected', { replace: true });
       } else {
         toast.info('Still pending approval. Please check with your guide.');

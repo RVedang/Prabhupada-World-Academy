@@ -62,7 +62,7 @@ export default function FolkGuideDashboard() {
   }, [profile, isBvAdminUser, isFolk, userEmail, navigate]);
 
   const dashboardRole = isSuperAdmin ? "SUPER_ADMIN" : (isBvAdminUser ? "ADMIN" : "USER");
-  const [adminName, setAdminName] = useState("Gaurmandal Das");
+  const [adminName, setAdminName] = useState(profile?.fullName || "");
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);

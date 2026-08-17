@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Calendar, Save, BookOpen, Leaf, Send, AlertTriangle, Home, Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -429,7 +430,7 @@ export default function DailySadhanaForm() {
           {/* Entry Date */}
           <div className="bg-card border rounded-xl p-4 shadow-sm space-y-2">
             <Label className="text-base font-medium"><Calendar className="w-4 h-4 inline mr-2" />Entry Date</Label>
-            <Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)}
+            <DateTimePicker type="date" value={entryDate} onChange={setEntryDate}
               max={format(new Date(), 'yyyy-MM-dd')} min={format(subDays(new Date(), 7), 'yyyy-MM-dd')} />
             <p className="text-sm text-muted-foreground">Today or up to 7 days back.</p>
           </div>
