@@ -5,7 +5,7 @@ import { joinBvGroupByToken } from '@/lib/endpoints-sdk';
 import { Leaf, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const FOLK_LOGO = 'https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png';
+const FOLK_LOGO = '/logo.png';
 
 export default function BvJoinPage() {
   const [params] = useSearchParams();

@@ -10,7 +10,7 @@ import {
   UserCheck, TreePine, Shield
 } from 'lucide-react';
 
-const PWA_LOGO = 'https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png';
+const PWA_LOGO = '/logo.png';
 
 function Step({ num, title, desc }: { num: number; title: string; desc: string }) {
   return (

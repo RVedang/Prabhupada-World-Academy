@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const PWA_LOGO = 'https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png';
+const PWA_LOGO = '/logo.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
