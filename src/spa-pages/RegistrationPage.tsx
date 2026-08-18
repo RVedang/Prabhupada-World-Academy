@@ -158,6 +158,9 @@ export default function RegistrationPage() {
       });
 
       if (result.success) {
+        // Persist a flag so that the route guard keeps the user on /pending
+        // even if getUserProfile returns null on the next page load / refresh.
+        try { localStorage.setItem('pwa_pending_registration', email); } catch {}
         forceSetProfile({
           userId: result.userId,
           fullName: nameToUse,

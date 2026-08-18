@@ -9,7 +9,7 @@ import { AlertTriangle, WifiOff } from 'lucide-react';
 
 /** Redirect users with any profile status away from /register */
 export function GuestOnlyRoute({ children }: { children: React.ReactNode }) {
-  const { isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading, user } = useAuth();
   const { profile, isLoading: profileLoading, profileError } = useUserProfile();
   if (authLoading || profileLoading) return null;
 
@@ -38,6 +38,18 @@ export function GuestOnlyRoute({ children }: { children: React.ReactNode }) {
   if (profile?.status === 'ACTIVE') return <Navigate to="/dashboard" replace />;
   if (profile?.status === 'PENDING_APPROVAL') return <Navigate to="/pending" replace />;
   if (profile?.status === 'REJECTED') return <Navigate to="/rejected" replace />;
+
+  // Safety net: if the user just submitted registration but the server profile
+  // hasn't loaded yet (race / temporary failure), keep them on /pending.
+  if (!profile) {
+    try {
+      const pendingEmail = localStorage.getItem('pwa_pending_registration');
+      if (pendingEmail && user?.email && pendingEmail === user.email) {
+        return <Navigate to="/pending" replace />;
+      }
+    } catch {}
+  }
+
   return <>{children}</>;
 }
 
@@ -80,8 +92,19 @@ export function StatusRoute({
     );
   }
 
-  // Profile still null after loading -> unregistered user -> go to register
-  if (!profile) return <Navigate to="/register" replace />;
+  // Profile still null after loading → check localStorage safety net before
+  // redirecting to /register (prevents the post-registration refresh bug).
+  if (!profile) {
+    try {
+      const pendingEmail = localStorage.getItem('pwa_pending_registration');
+      if (pendingEmail && user?.email && pendingEmail === user.email && required === 'PENDING_APPROVAL') {
+        // User submitted the registration form; show the pending page even
+        // though the server profile hasn't loaded yet.
+        return <>{children}</>;
+      }
+    } catch {}
+    return <Navigate to="/register" replace />;
+  }
 
   // Route to the correct page based on status
   if (profile.status !== required) {

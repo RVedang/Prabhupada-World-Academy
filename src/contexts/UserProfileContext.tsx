@@ -245,6 +245,9 @@ export default function UserProfileProvider({ children }: { children: React.Reac
 
   useEffect(() => {
     if (profile) {
+      // Clear the post-registration safety flag — the server has confirmed the profile,
+      // so the localStorage flag is no longer needed as a fallback.
+      try { localStorage.removeItem('pwa_pending_registration'); } catch {}
       localStorage.setItem('auth_role', profile.role || 'USER');
       localStorage.setItem('is_pw_admin', String(profile.isBvAdmin || profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN'));
 
