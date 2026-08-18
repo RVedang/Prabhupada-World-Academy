@@ -45,7 +45,7 @@ const PW_SUPER_ADMIN = {
 // FOLK Super Guide
 const FOLK_SUPER_GUIDE = {
   guideId: 'MENTOR-FOLK-GAURMANDAL',
-  name: 'Gaurmandal Prabhu (Super Guide)',
+  name: 'Gaurmandal Prabhu',
   abbr: 'GMP',
   email: 'gaurmandal@folk.org',
   isPrabhupadaWorldMentor: false,
@@ -168,7 +168,7 @@ export default createEndpoint({
         })
         .map(u => ({
           guideId: u.id || u.userId,
-          name: `${formatGuideName(u.fullName, u.email)} (Admin)`,
+          name: formatGuideName(u.fullName, u.email),
           abbr: (u.fullName || '').slice(0, 3).toUpperCase(),
           email: u.email || '',
           isPrabhupadaWorldMentor: true,
