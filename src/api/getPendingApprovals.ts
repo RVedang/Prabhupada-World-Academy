@@ -33,7 +33,10 @@ export default createEndpoint({
         guideStr.includes('mentor-pw-hiranyavarna') ||
         guideStr.includes('mentor-pw-admin') ||
         guideStr.includes('hiranyavarna') ||
-        guideStr.includes('prabhupadaworld');
+        guideStr.includes('prabhupadaworld') ||
+        guideStr.includes('vdnd@hkmmumbai.org') ||
+        guideStr.includes('guide-vedanarayana-guide') ||
+        guideStr.includes('vedanarayana');
     };
 
     if (userSegment === 'PW') {

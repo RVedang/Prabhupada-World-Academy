@@ -121,7 +121,10 @@ export default createEndpoint({
         r.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' ||
         uGuide.includes('mentor-pw-hiranyavarna') ||
         uGuide.includes('hiranyavarna') ||
-        uGuide.includes('prabhupadaworld');
+        uGuide.includes('prabhupadaworld') ||
+        uGuide.includes('vdnd@hkmmumbai.org') ||
+        uGuide.includes('guide-vedanarayana-guide') ||
+        uGuide.includes('vedanarayana');
 
       if (targetSegment === 'PW') {
         return isPwUser; // PW Admin / Super Admin sees ONLY Prabhupada World registrations
