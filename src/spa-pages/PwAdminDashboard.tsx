@@ -144,7 +144,7 @@ export default function PwAdminDashboard() {
   return (
     <DashboardLayout
       title={dashboardTitle}
-      subtitle={`Hare Krishna ${(adminName || 'Admin').split(' ')[0]} Prabhu!`}
+      subtitle={`Hare Krishna ${profile?.fullName || adminName || 'Admin'}!`}
       role={dashboardRole}
       maxWidth="max-w-none"
     >

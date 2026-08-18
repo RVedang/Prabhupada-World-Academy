@@ -134,7 +134,7 @@ export default function FolkGuideDashboard() {
   return (
     <DashboardLayout
       title={dashboardTitle}
-      subtitle={`Hare Krishna ${(cleanAdminName || 'Guide').split(' ')[0]} Prabhu!`}
+      subtitle={`Hare Krishna ${profile?.fullName || cleanAdminName || 'Guide'}!`}
       role={dashboardRole}
       maxWidth="max-w-none"
     >

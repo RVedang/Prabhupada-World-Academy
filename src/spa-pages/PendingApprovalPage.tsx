@@ -47,7 +47,7 @@ export default function PendingApprovalPage() {
       } else if (updatedProfile?.status === 'REJECTED') {
         navigate('/rejected', { replace: true });
       } else {
-        toast.info('Still pending approval. Please check with your guide.');
+        toast.info('Still pending approval. Please check with your mentor.');
       }
     } catch {
       toast.error('Failed to check status. Please try again.');
@@ -71,7 +71,7 @@ export default function PendingApprovalPage() {
             </div>
             <CardTitle className="text-2xl">Pending Approval</CardTitle>
             <CardDescription>
-              Your registration is awaiting approval from your FOLK Guide
+              Your registration is awaiting approval from your mentor
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -86,13 +86,13 @@ export default function PendingApprovalPage() {
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground pl-6">
-                  Please contact your guide to confirm your registration.
+                  Please contact your mentor to confirm your registration.
                 </p>
               </div>
             ) : (
               <p className="text-muted-foreground">
-                You will be notified once your guide approves your registration.
-                Please contact your guide directly if you have any questions.
+                You will be notified once your mentor approves your registration.
+                Please contact your mentor directly if you have any questions.
               </p>
             )}
 

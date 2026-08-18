@@ -34,8 +34,7 @@ export default function DashboardLayout({
   const navigate = useNavigate();
   const { profile } = useUserProfile();
 
-  const userEmailStr = (user?.email || '').toLowerCase();
-  const isFolkUser = profile?.segment === 'FOLK' || userEmailStr.includes('gaurmandal') || userEmailStr.includes('folk.org') || userEmailStr.includes('vdnd');
+  const isFolkUser = profile?.segment === 'FOLK';
 
   const ROLE_BADGE_LABELS: Record<string, string> = {
     SUPER_ADMIN: isFolkUser ? 'Super Guide' : 'Super Admin', 
@@ -63,11 +62,7 @@ export default function DashboardLayout({
     role === 'SUPER_ADMIN' ||
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    profile?.role === 'SUPER_GUIDE' ||
-    userEmailStr === 'hrvd@hkmmumbai.org' ||
-    userEmailStr === 'srilaprabhupadaworld@gmail.com' ||
-    userEmailStr.includes('gaurmandal') ||
-    userEmailStr.includes('superadmin')
+    profile?.role === 'SUPER_GUIDE'
   );
 
   const effectiveRole = isSuperAdminUser ? 'SUPER_ADMIN' : (role || profile?.role);
@@ -79,11 +74,10 @@ export default function DashboardLayout({
       profile?.isBvAdmin ||
       (profile?.role as string) === 'ADMIN' ||
       (profile?.role as string) === 'SUPER_ADMIN' ||
-      isSuperAdminUser ||
-      userEmailStr.includes('folkadmin')
+      isSuperAdminUser
     );
 
-    const isFolkUser = profile.segment === 'FOLK' || userEmailStr.includes('gaurmandal') || userEmailStr.includes('folk.org');
+    const isFolkUser = profile.segment === 'FOLK';
     const adminPath = isFolkUser ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
 
     // 1. Admin / Super Admin Dashboard

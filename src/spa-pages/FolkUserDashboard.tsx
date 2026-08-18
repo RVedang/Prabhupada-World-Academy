@@ -100,36 +100,9 @@ export default function FolkUserDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile.fullName} Prabhu`}
-      subtitle={`FOLK Department · ${profile.guideName ? `Guide: ${profile.guideName}` : ''}`}
+      title={`Hare Krishna ${profile.fullName}!`}
+      subtitle={`FOLK${profile.guideName ? ` · Guide: ${profile.guideName}` : ''}`}
     >
-      {/* Department Banner */}
-      <div className="mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 dark:border-emerald-800 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm">
-            <Users className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-emerald-800 dark:text-emerald-200 text-base">FOLK Department</span>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500 text-white uppercase tracking-wide">Testing</span>
-            </div>
-            <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
-              Bhakti Vriksha registrations from this dashboard will appear in the <strong>FOLK Guide / Super Guide</strong> panel.
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-300 shrink-0"
-          onClick={() => navigate('/user/pw-dashboard')}
-        >
-          <ArrowRightLeft className="w-3.5 h-3.5" />
-          Switch to PW Dashboard
-        </Button>
-      </div>
-
       <PushNotificationBanner />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-6 w-full md:w-auto flex-wrap h-auto gap-1">

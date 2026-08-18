@@ -100,36 +100,9 @@ export default function PwUserDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile.fullName} Prabhu`}
-      subtitle={`Prabhupada World Department · ${profile.guideName ? `Guide: ${profile.guideName}` : ''}`}
+      title={`Hare Krishna ${profile.fullName}!`}
+      subtitle={`Prabhupada World${profile.guideName ? ` · Guide: ${profile.guideName}` : ''}`}
     >
-      {/* Department Banner */}
-      <div className="mb-6 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 dark:border-violet-800 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-sm">
-            <Star className="w-5 h-5 text-white fill-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-violet-800 dark:text-violet-200 text-base">Prabhupada World Department</span>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-violet-500 text-white uppercase tracking-wide">Testing</span>
-            </div>
-            <p className="text-xs text-violet-700 dark:text-violet-400 mt-0.5">
-              Bhakti Vriksha registrations from this dashboard will appear in the <strong>Prabhupada World Admin / Super Admin</strong> panel.
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 border-violet-300 text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:text-violet-300 shrink-0"
-          onClick={() => navigate('/user/folk-dashboard')}
-        >
-          <ArrowRightLeft className="w-3.5 h-3.5" />
-          Switch to FOLK Dashboard
-        </Button>
-      </div>
-
       <PushNotificationBanner />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-6 w-full md:w-auto flex-wrap h-auto gap-1">

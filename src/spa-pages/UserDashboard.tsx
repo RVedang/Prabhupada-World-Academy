@@ -126,7 +126,7 @@ export default function UserDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile.fullName} Prabhu`}
+      title={`Hare Krishna ${profile.fullName}!`}
       subtitle={subtitle}
     >
       <PushNotificationBanner />

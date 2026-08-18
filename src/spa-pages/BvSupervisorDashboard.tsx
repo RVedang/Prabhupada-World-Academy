@@ -53,14 +53,14 @@ export default function BvSupervisorDashboard() {
     { value: 'meetings', label: 'Meetings & MoMs', icon: Video },
   ];
 
-  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+  const isFolk = profile?.segment === 'FOLK';
   const defaultName = isFolk ? 'Gaurmandal Das' : 'Hiranyavarna Das';
 
   return (
     <DashboardLayout
       title="Bhakti Vriksha Supervisor Dashboard"
       subtitle={[
-        `Hare Krishna ${defaultName.split(' ')[0]} Prabhu`,
+        `Hare Krishna ${profile?.fullName || defaultName}!`,
         (profile as any)?.bvReportingAdminName
           ? `${isFolk ? 'Guide' : 'Admin'}: ${(profile as any).bvReportingAdminName}`
           : null,

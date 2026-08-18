@@ -300,7 +300,7 @@ export default function SadhanaMentorDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna, ${profile.fullName} Prabhu`}
+      title={`Hare Krishna ${profile.fullName}!`}
       subtitle={subtitle}
       role="SADHANA_MENTOR"
       maxWidth="max-w-6xl"

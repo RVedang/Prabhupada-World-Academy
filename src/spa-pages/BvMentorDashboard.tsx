@@ -8,9 +8,11 @@ import { DashboardLayout } from '@/layouts';
 import BvSection from '@/components/guide/BvSection';
 import { getBvMentorData } from '@/lib/endpoints-sdk';
 import { toast } from 'sonner';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Leaf, BookOpen } from 'lucide-react';
 
 export default function BvMentorDashboard() {
+  const { profile } = useUserProfile();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -73,7 +75,7 @@ export default function BvMentorDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${(mentorName || 'Prabhu').split(' ')[0]} Prabhu!`}
+      title={`Hare Krishna ${profile?.fullName || mentorName || 'Mentor'}!`}
       subtitle="BV Supervisor / Mentor"
       role="BV_MENTOR"
       maxWidth="max-w-7xl"
