@@ -131,9 +131,8 @@ export default createEndpoint({
         uRole === 'SUPER ADMIN' ||
         uName.includes('system admin') ||
         uName.includes('super admin') ||
-        uEmail === 'hrvd@hkmmumbai.org' ||
-        uEmail === 'srilaprabhupadaworld@gmail.com' ||
-        uEmail === 'gaurmandal@folk.org' ||
+        context.user.isBvSuperAdmin ||
+        context.user.role === "SUPER_GUIDE" ||
         uEmail === 'admin@prabhupadaworld.org' ||
         (callerId && uId === callerId) ||
         (callerEmail && uEmail === callerEmail);

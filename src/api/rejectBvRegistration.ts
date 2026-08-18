@@ -26,8 +26,7 @@ export default createEndpoint({
       callerRole === 'ADMIN' ||
       callerRole === 'SUPER_GUIDE' ||
       callerRole === 'GUIDE' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com' ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
+      context.user.isBvSuperAdmin ||
       userEmail.includes('gaurmandal') ||
       !!callerRecord.isBvSuperAdmin ||
       !!callerRecord.isBvAdmin ||

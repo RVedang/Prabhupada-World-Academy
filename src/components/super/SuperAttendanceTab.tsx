@@ -18,18 +18,14 @@ interface SuperAttendanceTabProps {
 }
 export default function SuperAttendanceTab({ segment }: SuperAttendanceTabProps = {}) {
   const { profile } = useUserProfile();
-  const userEmail = (profile?.userId || '').toLowerCase();
-  const effectiveSegment = segment || profile?.segment || (userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') ? 'PW' : 'FOLK');
+  const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
+  const effectiveSegment = segment || profile?.segment || 'PW';
   const isPw = effectiveSegment === 'PW';
 
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    profile?.role === 'SUPER_GUIDE' ||
-    userEmail.includes('gaurmandal') ||
-    userEmail.includes('superadmin') ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com'
+    profile?.role === 'SUPER_GUIDE'
   );
 
   const [data, setData] = useState<any>(null);

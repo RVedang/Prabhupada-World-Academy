@@ -17,8 +17,7 @@ export default createEndpoint({
       userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userEmail.includes('superadmin') ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com' ||
+      context.user.isBvSuperAdmin ||
       !!context.user.isBvSuperAdmin;
 
     // Determine which residency IDs this guide manages

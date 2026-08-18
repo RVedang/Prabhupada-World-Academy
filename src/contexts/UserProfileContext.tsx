@@ -50,20 +50,14 @@ function buildProfile(userObj: any): ProfileData {
   const folkResidencyCustomId = userObj.folkResidencyCustomId ?? null;
 
   // BV Hierarchy flags
-  const userEmail = (userObj.email || userObj.id || '').toLowerCase();
-  const isBvSuperAdmin = !!(userObj.isBvSuperAdmin || role === 'SUPER_ADMIN' || role === 'SUPER_GUIDE' || role === 'Super Guide' || userEmail === 'srilaprabhupadaworld@gmail.com' || userEmail === 'hrvd@hkmmumbai.org' || userEmail.includes('gaurmandal') || userEmail.includes('superadmin'));
-  const isBvAdmin = !!(userObj.isBvAdmin || isBvSuperAdmin || role === 'ADMIN' || role === 'GUIDE' || role === 'Guide' || userEmail.includes('folkadmin'));
+  const isBvSuperAdmin = !!(userObj.isBvSuperAdmin || role === 'SUPER_ADMIN');
+  const isBvAdmin = !!(userObj.isBvAdmin || isBvSuperAdmin || role === 'ADMIN');
   const isBvSupervisor = !!(userObj.isBvSupervisor || userObj.isBvMentor);
   const isBvFacilitator = !!(userObj.isBvFacilitator);
   const isBvSubFacilitator = !!(userObj.isBvSubFacilitator);
 
   // Determine segment ('PW' | 'FOLK')
-  let segment: 'PW' | 'FOLK' = userObj.segment ?? 'PW';
-  if (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') || userEmail.includes('vdnd')) {
-    segment = 'FOLK';
-  } else if (userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld')) {
-    segment = 'PW';
-  }
+  const segment: 'PW' | 'FOLK' = userObj.segment ?? 'PW';
 
   return {
     userId: userObj.userId ?? userObj.id ?? '',

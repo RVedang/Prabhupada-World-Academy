@@ -35,8 +35,7 @@ export default createEndpoint({
     const isSuperAdmin = !!(
       context.user.isBvSuperAdmin ||
       callerRole.includes('SUPER') ||
-      userEmail === 'srilaprabhupadaworld@gmail.com' ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
+      context.user.isBvSuperAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin')
     );

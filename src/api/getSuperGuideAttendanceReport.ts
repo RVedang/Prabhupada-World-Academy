@@ -35,8 +35,7 @@ export default createEndpoint({
       !!context.user?.isBvSuperAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin') ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com';
+      context.user.isBvSuperAdmin;
 
     let guideDbId: string | null = input.guideId === 'ALL' ? null : (input.guideId || null);
     if (!isSuperGuide) {

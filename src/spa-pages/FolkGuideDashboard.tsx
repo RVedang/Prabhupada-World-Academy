@@ -36,18 +36,14 @@ export default function FolkGuideDashboard() {
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    profile?.role === 'SUPER_GUIDE' ||
-    userEmail.includes('gaurmandal') ||
-    userEmail.includes('superadmin') ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com'
+    profile?.role === 'SUPER_GUIDE'
   );
 
   const dashboardTitle = isSuperAdmin
     ? "FOLK Super Guide Dashboard"
     : "FOLK Guide Dashboard";
 
-  const isFolk = profile?.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk.org');
+  const isFolk = profile?.segment === 'FOLK';
 
   const isBvAdminUser = isSuperAdmin || !!(profile?.isBvAdmin || (profile?.role as string) === 'ADMIN' || (profile?.role as string) === 'SUPER_ADMIN');
 
@@ -55,11 +51,11 @@ export default function FolkGuideDashboard() {
     if (profile) {
       if (!isBvAdminUser) {
         navigate('/user/folk-dashboard', { replace: true });
-      } else if (!isFolk && (userEmail === 'hrvd@hkmmumbai.org' || userEmail === 'srilaprabhupadaworld@gmail.com')) {
+      } else if (profile.segment !== 'FOLK') {
         navigate('/pw-admin/dashboard', { replace: true });
       }
     }
-  }, [profile, isBvAdminUser, isFolk, userEmail, navigate]);
+  }, [profile, isBvAdminUser, navigate]);
 
   const dashboardRole = isSuperAdmin ? "SUPER_ADMIN" : (isBvAdminUser ? "ADMIN" : "USER");
   const [adminName, setAdminName] = useState(profile?.fullName || "");

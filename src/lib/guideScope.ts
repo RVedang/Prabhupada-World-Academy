@@ -8,7 +8,7 @@
 // Do NOT import it from frontend files — it uses the backend SDK.
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { Guides, FolkResidencies } from '@/lib/backend-sdk';
+import { Guides, FolkResidencies, Users } from '@/lib/backend-sdk';
 
 export interface GuideScope {
   /** The DB record ID (UUID) of this guide in the Guides table */
@@ -46,21 +46,27 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
     };
   }
 
-  if (!guide && (
-    emailLower.includes('super') ||
-    emailLower.includes('admin') ||
-    emailLower.includes('gaurmandal') ||
-    emailLower.includes('hiranyavarna') ||
-    emailLower === 'hrvd@hkmmumbai.org' ||
-    emailLower === 'srilaprabhupadaworld@gmail.com'
-  )) {
-    guide = {
-      id: 'GUIDE-ADMIN-001',
-      fullName: 'Super Guide Admin',
-      email: email,
-      folkResidencies: [],
-      isSuperAdminScope: true,
-    };
+  if (!guide) {
+    const user = await Users.findOne({ filters: { email } }) || 
+                 await Users.findOne({ filters: { email: emailLower } });
+    if (user && (
+      user.isBvSuperAdmin || 
+      user.isBvAdmin || 
+      user.role === 'Super Admin' || 
+      user.role === 'SUPER_ADMIN' || 
+      user.role === 'Super Guide' || 
+      user.role === 'SUPER_GUIDE' || 
+      user.role === 'Admin' || 
+      user.role === 'ADMIN'
+    )) {
+      guide = {
+        id: user.userId || user.id || 'GUIDE-ADMIN-001',
+        fullName: user.fullName || 'Super Guide Admin',
+        email: email,
+        folkResidencies: [],
+        isSuperAdminScope: true,
+      };
+    }
   }
 
   if (!guide) return null;

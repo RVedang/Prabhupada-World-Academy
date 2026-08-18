@@ -41,8 +41,7 @@ export default createEndpoint({
       !!context.user.isBvAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin') ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com';
+      context.user.isBvSuperAdmin;
     const isBvMentor = !!(context.user as any).isBvMentor;
     const statusKey = input.statusFilter || input.status || 'all';
 

@@ -32,12 +32,9 @@ interface Props {
 
 export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUpload = true }: Props) {
   const { profile } = useUserProfile();
-  const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
   const isPw =
     profile?.segment === 'PW' ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin')) ||
-    userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail === 'hrvd@hkmmumbai.org';
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin'));
   const [activeTab, setActiveTab] = useState<'summary' | 'sessions' | 'files'>('summary');
   const [loading, setLoading] = useState(true);
   const [registrations, setRegistrations] = useState<RegRecord[]>([]);

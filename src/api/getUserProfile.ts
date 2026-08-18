@@ -218,8 +218,8 @@ function buildProfileResult({
       isBvsl,
       isSadhanaMentor,
       isServiceAllocator,
-      isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || primaryRole === 'SUPER_ADMIN' || primaryRole === 'SUPER_GUIDE' || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'hrvd@hkmmumbai.org' || (userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('superadmin')),
-      isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || primaryRole === 'ADMIN' || primaryRole === 'SUPER_ADMIN' || primaryRole === 'SUPER_GUIDE' || (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' || (userEmail || '').toLowerCase() === 'hrvd@hkmmumbai.org' || (userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('folkadmin')),
+      isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || primaryRole === 'SUPER_ADMIN'),
+      isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || primaryRole === 'ADMIN' || primaryRole === 'SUPER_ADMIN'),
       isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),
       isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
       isBvSubFacilitator: !!(userRecord.isBvSubFacilitator),
@@ -252,7 +252,7 @@ function buildProfileResult({
       pendingAshrayNoticeStatus: userRecord.pendingAshrayNoticeStatus || null,
       pendingAshrayNoticeLevel: userRecord.pendingAshrayNoticeLevel || null,
       ashrayNoticeAcknowledged: !!(userRecord.ashrayNoticeAcknowledged),
-      segment: userRecord.segment || ((userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('folk.org') || (userEmail || '').toLowerCase().includes('vdnd') ? 'FOLK' : 'PW'),
+      segment: userRecord.segment || 'PW',
     },
   };
 }

@@ -87,11 +87,12 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
   const { profile } = useUserProfile();
 
   const userEmailLower = (user?.email || '').toLowerCase();
-  const isSuperAdmin = userEmailLower === 'srilaprabhupadaworld@gmail.com' ||
-                        userEmailLower === 'hrvd@hkmmumbai.org' ||
-                        (profile as any)?.isBvSuperAdmin ||
-                        profile?.role === 'SUPER_ADMIN' ||
-                        (profile?.role as string)?.toUpperCase()?.includes('SUPER');
+  const isSuperAdmin = !!(
+    (profile as any)?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE' ||
+    (profile?.role as string)?.toUpperCase()?.includes('SUPER')
+  );
   const isAdminUser = isSuperAdmin ||
                       !!profile?.isBvAdmin ||
                       !!(profile as any)?.isPwAdmin ||

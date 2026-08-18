@@ -15,8 +15,7 @@ export default createEndpoint({
       userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userEmail.includes('superadmin') ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com' ||
+      context.user.isBvSuperAdmin ||
       !!context.user.isBvSuperAdmin;
 
     // Find the guide DB record for the current user
@@ -105,7 +104,7 @@ export default createEndpoint({
       });
 
       const userEmail = (context.user.email || '').toLowerCase();
-      const isHiranyavarnaOrPwAdmin = userEmail === 'srilaprabhupadaworld@gmail.com' || context.user.isPwAdmin;
+      const isHiranyavarnaOrPwAdmin = context.user.isBvSuperAdmin;
 
       const filteredAshray = rawAshray.filter((r: any) => {
         const u = ashrayUserMap.get(r.userId);

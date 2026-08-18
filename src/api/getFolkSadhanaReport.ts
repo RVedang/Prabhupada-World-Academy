@@ -96,8 +96,7 @@ export default createEndpoint({
       !!context.user.isBvAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin') ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com';
+      context.user.isBvSuperAdmin;
 
     let guideRecord: any = null;
     if (!isSuperGuide) {

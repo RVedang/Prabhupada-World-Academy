@@ -307,16 +307,16 @@ function DashboardRouter() {
 
   // ── BV Hierarchy Routing (top → bottom) ──
 
-  const userEmailLower = (user?.email || '').toLowerCase();
-  const isFolk = profile.segment === 'FOLK' || userEmailLower.includes('gaurmandal') || userEmailLower.includes('folk.org') || userEmailLower.includes('vdnd');
+  const isFolk = profile.segment === 'FOLK';
   const isPw = !isFolk;
 
   // Super Admin / Admin
-  const isSuperAdmin = userEmailLower === 'srilaprabhupadaworld@gmail.com' ||
-                    userEmailLower === 'hrvd@hkmmumbai.org' ||
-                    (profile as any)?.isPwAdmin ||
-                    profile?.isBvSuperAdmin ||
-                    profile?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = !!(
+    (profile as any)?.isPwAdmin ||
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE'
+  );
 
   if (isSuperAdmin || profile.isBvAdmin || (profile.role as string) === 'ADMIN') {
     return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/folk-guide/dashboard${suffix}`} replace />;

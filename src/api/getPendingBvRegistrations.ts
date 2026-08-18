@@ -18,8 +18,7 @@ export default createEndpoint({
       role === 'SUPER_GUIDE' || 
       role === 'SUPER_ADMIN' ||
       role === 'ADMIN' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com' || 
-      userEmail === 'hrvd@hkmmumbai.org' ||
+      context.user.isBvSuperAdmin ||
       userEmail.includes('admin') ||
       context.user.isBvAdmin || 
       context.user.isBvSuperAdmin ||
@@ -110,7 +109,7 @@ export default createEndpoint({
 
     // Filter according to requested segment (PW vs FOLK)
     const targetSegment = input?.segment || (
-      userEmail === 'srilaprabhupadaworld@gmail.com' || context.user.isPwAdmin ? 'PW' : 'FOLK'
+      context.user.isBvSuperAdmin ? 'PW' : 'FOLK'
     );
 
     const filteredRecords = records.filter(r => {

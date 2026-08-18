@@ -25,10 +25,9 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment }: SuperBv
   const { profile } = useUserProfile();
   const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
   const isSuperAdmin = !!(
-    userEmail.includes('gaurmandal') ||
-    userEmail.includes('superadmin') ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com'
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE'
   );
 
   const [guides, setGuides]               = useState<GetGuidesOutputType['guides']>([]);

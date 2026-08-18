@@ -4,8 +4,7 @@ import { generateUniqueUserId } from '../lib/userIdGen';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean, isBvSupervisor?: boolean, isBvFacilitator?: boolean, isBvSubFacilitator?: boolean, email?: string, segment?: string): string {
-  const emailLower = (email || '').toLowerCase();
-  const isFolk = segment === 'FOLK' || emailLower.includes('gaurmandal') || emailLower.includes('folk.org') || emailLower.includes('superguide') || emailLower.includes('vdnd');
+  const isFolk = segment === 'FOLK';
   if (role === 'Super Admin' || role === 'SUPER_ADMIN' || role === 'Admin' || role === 'ADMIN') {
     return isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
   }
@@ -161,10 +160,9 @@ export default createEndpoint({
     if (context.user.email && isMockAuthEnabled) {
       const emailLower = context.user.email.toLowerCase();
       const defaults: Record<string, any> = {
-        'hrvd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
-        'srilaprabhupadaworld@gmail.com': { userId: 'USER-SUPERADMIN-PW-2', fullName: 'Hiranyavarna Das (PW)', email: 'srilaprabhupadaworld@gmail.com', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
-        'gaurmandal@folk.org': { userId: 'USER-SUPERADMIN-FOLK', fullName: 'Gaurmandal Das (FOLK Super Admin)', email: 'gaurmandal@folk.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
-        'gaurmandal@hkmmumbai.org': { userId: 'USER-SUPERADMIN-FOLK-2', fullName: 'Gaurmandal Das (FOLK)', email: 'gaurmandal@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
+        'hrvd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
+        'gmnd@hkmmumbai.org': { userId: 'USER-SUPERGUIDE-FOLK', fullName: 'Gaurmandal Das', email: 'gmnd@hkmmumbai.org', role: 'Super Guide', isBvSuperAdmin: false, isBvAdmin: false, status: 'Active', segment: 'FOLK' },
+        'vdnd@hkmmumbai.org': { userId: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Dasa', email: 'vdnd@hkmmumbai.org', role: 'Guide', isBvSuperAdmin: false, isBvAdmin: false, status: 'Active', segment: 'FOLK' },
         'superguide@gmail.com': { userId: 'GUIDE-SUPER-001', fullName: 'Super Guide Admin (FOLK)', email: 'superguide@gmail.com', role: 'Super Guide', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
         'admin@prabhupadaworld.org': { userId: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'PW' },
         'folkadmin@folk.org': { userId: 'GUIDE-ADMIN-FOLK', fullName: 'FOLK System Administrator', email: 'folkadmin@folk.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'FOLK' },
@@ -339,32 +337,13 @@ export default createEndpoint({
         isBvsl: userRecord.isBvsl || false,
         isSadhanaMentor: userRecord.isSadhanaMentor || false,
         isBvMentor: userRecord.isBvMentor || false,
-        isBvSuperAdmin: !!(
-          userRecord.isBvSuperAdmin ||
-          (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
-          (userEmail || '').toLowerCase() === 'hrvd@hkmmumbai.org' ||
-          (userEmail || '').toLowerCase().includes('gaurmandal') ||
-          (userEmail || '').toLowerCase().includes('folk.org') ||
-          userRecord.role === 'Super Guide' ||
-          userRecord.role === 'SUPER_GUIDE' ||
-          (userEmail || '').includes('superadmin')
-        ),
-        isBvAdmin: !!(
-          userRecord.isBvAdmin ||
-          userRecord.isBvSuperAdmin ||
-          (userEmail || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com' ||
-          (userEmail || '').toLowerCase() === 'hrvd@hkmmumbai.org' ||
-          (userEmail || '').toLowerCase().includes('gaurmandal') ||
-          userRecord.role === 'Super Guide' ||
-          userRecord.role === 'SUPER_GUIDE' ||
-          userRecord.role === 'Guide' ||
-          userRecord.role === 'GUIDE'
-        ),
+        isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || userRecord.role === 'Super Admin' || userRecord.role === 'SUPER_ADMIN'),
+        isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || userRecord.role === 'Admin' || userRecord.role === 'ADMIN' || userRecord.role === 'Super Admin' || userRecord.role === 'SUPER_ADMIN'),
         isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),
         isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
         isBvSubFacilitator: !!(userRecord.isBvSubFacilitator),
         isBvMember: userRecord.isBvMember || false,
-        segment: (userEmail || '').toLowerCase().includes('gaurmandal') || (userEmail || '').toLowerCase().includes('folk.org') ? 'FOLK' : (userRecord.segment || 'PW'),
+        segment: userRecord.segment || 'PW',
       },
     };
   },

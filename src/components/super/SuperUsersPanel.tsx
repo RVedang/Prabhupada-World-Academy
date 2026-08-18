@@ -48,9 +48,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment }: SuperUse
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail.includes('gaurmandal')
+    profile?.role === 'SUPER_GUIDE'
   );
 
   const [users, setUsers] = useState<User[]>([]);
@@ -297,12 +295,6 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment }: SuperUse
     if (u.fullName && !u.fullName.includes('@')) return u.fullName;
     if (u.name && !u.name.includes('@')) return u.name;
     if (u.displayName && !u.displayName.includes('@')) return u.displayName;
-    const email = (u.email || u.id || u.userId || '').toLowerCase();
-    if (email.includes('admin@prabhupadaworld') || email.includes('admin@prabhupada')) return 'PW System Administrator';
-    if (email.includes('srilaprabhupadaworld') || email.includes('hrvd@hkmmumbai')) return 'Hiranyavarna Das (PW)';
-    if (email.includes('gaurmandal')) return 'Gaurmandal Das (FOLK)';
-    if (email.includes('bvsupervisor')) return 'PW BV Supervisor';
-    if (email.includes('folkadmin')) return 'FOLK System Administrator';
     if (u.email && u.email.includes('@')) {
       const parts = u.email.split('@')[0].split(/[._-]/);
       return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';

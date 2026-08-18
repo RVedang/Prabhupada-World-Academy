@@ -32,8 +32,7 @@ export default createEndpoint({
       !!context.user.isBvAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin') ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com';
+      context.user.isBvSuperAdmin;
 
     // 1. Find guide record for scoping (regular guide only)
     let guideRecord: any = null;

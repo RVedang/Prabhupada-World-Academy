@@ -27,12 +27,10 @@ export default function BvAdminManagementTab() {
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail.includes('gaurmandal')
+    profile?.role === 'SUPER_GUIDE'
   );
 
-  const segment = profile?.segment ?? (userEmail.includes('gaurmandal') ? 'FOLK' : 'PW');
+  const segment = profile?.segment ?? 'PW';
 
   const [groups, setGroups] = useState<any[]>([]);
   const [guides, setGuides] = useState<any[]>([]);

@@ -528,18 +528,13 @@ interface Props { guideId?: string; segment?: 'PW' | 'FOLK'; }
 
 export default function MissingSadhanaTab({ guideId, segment }: Props) {
   const { profile } = useUserProfile();
-  const userEmail = (profile?.userId || '').toLowerCase();
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
-    profile?.role === 'SUPER_GUIDE' ||
-    userEmail.includes('gaurmandal') ||
-    userEmail.includes('superadmin') ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com'
+    profile?.role === 'SUPER_GUIDE'
   );
 
-  const isPw = segment === 'PW' || profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
+  const isPw = segment === 'PW' || profile?.segment === 'PW';
 
   const [period, setPeriod] = useState<Period>('last-week');
   const [customStart, setCustomStart] = useState(() => format(subWeeks(new Date(), 2), 'yyyy-MM-dd'));

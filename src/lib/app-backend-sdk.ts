@@ -262,14 +262,13 @@ function getMockTable(tableName: string): Map<string, any> {
     if (tableName === 'Users') {
       const now = new Date().toISOString();
       const defaultUsers = [
-        { id: 'hrvd@hkmmumbai.org', userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das (PW Super Admin)', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
-        { id: 'srilaprabhupadaworld@gmail.com', userId: 'USER-SUPERADMIN-PW-2', fullName: 'Hiranyavarna Das (PW)', email: 'srilaprabhupadaworld@gmail.com', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
-        { id: 'gaurmandal@folk.org', userId: 'USER-SUPERADMIN-FOLK', fullName: 'Gaurmandal Das (FOLK Super Admin)', email: 'gaurmandal@folk.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },
-        { id: 'gaurmandal@hkmmumbai.org', userId: 'USER-SUPERADMIN-FOLK-2', fullName: 'Gaurmandal Das (FOLK)', email: 'gaurmandal@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },
+        { id: 'hrvd@hkmmumbai.org', userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
+        { id: 'gmnd@hkmmumbai.org', userId: 'USER-SUPERGUIDE-FOLK', fullName: 'Gaurmandal Das', email: 'gmnd@hkmmumbai.org', role: 'Super Guide', isBvSuperAdmin: false, isBvAdmin: false, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'superguide@gmail.com', userId: 'GUIDE-SUPER-001', fullName: 'Super Guide Admin (FOLK)', email: 'superguide@gmail.com', role: 'Super Guide', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'admin@prabhupadaworld.org', userId: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'folkadmin@folk.org', userId: 'GUIDE-ADMIN-FOLK', fullName: 'FOLK System Administrator', email: 'folkadmin@folk.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'guide@gmail.com', userId: 'GUIDE-001', fullName: 'Spiritual Guide (FOLK)', email: 'guide@gmail.com', role: 'Guide', status: 'Active', segment: 'FOLK', createdAt: now },
+        { id: 'vdnd@hkmmumbai.org', userId: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Dasa', email: 'vdnd@hkmmumbai.org', role: 'Guide', status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'bvsupervisor@gmail.com', userId: 'SUPERVISOR-001', fullName: 'PW BV Supervisor', email: 'bvsupervisor@gmail.com', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'folksupervisor@folk.org', userId: 'SUPERVISOR-FOLK', fullName: 'FOLK BV Supervisor', email: 'folksupervisor@folk.org', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'rgf@gmail.com', userId: 'RGF-001', fullName: 'Reading Group Facilitator (PW RGF)', email: 'rgf@gmail.com', role: 'User', isBvsl: true, isBvFacilitator: true, status: 'Active', segment: 'PW', createdAt: now },
@@ -290,11 +289,10 @@ function getMockTable(tableName: string): Map<string, any> {
 
     if (tableName === 'Guides') {
       const defaultGuides = [
-        { id: 'GUIDE-SUPER-PWA-GUIDE', fullName: 'Hiranyavarna Prabhu (PW)', email: 'srilaprabhupadaworld@gmail.com', abbr: 'PW', isActive: true, segment: 'PW' },
-        { id: 'GUIDE-SUPER-FOLK-GUIDE', fullName: 'Gaurmandal Prabhu (FOLK)', email: 'gaurmandal@folk.org', abbr: 'FOLK', isActive: true, segment: 'FOLK' },
+        { id: 'GUIDE-SUPER-FOLK-GUIDE', fullName: 'Gaurmandal Das', email: 'gmnd@hkmmumbai.org', abbr: 'FOLK', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-001', fullName: 'Spiritual Guide', email: 'guide@gmail.com', abbr: 'SG', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', abbr: 'PW-ADM', isActive: true, segment: 'PW' },
-        { id: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', abbr: 'VDND', isActive: true, segment: 'FOLK' },
+        { id: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Dasa', email: 'vdnd@hkmmumbai.org', abbr: 'VDND', isActive: true, segment: 'FOLK' },
       ];
       defaultGuides.forEach(g => {
         if (!mockStore[tableName].has(g.id)) {
@@ -305,8 +303,8 @@ function getMockTable(tableName: string): Map<string, any> {
 
     if (tableName === 'BvGroups') {
       const defaultBvGroups = [
-        { id: 'BV-GROUP-001', groupName: 'Sri Chaitanya PW Reading Group', bvslId: 'srilaprabhupadaworld@gmail.com', bvslName: 'Hiranyavarna Prabhu', meetingTime: '7:45 PM – 8:15 PM', isActive: true, segment: 'PW' },
-        { id: 'BV-GROUP-002', groupName: 'Gauranga Evening FOLK Reading Group', bvslId: 'gaurmandal@folk.org', bvslName: 'Gaurmandal Prabhu', meetingTime: '8:30 PM – 9:00 PM', isActive: true, segment: 'FOLK' },
+        { id: 'BV-GROUP-001', groupName: 'Sri Chaitanya PW Reading Group', bvslId: 'bvsupervisor@gmail.com', bvslName: 'PW BV Supervisor', meetingTime: '7:45 PM – 8:15 PM', isActive: true, segment: 'PW' },
+        { id: 'BV-GROUP-002', groupName: 'Gauranga Evening FOLK Reading Group', bvslId: 'gmnd@hkmmumbai.org', bvslName: 'Gaurmandal Das', meetingTime: '8:30 PM – 9:00 PM', isActive: true, segment: 'FOLK' },
       ];
       defaultBvGroups.forEach(g => {
         if (!mockStore[tableName].has(g.id)) {

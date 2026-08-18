@@ -46,8 +46,7 @@ export default createEndpoint({
       callerRole.includes('ADMIN') ||
       callerRole.includes('SUPER') ||
       callerRole === 'PW_ADMIN' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com' ||
-      userEmail === 'hrvd@hkmmumbai.org'
+      context.user.isBvSuperAdmin
     );
 
     const meeting = await Meetings.findOne({ id: input.meetingId });

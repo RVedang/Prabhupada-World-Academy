@@ -713,8 +713,7 @@ export default createEndpoint({
       !!context.user.isBvAdmin ||
       userEmail.includes('gaurmandal') ||
       userEmail.includes('superadmin') ||
-      userEmail === 'hrvd@hkmmumbai.org' ||
-      userEmail === 'srilaprabhupadaworld@gmail.com';
+      context.user.isBvSuperAdmin;
 
     if (!isSuperGuide && !bvslMode && !mentorMode) {
       const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] }).catch(() => null);

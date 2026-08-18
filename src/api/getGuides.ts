@@ -117,7 +117,6 @@ export default createEndpoint({
       const dbFolkGuides = userRecords
         .filter(u => {
           const roleUpper = (u.role || '').toUpperCase();
-          const segmentUpper = (u.segment || '').toUpperCase();
           const emailLower = (u.email || '').toLowerCase();
           const nameLower = (u.fullName || '').toLowerCase();
 
@@ -126,13 +125,7 @@ export default createEndpoint({
             return false;
           }
 
-          const isPwUser =
-            segmentUpper === 'PW' ||
-            u.isPrabhupadaWorldUser === true ||
-            emailLower.includes('prabhupada') ||
-            emailLower === 'hrvd@hkmmumbai.org' ||
-            nameLower.includes('hiranya') ||
-            nameLower.includes('prabhupada world');
+          const isPwUser = u.segment === 'PW' || u.isPrabhupadaWorldUser === true;
 
           if (isPwUser) return false;
 
@@ -155,7 +148,6 @@ export default createEndpoint({
         }));
 
       const combinedFolk = [...folkGuidesFromDb, ...dbFolkGuides];
-      const listToReturn = combinedFolk.length > 0 ? combinedFolk : DEFAULT_FOLK_GUIDES;
 
       // Dynamically fetch PW Admins from Users table
       const dbPwAdmins = userRecords
@@ -164,8 +156,6 @@ export default createEndpoint({
           const segmentUpper = (u.segment || '').toUpperCase();
           const nameLower = (u.fullName || '').toLowerCase();
           const emailLower = (u.email || '').toLowerCase();
-          const isHiranya = emailLower.includes('hrvd@hkmmumbai');
-          if (isHiranya) return false;
 
           // Filter out demo admin account
           if (emailLower === 'admin@prabhupadaworld.org' || nameLower.includes('pw system administrator')) {
@@ -184,18 +174,8 @@ export default createEndpoint({
           isPrabhupadaWorldMentor: true,
         }));
 
-      // Conditionally show PW_SUPER_ADMIN only if active in Users table
-      const hasSuperAdminUser = userRecords.some(u => 
-        (u.email || '').toLowerCase().trim() === 'hrvd@hkmmumbai.org' && 
-        u.status === 'Active' && 
-        (u.role === 'Super Admin' || u.isBvSuperAdmin === true)
-      );
-
-      const pwList = dedupeGuides([
-        ...(hasSuperAdminUser ? [PW_SUPER_ADMIN] : []),
-        ...dbPwAdmins
-      ]);
-      const folkList = dedupeGuides(listToReturn);
+      const pwList = dedupeGuides(dbPwAdmins);
+      const folkList = dedupeGuides(combinedFolk);
       const allList = dedupeGuides([...pwList, ...folkList]);
 
       return {

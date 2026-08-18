@@ -178,18 +178,14 @@ function computeSummary(users: ReportUser[], isScholarView = false) {
 export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode }: ReportsTabProps) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
-  const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
   const isPw =
     profile?.segment === 'PW' ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin')) ||
-    userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail === 'hrvd@hkmmumbai.org';
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin'));
 
   const isSuperAdmin = !!(
-    userEmail.includes('gaurmandal') ||
-    userEmail.includes('superadmin') ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com'
+    profile?.isBvSuperAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE'
   );
 
   const [loading, setLoading] = useState(false);

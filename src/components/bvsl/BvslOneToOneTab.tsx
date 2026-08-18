@@ -100,8 +100,12 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 
 export default function BvslOneToOneTab() {
   const { profile } = useUserProfile();
-  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email && (profile as any).email.includes('folk')) || (profile as any)?.isFolk;
-  const isSuperAdmin = !!(profile?.isBvSuperAdmin || (profile?.role as any) === 'SUPER_ADMIN' || ((profile as any)?.email && ((profile as any).email === 'srilaprabhupadaworld@gmail.com' || (profile as any).email === 'hrvd@hkmmumbai.org')));
+  const isFolk = profile?.segment === 'FOLK';
+  const isSuperAdmin = !!(
+    profile?.isBvSuperAdmin ||
+    (profile?.role as any) === 'SUPER_ADMIN' ||
+    (profile?.role as any) === 'SUPER_GUIDE'
+  );
   const isAdmin = !isSuperAdmin && !!(profile?.isBvAdmin || (profile?.role as any) === 'ADMIN');
   const isSupervisor = !isSuperAdmin && !isAdmin && !!(profile?.isBvSupervisor || profile?.isBvMentor);
 

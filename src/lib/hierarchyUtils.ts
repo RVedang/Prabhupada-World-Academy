@@ -20,11 +20,7 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
   const isSuperAdmin = !!(
     userRole === 'SUPER_ADMIN' ||
     userRole === 'SUPER_GUIDE' ||
-    contextUser.isBvSuperAdmin ||
-    userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail.includes('gaurmandal') ||
-    userEmail.includes('superadmin')
+    contextUser.isBvSuperAdmin
   );
 
   // Super Admin has full unrestricted access across all users and departments
