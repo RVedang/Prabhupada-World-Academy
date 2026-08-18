@@ -162,7 +162,7 @@ export default createEndpoint({
       const defaults: Record<string, any> = {
         'hrvd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: false, status: 'Active', segment: 'PW' },
         'gmnd@hkmmumbai.org': { userId: 'USER-SUPERGUIDE-FOLK', fullName: 'Gaurmandal Das', email: 'gmnd@hkmmumbai.org', role: 'Super Guide', isBvSuperAdmin: false, isBvAdmin: false, status: 'Active', segment: 'FOLK' },
-        'vdnd@hkmmumbai.org': { userId: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', role: 'Guide', isBvSuperAdmin: false, isBvAdmin: false, status: 'Active', segment: 'FOLK' },
+        'vdnd@hkmmumbai.org': { userId: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: false, status: 'Active', segment: 'PW' },
         'superguide@gmail.com': { userId: 'GUIDE-SUPER-001', fullName: 'Super Guide Admin (FOLK)', email: 'superguide@gmail.com', role: 'Super Guide', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
         'admin@prabhupadaworld.org': { userId: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'PW' },
         'folkadmin@folk.org': { userId: 'GUIDE-ADMIN-FOLK', fullName: 'FOLK System Administrator', email: 'folkadmin@folk.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'FOLK' },

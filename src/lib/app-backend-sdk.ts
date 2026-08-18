@@ -75,6 +75,45 @@ function initFirestoreOnStartup() {
         }
       }
     }
+
+    if (firestoreDb) {
+      // Run automatic patch for Vedanarayana Das role to ensure database is always aligned
+      (async () => {
+        try {
+          const usersRef = firestoreDb.collection('Users');
+          const vdndSnap = await usersRef.where('email', '==', 'vdnd@hkmmumbai.org').get();
+          if (!vdndSnap.empty) {
+            for (const doc of vdndSnap.docs) {
+              const data = doc.data();
+              if (data.role !== 'Super Admin' || data.segment !== 'PW' || !data.isBvSuperAdmin || data.isBvAdmin) {
+                await doc.ref.update({
+                  role: 'Super Admin',
+                  segment: 'PW',
+                  isBvSuperAdmin: true,
+                  isBvAdmin: false
+                });
+                console.log(`[Startup DB Patch] Updated Users collection for vdnd@hkmmumbai.org (role: Super Admin, segment: PW)`);
+              }
+            }
+          }
+          const guidesRef = firestoreDb.collection('Guides');
+          const guideSnap = await guidesRef.where('email', '==', 'vdnd@hkmmumbai.org').get();
+          if (!guideSnap.empty) {
+            for (const doc of guideSnap.docs) {
+              const data = doc.data();
+              if (data.isActive !== false) {
+                await doc.ref.update({
+                  isActive: false
+                });
+                console.log(`[Startup DB Patch] Updated Guides collection for vdnd@hkmmumbai.org (isActive: false)`);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[Startup DB Patch] Failed to apply patch:', e);
+        }
+      })();
+    }
   } catch (e: any) {
     _hasValidCredentials = false;
     firestoreDb = null;
@@ -268,7 +307,7 @@ function getMockTable(tableName: string): Map<string, any> {
         { id: 'admin@prabhupadaworld.org', userId: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'folkadmin@folk.org', userId: 'GUIDE-ADMIN-FOLK', fullName: 'FOLK System Administrator', email: 'folkadmin@folk.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'guide@gmail.com', userId: 'GUIDE-001', fullName: 'Spiritual Guide (FOLK)', email: 'guide@gmail.com', role: 'Guide', status: 'Active', segment: 'FOLK', createdAt: now },
-        { id: 'vdnd@hkmmumbai.org', userId: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', role: 'Guide', status: 'Active', segment: 'FOLK', createdAt: now },
+        { id: 'vdnd@hkmmumbai.org', userId: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: false, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'bvsupervisor@gmail.com', userId: 'SUPERVISOR-001', fullName: 'PW BV Supervisor', email: 'bvsupervisor@gmail.com', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'folksupervisor@folk.org', userId: 'SUPERVISOR-FOLK', fullName: 'FOLK BV Supervisor', email: 'folksupervisor@folk.org', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'rgf@gmail.com', userId: 'RGF-001', fullName: 'Reading Group Facilitator (PW RGF)', email: 'rgf@gmail.com', role: 'User', isBvsl: true, isBvFacilitator: true, status: 'Active', segment: 'PW', createdAt: now },
@@ -292,7 +331,7 @@ function getMockTable(tableName: string): Map<string, any> {
         { id: 'GUIDE-SUPER-FOLK-GUIDE', fullName: 'Gaurmandal Das', email: 'gmnd@hkmmumbai.org', abbr: 'FOLK', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-001', fullName: 'Spiritual Guide', email: 'guide@gmail.com', abbr: 'SG', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', abbr: 'PW-ADM', isActive: true, segment: 'PW' },
-        { id: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', abbr: 'VDND', isActive: true, segment: 'FOLK' },
+        { id: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', abbr: 'VDND', isActive: false, segment: 'FOLK' },
       ];
       defaultGuides.forEach(g => {
         if (!mockStore[tableName].has(g.id)) {
