@@ -3,7 +3,7 @@ import { createEndpoint, Users, FolkResidencies, Guides } from '@/lib/backend-sd
 import { getGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'fullName', 'phone', 'email', 'ashrayLevel', 'residency',
-  'residencyClaimed', 'residencyJoinDate', 'createdAt', 'status', 'guide', 'selectedGuideId', 'guideName', 'isPrabhupadaWorldUser'];
+  'residencyClaimed', 'residencyJoinDate', 'createdAt', 'status', 'guide', 'selectedGuideId', 'guideName', 'isPrabhupadaWorldUser', 'segment'];
 const RESIDENCY_FIELDS = ['id', 'residencyName'];
 
 export default createEndpoint({
@@ -18,7 +18,28 @@ export default createEndpoint({
     const isSuperGuide = userRole === 'SUPER_GUIDE' || userRole === 'SUPER GUIDE' || userEmail.includes('superguide') || userEmail.includes('admin');
     const pendingFilter = { status: 'Pending Approval' };
 
-    let allUsers: any[] = [];
+    // Fetch residencies and guides early
+    const [residenciesRes, guidesRes] = await Promise.all([
+      FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 }),
+      Guides.findAll({ fields: ['id', 'fullName', 'abbreviation', 'email'], limit: 500 })
+    ]);
+
+    // Build guide lookup map to normalize raw guide names/abbreviations/emails to UUIDs
+    const guideLookup = new Map<string, string>();
+    for (const g of guidesRes.records) {
+      if (g.id) {
+        guideLookup.set(g.id.toLowerCase(), g.id);
+        if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.id);
+        if (g.abbreviation) guideLookup.set(g.abbreviation.toLowerCase(), g.id);
+        if (g.email) guideLookup.set(g.email.toLowerCase(), g.id);
+      }
+    }
+
+    const mentorGuide = guidesRes.records.find(g =>
+      (g.email && g.email.toLowerCase() === userEmail) ||
+      (g.id && g.id.toLowerCase() === context.user.id.toLowerCase())
+    );
+    const mentorGuideId = (mentorGuide?.id || context.user.id || '').toLowerCase();
 
     // Fetch all pending users from the database
     const { records: pendingRecords } = await Users.findAll({ filters: pendingFilter, fields: USER_FIELDS, limit: 1000 });
@@ -39,13 +60,22 @@ export default createEndpoint({
         guideStr.includes('vedanarayana');
     };
 
+    let allUsers: any[] = [];
+
     if (userSegment === 'PW') {
-      const isPwSuperAdmin = context.user.isBvSuperAdmin || context.user.isBvSuperAdmin;
+      const isPwSuperAdmin = context.user.isBvSuperAdmin || context.user.role === 'SUPER_ADMIN' || userEmail.includes('superadmin') || userEmail.includes('admin');
       allUsers = pendingRecords.filter(u => {
         if (!checkIsPwUser(u)) return false;
         if (isPwSuperAdmin) return true;
-        const selectedG = String(u.selectedGuideId || '').toLowerCase();
-        return selectedG === 'mentor-pw-admin' || selectedG.includes('admin') || selectedG.includes(userEmail);
+        
+        const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
+        const uGuide = String(rawG || u.selectedGuideId || '').toLowerCase();
+        const uGuideNormalized = uGuide ? (guideLookup.get(uGuide) || uGuide) : '';
+        
+        return uGuideNormalized === 'mentor-pw-admin' || 
+               uGuideNormalized.includes('admin') || 
+               uGuideNormalized === mentorGuideId || 
+               uGuideNormalized === userEmail;
       });
     } else {
       const isFolkSuperAdmin = userEmail.includes('gaurmandal') || userEmail.includes('folk.org') || userEmail.includes('superguide') || context.user.isBvSuperAdmin;
@@ -64,23 +94,7 @@ export default createEndpoint({
       });
     }
 
-    const [residenciesRes, guidesRes] = await Promise.all([
-      FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 }),
-      Guides.findAll({ fields: ['id', 'fullName', 'abbreviation', 'email'], limit: 500 })
-    ]);
-
     const residencyMap = new Map(residenciesRes.records.map(r => [r.id, (r as any).residencyName || '']));
-
-    // Build guide lookup map to normalize raw guide names/abbreviations/emails to UUIDs
-    const guideLookup = new Map<string, string>();
-    for (const g of guidesRes.records) {
-      if (g.id) {
-        guideLookup.set(g.id.toLowerCase(), g.id);
-        if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.id);
-        if (g.abbreviation) guideLookup.set(g.abbreviation.toLowerCase(), g.id);
-        if (g.email) guideLookup.set(g.email.toLowerCase(), g.id);
-      }
-    }
 
     // Only show users who completed registration (fullName set)
     const completeUsers = allUsers.filter(u => (u.fullName || '').trim().length > 0);

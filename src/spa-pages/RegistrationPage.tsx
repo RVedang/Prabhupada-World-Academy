@@ -173,7 +173,7 @@ export default function RegistrationPage() {
           residencyUserClaim: formData.residencyUserClaim,
           selectedFolkResidency: formData.selectedFolkResidency || null,
         });
-        toast.success('Registration successful! Awaiting guide approval.');
+        toast.success('Registration successful! Awaiting mentor approval.');
         navigate('/pending');
       } else {
         toast.error('Registration failed. Please try again.');

@@ -25,8 +25,13 @@ export default createEndpoint({
         filters: { email: context.user.email, isActive: true },
         fields: ['id'],
       });
-      if (!guideRecord) return { guideTransfers: [], ashrayUpgrades: [] };
-      guideDbId = guideRecord.id;
+      if (guideRecord) {
+        guideDbId = guideRecord.id;
+      } else {
+        const uRec = await Users.findOne({ id: context.user.id, fields: ['id', 'userId'] }) ||
+                     await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId'] });
+        guideDbId = uRec?.userId || uRec?.id || context.user.id;
+      }
     }
 
     // Fetch pending guide transfer requests
@@ -41,7 +46,12 @@ export default createEndpoint({
       ? allRequests
       : allRequests.filter((r: any) => {
           const toId = Array.isArray(r.toGuide) ? r.toGuide[0] : r.toGuide;
-          return toId && (toId === guideDbId || toId === context.user.id);
+          const toIdLower = String(toId || '').toLowerCase();
+          return toId && (
+            toIdLower === String(guideDbId || '').toLowerCase() || 
+            toIdLower === context.user.id.toLowerCase() || 
+            toIdLower === userEmail
+          );
         });
 
     // Resolve user details for guide transfers
@@ -103,22 +113,37 @@ export default createEndpoint({
         if (u.userId) ashrayUserMap.set(u.userId, u);
       });
 
-      const userEmail = (context.user.email || '').toLowerCase();
-      const isHiranyavarnaOrPwAdmin = context.user.isBvSuperAdmin;
+      const userSegment = context.user.segment || (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
+      const isHiranyavarnaOrPwAdmin = context.user.isBvSuperAdmin || context.user.role === 'SUPER_ADMIN' || userEmail.includes('superadmin') || userEmail.includes('admin');
 
       const filteredAshray = rawAshray.filter((r: any) => {
         const u = ashrayUserMap.get(r.userId);
         if (!u) return false;
         const uGuideStr = (String(u.guide || '') + ' ' + String(u.selectedGuideId || '') + ' ' + String(u.guideName || '')).toLowerCase();
-        const isPwMember = !!(u.isPrabhupadaWorldUser) || uGuideStr.includes('hiranyavarna');
+        const isPwMember = !!(u.isPrabhupadaWorldUser) || 
+                           u.segment === 'PW' ||
+                           uGuideStr.includes('hiranyavarna') ||
+                           uGuideStr.includes('pw-admin') ||
+                           uGuideStr.includes('vdnd') ||
+                           uGuideStr.includes('vedanarayana');
 
-        if (isHiranyavarnaOrPwAdmin) {
-          return isPwMember;
+        if (userSegment === 'PW') {
+          if (!isPwMember) return false;
+          if (isHiranyavarnaOrPwAdmin) return true;
+          const userGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
+          const uGuideStrLower = String(userGuideId || '').toLowerCase();
+          return uGuideStrLower === String(guideDbId || '').toLowerCase() || 
+                 uGuideStrLower === context.user.id.toLowerCase() ||
+                 uGuideStrLower === userEmail;
+        } else {
+          // FOLK guide view
+          if (isPwMember) return false;
+          if (isSuperGuide) return true;
+          const userGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
+          const uGuideStrLower = String(userGuideId || '').toLowerCase();
+          return uGuideStrLower === String(guideDbId || '').toLowerCase() || 
+                 uGuideStrLower === context.user.id.toLowerCase();
         }
-        if (isPwMember) return false; // Super FOLK Guide does not see PW member Ashray requests
-        if (isSuperGuide) return true;
-        const userGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-        return userGuideId && (userGuideId === guideDbId || userGuideId === context.user.id);
       });
 
       filteredAshray.forEach((r: any) => {
