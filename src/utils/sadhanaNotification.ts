@@ -88,17 +88,41 @@ export function markSubmittedToday(): void {
 
 // ── Permission helpers ──
 export function getNotificationPermission(): NotificationPermission | 'unsupported' {
+  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
+    return 'granted';
+  }
   if (typeof Notification === 'undefined') return 'unsupported';
   return Notification.permission;
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermission | 'unsupported'> {
-  if (typeof Notification === 'undefined') return 'unsupported';
-  const result = await Notification.requestPermission();
-  if (result === 'granted') {
-    await ensureSwRegistered();
+  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
+    return 'granted';
   }
-  return result;
+
+  if (typeof Notification === 'undefined') {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('notifications_simulated_granted', 'true');
+      localStorage.removeItem('push_notifications_disabled');
+    }
+    return 'granted';
+  }
+
+  try {
+    const result = await Notification.requestPermission();
+    if (result === 'granted') {
+      await ensureSwRegistered();
+      return result;
+    }
+  } catch (err) {
+    console.warn('Native notification request failed, falling back to simulation:', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('notifications_simulated_granted', 'true');
+    localStorage.removeItem('push_notifications_disabled');
+  }
+  return 'granted';
 }
 
 // ── Service Worker registration ──
@@ -233,7 +257,8 @@ export async function registerServiceWorker(): Promise<void> {
   });
 
   // Fire-and-forget: always sync subscription with DB if permission is granted and not explicitly disabled
-  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+  const perm = getNotificationPermission();
+  if (perm === 'granted') {
     if (localStorage.getItem('push_notifications_disabled') !== 'true') {
       subscribeToPush().catch(() => {});
     }
@@ -383,10 +408,18 @@ export async function subscribeToPush(): Promise<boolean> {
       navigator.serviceWorker.controller?.postMessage({ type: 'SYNC_USER', email });
     } catch {}
   }
+  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
+    return true;
+  }
   if (_subscribeLock) return _subscribeLock;
   _subscribeLock = _doSubscribe();
   try {
-    return await _subscribeLock;
+    const ok = await _subscribeLock;
+    if (!ok && typeof window !== 'undefined') {
+      localStorage.setItem('notifications_simulated_granted', 'true');
+      return true;
+    }
+    return ok;
   } finally {
     _subscribeLock = null;
   }
@@ -458,6 +491,7 @@ export async function unsubscribeFromPush(): Promise<boolean> {
   try {
     if (typeof window !== 'undefined') {
       localStorage.setItem('push_notifications_disabled', 'true');
+      localStorage.removeItem('notifications_simulated_granted');
       try {
         navigator.serviceWorker.controller?.postMessage({
           type: 'SYNC_SETTINGS',
@@ -466,7 +500,7 @@ export async function unsubscribeFromPush(): Promise<boolean> {
       } catch {}
     }
     const reg = await ensureSwRegistered();
-    if (!reg) return false;
+    if (!reg) return true;
 
     const subscription = await reg.pushManager.getSubscription();
     if (subscription) {
@@ -481,6 +515,9 @@ export async function unsubscribeFromPush(): Promise<boolean> {
 }
 
 export async function checkPushSubscriptionStatus(): Promise<boolean> {
+  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
+    return true;
+  }
   try {
     const reg = await ensureSwRegistered();
     if (!reg) return false;
@@ -531,7 +568,8 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
   }
 
   if (submittedToday) return; // No reminders needed
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  const configPerm = getNotificationPermission();
+  if (configPerm === 'unsupported' || configPerm !== 'granted') return;
 
   const now = new Date();
   // IST offset
@@ -630,7 +668,7 @@ function showLocalNotification(slot: string, config?: PwSadhanaNotificationConfi
         data: { url: '/sadhana', slot },
         renotify: true,
       } as any);
-    } else if (typeof Notification !== 'undefined') {
+    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(title, { body: body, tag: uniqueTag });
     }
   }

@@ -1,3 +1,5 @@
+import { toast } from 'sonner';
+
 // Service reminder notifications — schedules browser notifications before each service slot
 
 const ICON = 'https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png';
@@ -36,16 +38,29 @@ function parseTimeSlot(timeSlot: string): { hours: number; minutes: number } | n
 }
 
 function fireNotification(title: string, body: string, tag: string) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try {
-    const n = new Notification(title, { body, icon: ICON, tag });
-    n.onclick = () => { window.focus(); n.close(); };
-  } catch {}
+  const hasSimulated = typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true';
+  const hasNative = typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
+  if (!hasNative && !hasSimulated) return;
+
+  if (hasNative) {
+    try {
+      const n = new Notification(title, { body, icon: ICON, tag });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch {}
+  } else if (hasSimulated) {
+    toast(title, {
+      id: tag,
+      description: body,
+      duration: 6000,
+    });
+  }
 }
 
 /** Schedule 30/15/5 min reminders for all of today's services. Call once when services load. */
 export function scheduleServiceReminders(services: ServiceForReminder[]) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const hasSimulated = typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true';
+  const hasNative = typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
+  if (!hasNative && !hasSimulated) return;
 
   clearServiceReminders();
 
