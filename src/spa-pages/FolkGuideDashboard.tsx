@@ -33,7 +33,10 @@ export default function FolkGuideDashboard() {
   const navigate = useNavigate();
   const userEmail = (user?.email || '').toLowerCase();
 
-  const isSuperAdmin = !!(
+  const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const isForceGuideMode = queryParams.get('mode') === 'guide';
+
+  const isSuperAdmin = !isForceGuideMode && !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'
@@ -45,7 +48,7 @@ export default function FolkGuideDashboard() {
 
   const isFolk = profile?.segment === 'FOLK';
 
-  const isBvAdminUser = isSuperAdmin || !!(profile?.isBvAdmin || (profile?.role as string) === 'ADMIN' || (profile?.role as string) === 'SUPER_ADMIN');
+  const isBvAdminUser = isSuperAdmin || isForceGuideMode || !!(profile?.isBvAdmin || (profile?.role as string) === 'ADMIN' || (profile?.role as string) === 'SUPER_ADMIN');
 
   useEffect(() => {
     if (profile) {
@@ -59,6 +62,7 @@ export default function FolkGuideDashboard() {
 
   const dashboardRole = isSuperAdmin ? "SUPER_ADMIN" : (isBvAdminUser ? "ADMIN" : "USER");
   const [adminName, setAdminName] = useState(profile?.fullName || "");
+  const [guideId, setGuideId] = useState<string>('');
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -78,13 +82,15 @@ export default function FolkGuideDashboard() {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    window.history.pushState(null, '', `#${tab}`);
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    window.history.pushState(null, '', `${search}#${tab}`);
   };
 
   useEffect(() => {
     if (user?.email) {
       getCurrentGuide({ email: user.email }).then(r => {
         if (r.guide?.fullName) setAdminName(r.guide.fullName);
+        if (r.guide?.id) setGuideId(r.guide.id);
       }).catch(() => {});
 
       Promise.all([
@@ -186,9 +192,9 @@ export default function FolkGuideDashboard() {
 
         <main className="flex-1 min-w-0">
           <TabTransition activeTab={activeTab}>
-            {activeTab === 'sadhana' && <ReportsTab segment="FOLK" />}
-            {activeTab === 'bv' && <SuperBvReportTab segment="FOLK" />}
-            {activeTab === 'users' && <SuperUsersPanel segment="FOLK" />}
+            {activeTab === 'sadhana' && <ReportsTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />}
+            {activeTab === 'bv' && <SuperBvReportTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />}
+            {activeTab === 'users' && <SuperUsersPanel segment="FOLK" isSuperAdminOverride={isSuperAdmin} />}
             {activeTab === 'approvals' && <ApprovalsTab />}
             {(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations' || activeTab === 'bv-admins') && (
               <div className="space-y-8">

@@ -19,19 +19,21 @@ const SUB_TABS: { value: SubTab; label: string; icon: React.ElementType; desc: s
 interface SuperBvReportTabProps {
   isPwAdmin?: boolean;
   segment?: 'PW' | 'FOLK';
+  guideId?: string;
+  isSuperAdminOverride?: boolean;
 }
 
-export default function SuperBvReportTab({ isPwAdmin = false, segment }: SuperBvReportTabProps) {
+export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, isSuperAdminOverride }: SuperBvReportTabProps) {
   const { profile } = useUserProfile();
   const userEmail = ((profile as any)?.email || profile?.userId || '').toLowerCase();
-  const isSuperAdmin = !!(
+  const isSuperAdmin = isSuperAdminOverride !== undefined ? isSuperAdminOverride : !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'
   );
 
   const [guides, setGuides]               = useState<GetGuidesOutputType['guides']>([]);
-  const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin ? 'all' : userEmail));
+  const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin ? 'all' : (guideId || userEmail)));
   const [subTab, setSubTab]               = useState<SubTab>('overview');
 
   const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
@@ -42,9 +44,9 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment }: SuperBv
 
   useEffect(() => {
     if (profile && !isSuperAdmin) {
-      setSelectedGuide(userEmail);
+      setSelectedGuide(guideId || userEmail);
     }
-  }, [profile, isSuperAdmin, userEmail]);
+  }, [profile, isSuperAdmin, userEmail, guideId]);
 
   return (
     <div className="space-y-4">

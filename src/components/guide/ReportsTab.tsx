@@ -24,7 +24,7 @@ import { exportToCsv } from '@/utils/exportCsv';
 import { exportReportAsImage } from '@/utils/exportReportImage';
 import ScoringCriteriaPanel from '@/components/guide/ScoringCriteriaPanel';
 
-interface ReportsTabProps { guideId?: string; senderName?: string; bvslMode?: boolean; mentorMode?: boolean; segment?: 'PW' | 'FOLK'; }
+interface ReportsTabProps { guideId?: string; senderName?: string; bvslMode?: boolean; mentorMode?: boolean; isSuperAdminOverride?: boolean; segment?: 'PW' | 'FOLK'; }
 type ReportType = 'daily' | 'weekly' | 'monthly';
 type ResidencyFilter = 'all' | 'resident' | 'non_resident' | 'scholar';
 
@@ -175,14 +175,11 @@ function computeSummary(users: ReportUser[], isScholarView = false) {
   };
 }
 
-export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode }: ReportsTabProps) {
+export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode, isSuperAdminOverride }: ReportsTabProps) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
-  const isPw =
-    profile?.segment === 'PW' ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pw-admin'));
-
-  const isSuperAdmin = !!(
+  const isPw = (profile?.segment === 'PW') || false;
+  const isSuperAdmin = isSuperAdminOverride !== undefined ? isSuperAdminOverride : !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'

@@ -35,9 +35,10 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 interface SuperUsersPanelProps {
   isPwAdmin?: boolean;
   segment?: 'PW' | 'FOLK';
+  isSuperAdminOverride?: boolean;
 }
 
-export default function SuperUsersPanel({ isPwAdmin = false, segment }: SuperUsersPanelProps) {
+export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdminOverride }: SuperUsersPanelProps) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const userEmail = (profile?.userId || '').toLowerCase();
@@ -45,7 +46,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment }: SuperUse
   const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
   const isPwMode = effectiveSegment === 'PW';
 
-  const isSuperAdmin = !!(
+  const isSuperAdmin = isSuperAdminOverride !== undefined ? isSuperAdminOverride : !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'

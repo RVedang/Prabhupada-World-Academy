@@ -82,13 +82,32 @@ export default function DashboardLayout({
 
     // 1. Admin / Super Admin Dashboard
     if (isBvAdmin) {
-      const isAdminActive = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-guide') || currentPath.startsWith('/super-admin');
-      tabItems.push({
-        label: isSuperAdminUser ? (isFolkUser ? 'FOLK Super Guide' : 'PW Super Admin') : (isFolkUser ? 'FOLK Guide' : 'PW Admin'),
-        path: adminPath,
-        active: isAdminActive,
-        icon: <ShieldAlert className="w-4 h-4 mr-1 md:mr-1.5" />,
-      });
+      if (profile?.role === 'SUPER_GUIDE' && isFolkUser) {
+        const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        const isGuideMode = queryParams.get('mode') === 'guide';
+        
+        tabItems.push({
+          label: 'FOLK Super Guide',
+          path: '/folk-guide/dashboard',
+          active: currentPath.startsWith('/folk-guide') && !isGuideMode,
+          icon: <ShieldAlert className="w-4 h-4 mr-1 md:mr-1.5" />,
+        });
+        
+        tabItems.push({
+          label: 'FOLK Guide',
+          path: '/folk-guide/dashboard?mode=guide',
+          active: currentPath.startsWith('/folk-guide') && isGuideMode,
+          icon: <ShieldAlert className="w-4 h-4 mr-1 md:mr-1.5" />,
+        });
+      } else {
+        const isAdminActive = currentPath.startsWith('/pw-admin') || currentPath.startsWith('/folk-guide') || currentPath.startsWith('/super-admin');
+        tabItems.push({
+          label: isSuperAdminUser ? (isFolkUser ? 'FOLK Super Guide' : 'PW Super Admin') : (isFolkUser ? 'FOLK Guide' : 'PW Admin'),
+          path: adminPath,
+          active: isAdminActive,
+          icon: <ShieldAlert className="w-4 h-4 mr-1 md:mr-1.5" />,
+        });
+      }
     }
 
     // 2. BV Supervisor Dashboard — ONLY visible for explicitly assigned Supervisors/Mentors
