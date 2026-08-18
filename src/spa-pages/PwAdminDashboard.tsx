@@ -104,11 +104,10 @@ export default function PwAdminDashboard() {
       getPendingApprovals({ guideId: 'ALL' }),
       getGuideRequests({ guideId: 'ALL' }),
       getResidencyTransferRequests({ guideId: 'ALL' } as any),
-      getCleanlinessReviews({ guideId: 'ALL' }).catch(() => []),
       getPendingBvRegistrations({ segment: 'PW' }).catch(() => []),
-    ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
+    ]).then(([pending, requests, resTrans, bvRegs]) => {
       setApprovalCount(
-        pending.length + requests.guideTransfers.length + requests.ashrayUpgrades.length + resTrans.length + (Array.isArray(cleanReviews) ? cleanReviews.length : 0)
+        pending.length + requests.guideTransfers.length + requests.ashrayUpgrades.length + resTrans.length
       );
       setBvRegCount(Array.isArray(bvRegs) ? bvRegs.length : 0);
     }).catch(() => {});

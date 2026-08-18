@@ -73,7 +73,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
         getGuideRequests({ guideId }),
         getResidencyTransferRequests({ guideId } as any),
         getGuides({}),
-        getCleanlinessReviews({ guideId }).catch(() => []),
+        !isPwAdmin ? getCleanlinessReviews({ guideId }).catch(() => []) : Promise.resolve([]),
       ]);
       setPendingUsers(pendingRes);
       setResidencies(residencyRes);
@@ -82,7 +82,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
       setResidencyTransfers(residencyTransferRes);
       setCleanlinessReviews(Array.isArray(cleanReviews) ? cleanReviews : []);
       setAllGuides(guidesRes.guides);
-      onCountLoaded?.(pendingRes.length + requestsRes.guideTransfers.length + requestsRes.ashrayUpgrades.length + residencyTransferRes.length + (Array.isArray(cleanReviews) ? cleanReviews.length : 0));
+      onCountLoaded?.(pendingRes.length + requestsRes.guideTransfers.length + requestsRes.ashrayUpgrades.length + residencyTransferRes.length + (!isPwAdmin ? (Array.isArray(cleanReviews) ? cleanReviews.length : 0) : 0));
     } catch {
       toast.error('Failed to load approvals');
     } finally {
@@ -225,7 +225,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             </TabsTrigger>
           )}
 
-          {cleanlinessReviews.length > 0 && (
+          {!isPwAdmin && cleanlinessReviews.length > 0 && (
             <TabsTrigger value="cleanliness" className="gap-1 text-xs sm:text-sm">
               <Sparkles className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Cleanliness</span>
@@ -597,7 +597,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
         </TabsContent>
 
         {/* ── Cleanliness Review Requests ── */}
-        {cleanlinessReviews.length > 0 && (
+        {!isPwAdmin && cleanlinessReviews.length > 0 && (
           <TabsContent value="cleanliness">
             <Card>
               <CardHeader>
