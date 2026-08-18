@@ -41,6 +41,18 @@ export default createEndpoint({
     );
     const mentorGuideId = (mentorGuide?.id || context.user.id || '').toLowerCase();
 
+    // Build the set of canonical IDs this mentor maps to (covers hardcoded PW mentor IDs)
+    const mentorCanonicalIds = new Set<string>([mentorGuideId, userEmail]);
+    // Map known PW mentors by email to their hardcoded guide IDs
+    const PW_MENTOR_EMAIL_TO_ID: Record<string, string> = {
+      'vdnd@hkmmumbai.org': 'guide-vedanarayana-guide',
+      'hiranyavarna@hkmmumbai.org': 'mentor-pw-hiranyavarna',
+    };
+    const hardcodedId = PW_MENTOR_EMAIL_TO_ID[userEmail];
+    if (hardcodedId) mentorCanonicalIds.add(hardcodedId);
+    // Also add any Guides record ID that matches this mentor's email
+    if (mentorGuide?.id) mentorCanonicalIds.add(mentorGuide.id.toLowerCase());
+
     // Fetch all pending users from the database
     const { records: pendingRecords } = await Users.findAll({ filters: pendingFilter, fields: USER_FIELDS, limit: 1000 });
 
@@ -57,7 +69,9 @@ export default createEndpoint({
         guideStr.includes('prabhupadaworld') ||
         guideStr.includes('vdnd@hkmmumbai.org') ||
         guideStr.includes('guide-vedanarayana-guide') ||
-        guideStr.includes('vedanarayana');
+        guideStr.includes('vedanarayana') ||
+        // Also match if guide is stored as VDND's Firebase UID (in mentorCanonicalIds)
+        ([...mentorCanonicalIds].some(id => id && guideStr.includes(id.toLowerCase())));
     };
 
     let allUsers: any[] = [];
@@ -72,6 +86,8 @@ export default createEndpoint({
         const uGuide = String(rawG || u.selectedGuideId || '').toLowerCase();
         const uGuideNormalized = uGuide ? (guideLookup.get(uGuide) || uGuide) : '';
         
+        // Match against all canonical IDs for this mentor (Firebase UID, email, hardcoded guide ID)
+        if ([...mentorCanonicalIds].some(id => uGuideNormalized === id || uGuide === id)) return true;
         return uGuideNormalized === 'mentor-pw-admin' || 
                uGuideNormalized.includes('admin') || 
                uGuideNormalized === mentorGuideId || 

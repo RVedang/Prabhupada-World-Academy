@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, Mail, User, RefreshCw } from 'lucide-react';
+import { Clock, User, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
 import { getGuides } from '@/lib/endpoints-sdk';
@@ -96,10 +96,7 @@ export default function PendingApprovalPage() {
               </p>
             )}
 
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Mail className="w-4 h-4" />
-              <span>Check your email for updates</span>
-            </div>
+
 
             <Button className="w-full cursor-pointer" onClick={handleCheckStatus} disabled={checking}>
               {checking ? (
