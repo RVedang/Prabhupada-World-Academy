@@ -274,22 +274,28 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
   const isUserInCurrentDepartment = useCallback((u: any, isPw: boolean) => {
     // 1. Strict segment-based database check (prioritized)
-    if (u.segment === 'PW') return isPw;
+    if (u.segment === 'PW' || u.isPrabhupadaWorldUser === true) return isPw;
     if (u.segment === 'FOLK') return !isPw;
 
-    // 2. Fallbacks based on names, emails, and residency records
+    // 2. Guide check: if their mentor/guide is a PW mentor, then they are a PW user
+    const gId = String(u.selectedGuideId || u.guideId || u.guide || u.mentorId || '').toLowerCase();
+    const gName = String(u.selectedGuideName || u.guideName || u.mentorName || u.selectedMentorName || '').toLowerCase();
+    const isPwGuide = gId.includes('hiranyavarna') || gId.includes('pw-admin') || gId.includes('vdnd@hkmmumbai.org') || gId.includes('guide-vedanarayana-guide') ||
+                      gName.includes('hiranyavarna') || gName.includes('pw admin') || gName.includes('vedanarayana');
+
+    if (isPwGuide) return isPw;
+
+    // 3. Fallbacks based on names, emails, and residency records
     const name = (u.fullName || '').toUpperCase();
     const email = (u.email || '').toUpperCase();
     const isFolkUser = name.includes('FOLK') || email.includes('FOLK') || name.includes('GAURMANDAL') || email.includes('GAURMANDAL') || !!u.residencyId || !!u.isFolkLead;
     const isPwUser = name.includes('PW') || name.includes('PRABHUPADA') || email.includes('PW') || email.includes('PRABHUPADA') || name.includes('HIRANYAVARNA') || email.includes('HIRANYAVARNA');
 
-    if (isPw) {
-      if (isFolkUser && !isPwUser) return false;
-      return true;
-    } else {
-      if (isPwUser && !isFolkUser) return false;
-      return true;
-    }
+    if (isPwUser) return isPw;
+    if (isFolkUser) return !isPw;
+
+    // Default to FOLK
+    return !isPw;
   }, []);
 
   const formatDevoteeName = (u: any) => {

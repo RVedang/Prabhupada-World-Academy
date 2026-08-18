@@ -189,7 +189,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
     <>
       <Tabs defaultValue={defaultSubTab}>
         <TabsList className="mb-4 w-full sm:w-auto">
-          {(!isSuperGuide || pendingUsers.length > 0) && (
+          {(!isSuperGuide || isPwAdmin || pendingUsers.length > 0) && (
             <TabsTrigger value="registrations" className="gap-1 text-xs sm:text-sm">
               <UserCheck className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Registrations</span>
@@ -216,7 +216,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             </TabsTrigger>
           )}
 
-          {(!isSuperGuide || ashrayUpgrades.length > 0) && (
+          {(!isSuperGuide || isPwAdmin || ashrayUpgrades.length > 0) && (
             <TabsTrigger value="ashray" className="gap-1 text-xs sm:text-sm">
               <Star className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Ashraya Requests</span>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,10 +9,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { loginWithRedirect } = useAuth();
+  const { user, loginWithRedirect } = useAuth();
+  const { profile } = useUserProfile();
   
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Redirect users who are already authenticated
+  useEffect(() => {
+    if (user) {
+      if (!profile) {
+        navigate('/register');
+      } else if (profile.status === 'ACTIVE') {
+        navigate('/dashboard');
+      } else if (profile.status === 'PENDING_APPROVAL') {
+        navigate('/pending');
+      } else if (profile.status === 'REJECTED') {
+        navigate('/rejected');
+      }
+    }
+  }, [user, profile, navigate]);
 
   // Get the redirectUrl from query parameters, default to /auth-callback
   const redirectUrl = searchParams.get('redirectUrl') || `${window.location.origin}/auth-callback`;
