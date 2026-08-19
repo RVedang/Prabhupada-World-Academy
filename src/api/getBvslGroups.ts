@@ -72,17 +72,36 @@ export default createEndpoint({
     const todayDate = getTodayIST();
 
     // 1. Batch fetch Facilitator Users
+    // IMPORTANT: g.bvslId values are CUSTOM userId strings (e.g. "GUIDE-VEDANG"),
+    // NOT Firestore row ids. We must query by userId field, then map by BOTH
+    // the row id and the userId so lookups work with either value.
     const facilitatorUserIds = [...new Set(groupRecords.map((g: any) => g.bvslId || g.bvslLeader).filter(Boolean))] as string[];
     const facilitatorMap = new Map<string, any>();
     if (facilitatorUserIds.length > 0) {
       for (let i = 0; i < facilitatorUserIds.length; i += 50) {
         const batch = facilitatorUserIds.slice(i, i + 50);
-        const { records: batchUsers } = await Users.findAll({
-          filters: { id: { in: batch } } as any,
-          fields: ['id', 'segment', 'fullName'],
+        // First try fetching by userId (custom ID like GUIDE-VEDANG)
+        const { records: byUserId } = await Users.findAll({
+          filters: { userId: { in: batch } } as any,
+          fields: ['id', 'userId', 'segment', 'fullName'],
           limit: 100,
-        });
-        batchUsers.forEach((u: any) => facilitatorMap.set(u.id, u));
+        }).catch(() => ({ records: [] }));
+        // Also try fetching by Firestore row id (in case some groups store row id)
+        const { records: byId } = await Users.findAll({
+          filters: { id: { in: batch } } as any,
+          fields: ['id', 'userId', 'segment', 'fullName'],
+          limit: 100,
+        }).catch(() => ({ records: [] }));
+        const allFetched = [...byUserId, ...byId];
+        const seen = new Set<string>();
+        for (const u of allFetched) {
+          if (!seen.has(u.id)) {
+            seen.add(u.id);
+            // Key by both row id and custom userId so any lookup hits
+            facilitatorMap.set(u.id, u);
+            if (u.userId) facilitatorMap.set(u.userId, u);
+          }
+        }
       }
     }
 
@@ -101,10 +120,11 @@ export default createEndpoint({
       }
     }
 
-    // 3. Batch fetch BvGroupMembers counts (group by group id)
-    // To avoid fetching members for 200 groups individually, we'll fetch all members and group them
+    // 3. Batch fetch BvGroupMembers counts
+    // Always scope to the groups we have — avoids fetching ALL members across entire DB
+    const groupIdList = groupRecords.map((g: any) => g.id);
     const { records: allMembers } = await BvGroupMembers.findAll({
-      filters: isAll ? {} : { group: { in: groupRecords.map((g: any) => g.id) } } as any,
+      filters: { group: { in: groupIdList } } as any,
       limit: 5000,
       fields: ['id', 'group'],
     });

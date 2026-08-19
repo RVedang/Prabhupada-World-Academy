@@ -4,11 +4,24 @@ import { serverCacheGetOrFetch } from '../lib/serverCache';
 
 function formatGuideName(fullName: string | null | undefined, email: string | null | undefined): string {
   let name = (fullName || '').trim();
-  if (/^GUIDE-(PW|FOLK)-\d+$/i.test(name)) {
-    const parts = name.split('-');
-    name = `Dummy Guide ${parts[1]} (${parts[2]})`;
+
+  // Handle any GUIDE-* or MENTOR-* system ID stored as fullName
+  if (/^(GUIDE|MENTOR)[-_]/i.test(name)) {
+    // Try to make it human-readable: GUIDE-VEDANARAYANA-GUIDE -> Vedanarayana Guide
+    const parts = name.split(/[-_]/).filter(p => p && !['GUIDE', 'MENTOR', 'PW', 'FOLK'].includes(p.toUpperCase()));
+    if (parts.length > 0) {
+      const readable = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+      // Fall through to email if it looks like a number-only string
+      if (!/^\d+$/.test(readable)) {
+        name = readable;
+      } else {
+        name = ''; // force fallback to email
+      }
+    } else {
+      name = ''; // force fallback to email
+    }
   }
-  
+
   if (name && !name.includes('@') && name.toLowerCase() !== 'null' && name.toLowerCase() !== 'undefined') {
     return name;
   }

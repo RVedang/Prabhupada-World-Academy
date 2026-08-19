@@ -110,7 +110,7 @@ export default createEndpoint({
         const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
         const uGuide = String(rawG || '').toLowerCase();
         if (!rawG) return true;
-        if (uGuide === sId || uGuide === sName || uGuide === userEmail || uGuide === context.user.id.toLowerCase()) return true;
+        if (uGuide === sId || uGuide === sName || uGuide === userEmail || (userId && uGuide === userId.toLowerCase())) return true;
         return scope ? (scope.residencyIds?.includes(u.residency) || scope.guideId === u.guide) : true;
       });
     }
