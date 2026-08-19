@@ -174,6 +174,29 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
             >
               Delete 5 Default Dummy BV Groups
             </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                const check = window.prompt("Type 'DELETE ALL' to confirm wiping ALL Bhakti Vriksha groups in the database:");
+                if (check !== 'DELETE ALL') {
+                  if (check !== null) toast.error("Verification failed. Please type 'DELETE ALL' exactly.");
+                  return;
+                }
+                const loadToast = toast.loading("Wiping all Bhakti Vriksha groups...");
+                try {
+                  const res = await hardDeleteBvGroups({ deleteAll: true });
+                  toast.dismiss(loadToast);
+                  toast.success(`Successfully deleted all ${res.deleted} group(s).`);
+                  loadData(false);
+                } catch (e: any) {
+                  toast.dismiss(loadToast);
+                  toast.error(`Error: ${e.message || 'Failed to delete groups'}`);
+                }
+              }}
+            >
+              Delete ALL Bhakti Vriksha Groups
+            </Button>
           </div>
 
           <div className="border-t border-destructive/20 pt-4 mt-4 space-y-3">
