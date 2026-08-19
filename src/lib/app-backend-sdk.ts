@@ -119,17 +119,16 @@ function initFirestoreOnStartup() {
           const vedangSnap = await usersRef.where('email', '==', 'iamthevedang@gmail.com').get();
           if (!vedangSnap.empty) {
             for (const doc of vedangSnap.docs) {
-              const data = doc.data();
-              if (data.role !== 'Super Admin' || data.segment !== 'PW' || !data.isBvSuperAdmin || data.isBvAdmin || data.status !== 'Active') {
-                await doc.ref.update({
-                  role: 'Super Admin',
-                  segment: 'PW',
-                  isBvSuperAdmin: true,
-                  isBvAdmin: false,
-                  status: 'Active'
-                });
-                console.log(`[Startup DB Patch] Updated Users collection for iamthevedang@gmail.com (role: Super Admin, segment: PW, status: Active)`);
-              }
+              // Always ensure Vedang's record has correct super admin fields
+              await doc.ref.update({
+                role: 'Super Admin',
+                segment: 'PW',
+                isBvSuperAdmin: true,
+                isBvAdmin: false,
+                status: 'Active',
+                fullName: doc.data().fullName || 'Vedang Prabhu',
+              });
+              console.log(`[Startup DB Patch] Ensured Super Admin for iamthevedang@gmail.com (doc: ${doc.id})`);
             }
           } else {
             // Pre-seed Vedang user record if they don't exist yet
