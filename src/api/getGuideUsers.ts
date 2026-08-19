@@ -232,11 +232,67 @@ export default createEndpoint({
       }
     }
 
-    // Filter out records without userId or fullName
-    const registeredUsers = users.filter(u =>
-      (u.userId || u.id) &&
-      (u.fullName || '').trim().length > 0
-    );
+    const callerId = String(context.user.id || '').toLowerCase();
+    const callerUserId = String(context.user.userId || '').toLowerCase();
+    const callerEmail = String(context.user.email || '').toLowerCase();
+
+    // Filter out records based on strict hierarchy and self-exclusion rules
+    const registeredUsers = users.filter(u => {
+      // Basic validation
+      if (!(u.userId || u.id) || (u.fullName || '').trim().length === 0) {
+        return false;
+      }
+
+      const uId = String(u.id || '').toLowerCase();
+      const uUserId = String(u.userId || '').toLowerCase();
+      const uEmail = String(u.email || '').toLowerCase();
+
+      // 1. Exclude the caller themselves (No self-visibility)
+      if (
+        uId === callerId ||
+        uUserId === callerUserId ||
+        (callerUserId && uId === callerUserId) ||
+        (callerId && uUserId === callerId) ||
+        (callerEmail && uEmail === callerEmail)
+      ) {
+        return false;
+      }
+
+      // 2. Exclude Super Admins (no one should see any Super Admin in the list)
+      const uRole = (u.role || '').toUpperCase();
+      const uIsSuperAdmin = !!(u.isBvSuperAdmin || uRole === 'SUPER ADMIN' || uRole === 'SUPER_ADMIN');
+      if (uIsSuperAdmin) {
+        return false;
+      }
+
+      // 3. Exclude peers (equal level) or higher level users for Admins / Supervisors / RGFs
+      const callerRole = (context.user.role || '').toUpperCase();
+      const callerIsSuperAdmin = !!(context.user.isBvSuperAdmin || callerRole === 'SUPER_ADMIN' || callerRole === 'SUPER ADMIN' || callerEmail.includes('superadmin') || callerEmail === 'iamthevedang@gmail.com');
+      const callerIsAdmin = !!(context.user.isBvAdmin || callerRole === 'ADMIN' || callerRole === 'ADMINISTRATOR' || callerEmail.includes('admin'));
+      
+      const uIsAdmin = !!(u.isBvAdmin || uRole === 'ADMIN' || uRole === 'ADMINISTRATOR');
+      
+      // If caller is an Admin, they should not see other Admins
+      if (callerIsAdmin && !callerIsSuperAdmin) {
+        if (uIsAdmin) return false;
+      }
+
+      // Ensure standard supervisors cannot see other supervisors or admins
+      const callerIsSupervisor = !!(context.user.isBvSupervisor || context.user.isBvMentor || callerRole === 'SUPERVISOR' || callerRole === 'MENTOR');
+      const uIsSupervisor = !!(u.isBvSupervisor || u.isBvMentor || uRole === 'SUPERVISOR' || uRole === 'MENTOR');
+      if (callerIsSupervisor && !callerIsAdmin && !callerIsSuperAdmin) {
+        if (uIsSupervisor || uIsAdmin) return false;
+      }
+
+      // Ensure standard facilitators cannot see other facilitators, supervisors, or admins
+      const callerIsFacilitator = !!(context.user.isBvFacilitator || context.user.isBvsl || callerRole === 'FACILITATOR' || callerRole === 'BVSL');
+      const uIsFacilitator = !!(u.isBvFacilitator || u.isBvsl || uRole === 'FACILITATOR' || uRole === 'BVSL');
+      if (callerIsFacilitator && !callerIsSupervisor && !callerIsAdmin && !callerIsSuperAdmin) {
+        if (uIsFacilitator || uIsSupervisor || uIsAdmin) return false;
+      }
+
+      return true;
+    });
 
     return {
       users: registeredUsers.map(u => {

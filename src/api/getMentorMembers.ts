@@ -55,7 +55,7 @@ export default createEndpoint({
     members: z.array(memberSchema),
     guideName: z.string(),
   }),
-  execute: async ({ context }) => {
+  execute: async ({ context }: any) => {
     const currentUser = await Users.findOne({
       id: context.user!.id,
       fields: ['id', 'userId', 'fullName', 'guide', 'bvReportingAdminId', 'bvReportingAdminName', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
@@ -95,7 +95,27 @@ export default createEndpoint({
         return false;
       }
 
-      if (isSuperOrAdmin) return true;
+      // Exclude Super Admins (no one should see any Super Admin in the list)
+      const uRole = (u.role || '').toUpperCase();
+      const uIsSuperAdmin = !!(u.isBvSuperAdmin || uRole === 'SUPER ADMIN' || uRole === 'SUPER_ADMIN');
+      if (uIsSuperAdmin) {
+        return false;
+      }
+
+      if (isSuperOrAdmin) {
+        // Super Admin sees all (excluding other Super Admins / themselves, which are already filtered above)
+        const callerRole = (context.user?.role || '').toUpperCase();
+        const callerEmail = String(context.user?.email || '').toLowerCase();
+        const callerIsSuperAdmin = !!(context.user?.isBvSuperAdmin || callerRole === 'SUPER_ADMIN' || callerRole === 'SUPER ADMIN' || callerEmail.includes('superadmin') || callerEmail === 'iamthevedang@gmail.com');
+        
+        // If caller is Admin, do not let them see other Admins
+        if (!callerIsSuperAdmin) {
+          const uIsAdmin = !!(u.isBvAdmin || uRole === 'ADMIN' || uRole === 'ADMINISTRATOR');
+          if (uIsAdmin) return false;
+        }
+        return true;
+      }
+
       const uGuide = Array.isArray(u.guide) ? u.guide[0] : u.guide;
       const uAdmin = u.bvReportingAdminId;
       return (

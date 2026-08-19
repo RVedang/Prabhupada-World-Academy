@@ -90,26 +90,48 @@ export default createEndpoint({
           residencies.forEach((r: any) => { residencyMap[r.id] = (r.residencyName as string) || ''; });
         }
 
-        return {
-          members: memberships.map((m: any) => {
-            const uid = Array.isArray(m.user) ? m.user[0] : m.user as string;
-            const gid = Array.isArray(m.group) ? m.group[0] : m.group as string;
-            const u = userMap[uid] as any;
-            const residencyId = Array.isArray(u?.residency) ? u.residency[0] : u?.residency;
-            return {
-              userId: u?.userId || uid || '',
-              fullName: (u?.fullName as string) || '',
-              phone: u?.phone || '',
-              ashrayLevel: (u?.ashrayLevel as string) || null,
-              email: (u?.email as string) || '',
-              groupName: groupMap[gid] || '',
-              groupId: groupIdMap[gid] || '',
-              isResident: !!(u?.residencyApproved && residencyId),
-              residencyName: residencyId ? (residencyMap[residencyId] || null) : null,
-              isRgsf: !!(u?.isRgsf || u?.role === 'RGSF' || (Array.isArray(u?.roles) && u.roles.includes('RGSF'))),
-            };
-          }),
-        };
+        const callerId = String(context.user.id || '').toLowerCase();
+        const callerUserId = String(context.user.userId || '').toLowerCase();
+        const callerEmail = String(context.user.email || '').toLowerCase();
+
+        const members = memberships.map((m: any) => {
+          const uid = Array.isArray(m.user) ? m.user[0] : m.user as string;
+          const gid = Array.isArray(m.group) ? m.group[0] : m.group as string;
+          const u = userMap[uid] as any;
+          if (!u) return null;
+
+          const uId = String(u.id || '').toLowerCase();
+          const uUserId = String(u.userId || '').toLowerCase();
+          const uEmail = String(u.email || '').toLowerCase();
+
+          // 1. Exclude self
+          if (uId === callerId || uUserId === callerUserId || (callerEmail && uEmail === callerEmail)) {
+            return null;
+          }
+
+          // 2. Exclude Super Admins
+          const uRole = (u.role || '').toUpperCase();
+          const uIsSuperAdmin = !!(u.isBvSuperAdmin || uRole === 'SUPER ADMIN' || uRole === 'SUPER_ADMIN');
+          if (uIsSuperAdmin) {
+            return null;
+          }
+
+          const residencyId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
+          return {
+            userId: u.userId || uid || '',
+            fullName: (u.fullName as string) || '',
+            phone: u.phone || '',
+            ashrayLevel: (u.ashrayLevel as string) || null,
+            email: (u.email as string) || '',
+            groupName: groupMap[gid] || '',
+            groupId: groupIdMap[gid] || '',
+            isResident: !!(u.residencyApproved && residencyId),
+            residencyName: residencyId ? (residencyMap[residencyId] || null) : null,
+            isRgsf: !!(u.isRgsf || u.role === 'RGSF' || (Array.isArray(u.roles) && u.roles.includes('RGSF'))),
+          };
+        }).filter(Boolean);
+
+        return { members };
       }
 
     // Fallback: get by guide
@@ -124,12 +146,32 @@ export default createEndpoint({
 
     const { records } = await Users.findAll({
       filters: filter,
-      fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email'],
+      fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email', 'role', 'isBvSuperAdmin'],
       limit: 500,
     });
 
-    return {
-      members: records.map((u: any) => ({
+    const callerId = String(context.user.id || '').toLowerCase();
+    const callerUserId = String(context.user.userId || '').toLowerCase();
+    const callerEmail = String(context.user.email || '').toLowerCase();
+
+    const members = records.map((u: any) => {
+      const uId = String(u.id || '').toLowerCase();
+      const uUserId = String(u.userId || '').toLowerCase();
+      const uEmail = String(u.email || '').toLowerCase();
+
+      // 1. Exclude self
+      if (uId === callerId || uUserId === callerUserId || (callerEmail && uEmail === callerEmail)) {
+        return null;
+      }
+
+      // 2. Exclude Super Admins
+      const uRole = (u.role || '').toUpperCase();
+      const uIsSuperAdmin = !!(u.isBvSuperAdmin || uRole === 'SUPER ADMIN' || uRole === 'SUPER_ADMIN');
+      if (uIsSuperAdmin) {
+        return null;
+      }
+
+      return {
         userId: (u.userId as string) || u.id,
         fullName: (u.fullName as string) || '',
         phone: u.phone || '',
@@ -138,7 +180,9 @@ export default createEndpoint({
         groupName: '',
         isResident: false,
         residencyName: null,
-      })),
-    };
+      };
+    }).filter(Boolean);
+
+    return { members };
   },
 });
