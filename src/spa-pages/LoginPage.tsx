@@ -58,10 +58,7 @@ export default function LoginPage({ mode = 'signin', isPw = false }: { mode?: 's
           transition={{ delay: 0.1, duration: 0.5 }}
           className="text-3xl font-bold text-gray-900 tracking-tight mb-2"
         >
-          {isPw 
-            ? (mode === 'signin' ? 'Prabhupada World Sign In' : 'Prabhupada World Sign Up')
-            : (mode === 'signin' ? 'Sign in' : 'Sign up')
-          }
+          {mode === 'signin' ? 'Sign in' : 'Sign up'}
         </motion.h1>
         
         <motion.p 
@@ -70,10 +67,7 @@ export default function LoginPage({ mode = 'signin', isPw = false }: { mode?: 's
           transition={{ delay: 0.15, duration: 0.5 }}
           className="text-xs text-gray-500 mb-6"
         >
-          {isPw
-            ? 'Sign in securely using your Google account to access your Prabhupada World dashboard.'
-            : 'Sign in securely using your Google account to access your dashboard.'
-          }
+          Sign in securely using your Google account to access your dashboard.
         </motion.p>
 
         <AnimatePresence mode="wait">
