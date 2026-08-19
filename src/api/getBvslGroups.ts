@@ -68,62 +68,98 @@ export default createEndpoint({
 
     if (groupRecords.length === 0) return { groups: [], pendingRequestCount: 0, error: null };
 
+    const isAll = input.bvslId === 'ALL' || !input.bvslId;
     const todayDate = getTodayIST();
 
+    // 1. Batch fetch Facilitator Users
+    const facilitatorUserIds = [...new Set(groupRecords.map((g: any) => g.bvslId || g.bvslLeader).filter(Boolean))] as string[];
+    const facilitatorMap = new Map<string, any>();
+    if (facilitatorUserIds.length > 0) {
+      for (let i = 0; i < facilitatorUserIds.length; i += 50) {
+        const batch = facilitatorUserIds.slice(i, i + 50);
+        const { records: batchUsers } = await Users.findAll({
+          filters: { id: { in: batch } } as any,
+          fields: ['id', 'segment', 'fullName'],
+          limit: 100,
+        });
+        batchUsers.forEach((u: any) => facilitatorMap.set(u.id, u));
+      }
+    }
+
+    // 2. Batch fetch Guides
+    const guideIds = [...new Set(groupRecords.map((g: any) => Array.isArray(g.guide) ? g.guide[0] : g.guide).filter(Boolean))] as string[];
+    const guideMap = new Map<string, any>();
+    if (guideIds.length > 0) {
+      for (let i = 0; i < guideIds.length; i += 50) {
+        const batch = guideIds.slice(i, i + 50);
+        const { records: batchGuides } = await Guides.findAll({
+          filters: { id: { in: batch } } as any,
+          fields: ['id', 'fullName'],
+          limit: 100,
+        });
+        batchGuides.forEach((g: any) => guideMap.set(g.id, g));
+      }
+    }
+
+    // 3. Batch fetch BvGroupMembers counts (group by group id)
+    // To avoid fetching members for 200 groups individually, we'll fetch all members and group them
+    const { records: allMembers } = await BvGroupMembers.findAll({
+      filters: isAll ? {} : { group: { in: groupRecords.map((g: any) => g.id) } } as any,
+      limit: 5000,
+      fields: ['id', 'group'],
+    });
+    const memberCounts: Record<string, number> = {};
+    for (const m of allMembers) {
+      const gid = Array.isArray(m.group) ? m.group[0] : m.group;
+      if (gid) memberCounts[gid] = (memberCounts[gid] || 0) + 1;
+    }
+
     const groups = await Promise.all(groupRecords.map(async (g) => {
-      const [membersRes, guideRes, facilitatorUser] = await Promise.all([
-        BvGroupMembers.findAll({ filters: { group: g.id }, limit: 500, fields: ['id'] }),
-        g.guide
-          ? Guides.findOne({ id: Array.isArray(g.guide) ? g.guide[0] : g.guide as string, fields: ['id', 'fullName'] })
-          : Promise.resolve(undefined),
-        g.bvslId
-          ? Users.findOne({ id: g.bvslId, fields: ['segment'] }).catch(() => null)
-          : Promise.resolve(null),
-      ]);
+      const facilitatorUser = facilitatorMap.get(g.bvslId || g.bvslLeader);
+      const guideRes = guideMap.get(Array.isArray(g.guide) ? g.guide[0] : g.guide);
+      
+      let totalSessions = 0;
+      let presentToday = 0;
 
-      // Count distinct session dates from attendance (total sessions)
-      const { records: allGroupAtt } = await BvAttendance.findAll({
-        filters: { group: g.id },
-        fields: ['attendanceDate'],
-        limit: 2000,
-      });
-      const distinctDates = new Set(allGroupAtt.map((a: any) => a.attendanceDate).filter(Boolean));
-      const totalSessions = distinctDates.size;
-
-      // Count present attendance for today directly by group+date
-      const { records: todayPresentAtt } = await BvAttendance.findAll({
-        filters: { group: g.id, attendanceDate: todayDate, present: true },
-        fields: ['id'],
-        limit: 200,
-      });
-      const presentToday = todayPresentAtt.length;
+      // Only fetch attendance stats if it's not the ALL view (to save API calls)
+      if (!isAll) {
+        const [allGroupAtt, todayPresentAtt] = await Promise.all([
+          BvAttendance.findAll({ filters: { group: g.id }, fields: ['attendanceDate'], limit: 2000 }),
+          BvAttendance.findAll({ filters: { group: g.id, attendanceDate: todayDate, present: true }, fields: ['id'], limit: 200 }),
+        ]);
+        const distinctDates = new Set(allGroupAtt.records.map((a: any) => a.attendanceDate).filter(Boolean));
+        totalSessions = distinctDates.size;
+        presentToday = todayPresentAtt.records.length;
+      }
 
       return {
         id: g.id,
         groupId: g.groupId || g.id,
         groupName: g.groupName || '',
         description: g.description || '',
-        memberCount: membersRes.records.length,
+        memberCount: memberCounts[g.id] || 0,
         totalSessions,
         presentToday,
         joinToken: g.joinToken || null,
-        bvslName: g.bvslName || defaultBvslName || null,
-        guideName: (guideRes as any)?.fullName || null,
+        bvslName: facilitatorUser?.fullName || g.bvslName || defaultBvslName || null,
+        guideName: guideRes?.fullName || null,
         meetingTime: g.meetingTime || g.preferredTimeSlot || null,
         segment: g.segment || facilitatorUser?.segment || 'PW',
         isActive: g.isActive ?? true,
       };
     }));
 
-    // Count pending join requests
+    // Count pending join requests (only if not ALL view)
     let pendingRequestCount = 0;
-    for (const g of groupRecords) {
-      const { records: reqs } = await BvGroupRequests.findAll({
-        filters: { group: g.id, status: 'Pending' },
-        limit: 100,
-        fields: ['id'],
-      });
-      pendingRequestCount += reqs.length;
+    if (!isAll) {
+      for (const g of groupRecords) {
+        const { records: reqs } = await BvGroupRequests.findAll({
+          filters: { group: g.id, status: 'Pending' },
+          limit: 100,
+          fields: ['id'],
+        });
+        pendingRequestCount += reqs.length;
+      }
     }
 
     return { groups, pendingRequestCount, error: null };

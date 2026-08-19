@@ -3,7 +3,12 @@ import { createEndpoint, Guides, Users } from '@/lib/backend-sdk';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
 
 function formatGuideName(fullName: string | null | undefined, email: string | null | undefined): string {
-  const name = (fullName || '').trim();
+  let name = (fullName || '').trim();
+  if (/^GUIDE-(PW|FOLK)-\d+$/i.test(name)) {
+    const parts = name.split('-');
+    name = `Dummy Guide ${parts[1]} (${parts[2]})`;
+  }
+  
   if (name && !name.includes('@') && name.toLowerCase() !== 'null' && name.toLowerCase() !== 'undefined') {
     return name;
   }

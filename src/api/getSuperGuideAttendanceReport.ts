@@ -161,12 +161,22 @@ export default createEndpoint({
       batchUsers.forEach(u => userDetails.set(u.id, u));
     }
 
+    // Filter out unknown/dummy users
+    const validRecords = allRecords.filter(r => {
+      const uid = (Array.isArray(r.user) ? r.user[0] : r.user) as string;
+      const u = userDetails.get(uid);
+      if (!u) return false;
+      const n = (u.fullName || '').toLowerCase();
+      if (!n || n === 'null' || n === 'undefined' || n === 'unknown') return false;
+      return true;
+    });
+
     // Stats
-    const uniqueUsers = new Set(recordUserIds);
+    const uniqueUsers = new Set(validRecords.map(r => Array.isArray(r.user) ? r.user[0] : r.user));
     const levelCounts: Record<string, number> = {};
     const centerCounts: Record<string, number> = {};
     for (const uid of uniqueUsers) {
-      const u = userDetails.get(uid);
+      const u = userDetails.get(uid as string);
       if (!u) continue;
       const level = u.ashrayLevel || 'Unknown';
       levelCounts[level] = (levelCounts[level] || 0) + 1;
@@ -175,8 +185,8 @@ export default createEndpoint({
       centerCounts[cName] = (centerCounts[cName] || 0) + 1;
     }
 
-    const totalCount = allRecords.length;
-    const paged = allRecords.slice(offset, offset + limit);
+    const totalCount = validRecords.length;
+    const paged = validRecords.slice(offset, offset + limit);
 
     const records = paged.map(r => {
       const uid = (Array.isArray(r.user) ? r.user[0] : r.user) as string;

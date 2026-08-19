@@ -35,11 +35,12 @@ export default createEndpoint({
       }
     }
 
+    const userId = context.user.id || context.user.uid || context.user.userId || '';
     const mentorGuide = guidesRes.records.find(g =>
       (g.email && g.email.toLowerCase() === userEmail) ||
-      (g.id && g.id.toLowerCase() === context.user.id.toLowerCase())
+      (g.id && userId && g.id.toLowerCase() === userId.toLowerCase())
     );
-    const mentorGuideId = (mentorGuide?.id || context.user.id || '').toLowerCase();
+    const mentorGuideId = (mentorGuide?.id || userId).toLowerCase();
 
     // Build the set of canonical IDs this mentor maps to (covers hardcoded PW mentor IDs)
     const mentorCanonicalIds = new Set<string>([mentorGuideId, userEmail]);

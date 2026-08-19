@@ -40,7 +40,7 @@ export default createEndpoint({
     days: z.number().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
     // Use IST (UTC+5:30) for "today" — server runs UTC but all users are in India
     const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -123,6 +123,11 @@ export default createEndpoint({
           const bestTotal = Math.max(colSum, Number(e.totalScore) || 0);
           const dbMax = Math.max(Number(e.maxScore) || 20, 1);
           scorePercent = Math.min(100, Math.round((bestTotal / dbMax) * 100));
+        } else {
+          // Non-Resident score percent (max 20 points)
+          const dbTotal = Number(e.totalScore) || 0;
+          const dbMax = Math.max(Number(e.maxScore) || 20, 1);
+          scorePercent = Math.min(100, Math.round((dbTotal / dbMax) * 100));
         }
         return {
           entryId: e.entryId || e.id,

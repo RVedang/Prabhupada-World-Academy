@@ -132,6 +132,10 @@ function entryToValues(e: any, isNR: boolean): EntryValues {
     const bestTotal = Math.max(colSum, dbTotal);
     const dbMax = Math.max(Number(e.maxScore) || 20, 1);
     adjustedScorePercent = Math.min(100, Math.round((bestTotal / dbMax) * 100));
+  } else {
+    const dbTotal = Number(e.totalScore) || 0;
+    const dbMax = Math.max(Number(e.maxScore) || 20, 1);
+    adjustedScorePercent = Math.min(100, Math.round((dbTotal / dbMax) * 100));
   }
 
   return {
@@ -260,7 +264,7 @@ export default createEndpoint({
     insightMode: z.boolean().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
     const { userId: targetUserId } = input;
     const period = input.period ?? 'daily';

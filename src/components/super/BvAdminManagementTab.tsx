@@ -312,11 +312,14 @@ export default function BvAdminManagementTab() {
                   <SelectValue placeholder="Select facilitator..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {guides.map(g => (
-                    <SelectItem key={g.guideId} value={g.guideId}>
-                      {g.name || g.abbr} ({g.email || 'Guide'})
-                    </SelectItem>
-                  ))}
+                  {guides.map(g => {
+                    const displayName = `${g.name || g.abbr} (${g.email || 'Guide'})`;
+                    return (
+                      <SelectItem key={g.guideId} value={g.guideId}>
+                        {displayName}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
