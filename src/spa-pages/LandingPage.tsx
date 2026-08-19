@@ -6,11 +6,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const PWA_LOGO = '/logo.png';
 
-export default function LandingPage() {
+export default function LandingPage({ isPw = false }: { isPw?: boolean }) {
   const navigate = useNavigate();
   const { user, isLoading, loginWithRedirect } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
+
+  useEffect(() => {
+    if (isPw) {
+      localStorage.setItem('pwa_is_pw_flow', 'true');
+    } else {
+      localStorage.removeItem('pwa_is_pw_flow');
+    }
+  }, [isPw]);
 
   useEffect(() => {
     if (user) navigate('/auth-callback', { replace: true });
