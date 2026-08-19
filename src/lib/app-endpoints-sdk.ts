@@ -321,6 +321,14 @@ export const deleteAccount = (input: deleteAccount_Input): Promise<deleteAccount
 export type DeleteAccountOutputType = deleteAccount_Output;
 export type DeleteAccountInputType = deleteAccount_Input;
 
+import type deletePendingApprovals_Type from '../api/deletePendingApprovals';
+type deletePendingApprovals_Input = Parameters<typeof deletePendingApprovals_Type.execute>[0]['input'];
+type deletePendingApprovals_Output = ReturnType<typeof deletePendingApprovals_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof deletePendingApprovals_Type.execute>;
+export const deletePendingApprovals = (input: deletePendingApprovals_Input): Promise<deletePendingApprovals_Output> => invokeEndpoint('deletePendingApprovals', input);
+export type DeletePendingApprovalsOutputType = deletePendingApprovals_Output;
+export type DeletePendingApprovalsInputType = deletePendingApprovals_Input;
+
+
 import type deleteBvGroup_Type from '../api/deleteBvGroup';
 type deleteBvGroup_Input = Parameters<typeof deleteBvGroup_Type.execute>[0]['input'];
 type deleteBvGroup_Output = ReturnType<typeof deleteBvGroup_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof deleteBvGroup_Type.execute>;

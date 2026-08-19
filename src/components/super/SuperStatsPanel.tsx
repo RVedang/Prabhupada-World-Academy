@@ -5,8 +5,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Users, Home, BookOpen, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuides, getGuideUsers, getAllResidenciesWithStats } from '@/lib/endpoints-sdk';
+import { getGuides, getGuideUsers, getAllResidenciesWithStats, deletePendingApprovals } from '@/lib/endpoints-sdk';
 import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
+import { Button } from '@/components/ui/button';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -97,6 +98,48 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-destructive flex items-center gap-2">
+            ⚠️ Administrative Danger Zone
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Use these tools with caution. The following action will permanently delete all pending user registrations, level requests, and transfers across the database.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                if (!window.confirm("ARE YOU ABSOLUTELY SURE you want to delete ALL pending registrations, upgrades, and transfers? This cannot be undone.")) {
+                  return;
+                }
+                const loadToast = toast.loading("Deleting all pending approvals...");
+                try {
+                  const res = await deletePendingApprovals({});
+                  toast.dismiss(loadToast);
+                  if (res.success) {
+                    toast.success(
+                      `Cleaned up: ${res.deletedUsersCount} users, ${res.deletedAshrayCount} upgrades, ${res.deletedGuideTransfersCount} guide transfers, ${res.deletedResidencyTransfersCount} residency transfers, ${res.deletedBvRegistrationsCount} BV regs.`
+                    );
+                    setTimeout(() => window.location.reload(), 1500);
+                  } else {
+                    toast.error("Failed to delete pending approvals.");
+                  }
+                } catch (e: any) {
+                  toast.dismiss(loadToast);
+                  toast.error(`Error: ${e.message || "Failed to process request"}`);
+                }
+              }}
+            >
+              Delete All Pending Approvals
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
