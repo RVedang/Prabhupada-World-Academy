@@ -81,7 +81,7 @@ export default createEndpoint({
     let allUsers: any[] = [];
 
     if (userSegment === 'PW') {
-      const isPwSuperAdmin = context.user.isBvSuperAdmin || context.user.role === 'SUPER_ADMIN' || userEmail.includes('superadmin') || userEmail.includes('admin');
+      const isPwSuperAdmin = context.user.isBvSuperAdmin || context.user.role === 'SUPER_ADMIN' || userEmail.includes('superadmin') || userEmail.includes('admin') || userEmail === 'iamthevedang@gmail.com';
       allUsers = pendingRecords.filter(u => {
         if (!checkIsPwUser(u)) return false;
         if (isPwSuperAdmin) return true;

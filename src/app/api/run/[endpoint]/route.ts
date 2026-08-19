@@ -173,6 +173,7 @@ export async function POST(
         const emailLower = (decodedUser.email || '').toLowerCase();
         const isKnownSuperAdmin = !!(
           emailLower === 'srilaprabhupadaworld@gmail.com' ||
+          emailLower === 'iamthevedang@gmail.com' ||
           emailLower === 'hrvd@hkmmumbai.org' ||
           emailLower.includes('gaurmandal') ||
           emailLower.includes('superadmin')
