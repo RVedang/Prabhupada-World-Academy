@@ -114,7 +114,16 @@ export default createEndpoint({
       });
 
       const userSegment = context.user.segment || (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
-      const isHiranyavarnaOrPwAdmin = context.user.isBvSuperAdmin || context.user.role === 'SUPER_ADMIN' || userEmail.includes('superadmin') || userEmail.includes('admin');
+      const isHiranyavarnaOrPwAdmin = !!(
+        context.user.isBvSuperAdmin ||
+        context.user.isBvAdmin ||
+        userRole === 'SUPER_ADMIN' ||
+        userRole === 'ADMIN' ||
+        userEmail.includes('superadmin') ||
+        userEmail.includes('admin') ||
+        userEmail === 'iamthevedang@gmail.com' ||
+        userEmail === 'hrvd@hkmmumbai.org'
+      );
 
       const filteredAshray = rawAshray.filter((r: any) => {
         const u = ashrayUserMap.get(r.userId);

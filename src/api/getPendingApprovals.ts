@@ -82,10 +82,19 @@ export default createEndpoint({
     let allUsers: any[] = [];
 
     if (userSegment === 'PW') {
-      const isPwSuperAdmin = context.user.isBvSuperAdmin || context.user.role === 'SUPER_ADMIN' || userEmail.includes('superadmin') || userEmail.includes('admin') || userEmail === 'iamthevedang@gmail.com';
+      const isPwAdminOrSuperAdmin = !!(
+        context.user.isBvSuperAdmin ||
+        context.user.isBvAdmin ||
+        userRole === 'SUPER_ADMIN' ||
+        userRole === 'ADMIN' ||
+        userEmail.includes('superadmin') ||
+        userEmail.includes('admin') ||
+        userEmail === 'iamthevedang@gmail.com' ||
+        userEmail === 'hrvd@hkmmumbai.org'
+      );
       allUsers = pendingRecords.filter(u => {
         if (!checkIsPwUser(u)) return false;
-        if (isPwSuperAdmin) return true;
+        if (isPwAdminOrSuperAdmin) return true;
         
         const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
         const uGuide = String(rawG || u.selectedGuideId || '').toLowerCase();
