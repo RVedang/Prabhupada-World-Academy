@@ -280,8 +280,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     // 2. Guide check: if their mentor/guide is a PW mentor, then they are a PW user
     const gId = String(u.selectedGuideId || u.guideId || u.guide || u.mentorId || '').toLowerCase();
     const gName = String(u.selectedGuideName || u.guideName || u.mentorName || u.selectedMentorName || '').toLowerCase();
-    const isPwGuide = gId.includes('hiranyavarna') || gId.includes('pw-admin') || gId.includes('vdnd@hkmmumbai.org') || gId.includes('guide-vedanarayana-guide') ||
-                      gName.includes('hiranyavarna') || gName.includes('pw admin') || gName.includes('vedanarayana');
+    const isPwGuide = gId.includes('hiranyavarna') || gId.includes('pw-admin') || gId.includes('iamthevedang@gmail.com') || gId.includes('guide-vedang') ||
+                      gName.includes('hiranyavarna') || gName.includes('pw admin') || gName.includes('vedang');
 
     if (isPwGuide) return isPw;
 

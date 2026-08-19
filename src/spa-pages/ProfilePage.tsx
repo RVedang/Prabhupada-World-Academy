@@ -124,7 +124,7 @@ export default function ProfilePage() {
     profile.role === 'ADMIN' ||
     profile.role === 'GUIDE' ||
     !!(profile as any).isBvAdmin ||
-    userEmail.includes('vdnd');
+    userEmail.includes('vedang');
 
   const isPwUser = !!(profile as any).isPrabhupadaWorldUser || profile.segment === 'PW';
   const showGuideResidencyCard = !isPwUser && !isBvAdminUser;

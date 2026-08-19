@@ -77,37 +77,75 @@ function initFirestoreOnStartup() {
     }
 
     if (firestoreDb) {
-      // Run automatic patch for Vedanarayana Das role to ensure database is always aligned
+      // Run automatic patch to delete Vedanarayana Das and ensure Vedang is PW Super Admin
       (async () => {
         try {
           const usersRef = firestoreDb.collection('Users');
+          
+          // 1. Delete vdnd@hkmmumbai.org
           const vdndSnap = await usersRef.where('email', '==', 'vdnd@hkmmumbai.org').get();
           if (!vdndSnap.empty) {
             for (const doc of vdndSnap.docs) {
-              const data = doc.data();
-              if (data.role !== 'Super Admin' || data.segment !== 'PW' || !data.isBvSuperAdmin || data.isBvAdmin) {
-                await doc.ref.update({
-                  role: 'Super Admin',
-                  segment: 'PW',
-                  isBvSuperAdmin: true,
-                  isBvAdmin: false
-                });
-                console.log(`[Startup DB Patch] Updated Users collection for vdnd@hkmmumbai.org (role: Super Admin, segment: PW)`);
-              }
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted user vdnd@hkmmumbai.org`);
             }
           }
+          const vdndIdSnap = await usersRef.where('userId', '==', 'GUIDE-VEDANARAYANA-GUIDE').get();
+          if (!vdndIdSnap.empty) {
+            for (const doc of vdndIdSnap.docs) {
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted user with userId GUIDE-VEDANARAYANA-GUIDE`);
+            }
+          }
+
+          // 2. Delete from Guides collection
           const guidesRef = firestoreDb.collection('Guides');
           const guideSnap = await guidesRef.where('email', '==', 'vdnd@hkmmumbai.org').get();
           if (!guideSnap.empty) {
             for (const doc of guideSnap.docs) {
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted guide vdnd@hkmmumbai.org`);
+            }
+          }
+          const guideIdSnap = await guidesRef.where('guideId', '==', 'GUIDE-VEDANARAYANA-GUIDE').get();
+          if (!guideIdSnap.empty) {
+            for (const doc of guideIdSnap.docs) {
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted guide with guideId GUIDE-VEDANARAYANA-GUIDE`);
+            }
+          }
+
+          // 3. Make Vedang (iamthevedang@gmail.com) a PW Super Admin
+          const vedangSnap = await usersRef.where('email', '==', 'iamthevedang@gmail.com').get();
+          if (!vedangSnap.empty) {
+            for (const doc of vedangSnap.docs) {
               const data = doc.data();
-              if (data.isActive !== false) {
+              if (data.role !== 'Super Admin' || data.segment !== 'PW' || !data.isBvSuperAdmin || data.isBvAdmin || data.status !== 'Active') {
                 await doc.ref.update({
-                  isActive: false
+                  role: 'Super Admin',
+                  segment: 'PW',
+                  isBvSuperAdmin: true,
+                  isBvAdmin: false,
+                  status: 'Active'
                 });
-                console.log(`[Startup DB Patch] Updated Guides collection for vdnd@hkmmumbai.org (isActive: false)`);
+                console.log(`[Startup DB Patch] Updated Users collection for iamthevedang@gmail.com (role: Super Admin, segment: PW, status: Active)`);
               }
             }
+          } else {
+            // Pre-seed Vedang user record if they don't exist yet
+            await usersRef.doc('GUIDE-VEDANG').set({
+              id: 'GUIDE-VEDANG',
+              userId: 'GUIDE-VEDANG',
+              fullName: 'Vedang Prabhu',
+              email: 'iamthevedang@gmail.com',
+              role: 'Super Admin',
+              segment: 'PW',
+              isBvSuperAdmin: true,
+              isBvAdmin: false,
+              status: 'Active',
+              createdAt: new Date().toISOString()
+            });
+            console.log(`[Startup DB Patch] Pre-seeded Users collection for iamthevedang@gmail.com (role: Super Admin, segment: PW)`);
           }
         } catch (e) {
           console.warn('[Startup DB Patch] Failed to apply patch:', e);
@@ -307,7 +345,7 @@ function getMockTable(tableName: string): Map<string, any> {
         { id: 'admin@prabhupadaworld.org', userId: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'folkadmin@folk.org', userId: 'GUIDE-ADMIN-FOLK', fullName: 'FOLK System Administrator', email: 'folkadmin@folk.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'guide@gmail.com', userId: 'GUIDE-001', fullName: 'Spiritual Guide (FOLK)', email: 'guide@gmail.com', role: 'Guide', status: 'Active', segment: 'FOLK', createdAt: now },
-        { id: 'vdnd@hkmmumbai.org', userId: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: false, status: 'Active', segment: 'PW', createdAt: now },
+        { id: 'iamthevedang@gmail.com', userId: 'GUIDE-VEDANG', fullName: 'Vedang Prabhu', email: 'iamthevedang@gmail.com', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: false, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'bvsupervisor@gmail.com', userId: 'SUPERVISOR-001', fullName: 'PW BV Supervisor', email: 'bvsupervisor@gmail.com', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'PW', createdAt: now },
         { id: 'folksupervisor@folk.org', userId: 'SUPERVISOR-FOLK', fullName: 'FOLK BV Supervisor', email: 'folksupervisor@folk.org', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'FOLK', createdAt: now },
         { id: 'rgf@gmail.com', userId: 'RGF-001', fullName: 'Reading Group Facilitator (PW RGF)', email: 'rgf@gmail.com', role: 'User', isBvsl: true, isBvFacilitator: true, status: 'Active', segment: 'PW', createdAt: now },
@@ -331,7 +369,7 @@ function getMockTable(tableName: string): Map<string, any> {
         { id: 'GUIDE-SUPER-FOLK-GUIDE', fullName: 'Gaurmandal Das', email: 'gmnd@hkmmumbai.org', abbr: 'FOLK', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-001', fullName: 'Spiritual Guide', email: 'guide@gmail.com', abbr: 'SG', isActive: true, segment: 'FOLK' },
         { id: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', abbr: 'PW-ADM', isActive: true, segment: 'PW' },
-        { id: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org', abbr: 'VDND', isActive: false, segment: 'FOLK' },
+        { id: 'GUIDE-VEDANG', fullName: 'Vedang Prabhu', email: 'iamthevedang@gmail.com', abbr: 'VED', isActive: true, segment: 'PW' },
       ];
       defaultGuides.forEach(g => {
         if (!mockStore[tableName].has(g.id)) {

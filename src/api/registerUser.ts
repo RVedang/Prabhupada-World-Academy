@@ -36,14 +36,14 @@ export default createEndpoint({
                input.guideId === 'MENTOR-PW-ADMIN' ||
                input.guideId.includes('HIRANYAVARNA') ||
                input.guideId.includes('PW-ADMIN') ||
-               input.guideId.includes('vdnd@hkmmumbai.org') ||
-               input.guideId.includes('GUIDE-VEDANARAYANA-GUIDE');
+               input.guideId.includes('iamthevedang@gmail.com') ||
+               input.guideId.includes('GUIDE-VEDANG');
 
     if (isPw) {
       if (input.guideId === 'MENTOR-PW-ADMIN' || input.guideId.includes('PW-ADMIN')) {
         guideRecord = { id: 'MENTOR-PW-ADMIN', fullName: 'PW System Administrator' };
-      } else if (input.guideId.includes('vdnd') || input.guideId.includes('VEDANARAYANA')) {
-        guideRecord = { id: 'GUIDE-VEDANARAYANA-GUIDE', fullName: 'Vedanarayana Das', email: 'vdnd@hkmmumbai.org' };
+      } else if (input.guideId.includes('iamthevedang') || input.guideId.includes('VEDANG')) {
+        guideRecord = { id: 'GUIDE-VEDANG', fullName: 'Vedang Prabhu', email: 'iamthevedang@gmail.com' };
       } else {
         guideRecord = { id: 'MENTOR-PW-HIRANYAVARNA', fullName: 'Hiranyavarna Das' };
       }

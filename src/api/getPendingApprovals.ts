@@ -45,7 +45,7 @@ export default createEndpoint({
     const mentorCanonicalIds = new Set<string>([mentorGuideId, userEmail]);
     // Map known PW mentors by email to their hardcoded guide IDs
     const PW_MENTOR_EMAIL_TO_ID: Record<string, string> = {
-      'vdnd@hkmmumbai.org': 'guide-vedanarayana-guide',
+      'iamthevedang@gmail.com': 'guide-vedang',
       'hiranyavarna@hkmmumbai.org': 'mentor-pw-hiranyavarna',
     };
     const hardcodedId = PW_MENTOR_EMAIL_TO_ID[userEmail];
@@ -67,10 +67,10 @@ export default createEndpoint({
         guideStr.includes('mentor-pw-admin') ||
         guideStr.includes('hiranyavarna') ||
         guideStr.includes('prabhupadaworld') ||
-        guideStr.includes('vdnd@hkmmumbai.org') ||
-        guideStr.includes('guide-vedanarayana-guide') ||
-        guideStr.includes('vedanarayana') ||
-        // Also match if guide is stored as VDND's Firebase UID (in mentorCanonicalIds)
+        guideStr.includes('iamthevedang@gmail.com') ||
+        guideStr.includes('guide-vedang') ||
+        guideStr.includes('vedang') ||
+        // Also match if guide is stored as Vedang's Firebase UID (in mentorCanonicalIds)
         ([...mentorCanonicalIds].some(id => id && guideStr.includes(id.toLowerCase())));
     };
 

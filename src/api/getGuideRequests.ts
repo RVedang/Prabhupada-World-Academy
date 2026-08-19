@@ -124,8 +124,8 @@ export default createEndpoint({
                            u.segment === 'PW' ||
                            uGuideStr.includes('hiranyavarna') ||
                            uGuideStr.includes('pw-admin') ||
-                           uGuideStr.includes('vdnd') ||
-                           uGuideStr.includes('vedanarayana');
+                           uGuideStr.includes('iamthevedang') ||
+                           uGuideStr.includes('vedang');
 
         if (userSegment === 'PW') {
           if (!isPwMember) return false;
