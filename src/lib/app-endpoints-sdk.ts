@@ -328,6 +328,13 @@ export const deletePendingApprovals = (input: deletePendingApprovals_Input): Pro
 export type DeletePendingApprovalsOutputType = deletePendingApprovals_Output;
 export type DeletePendingApprovalsInputType = deletePendingApprovals_Input;
 
+import type hardDeleteBvGroups_Type from '../api/hardDeleteBvGroups';
+type hardDeleteBvGroups_Input = Parameters<typeof hardDeleteBvGroups_Type.execute>[0]['input'];
+type hardDeleteBvGroups_Output = ReturnType<typeof hardDeleteBvGroups_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof hardDeleteBvGroups_Type.execute>;
+export const hardDeleteBvGroups = (input: hardDeleteBvGroups_Input): Promise<hardDeleteBvGroups_Output> => invokeEndpoint('hardDeleteBvGroups', input);
+export type HardDeleteBvGroupsOutputType = hardDeleteBvGroups_Output;
+export type HardDeleteBvGroupsInputType = hardDeleteBvGroups_Input;
+
 
 import type deleteBvGroup_Type from '../api/deleteBvGroup';
 type deleteBvGroup_Input = Parameters<typeof deleteBvGroup_Type.execute>[0]['input'];

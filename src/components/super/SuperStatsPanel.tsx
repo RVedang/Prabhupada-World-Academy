@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Users, Home, BookOpen, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuides, getGuideUsers, getAllResidenciesWithStats, deletePendingApprovals } from '@/lib/endpoints-sdk';
+import { getGuides, getGuideUsers, getAllResidenciesWithStats, deletePendingApprovals, hardDeleteBvGroups } from '@/lib/endpoints-sdk';
 import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 
@@ -138,6 +138,29 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
               }}
             >
               Delete All Pending Approvals
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                if (!window.confirm("Delete all dummy Bhakti Vriksha groups (Blissful Sanga, Bhakti Sadhana, Srinivasa, Back to Godhead, Sadhana Report Submission)? This cannot be undone.")) {
+                  return;
+                }
+                const loadToast = toast.loading("Deleting dummy BV groups...");
+                try {
+                  const res = await hardDeleteBvGroups({
+                    groupNames: ['Blissful Sanga', 'Bhakti Sadhana', 'Srinivasa', 'Back to Godhead', 'Sadhana Report Submission'],
+                  });
+                  toast.dismiss(loadToast);
+                  toast.success(`Deleted ${res.deleted} dummy group(s). ${res.details.join(' | ')}`);
+                  setTimeout(() => window.location.reload(), 1500);
+                } catch (e: any) {
+                  toast.dismiss(loadToast);
+                  toast.error(`Error: ${e.message || 'Failed to delete groups'}`);
+                }
+              }}
+            >
+              Delete Dummy BV Groups
             </Button>
           </div>
         </CardContent>

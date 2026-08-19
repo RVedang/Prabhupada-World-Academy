@@ -78,12 +78,15 @@ export default createEndpoint({
       return { totalSubscriptions: 0, subscribers: [] };
     }
 
-    // Fetch user details including guide to classify by selected guide/mentor
-    const { records: users } = await Users.findAll({
-      filters: { id: { in: userIds } },
-      fields: ['id', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'isFolkLead', 'residencyId', 'guide', 'guideName'],
-      limit: 2000,
-    });
+    // Fetch user details — use direct doc lookups by ID to avoid index requirements
+    const userRecordsList = await Promise.all(
+      userIds.map(uid =>
+        Users.findOne({ id: uid })
+          .catch(() => null)
+          .then(u => u || null)
+      )
+    );
+    const users = userRecordsList.filter(Boolean);
 
     const isPwTarget = targetSegment === 'PW';
 
