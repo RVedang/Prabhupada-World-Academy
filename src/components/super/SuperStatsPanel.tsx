@@ -35,34 +35,36 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
     } catch {}
   };
 
+  const loadData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const [{ guides }, hostels, sysGroupsRes] = await Promise.all([
+        getGuides({ segment: effectiveSegment }),
+        getAllResidenciesWithStats({}).catch(() => [] as any[]),
+        getSystemBvGroups({}).catch(() => ({ groups: [] as any[] })),
+      ]);
+      setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
+      setSystemGroups(sysGroupsRes.groups);
+      const stats = await Promise.all(
+        guides.map((g: any) =>
+          getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
+            .then(r => {
+              const scored = r.users.filter((u: any) => u.latestScore != null);
+              const avg = scored.length > 0
+                ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
+                : null;
+              return { ...g, userCount: r.users.length, avgScore: avg };
+            })
+            .catch(() => ({ ...g, userCount: 0, avgScore: null as null }))
+        )
+      );
+      setGuideStats(stats);
+    } catch { toast.error('Failed to load stats'); }
+    finally { setLoading(false); }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [{ guides }, hostels, sysGroupsRes] = await Promise.all([
-          getGuides({ segment: effectiveSegment }),
-          getAllResidenciesWithStats({}).catch(() => [] as any[]),
-          getSystemBvGroups({}).catch(() => ({ groups: [] as any[] })),
-        ]);
-        setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
-        setSystemGroups(sysGroupsRes.groups);
-        const stats = await Promise.all(
-          guides.map((g: any) =>
-            getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
-              .then(r => {
-                const scored = r.users.filter((u: any) => u.latestScore != null);
-                const avg = scored.length > 0
-                  ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
-                  : null;
-                return { ...g, userCount: r.users.length, avgScore: avg };
-              })
-              .catch(() => ({ ...g, userCount: 0, avgScore: null as null }))
-          )
-        );
-        setGuideStats(stats);
-      } catch { toast.error('Failed to load stats'); }
-      finally { setLoading(false); }
-    };
-    load();
+    loadData();
   }, [isPw]);
 
   const totalUsers = guideStats.reduce((s, g) => s + g.userCount, 0);
@@ -137,7 +139,7 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
                     toast.success(
                       `Cleaned up: ${res.deletedUsersCount} users, ${res.deletedAshrayCount} upgrades, ${res.deletedGuideTransfersCount} guide transfers, ${res.deletedResidencyTransfersCount} residency transfers, ${res.deletedBvRegistrationsCount} BV regs.`
                     );
-                    setTimeout(() => window.location.reload(), 1500);
+                    loadData(false);
                   } else {
                     toast.error("Failed to delete pending approvals.");
                   }
@@ -163,7 +165,7 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
                   });
                   toast.dismiss(loadToast);
                   toast.success(`Deleted ${res.deleted} dummy group(s). ${res.details.join(' | ')}`);
-                  reloadSystemGroups();
+                  loadData(false);
                 } catch (e: any) {
                   toast.dismiss(loadToast);
                   toast.error(`Error: ${e.message || 'Failed to delete groups'}`);
@@ -230,7 +232,7 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
                                 const res = await hardDeleteBvGroups({ groupIds: [g.id] });
                                 toast.dismiss(loadToast);
                                 toast.success(`Successfully deleted "${g.groupName}"`);
-                                reloadSystemGroups();
+                                loadData(false);
                               } catch (e: any) {
                                 toast.dismiss(loadToast);
                                 toast.error(`Error: ${e.message || 'Failed to delete group'}`);
