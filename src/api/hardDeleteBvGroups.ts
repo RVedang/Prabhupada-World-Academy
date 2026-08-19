@@ -2,10 +2,11 @@ import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
-  description: 'Hard-delete BV groups by name (Super Admin only) — permanently removes from Firestore',
+  description: 'Hard-delete BV groups by name or ID (Super Admin only) — permanently removes from Firestore',
   authenticated: true,
   inputSchema: z.object({
-    groupNames: z.array(z.string()).min(1),
+    groupNames: z.array(z.string()).optional(),
+    groupIds: z.array(z.string()).optional(),
   }),
   outputSchema: z.object({
     deleted: z.number(),
@@ -24,30 +25,55 @@ export default createEndpoint({
     let deleted = 0;
     const details: string[] = [];
 
-    for (const name of input.groupNames) {
-      const { records: found } = await BvGroups.findAll({
-        filters: { groupName: name },
-        limit: 50,
-      });
+    // Delete by IDs
+    if (input.groupIds && input.groupIds.length > 0) {
+      for (const id of input.groupIds) {
+        const group = await BvGroups.findOne({ id }).catch(() => null);
+        if (group) {
+          // Delete member associations
+          const { records: members } = await BvGroupMembers.findAll({
+            filters: { group: id },
+            limit: 1000,
+          });
+          for (const m of members) {
+            await BvGroupMembers.delete({ id: m.id });
+          }
 
-      for (const g of found) {
-        // Delete all member associations
-        const { records: members } = await BvGroupMembers.findAll({
-          filters: { group: g.id },
-          limit: 500,
+          // Hard delete group
+          await BvGroups.delete({ id });
+          deleted++;
+          details.push(`Deleted ID: ${id} ("${group.groupName}")`);
+        } else {
+          details.push(`Not found ID: ${id}`);
+        }
+      }
+    }
+
+    // Delete by names
+    if (input.groupNames && input.groupNames.length > 0) {
+      for (const name of input.groupNames) {
+        const { records: found } = await BvGroups.findAll({
+          filters: { groupName: name },
+          limit: 100,
         });
-        for (const m of members) {
-          await BvGroupMembers.delete({ id: m.id });
+
+        for (const g of found) {
+          const { records: members } = await BvGroupMembers.findAll({
+            filters: { group: g.id },
+            limit: 1000,
+          });
+          for (const m of members) {
+            await BvGroupMembers.delete({ id: m.id });
+          }
+
+          await BvGroups.delete({ id: g.id });
+          deleted++;
+          details.push(`Deleted Name: "${g.groupName}" (id: ${g.id})`);
         }
 
-        // Hard delete the group
-        await BvGroups.delete({ id: g.id });
-        deleted++;
-        details.push(`Deleted: "${g.groupName}" (id: ${g.id}, members removed: ${members.length})`);
-      }
-
-      if (found.length === 0) {
-        details.push(`Not found: "${name}"`);
+        if (found.length === 0) {
+          details.push(`Not found Name: "${name}"`);
+        }
       }
     }
 

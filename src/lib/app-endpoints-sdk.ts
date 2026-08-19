@@ -335,6 +335,13 @@ export const hardDeleteBvGroups = (input: hardDeleteBvGroups_Input): Promise<har
 export type HardDeleteBvGroupsOutputType = hardDeleteBvGroups_Output;
 export type HardDeleteBvGroupsInputType = hardDeleteBvGroups_Input;
 
+import type getSystemBvGroups_Type from '../api/getSystemBvGroups';
+type getSystemBvGroups_Input = Parameters<typeof getSystemBvGroups_Type.execute>[0]['input'];
+type getSystemBvGroups_Output = ReturnType<typeof getSystemBvGroups_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof getSystemBvGroups_Type.execute>;
+export const getSystemBvGroups = (input: getSystemBvGroups_Input): Promise<getSystemBvGroups_Output> => invokeEndpoint('getSystemBvGroups', input);
+export type GetSystemBvGroupsOutputType = getSystemBvGroups_Output;
+export type GetSystemBvGroupsInputType = getSystemBvGroups_Input;
+
 
 import type deleteBvGroup_Type from '../api/deleteBvGroup';
 type deleteBvGroup_Input = Parameters<typeof deleteBvGroup_Type.execute>[0]['input'];

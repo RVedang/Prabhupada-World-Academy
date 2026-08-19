@@ -5,8 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Users, Home, BookOpen, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuides, getGuideUsers, getAllResidenciesWithStats, deletePendingApprovals, hardDeleteBvGroups } from '@/lib/endpoints-sdk';
-import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
+import { getGuides, getGuideUsers, getAllResidenciesWithStats, deletePendingApprovals, hardDeleteBvGroups, getSystemBvGroups } from '@/lib/endpoints-sdk';
+import type { GetGuidesOutputType, GetSystemBvGroupsOutputType } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -25,16 +25,26 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
 
   const [guideStats, setGuideStats] = useState<GuideStat[]>([]);
   const [totalHostels, setTotalHostels] = useState(0);
+  const [systemGroups, setSystemGroups] = useState<GetSystemBvGroupsOutputType['groups']>([]);
   const [loading, setLoading] = useState(true);
+
+  const reloadSystemGroups = async () => {
+    try {
+      const res = await getSystemBvGroups({});
+      setSystemGroups(res.groups);
+    } catch {}
+  };
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [{ guides }, hostels] = await Promise.all([
+        const [{ guides }, hostels, sysGroupsRes] = await Promise.all([
           getGuides({ segment: effectiveSegment }),
           getAllResidenciesWithStats({}).catch(() => [] as any[]),
+          getSystemBvGroups({}).catch(() => ({ groups: [] as any[] })),
         ]);
         setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
+        setSystemGroups(sysGroupsRes.groups);
         const stats = await Promise.all(
           guides.map((g: any) =>
             getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
@@ -153,15 +163,89 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
                   });
                   toast.dismiss(loadToast);
                   toast.success(`Deleted ${res.deleted} dummy group(s). ${res.details.join(' | ')}`);
-                  setTimeout(() => window.location.reload(), 1500);
+                  reloadSystemGroups();
                 } catch (e: any) {
                   toast.dismiss(loadToast);
                   toast.error(`Error: ${e.message || 'Failed to delete groups'}`);
                 }
               }}
             >
-              Delete Dummy BV Groups
+              Delete 5 Default Dummy BV Groups
             </Button>
+          </div>
+
+          <div className="border-t border-destructive/20 pt-4 mt-4 space-y-3">
+            <h4 className="text-sm font-semibold text-destructive flex items-center gap-1.5">
+              Permanent Bhakti Vriksha Groups Deletion ({systemGroups.length} total)
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Search and delete any active or dummy Bhakti Vriksha groups directly from Firestore.
+            </p>
+            <div className="max-h-[300px] overflow-y-auto border rounded-md bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Group Name</TableHead>
+                    <TableHead>Facilitator (RGF)</TableHead>
+                    <TableHead className="text-center">Segment</TableHead>
+                    <TableHead className="text-center">Members</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {systemGroups.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-4">
+                        No Bhakti Vriksha groups found in system.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    systemGroups.map((g: any) => (
+                      <TableRow key={g.id} className="text-xs">
+                        <TableCell className="font-semibold">{g.groupName}</TableCell>
+                        <TableCell>{g.bvslName || '—'}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className={g.segment === 'PW' ? 'border-primary text-primary' : 'border-blue-500 text-blue-500'}>
+                            {g.segment || '—'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center font-bold">{g.memberCount}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={g.isActive ? 'default' : 'secondary'}>
+                            {g.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-6 text-[10px] px-2"
+                            onClick={async () => {
+                              if (!window.confirm(`Are you absolutely sure you want to permanently delete "${g.groupName}"? All group data and member associations will be erased.`)) {
+                                return;
+                              }
+                              const loadToast = toast.loading(`Deleting "${g.groupName}"...`);
+                              try {
+                                const res = await hardDeleteBvGroups({ groupIds: [g.id] });
+                                toast.dismiss(loadToast);
+                                toast.success(`Successfully deleted "${g.groupName}"`);
+                                reloadSystemGroups();
+                              } catch (e: any) {
+                                toast.dismiss(loadToast);
+                                toast.error(`Error: ${e.message || 'Failed to delete group'}`);
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </CardContent>
       </Card>
