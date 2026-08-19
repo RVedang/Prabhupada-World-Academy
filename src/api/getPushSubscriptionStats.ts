@@ -52,11 +52,27 @@ export default createEndpoint({
     // Get all subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
 
+    // Helper to extract string ID from different formats of s.user (Reference, Array, String)
+    const getUserIdStr = (userField: any): string | null => {
+      if (!userField) return null;
+      if (typeof userField === 'string') return userField;
+      if (Array.isArray(userField)) {
+        return getUserIdStr(userField[0]);
+      }
+      if (userField.id) return String(userField.id);
+      if (userField.path) {
+        const segments = userField.path.split('/');
+        return segments[segments.length - 1];
+      }
+      if (userField._path && userField._path.segments) {
+        const segments = userField._path.segments;
+        return segments[segments.length - 1];
+      }
+      return String(userField);
+    };
+
     // Get unique user IDs
-    const userIds = [...new Set(subs.map(s => {
-      const u = s.user;
-      return Array.isArray(u) ? u[0] : u;
-    }).filter(Boolean))] as string[];
+    const userIds = [...new Set(subs.map(s => getUserIdStr(s.user)).filter(Boolean))] as string[];
 
     if (userIds.length === 0) {
       return { totalSubscriptions: 0, subscribers: [] };
@@ -129,16 +145,17 @@ export default createEndpoint({
     const targetUserIds = new Set(targetUsers.map(u => u.id));
     const userMap = new Map(targetUsers.map(u => [u.id, u]));
 
-    const subscribers = userIds
-      .filter(uid => userMap.has(uid))
-      .map(uid => {
-        const u = userMap.get(uid);
-        return { name: u?.fullName || '—', email: u?.email || '—' };
-      });
+    const subscribers = subs
+      .map((s: any) => {
+        const uid = getUserIdStr(s.user);
+        const u = uid ? userMap.get(uid) : null;
+        return u ? { name: u.fullName || '—', email: u.email || '—' } : null;
+      })
+      .filter(Boolean) as { name: string; email: string }[];
 
     const totalFilteredSubs = subs.filter((s: any) => {
-      const uid = Array.isArray(s.user) ? s.user[0] : s.user;
-      return targetUserIds.has(uid);
+      const uid = getUserIdStr(s.user);
+      return uid && targetUserIds.has(uid);
     }).length;
 
     return { totalSubscriptions: totalFilteredSubs, subscribers };

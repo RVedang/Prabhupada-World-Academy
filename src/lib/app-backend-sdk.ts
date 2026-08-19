@@ -146,6 +146,39 @@ function initFirestoreOnStartup() {
             });
             console.log(`[Startup DB Patch] Pre-seeded Users collection for iamthevedang@gmail.com (role: Super Admin, segment: PW)`);
           }
+
+          // 4. Purge dummy Bhakti Vriksha groups
+          try {
+            console.log('[Startup DB Patch] Starting purge of dummy Bhakti Vriksha groups...');
+            const dummyNames = ['Blissful Sanga', 'Bhakti Sadhana', 'Srinivasa', 'Back to Godhead', 'Sadhana Report Submission'];
+            const groupsCol = firestoreDb.collection('BvGroups');
+            const membersCol = firestoreDb.collection('BvGroupMembers');
+
+            for (const name of dummyNames) {
+              const snap = await groupsCol.where('groupName', '==', name).get();
+              console.log(`[Startup DB Patch] Found ${snap.size} groups with name "${name}" to delete.`);
+              for (const doc of snap.docs) {
+                // Delete memberships for this group
+                const membersSnap = await membersCol.where('group', '==', doc.id).get();
+                for (const mDoc of membersSnap.docs) {
+                  await mDoc.ref.delete();
+                  console.log(`[Startup DB Patch] Deleted BvGroupMember association: ${mDoc.id}`);
+                }
+                const membersSnap2 = await membersCol.where('groupId', '==', doc.data().groupId || doc.id).get();
+                for (const mDoc of membersSnap2.docs) {
+                  await mDoc.ref.delete();
+                  console.log(`[Startup DB Patch] Deleted BvGroupMember association (by groupId): ${mDoc.id}`);
+                }
+
+                // Delete the group itself
+                await doc.ref.delete();
+                console.log(`[Startup DB Patch] Deleted BvGroup: ${doc.id} ("${name}")`);
+              }
+            }
+            console.log('[Startup DB Patch] Dummy Bhakti Vriksha groups purge complete.');
+          } catch (purgeError) {
+            console.warn('[Startup DB Patch] Failed during dummy groups purge:', purgeError);
+          }
         } catch (e) {
           console.warn('[Startup DB Patch] Failed to apply patch:', e);
         }

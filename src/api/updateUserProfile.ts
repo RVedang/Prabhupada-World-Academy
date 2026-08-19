@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users } from '@/lib/backend-sdk';
+import { createEndpoint, Users, Guides } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
@@ -14,7 +14,7 @@ export default createEndpoint({
     email: z.string().email().max(320).optional(),
   }),
   outputSchema: z.object({ success: z.boolean() }),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const updates: Record<string, any> = {};
 
@@ -29,7 +29,40 @@ export default createEndpoint({
       updates.ashrayLevel = input.ashrayLevel;
     }
     // Linked record fields — pass the record ID directly
-    if (input.guideId) updates.guide = input.guideId;
+    if (input.guideId) {
+      updates.guide = input.guideId;
+
+      // Auto-assign segment based on selected mentor
+      const gIdLower = input.guideId.toLowerCase();
+      let isPw = gIdLower === 'mentor-pw-hiranyavarna' ||
+                 gIdLower === 'mentor-pw-admin' ||
+                 gIdLower.includes('hiranyavarna') ||
+                 gIdLower.includes('pw-admin') ||
+                 gIdLower.includes('iamthevedang@gmail.com') ||
+                 gIdLower.includes('guide-vedang') ||
+                 gIdLower.includes('vedang') ||
+                 gIdLower.includes('vdnd') ||
+                 gIdLower.includes('vedanarayana') ||
+                 gIdLower.includes('guide-vedanarayana-guide');
+
+      if (!isPw) {
+        const gr = await Guides.findOne({ id: input.guideId }).catch(() => null) ??
+                   await Guides.findOne({ filters: { guideId: input.guideId } }).catch(() => null);
+        if (gr && ((gr as any).segment === 'PW' || (gr as any).isPrabhupadaWorldMentor)) {
+          isPw = true;
+        } else {
+          const gu = await Users.findOne({ id: input.guideId }).catch(() => null) ??
+                     await Users.findOne({ filters: { email: input.guideId.toLowerCase() } }).catch(() => null) ??
+                     await Users.findOne({ filters: { userId: input.guideId } }).catch(() => null);
+          if (gu && ((gu as any).segment === 'PW' || (gu as any).isPrabhupadaWorldUser === true)) {
+            isPw = true;
+          }
+        }
+      }
+
+      updates.segment = isPw ? 'PW' : 'FOLK';
+      updates.isPrabhupadaWorldUser = isPw;
+    }
     if (input.residencyId) updates.residency = input.residencyId;
 
     if (Object.keys(updates).length === 0) return { success: true };

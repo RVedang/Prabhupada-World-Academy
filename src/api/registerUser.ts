@@ -32,12 +32,34 @@ export default createEndpoint({
 
     // Verify guide exists (guideId is the UUID of the Guides record or canonical guideId)
     let guideRecord: any = null;
-    let isPw = input.guideId === 'MENTOR-PW-HIRANYAVARNA' || 
-               input.guideId === 'MENTOR-PW-ADMIN' ||
-               input.guideId.includes('HIRANYAVARNA') ||
-               input.guideId.includes('PW-ADMIN') ||
-               input.guideId.includes('iamthevedang@gmail.com') ||
-               input.guideId.includes('GUIDE-VEDANG');
+    const gIdLower = input.guideId.toLowerCase();
+    let isPw = gIdLower === 'mentor-pw-hiranyavarna' ||
+               gIdLower === 'mentor-pw-admin' ||
+               gIdLower.includes('hiranyavarna') ||
+               gIdLower.includes('pw-admin') ||
+               gIdLower.includes('iamthevedang@gmail.com') ||
+               gIdLower.includes('guide-vedang') ||
+               gIdLower.includes('vedang') ||
+               gIdLower.includes('vdnd') ||
+               gIdLower.includes('vedanarayana') ||
+               gIdLower.includes('guide-vedanarayana-guide');
+
+    if (!isPw) {
+      // Check if guide exists in Guides and has segment PW
+      const gr = await Guides.findOne({ id: input.guideId }).catch(() => null) ??
+                 await Guides.findOne({ filters: { guideId: input.guideId } }).catch(() => null);
+      if (gr && ((gr as any).segment === 'PW' || (gr as any).isPrabhupadaWorldMentor)) {
+        isPw = true;
+      } else {
+        // Check Users collection
+        const gu = await Users.findOne({ id: input.guideId }).catch(() => null) ??
+                   await Users.findOne({ filters: { email: input.guideId.toLowerCase() } }).catch(() => null) ??
+                   await Users.findOne({ filters: { userId: input.guideId } }).catch(() => null);
+        if (gu && ((gu as any).segment === 'PW' || (gu as any).isPrabhupadaWorldUser === true)) {
+          isPw = true;
+        }
+      }
+    }
 
     if (isPw) {
       if (input.guideId === 'MENTOR-PW-ADMIN' || input.guideId.includes('PW-ADMIN')) {
