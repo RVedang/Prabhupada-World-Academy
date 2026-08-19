@@ -649,7 +649,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                     (u as any).bvReportingSupervisorId ||
                     (u as any).bvReportingAdminId
                   );
-                  const currentBvRole = (u as any).isBvAdmin ? 'ADMIN' :
+                  const currentBvRole = ((u as any).isBvAdmin || (u as any).isBvSuperAdmin) ? 'ADMIN' :
                     (u as any).isBvSupervisor ? 'SUPERVISOR' :
                     ((u as any).isBvFacilitator || (u as any).isBvsl) ? 'FACILITATOR' :
                     (u as any).isBvSubFacilitator ? 'SUB_FACILITATOR' :
