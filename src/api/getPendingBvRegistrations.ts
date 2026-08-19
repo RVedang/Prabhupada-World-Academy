@@ -124,7 +124,11 @@ export default createEndpoint({
         uGuide.includes('prabhupadaworld') ||
         uGuide.includes('iamthevedang@gmail.com') ||
         uGuide.includes('guide-vedang') ||
-        uGuide.includes('vedang');
+        uGuide.includes('vedang') ||
+        // Legacy: registrations made under Vedanarayana Das before migration
+        uGuide.includes('vdnd@hkmmumbai.org') ||
+        uGuide.includes('guide-vedanarayana-guide') ||
+        uGuide.includes('vedanarayana');
 
       if (targetSegment === 'PW') {
         return isPwUser; // PW Admin / Super Admin sees ONLY Prabhupada World registrations

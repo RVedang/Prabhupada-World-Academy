@@ -125,7 +125,10 @@ export default createEndpoint({
                            uGuideStr.includes('hiranyavarna') ||
                            uGuideStr.includes('pw-admin') ||
                            uGuideStr.includes('iamthevedang') ||
-                           uGuideStr.includes('vedang');
+                           uGuideStr.includes('vedang') ||
+                           // Legacy: requests linked to Vedanarayana Das before migration
+                           uGuideStr.includes('vdnd') ||
+                           uGuideStr.includes('vedanarayana');
 
         if (userSegment === 'PW') {
           if (!isPwMember) return false;

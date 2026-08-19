@@ -70,6 +70,10 @@ export default createEndpoint({
         guideStr.includes('iamthevedang@gmail.com') ||
         guideStr.includes('guide-vedang') ||
         guideStr.includes('vedang') ||
+        // Legacy: registrations made under Vedanarayana Das before migration
+        guideStr.includes('vdnd@hkmmumbai.org') ||
+        guideStr.includes('guide-vedanarayana-guide') ||
+        guideStr.includes('vedanarayana') ||
         // Also match if guide is stored as Vedang's Firebase UID (in mentorCanonicalIds)
         ([...mentorCanonicalIds].some(id => id && guideStr.includes(id.toLowerCase())));
     };
