@@ -44,7 +44,8 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
       'id', 'userId', 'email', 'role', 'guide',
       'isBvAdmin', 'isBvSupervisor', 'isBvMentor',
       'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator',
-      'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId', 'bvSupervisorGuideId'
+      'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId', 'bvSupervisorGuideId',
+      'sadhanaMentor', 'isSadhanaMentor'
     ]
   }).catch(() => ({ records: [] }));
   const allUsers: any[] = res?.records || [];
@@ -174,6 +175,42 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
         if (m.memberId) scopedUserIds.add(String(m.memberId).toLowerCase());
       }
     });
+  }
+
+  // ── Level 5: Sadhana Mentor resolution ──────────────────────────────────────────
+  const isSadhanaMentor = !!(contextUser.isSadhanaMentor || userRole === 'SADHANA_MENTOR' || userRole === 'SADHANA MENTOR');
+  if (isSadhanaMentor) {
+    const isPwMentor = contextUser.segment === 'PW' || !!(contextUser as any).isPrabhupadaWorldUser;
+    if (isPwMentor) {
+      // PW: only see users assigned to them
+      allUsers.forEach((u: any) => {
+        if (u.sadhanaMentor && callerKeys.has(String(u.sadhanaMentor).toLowerCase())) {
+          if (u.id) scopedUserIds.add(u.id.toLowerCase());
+          if (u.userId) scopedUserIds.add(u.userId.toLowerCase());
+          if (u.email) scopedUserIds.add(u.email.toLowerCase());
+        }
+      });
+    } else {
+      // FOLK: see all users under their guide
+      const mentorUser = allUsers.find(u => {
+        const uid = String(u.id || '').toLowerCase();
+        const uuserId = String(u.userId || '').toLowerCase();
+        const uemail = String(u.email || '').toLowerCase();
+        return callerKeys.has(uid) || callerKeys.has(uuserId) || callerKeys.has(uemail);
+      });
+      const mentorGuideId = Array.isArray(mentorUser?.guide) ? mentorUser.guide[0] : mentorUser?.guide;
+      if (mentorGuideId) {
+        const guideIdLower = String(mentorGuideId).toLowerCase();
+        allUsers.forEach((u: any) => {
+          const uGuide = Array.isArray(u.guide) ? u.guide[0] : u.guide;
+          if (uGuide && String(uGuide).toLowerCase() === guideIdLower) {
+            if (u.id) scopedUserIds.add(u.id.toLowerCase());
+            if (u.userId) scopedUserIds.add(u.userId.toLowerCase());
+            if (u.email) scopedUserIds.add(u.email.toLowerCase());
+          }
+        });
+      }
+    }
   }
 
   return scopedUserIds;

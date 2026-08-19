@@ -167,6 +167,8 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage mode="signin" />} />
             <Route path="/signup" element={<LoginPage mode="signup" />} />
+            <Route path="/pw" element={<LoginPage mode="signin" isPw={true} />} />
+            <Route path="/pw/signup" element={<LoginPage mode="signup" isPw={true} />} />
             <Route path="/auth-callback" element={<AuthCallbackGuard><AuthCallbackPage /></AuthCallbackGuard>} />
             <Route path="/guide-login" element={<GuideLoginPage />} />
             <Route path="/register" element={<GuestOnlyRoute><RegistrationPage /></GuestOnlyRoute>} />

@@ -178,7 +178,11 @@ function SadhanaFieldRenderer({
       <div className="space-y-2">
         {fieldLabel}
         <Select value={value?.toString() || ''} onValueChange={handleChange}>
-          <SelectTrigger><SelectValue placeholder="Select an option" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Select an option">
+              {value !== undefined && value !== null ? (options.find(o => String(o.storedValue) === String(value))?.displayLabel) : null}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {options.map((o, i) => (
               <SelectItem key={i} value={String(o.storedValue)}>{o.displayLabel}</SelectItem>

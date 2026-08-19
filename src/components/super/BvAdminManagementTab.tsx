@@ -309,7 +309,9 @@ export default function BvAdminManagementTab() {
               <Label className="text-xs font-semibold">Assign Facilitator (RGF) *</Label>
               <Select value={newGroupBvslId || undefined} onValueChange={(val: string | null) => setNewGroupBvslId(val || '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select facilitator..." />
+                  <SelectValue placeholder="Select facilitator...">
+                    {newGroupBvslId ? (guides.find(g => g.guideId === newGroupBvslId)?.name || newGroupBvslId) : null}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {guides.map(g => {

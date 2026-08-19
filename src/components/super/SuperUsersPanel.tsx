@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import {
   getGuideUsers, getGuides, tagUserAsBvsl, assignGuide, tagUserAsFolkLead,
   tagUserAsTripCoordinator, tagUserAsBvMentor, tagUserAsSadhanaMentor, assignBvRole,
+  getActiveSadhanaMentors, assignSadhanaMentor,
 } from '@/lib/endpoints-sdk';
 import type { GetGuideUsersOutputType, GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -102,12 +103,18 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   };
   const [bvMentorGuideId, setBvMentorGuideId] = useState('');
   const [assigningGuide, setAssigningGuide] = useState<string | null>(null);
+  const [sadhanaMentors, setSadhanaMentors] = useState<any[]>([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const { guides: guideList } = await getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' });
       setGuides(guideList);
+
+      if (isPwAdmin) {
+        const mentorsList = await getActiveSadhanaMentors({ segment: 'PW' }).catch(() => []);
+        setSadhanaMentors(mentorsList || []);
+      }
 
       // Fetch all registered members (active, pending, unassigned, newly registered)
       const allUsersRes = await getGuideUsers({ guideId: 'ALL', statusFilter: 'all' }).catch(() => ({ users: [] }));
@@ -212,6 +219,19 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update Sadhana Mentor role');
+    }
+  };
+
+  const handleAssignSadhanaMentor = async (userId: string, mentorId: string) => {
+    try {
+      await assignSadhanaMentor({ userId, sadhanaMentorId: mentorId });
+      setUsers(prev => prev.map(u => {
+        const matches = u.userId === userId || (u as any).userDbId === userId || u.id === userId;
+        return matches ? { ...u, sadhanaMentor: mentorId } : u;
+      }));
+      toast.success('Sadhana Mentor assigned');
+    } catch {
+      toast.error('Failed to assign Sadhana Mentor');
     }
   };
 
@@ -591,9 +611,15 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Bhakti Vriksha Role</th>
                   <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Parent</th>
                   {isPwAdmin ? (
-                    <Th col="guideName" label="Admin" />
+                    <>
+                      <Th col="guideName" label="Admin" />
+                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Assigned Mentor</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Sadhana Mentor (Role)</th>
+                    </>
                   ) : (
-                    <Th col="guideName" label="FOLK Guide" />
+                    <>
+                      <Th col="guideName" label="FOLK Guide" />
+                    </>
                   )}
                   <Th col="ashrayLevel" label="Ashraya Level" />
                   <Th col="latestScore" label="Weekly Score" />
@@ -611,7 +637,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={isPwAdmin ? 7 : 11}>
+                    <td colSpan={isPwAdmin ? 9 : 11}>
                       <EmptyState icon={Users} title="No users found" description="Try adjusting your filters." />
                     </td></tr>
                 ) : filtered.map(u => {
@@ -770,6 +796,36 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           );
                         })()}
                       </td>
+                      {isPwAdmin && (
+                        <>
+                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                            <Select 
+                              value={u.sadhanaMentor || ''} 
+                              onValueChange={mentorId => handleAssignSadhanaMentor(u.userId, mentorId)}
+                              disabled={isSelf}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-44">
+                                <SelectValue placeholder="Select Sadhana Mentor">
+                                  {sadhanaMentors.find(m => m.userId === u.sadhanaMentor)?.fullName || 'Unassigned'}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sadhanaMentors.map(m => (
+                                  <SelectItem key={m.userId} value={m.userId}>{m.fullName}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                            <button
+                              className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
+                              onClick={() => setSadhanaMentorDialog({ user: u, action: (u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'untag' : 'tag' })}
+                            >
+                              {(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
+                            </button>
+                          </td>
+                        </>
+                      )}
                       {/* 5. Ashraya Level */}
                       <td className="px-3 py-2 text-xs">{u.ashrayLevel || '—'}</td>
                       {/* 6. Weekly Score */}

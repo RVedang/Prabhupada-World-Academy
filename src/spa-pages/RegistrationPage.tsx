@@ -47,6 +47,8 @@ export default function RegistrationPage() {
   const autoName = [(user as any)?.firstName, (user as any)?.lastName].filter(Boolean).join(' ').trim();
   const phonePrefillDone = useRef(false);
 
+  const isPwFlow = localStorage.getItem('pwa_is_pw_flow') === 'true';
+
   const [formData, setFormData] = useState(() => {
     let pendingPhone = '';
     let pendingCc = '+91';
@@ -58,7 +60,7 @@ export default function RegistrationPage() {
       fullName: '',
       phoneCountryCode: pendingCc,
       phone: pendingPhone,
-      selectedGuideId: '',
+      selectedGuideId: isPwFlow ? 'MENTOR-PW-ADMIN' : '',
       residencyUserClaim: false,
       selectedFolkResidency: '',
       residencyJoinDate: '',
@@ -68,7 +70,7 @@ export default function RegistrationPage() {
   const ashrayLevel = hasTakenExam ? selectedExamLevel : 'Jigyasa';
 
   const selectedGuide = guides.find((g: any) => g.guideId === formData.selectedGuideId);
-  const isPwMentorSelected = !!selectedGuide?.isPrabhupadaWorldMentor;
+  const isPwMentorSelected = isPwFlow || !!selectedGuide?.isPrabhupadaWorldMentor;
 
   useEffect(() => {
     if (!phonePrefillDone.current) {
@@ -87,10 +89,10 @@ export default function RegistrationPage() {
   const loadGuides = async () => {
     setLoadingGuides(true);
     try {
-      const result = await getGuides({ segment: 'ALL' });
+      const result = await getGuides({ segment: isPwFlow ? 'PW' : 'FOLK' });
       setGuides(result.guides);
     } catch {
-      toast.error('Failed to load mentors. Please try again.');
+      toast.error('Failed to load guides. Please try again.');
     } finally { setLoadingGuides(false); }
   };
 
@@ -173,7 +175,7 @@ export default function RegistrationPage() {
           residencyUserClaim: formData.residencyUserClaim,
           selectedFolkResidency: formData.selectedFolkResidency || null,
         });
-        toast.success('Registration successful! Awaiting mentor approval.');
+        toast.success(isPwFlow ? 'Registration successful! Awaiting admin approval.' : 'Registration successful! Awaiting guide approval.');
         navigate('/pending');
       } else {
         toast.error('Registration failed. Please try again.');
@@ -240,10 +242,13 @@ export default function RegistrationPage() {
         {/* Title */}
         <div className="text-left space-y-2">
           <h1 className="text-[28px] font-bold text-gray-900 tracking-tight leading-tight">
-            Create Your Account
+            {isPwFlow ? 'Create Your PW Account' : 'Create Your Account'}
           </h1>
           <p className="text-sm text-gray-500 leading-normal">
-            Join Prabhupada World Academy to start tracking your daily spiritual practices
+            {isPwFlow
+              ? 'Join Prabhupada World to start tracking your daily spiritual practices'
+              : 'Join Prabhupada World Academy to start tracking your daily spiritual practices'
+            }
           </p>
         </div>
 
@@ -324,59 +329,49 @@ export default function RegistrationPage() {
             </div>
           </div>
 
-          {/* Mentor (replaces FOLK Guide) */}
-          <div className="space-y-1.5">
-            <label htmlFor="guide" className="text-sm font-medium text-gray-700 block mb-1">
-              Mentor <span className="text-red-500 font-bold">*</span>
-            </label>
-            {loadingGuides ? (
-              <div className="flex items-center justify-center h-8 border border-gray-200 rounded-md bg-gray-50">
-                <Loader2 className="w-4 h-4 animate-spin mr-2 text-gray-400" />
-                <span className="text-xs text-gray-500">Loading mentors...</span>
-              </div>
-            ) : guides.length === 0 ? (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>No mentors available. Please contact the administrator.</AlertDescription>
-              </Alert>
-            ) : (
-              <>
-                <Select
-                  value={formData.selectedGuideId}
-                  onValueChange={(value) => { if (value) setFormData({ ...formData, selectedGuideId: value, residencyUserClaim: false, selectedFolkResidency: '' }); }}
-                >
-                  <SelectTrigger className="w-full !h-8 border border-gray-200 rounded-md text-sm text-gray-900 bg-white focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] focus-visible:border-[#ea6506] focus-visible:ring-1 focus-visible:ring-[#ea6506] outline-none shadow-sm">
-                    <SelectValue placeholder="Select your mentor">
-                      {(val) => {
-                        const matched = guides.find((g: any) => g.guideId === val);
-                        if (!matched) return val;
-                        return matched.isPrabhupadaWorldMentor ? (
-                          <span className="flex items-center gap-2">
-                            {matched.name || matched.abbr}
-                            <span className="text-[10px] bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">Prabhupada World</span>
-                          </span>
-                        ) : (
-                          matched.name || matched.abbr
-                        );
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="min-w-[340px] max-w-none max-h-60 overflow-y-auto">
-                    {guides.map((guide: any) => (
-                      <SelectItem key={guide.guideId} value={guide.guideId}>
-                        {guide.isPrabhupadaWorldMentor ? (
-                          <span className="flex items-center gap-2">
-                            {guide.name}
-                            <span className="text-[10px] bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">Prabhupada World</span>
-                          </span>
-                        ) : guide.name || guide.abbr}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            )}
-          </div>
+          {/* Mentor / FoLK Guide Selector */}
+          {!isPwFlow && (
+            <div className="space-y-1.5">
+              <label htmlFor="guide" className="text-sm font-medium text-gray-700 block mb-1">
+                FoLK Guide <span className="text-red-500 font-bold">*</span>
+              </label>
+              {loadingGuides ? (
+                <div className="flex items-center justify-center h-8 border border-gray-200 rounded-md bg-gray-50">
+                  <Loader2 className="w-4 h-4 animate-spin mr-2 text-gray-400" />
+                  <span className="text-xs text-gray-500">Loading guides...</span>
+                </div>
+              ) : guides.length === 0 ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>No guides available. Please contact the administrator.</AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <Select
+                    value={formData.selectedGuideId}
+                    onValueChange={(value) => { if (value) setFormData({ ...formData, selectedGuideId: value, residencyUserClaim: false, selectedFolkResidency: '' }); }}
+                  >
+                    <SelectTrigger className="w-full !h-8 border border-gray-200 rounded-md text-sm text-gray-900 bg-white focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] focus-visible:border-[#ea6506] focus-visible:ring-1 focus-visible:ring-[#ea6506] outline-none shadow-sm">
+                      <SelectValue placeholder="Select your FoLK Guide">
+                        {(val) => {
+                          const matched = guides.find((g: any) => g.guideId === val);
+                          if (!matched) return val;
+                          return matched.name || matched.abbr;
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="min-w-[340px] max-w-none max-h-60 overflow-y-auto">
+                      {guides.map((guide: any) => (
+                        <SelectItem key={guide.guideId} value={guide.guideId}>
+                          {guide.name || guide.abbr}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+            </div>
+          )}
 
           {/* FOLK Center — hidden for Prabhupada World users */}
           {formData.selectedGuideId && !isPwMentorSelected && (

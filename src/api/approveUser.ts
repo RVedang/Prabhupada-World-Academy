@@ -16,6 +16,7 @@ export default createEndpoint({
     selectedFolkResidency: z.string().optional(),
     ashrayLevel: z.string().optional(),
     newGuideId: z.string().optional(),
+    sadhanaMentorId: z.string().optional(),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -53,6 +54,9 @@ export default createEndpoint({
     if (input.selectedFolkResidency) {
       updates.residency = input.selectedFolkResidency;
       if (input.residencyApproved) updates.residentSince = today;
+    }
+    if (input.sadhanaMentorId) {
+      updates.sadhanaMentor = input.sadhanaMentorId;
     }
 
     // CRITICAL: Approval MUST succeed first, before any enrollment attempt

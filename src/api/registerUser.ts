@@ -14,11 +14,12 @@ export default createEndpoint({
     phone: z.string().min(7).max(20),
     phoneE164: z.string().max(25),
     email: z.string().max(320).optional(),
-    guideId: z.string().min(1).max(100),
+    guideId: z.string().max(100).optional(),
     residencyUserClaim: z.boolean(),
     selectedFolkResidency: z.string().max(100).optional(),
     residencyJoinDate: z.string().max(20).optional(),
     ashrayLevel: z.string().max(50).optional(),
+    isPrabhupadaWorldUser: z.boolean().optional(),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -32,8 +33,10 @@ export default createEndpoint({
 
     // Verify guide exists (guideId is the UUID of the Guides record or canonical guideId)
     let guideRecord: any = null;
-    const gIdLower = input.guideId.toLowerCase();
-    let isPw = gIdLower === 'mentor-pw-hiranyavarna' ||
+    const inputGuideId = input.guideId || 'MENTOR-PW-ADMIN';
+    const gIdLower = inputGuideId.toLowerCase();
+    let isPw = input.isPrabhupadaWorldUser ||
+               gIdLower === 'mentor-pw-hiranyavarna' ||
                gIdLower === 'mentor-pw-admin' ||
                gIdLower.includes('hiranyavarna') ||
                gIdLower.includes('pw-admin') ||
@@ -46,15 +49,15 @@ export default createEndpoint({
 
     if (!isPw) {
       // Check if guide exists in Guides and has segment PW
-      const gr = await Guides.findOne({ id: input.guideId }).catch(() => null) ??
-                 await Guides.findOne({ filters: { guideId: input.guideId } }).catch(() => null);
+      const gr = await Guides.findOne({ id: inputGuideId }).catch(() => null) ??
+                 await Guides.findOne({ filters: { guideId: inputGuideId } }).catch(() => null);
       if (gr && ((gr as any).segment === 'PW' || (gr as any).isPrabhupadaWorldMentor)) {
         isPw = true;
       } else {
         // Check Users collection
-        const gu = await Users.findOne({ id: input.guideId }).catch(() => null) ??
-                   await Users.findOne({ filters: { email: input.guideId.toLowerCase() } }).catch(() => null) ??
-                   await Users.findOne({ filters: { userId: input.guideId } }).catch(() => null);
+        const gu = await Users.findOne({ id: inputGuideId }).catch(() => null) ??
+                   await Users.findOne({ filters: { email: inputGuideId.toLowerCase() } }).catch(() => null) ??
+                   await Users.findOne({ filters: { userId: inputGuideId } }).catch(() => null);
         if (gu && ((gu as any).segment === 'PW' || (gu as any).isPrabhupadaWorldUser === true)) {
           isPw = true;
         }
@@ -62,20 +65,20 @@ export default createEndpoint({
     }
 
     if (isPw) {
-      if (input.guideId === 'MENTOR-PW-ADMIN' || input.guideId.includes('PW-ADMIN')) {
+      if (inputGuideId === 'MENTOR-PW-ADMIN' || gIdLower.includes('pw-admin')) {
         guideRecord = { id: 'MENTOR-PW-ADMIN', fullName: 'PW System Administrator' };
-      } else if (input.guideId.includes('iamthevedang') || input.guideId.includes('VEDANG')) {
+      } else if (gIdLower.includes('iamthevedang') || gIdLower.includes('vedang')) {
         guideRecord = { id: 'GUIDE-VEDANG', fullName: 'Vedang Prabhu', email: 'iamthevedang@gmail.com' };
       } else {
         guideRecord = { id: 'MENTOR-PW-HIRANYAVARNA', fullName: 'Hiranyavarna Das' };
       }
-    } else if (input.guideId === 'MENTOR-FOLK-GAURMANDAL') {
+    } else if (inputGuideId === 'MENTOR-FOLK-GAURMANDAL') {
       guideRecord = { id: 'MENTOR-FOLK-GAURMANDAL', fullName: 'Gaurmandal Prabhu' };
     } else {
       // Check if guideId is a User with PW Admin / Super Admin role
-      const guideUser = await Users.findOne({ id: input.guideId }) ?? 
-                        await Users.findOne({ filters: { email: input.guideId.toLowerCase() } }) ??
-                        await Users.findOne({ filters: { userId: input.guideId } });
+      const guideUser = await Users.findOne({ id: inputGuideId }) ?? 
+                        await Users.findOne({ filters: { email: inputGuideId.toLowerCase() } }) ??
+                        await Users.findOne({ filters: { userId: inputGuideId } });
       
       if (guideUser) {
         const roleUpper = (guideUser.role || '').toUpperCase();
@@ -89,10 +92,10 @@ export default createEndpoint({
       }
 
       if (!guideRecord) {
-        guideRecord = await Guides.findOne({ id: input.guideId }) ?? await Guides.findOne({ filters: { guideId: input.guideId } });
+        guideRecord = await Guides.findOne({ id: inputGuideId }) ?? await Guides.findOne({ filters: { guideId: inputGuideId } });
         if (!guideRecord) {
           const { records: allG } = await Guides.findAll({ limit: 500 }).catch(() => ({ records: [] }));
-          guideRecord = allG.find((g: any) => g.id === input.guideId || g.guideId === input.guideId || g.fullName === input.guideId);
+          guideRecord = allG.find((g: any) => g.id === inputGuideId || g.guideId === inputGuideId || g.fullName === inputGuideId);
         }
         if (guideRecord?.isPrabhupadaWorldMentor) isPw = true;
       }
@@ -202,9 +205,46 @@ export default createEndpoint({
       // Email failure must not block registration
     }
 
-    // ── Email: notification to the assigned guide ──
+    // ── Email: notification to the assigned guide or PW Admins ──
     try {
-      if (guideRecord.email) {
+      if (isPw) {
+        const { records: userRecords } = await Users.findAll({ limit: 1000 }).catch(() => ({ records: [] }));
+        const pwAdmins = userRecords.filter((u: any) => {
+          const roleUpper = (u.role || '').toUpperCase();
+          const segmentUpper = (u.segment || '').toUpperCase();
+          return (roleUpper === 'ADMIN' || u.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || u.isBvSuperAdmin === true) &&
+                 (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&
+                 u.status === 'Active';
+        });
+
+        const adminEmails = pwAdmins.map((u: any) => u.email).filter(Boolean);
+        if (guideRecord?.email && !adminEmails.includes(guideRecord.email)) {
+          adminEmails.push(guideRecord.email);
+        }
+
+        for (const email of adminEmails) {
+          await Email.send({
+            to: email,
+            subject: `New Devotee Awaiting Approval — ${input.fullName} | PW Sadhana Tracker`,
+            body: [
+              {
+                type: 'text',
+                content: `Hare Krishna,\n\nA new devotee has registered for Prabhupada World and is awaiting your approval.\n\n<strong>Name:</strong> ${input.fullName}\n<strong>Phone:</strong> ${input.phoneE164}\n<strong>Ashray Level:</strong> ${ashrayLevel}\n\nPlease click the button below to go directly to the Approvals tab and review this registration.`,
+              },
+              {
+                type: 'button',
+                label: 'Review & Approve →',
+                href: `${appUrl}/pw-admin/dashboard`,
+                alignment: 'center',
+              },
+              {
+                type: 'text',
+                content: `Hare Krishna!`,
+              },
+            ],
+          }).catch(() => {});
+        }
+      } else if (guideRecord.email) {
         await Email.send({
           to: guideRecord.email,
           subject: `New Devotee Awaiting Approval — ${input.fullName} | FOLK Sadhana Tracker`,

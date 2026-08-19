@@ -1,0 +1,32 @@
+import { z } from 'zod';
+import { createEndpoint, Users } from '@/lib/backend-sdk';
+
+export default createEndpoint({
+  description: 'Get all active Sadhana Mentors',
+  authenticated: true,
+  inputSchema: z.object({
+    segment: z.enum(['PW', 'FOLK', 'ALL']).optional(),
+  }),
+  outputSchema: z.any(),
+  execute: async ({ input }: any) => {
+    const { records } = await Users.findAll({
+      filters: { status: 'Active' },
+      fields: ['id', 'userId', 'fullName', 'email', 'isSadhanaMentor', 'role', 'segment'],
+      limit: 1000,
+    });
+
+    const mentors = records
+      .filter((u: any) => u.isSadhanaMentor === true || (u.role || '').toUpperCase() === 'SADHANA_MENTOR' || (u.role || '').toUpperCase() === 'SADHANA MENTOR')
+      .map((u: any) => ({
+        userId: u.id || u.userId,
+        fullName: u.fullName || '',
+        email: u.email || '',
+        segment: u.segment || '',
+      }));
+
+    if (input.segment && input.segment !== 'ALL') {
+      return mentors.filter((m: any) => m.segment === input.segment);
+    }
+    return mentors;
+  },
+});

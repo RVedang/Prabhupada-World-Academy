@@ -1916,3 +1916,5 @@ export const getMoms = createSdkInvoker('getMoms');
 export const getPwNotificationConfig = createSdkInvoker('getPwNotificationConfig');
 export const savePwNotificationConfig = createSdkInvoker('savePwNotificationConfig');
 export const sendMeetingReminder = createSdkInvoker('sendMeetingReminder');
+export const getActiveSadhanaMentors = createSdkInvoker('getActiveSadhanaMentors');
+export const assignSadhanaMentor = createSdkInvoker('assignSadhanaMentor');

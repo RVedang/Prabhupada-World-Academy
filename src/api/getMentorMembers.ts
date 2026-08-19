@@ -58,7 +58,7 @@ export default createEndpoint({
   execute: async ({ context }: any) => {
     const currentUser = await Users.findOne({
       id: context.user!.id,
-      fields: ['id', 'userId', 'fullName', 'guide', 'bvReportingAdminId', 'bvReportingAdminName', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
+      fields: ['id', 'userId', 'fullName', 'guide', 'bvReportingAdminId', 'bvReportingAdminName', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'segment', 'isPrabhupadaWorldUser'],
     });
 
     const guideId = Array.isArray(currentUser?.guide)
@@ -70,12 +70,13 @@ export default createEndpoint({
     const guideRecord = guideId
       ? await Guides.findOne({ id: guideId, fields: ['id', 'fullName'] })
       : null;
-    const guideName = (guideRecord as any)?.fullName || (currentUser as any)?.bvReportingAdminName || 'FOLK Guide';
+    const isPw = currentUser?.segment === 'PW' || !!(currentUser as any)?.isPrabhupadaWorldUser;
+    const guideName = isPw ? 'Prabhupada World' : ((guideRecord as any)?.fullName || (currentUser as any)?.bvReportingAdminName || 'FOLK Guide');
 
     // Fetch all active users
     const { records: allUsers } = await Users.findAll({
       filters: { status: 'Active' },
-      fields: ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'bvReportingAdminId'],
+      fields: ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'bvReportingAdminId', 'sadhanaMentor'],
       limit: 1000,
     });
 
@@ -114,6 +115,11 @@ export default createEndpoint({
           if (uIsAdmin) return false;
         }
         return true;
+      }
+
+      if (isPw) {
+        const uSadhanaMentor = String(u.sadhanaMentor || '').toLowerCase();
+        return uSadhanaMentor === currentDbId || uSadhanaMentor === currentUid;
       }
 
       const uGuide = Array.isArray(u.guide) ? u.guide[0] : u.guide;

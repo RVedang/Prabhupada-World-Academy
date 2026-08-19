@@ -13,7 +13,7 @@ const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'stat
   'isFolkLead', 'isTripCoordinator', 'isOtherCenter', 'isCleanlinessManager', 'createdAt',
   'temporaryResidencyEnabled', 'temporaryResidency', 'isBvSupervisor', 'isBvFacilitator', 'isBvSubFacilitator', 'isBvAdmin',
   'bvReportingAdminId', 'bvReportingAdminName', 'bvReportingSupervisorId', 'bvReportingSupervisorName',
-  'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'supervisorName', 'bvGroupId', 'bvGroupName'];
+  'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'supervisorName', 'bvGroupId', 'bvGroupName', 'sadhanaMentor'];
 // Minimal fields for today's entries
 const ENTRY_TODAY_FIELDS = ['id', 'user', 'entryDate'];
 // Minimal fields for residency
@@ -334,6 +334,7 @@ export default createEndpoint({
           isB: u.isB || false,
           isOtherCenter: (u as any).isOtherCenter || false,
           isSadhanaMentor: u.isSadhanaMentor || false,
+          sadhanaMentor: u.sadhanaMentor || null,
           isServiceAllocator: u.isServiceAllocator || false,
           isBvMentor: u.isBvMentor || false,
           isCleanlinessManager: u.isCleanlinessManager || false,

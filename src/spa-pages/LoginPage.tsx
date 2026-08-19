@@ -6,7 +6,7 @@ import { AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
+export default function LoginPage({ mode = 'signin', isPw = false }: { mode?: 'signin' | 'signup', isPw?: boolean }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, loginWithRedirect } = useAuth();
@@ -14,6 +14,15 @@ export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'sign
   
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Set or remove local storage flow flag on mount / prop change
+  useEffect(() => {
+    if (isPw) {
+      localStorage.setItem('pwa_is_pw_flow', 'true');
+    } else {
+      localStorage.removeItem('pwa_is_pw_flow');
+    }
+  }, [isPw]);
 
   // Redirect users who are already authenticated
   useEffect(() => {
@@ -49,7 +58,10 @@ export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'sign
           transition={{ delay: 0.1, duration: 0.5 }}
           className="text-3xl font-bold text-gray-900 tracking-tight mb-2"
         >
-          {mode === 'signin' ? 'Sign in' : 'Sign up'}
+          {isPw 
+            ? (mode === 'signin' ? 'Prabhupada World Sign In' : 'Prabhupada World Sign Up')
+            : (mode === 'signin' ? 'Sign in' : 'Sign up')
+          }
         </motion.h1>
         
         <motion.p 
@@ -58,7 +70,10 @@ export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'sign
           transition={{ delay: 0.15, duration: 0.5 }}
           className="text-xs text-gray-500 mb-6"
         >
-          Sign in securely using your Google account to access your dashboard.
+          {isPw
+            ? 'Sign in securely using your Google account to access your Prabhupada World dashboard.'
+            : 'Sign in securely using your Google account to access your dashboard.'
+          }
         </motion.p>
 
         <AnimatePresence mode="wait">
@@ -122,7 +137,7 @@ export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'sign
             <>
               Don't have an account? 
               <span 
-                onClick={() => navigate('/signup')}
+                onClick={() => navigate(isPw ? '/pw/signup' : '/signup')}
                 className="text-gray-950 hover:text-black font-semibold ml-1 cursor-pointer transition-colors"
               >
                 Sign up
@@ -132,7 +147,7 @@ export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'sign
             <>
               Already have an account? 
               <span 
-                onClick={() => navigate('/login')}
+                onClick={() => navigate(isPw ? '/pw' : '/login')}
                 className="text-gray-950 hover:text-black font-semibold ml-1 cursor-pointer transition-colors"
               >
                 Sign in
@@ -145,4 +160,3 @@ export default function LoginPage({ mode = 'signin' }: { mode?: 'signin' | 'sign
     </div>
   );
 }
-

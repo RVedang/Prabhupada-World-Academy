@@ -6,7 +6,7 @@ import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'ashrayLevel', 'status',
   'residency', 'residencyApproved', 'createdAt', 'lastLoginAt', 'isBvsl', 'isSadhanaMentor',
-  'currentStreak', 'lastStreakUpdatedAt', 'guide'];
+  'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt'];
 
@@ -42,7 +42,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({ userId: z.string() }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     if (!input.userId) throw new AppError({ code: 'BAD_REQUEST', message: 'userId is required' });
 
@@ -76,8 +76,25 @@ export default createEndpoint({
           throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members of your BV groups' });
         }
       } else if (context.user.isSadhanaMentor) {
-        // Sadhana Mentors have a trusted role — allow access
-        // (they are assigned by guides and oversee a subset of folk)
+        const isPwMentor = context.user.segment === 'PW' || !!(context.user as any).isPrabhupadaWorldUser;
+        if (isPwMentor) {
+          const uSadhanaMentor = String(userRecord.sadhanaMentor || '').toLowerCase();
+          const mentorId = String(context.user.id || '').toLowerCase();
+          const mentorUid = String(context.user.userId || '').toLowerCase();
+          const allowed = uSadhanaMentor === mentorId || uSadhanaMentor === mentorUid;
+          if (!allowed) {
+            throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members assigned to you' });
+          }
+        } else {
+          // FOLK Sadhana Mentor: check if they are under the same guide/admin
+          const mentorUser = await Users.findOne({ id: context.user.id, fields: ['guide'] });
+          const mentorGuideId = Array.isArray(mentorUser?.guide) ? mentorUser.guide[0] : mentorUser?.guide;
+          const userGuideId = Array.isArray(userRecord.guide) ? userRecord.guide[0] : userRecord.guide;
+          const allowed = mentorGuideId && userGuideId && mentorGuideId === userGuideId;
+          if (!allowed) {
+            throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members under your guide' });
+          }
+        }
       } else {
         throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
       }

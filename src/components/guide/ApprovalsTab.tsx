@@ -13,7 +13,7 @@ import {
   getPendingApprovals, approveUser, rejectUser, getResidenciesForGuide,
   getGuideRequests, approveGuideTransfer, approveAshrayUpgrade,
   getResidencyTransferRequests, approveResidencyTransfer, getGuides,
-  getCleanlinessReviews, resolveCleanlinessReview,
+  getCleanlinessReviews, resolveCleanlinessReview, getActiveSadhanaMentors,
 } from '@/lib/endpoints-sdk';
 import type {
   GetPendingApprovalsOutputType, GetResidenciesForGuideOutputType,
@@ -59,6 +59,8 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
   const [editedResidency, setEditedResidency] = useState('');
   const [editedAshray, setEditedAshray] = useState('');
   const [editedGuideId, setEditedGuideId] = useState('');
+  const [editedSadhanaMentorId, setEditedSadhanaMentorId] = useState('');
+  const [sadhanaMentors, setSadhanaMentors] = useState<any[]>([]);
   const [makeResident, setMakeResident] = useState(false);
 
   useEffect(() => { loadAll(); }, [guideId]);
@@ -67,13 +69,14 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
     setLoading(true);
     try {
       const residencyFetchId = guideId === 'ALL' ? (reviewerGuideId || guideId) : guideId;
-      const [pendingRes, residencyRes, requestsRes, residencyTransferRes, guidesRes, cleanReviews] = await Promise.all([
+      const [pendingRes, residencyRes, requestsRes, residencyTransferRes, guidesRes, cleanReviews, sadhanaMentorsRes] = await Promise.all([
         getPendingApprovals({ guideId }),
         getResidenciesForGuide({ guideId: residencyFetchId }),
         getGuideRequests({ guideId }),
         getResidencyTransferRequests({ guideId } as any),
         getGuides({}),
         !isPwAdmin ? getCleanlinessReviews({ guideId }).catch(() => []) : Promise.resolve([]),
+        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW' }).catch(() => []) : Promise.resolve([]),
       ]);
       setPendingUsers(pendingRes);
       setResidencies(residencyRes);
@@ -82,6 +85,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
       setResidencyTransfers(residencyTransferRes);
       setCleanlinessReviews(Array.isArray(cleanReviews) ? cleanReviews : []);
       setAllGuides(guidesRes.guides);
+      setSadhanaMentors(sadhanaMentorsRes || []);
       onCountLoaded?.(pendingRes.length + requestsRes.guideTransfers.length + requestsRes.ashrayUpgrades.length + residencyTransferRes.length + (!isPwAdmin ? (Array.isArray(cleanReviews) ? cleanReviews.length : 0) : 0));
     } catch {
       toast.error('Failed to load approvals');
@@ -95,6 +99,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
     setEditedResidency(user.selectedFolkResidency || '');
     setEditedAshray(user.ashrayLevel || '');
     setEditedGuideId(user.guideId || '');
+    setEditedSadhanaMentorId((user as any).sadhanaMentor || '');
     // Default to resident if the user claimed residency OR already has a residency assigned
     setMakeResident(!!(user.residencyUserClaim || user.selectedFolkResidency));
   };
@@ -106,6 +111,14 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
       toast.error(`⚠️ TagMango enrollment failed for ${name}: ${result.enrollmentError || 'Unknown error'}. You can retry later.`);
     }
     // 'Skipped' is silent — no toast needed
+  };
+
+  const handleApproveClick = (user: PendingUser) => {
+    if (isPwAdmin) {
+      openEdit(user);
+    } else {
+      setApproveTarget(user);
+    }
   };
 
   const handleApprove = async () => {
@@ -123,6 +136,12 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
 
   const handleSaveAndApprove = async () => {
     if (!editUser) return;
+
+    if (isPwAdmin && !editedSadhanaMentorId) {
+      toast.error('Please assign a Sadhana Mentor before approving.');
+      return;
+    }
+
     const result = await approveUser({
       userId: editUser.userId,
       guideId: actionGuideId,
@@ -130,6 +149,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
       selectedFolkResidency: (makeResident && editedResidency && editedResidency !== 'none') ? editedResidency : undefined,
       ashrayLevel: editedAshray || undefined,
       newGuideId: editedGuideId && editedGuideId !== editUser.guideId ? editedGuideId : undefined,
+      sadhanaMentorId: editedSadhanaMentorId || undefined,
     });
     toast.success(`✅ ${editUser.fullName} details saved & approved`);
     showEnrollmentToast(editUser.fullName, result);
@@ -270,7 +290,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                             <Button size="sm" variant="outline" onClick={() => openEdit(user)}>
                               <Edit className="w-3.5 h-3.5 mr-1" /> Edit Details
                             </Button>
-                            <Button size="sm" onClick={() => setApproveTarget(user)}>
+                            <Button size="sm" onClick={() => handleApproveClick(user)}>
                               <CheckCircle className="w-3.5 h-3.5 mr-1" /> Approve
                             </Button>
                             <Button size="sm" variant="destructive" onClick={() => setRejectTarget(user)}>
@@ -319,7 +339,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                               <Button size="sm" variant="outline" onClick={() => openEdit(user)}>
                                 <Edit className="w-4 h-4 mr-1" /> Edit Details
                               </Button>
-                              <Button size="sm" onClick={() => setApproveTarget(user)}>
+                              <Button size="sm" onClick={() => handleApproveClick(user)}>
                                 <CheckCircle className="w-4 h-4 mr-1" /> Approve
                               </Button>
                               <Button size="sm" variant="destructive" onClick={() => setRejectTarget(user)}>
@@ -680,21 +700,40 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Assign Guide</Label>
-              <Select value={editedGuideId} onValueChange={(v) => setEditedGuideId(v || '')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select guide">
-                    {allGuides.find((g: any) => g.guideId === editedGuideId)?.name || editedGuideId}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {allGuides.map((g: any) => (
-                    <SelectItem key={g.guideId} value={g.guideId}>{g.name || g.abbr}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isPwAdmin && (
+              <div className="space-y-1.5">
+                <Label>Assign Guide</Label>
+                <Select value={editedGuideId} onValueChange={(v) => setEditedGuideId(v || '')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select guide">
+                      {allGuides.find((g: any) => g.guideId === editedGuideId)?.name || editedGuideId}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allGuides.map((g: any) => (
+                      <SelectItem key={g.guideId} value={g.guideId}>{g.name || g.abbr}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {isPwAdmin && (
+              <div className="space-y-1.5">
+                <Label>Assign Sadhana Mentor <span className="text-red-500 font-bold">*</span></Label>
+                <Select value={editedSadhanaMentorId} onValueChange={(v) => setEditedSadhanaMentorId(v || '')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Sadhana Mentor">
+                      {sadhanaMentors.find((m: any) => m.userId === editedSadhanaMentorId)?.fullName || editedSadhanaMentorId}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sadhanaMentors.map((m: any) => (
+                      <SelectItem key={m.userId} value={m.userId}>{m.fullName} ({m.email || 'No email'})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Ashraya Level</Label>
               <Select value={editedAshray} onValueChange={(v) => setEditedAshray(v || '')}>
@@ -704,41 +743,43 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>FOLK Resident</Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{makeResident ? 'Yes — Resident' : 'No — Non-Resident'}</span>
-                  <Switch checked={makeResident} onCheckedChange={v => { setMakeResident(v); if (!v) setEditedResidency(''); }} />
+            {!isPwAdmin && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>FOLK Resident</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{makeResident ? 'Yes — Resident' : 'No — Non-Resident'}</span>
+                    <Switch checked={makeResident} onCheckedChange={v => { setMakeResident(v); if (!v) setEditedResidency(''); }} />
+                  </div>
                 </div>
+                {makeResident && (
+                  <>
+                    <Select value={editedResidency} onValueChange={(v) => setEditedResidency(v || '')}>
+                      <SelectTrigger><SelectValue placeholder="Select FOLK residency…" /></SelectTrigger>
+                      <SelectContent>
+                        {residencies.map((r: any) => (
+                          <SelectItem key={r.residencyId} value={r.residencyId}>{r.residencyName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {editedResidency ? (
+                      <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
+                        ✅ Will be approved as a FOLK Resident
+                      </p>
+                    ) : (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                        ⚠️ Please select a FOLK residency to complete approval
+                      </p>
+                    )}
+                  </>
+                )}
+                {!makeResident && (
+                  <p className="text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                    Will be approved as a Non-Resident
+                  </p>
+                )}
               </div>
-              {makeResident && (
-                <>
-                  <Select value={editedResidency} onValueChange={(v) => setEditedResidency(v || '')}>
-                    <SelectTrigger><SelectValue placeholder="Select FOLK residency…" /></SelectTrigger>
-                    <SelectContent>
-                      {residencies.map((r: any) => (
-                        <SelectItem key={r.residencyId} value={r.residencyId}>{r.residencyName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {editedResidency ? (
-                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
-                      ✅ Will be approved as a FOLK Resident
-                    </p>
-                  ) : (
-                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                      ⚠️ Please select a FOLK residency to complete approval
-                    </p>
-                  )}
-                </>
-              )}
-              {!makeResident && (
-                <p className="text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                  Will be approved as a Non-Resident
-                </p>
-              )}
-            </div>
+            )}
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>

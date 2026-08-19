@@ -18,10 +18,12 @@ export default function PendingApprovalPage() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
 
+  const isPw = profile?.segment === 'PW' || !!(profile as any)?.isPrabhupadaWorldUser || localStorage.getItem('pwa_is_pw_flow') === 'true';
+
   useEffect(() => {
-    if (user?.email) loadGuideInfo();
+    if (user?.email && !isPw) loadGuideInfo();
     else setLoading(false);
-  }, [user?.email]);
+  }, [user?.email, isPw]);
 
   const loadGuideInfo = async () => {
     try {
@@ -47,7 +49,7 @@ export default function PendingApprovalPage() {
       } else if (updatedProfile?.status === 'REJECTED') {
         navigate('/rejected', { replace: true });
       } else {
-        toast.info('Still pending approval. Please check with your mentor.');
+        toast.info(isPw ? 'Still pending approval. Please check with your administrator.' : 'Still pending approval. Please check with your FoLK Guide.');
       }
     } catch {
       toast.error('Failed to check status. Please try again.');
@@ -71,11 +73,19 @@ export default function PendingApprovalPage() {
             </div>
             <CardTitle className="text-2xl">Pending Approval</CardTitle>
             <CardDescription>
-              Your registration is awaiting approval from your mentor
+              {isPw 
+                ? 'Your registration is awaiting approval from admin'
+                : 'Your registration is awaiting approval from your FoLK Guide'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {loading ? (
+            {isPw ? (
+              <p className="text-sm text-muted-foreground">
+                Your registration has been sent to the administrators for review.
+                Please wait for approval to access your dashboard.
+              </p>
+            ) : loading ? (
               <Skeleton className="h-16 w-full" />
             ) : guideName ? (
               <div className="bg-muted rounded-lg p-4 text-left space-y-2">
@@ -86,13 +96,13 @@ export default function PendingApprovalPage() {
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground pl-6">
-                  Please contact your mentor to confirm your registration.
+                  Please contact your FoLK Guide to confirm your registration.
                 </p>
               </div>
             ) : (
               <p className="text-muted-foreground">
-                You will be notified once your mentor approves your registration.
-                Please contact your mentor directly if you have any questions.
+                You will be notified once your FoLK Guide approves your registration.
+                Please contact your FoLK Guide directly if you have any questions.
               </p>
             )}
 
