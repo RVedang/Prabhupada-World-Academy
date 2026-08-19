@@ -62,10 +62,10 @@ export default createEndpoint({
       return { totalSubscriptions: 0, subscribers: [] };
     }
 
-    // Fetch user details
+    // Fetch user details including guide to classify by selected guide/mentor
     const { records: users } = await Users.findAll({
       filters: { id: { in: userIds } },
-      fields: ['id', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'isFolkLead', 'residencyId'],
+      fields: ['id', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'isFolkLead', 'residencyId', 'guide', 'guideName'],
       limit: 2000,
     });
 
@@ -80,17 +80,23 @@ export default createEndpoint({
       const name = (u.fullName || '').toUpperCase();
       const email = (u.email || '').toLowerCase();
 
-      const isFolkUser = uSegment === 'FOLK' || 
-                         email.includes('folk.org') || 
-                         email.includes('gaurmandal') || 
-                         email.includes('superguide') || 
-                         name.includes('FOLK') || 
-                         name.includes('GAURMANDAL') || 
-                         !!u.residencyId || 
-                         !!u.isFolkLead;
+      // Check if user has selected a PW guide/mentor
+      const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
+      const guideStr = (String(rawG || '') + ' ' + String(u.guideName || '')).toLowerCase();
+      const hasPwGuide = guideStr.includes('mentor-pw-hiranyavarna') ||
+                         guideStr.includes('mentor-pw-admin') ||
+                         guideStr.includes('hiranyavarna') ||
+                         guideStr.includes('prabhupadaworld') ||
+                         guideStr.includes('iamthevedang@gmail.com') ||
+                         guideStr.includes('guide-vedang') ||
+                         guideStr.includes('vedang') ||
+                         guideStr.includes('vdnd') ||
+                         guideStr.includes('vedanarayana') ||
+                         guideStr.includes('guide-vedanarayana-guide');
 
       const isPwUser = uSegment === 'PW' || 
                        !!u.isPrabhupadaWorldUser || 
+                       hasPwGuide ||
                        email.includes('prabhupadaworld') || 
                        email.includes('hrvd') || 
                        email.includes('srilaprabhupadaworld') || 
@@ -98,14 +104,25 @@ export default createEndpoint({
                        name.includes('PRABHUPADA') || 
                        name.includes('HIRANYAVARNA');
 
+      const isFolkUser = !hasPwGuide && (
+                         uSegment === 'FOLK' || 
+                         email.includes('folk.org') || 
+                         email.includes('gaurmandal') || 
+                         email.includes('superguide') || 
+                         name.includes('FOLK') || 
+                         name.includes('GAURMANDAL') || 
+                         !!u.residencyId || 
+                         !!u.isFolkLead
+                       );
+
       if (isPwTarget) {
-        if (isFolkUser && !isPwUser) return false;
-        if (uSegment === 'FOLK') return false;
+        if (isPwUser) return true;
+        if (isFolkUser) return false;
         return true;
       } else {
-        if (isPwUser && !isFolkUser) return false;
-        if (uSegment === 'PW') return false;
-        return true;
+        if (isPwUser) return false;
+        if (isFolkUser) return true;
+        return false;
       }
     });
 
