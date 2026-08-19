@@ -16,7 +16,10 @@ export default createEndpoint({
     });
 
     const mentors = records
-      .filter((u: any) => u.isSadhanaMentor === true || (u.role || '').toUpperCase() === 'SADHANA_MENTOR' || (u.role || '').toUpperCase() === 'SADHANA MENTOR')
+      .filter((u: any) => 
+        (u.isSadhanaMentor === true || (u.role || '').toUpperCase() === 'SADHANA_MENTOR' || (u.role || '').toUpperCase() === 'SADHANA MENTOR') &&
+        (u.segment === 'PW' || !!u.isPrabhupadaWorldUser)
+      )
       .map((u: any) => ({
         userId: u.id || u.userId,
         fullName: u.fullName || '',

@@ -186,65 +186,30 @@ export default createEndpoint({
 
     // ── Email: confirmation to the newly registered devotee ──
     try {
-      await Email.send({
-        to: userEmail,
-        subject: '🙏 Registration Received — Awaiting Guide Approval | FOLK Sadhana Tracker',
-        body: [
-          {
-            type: 'text',
-            content: `Hare Krishna, ${input.fullName}!\n\nYour registration has been received successfully. 🙏\n\nYour assigned Folk Guide — <strong>${guideRecord.fullName ?? 'your guide'}</strong> — has been notified and will review your registration shortly.\n\nYou will receive another email as soon as your account is approved and you can start entering your daily Sadhana.`,
-          },
-          { type: 'divider' },
-          {
-            type: 'text',
-            content: `<strong>What happens next?</strong>\n• Your Folk Guide will review your registration\n• Once approved, you will receive a confirmation email\n• You can then start filling your Sadhana every day before sleeping\n\nHare Krishna!`,
-          },
-        ],
-      });
+      if (!isPw) {
+        await Email.send({
+          to: userEmail,
+          subject: '🙏 Registration Received — Awaiting Guide Approval | FOLK Sadhana Tracker',
+          body: [
+            {
+              type: 'text',
+              content: `Hare Krishna, ${input.fullName}!\n\nYour registration has been received successfully. 🙏\n\nYour assigned Folk Guide — <strong>${guideRecord.fullName ?? 'your guide'}</strong> — has been notified and will review your registration shortly.\n\nYou will receive another email as soon as your account is approved and you can start entering your daily Sadhana.`,
+            },
+            { type: 'divider' },
+            {
+              type: 'text',
+              content: `<strong>What happens next?</strong>\n• Your Folk Guide will review your registration\n• Once approved, you will receive a confirmation email\n• You can then start filling your Sadhana every day before sleeping\n\nHare Krishna!`,
+            },
+          ],
+        });
+      }
     } catch {
       // Email failure must not block registration
     }
 
     // ── Email: notification to the assigned guide or PW Admins ──
     try {
-      if (isPw) {
-        const { records: userRecords } = await Users.findAll({ limit: 1000 }).catch(() => ({ records: [] }));
-        const pwAdmins = userRecords.filter((u: any) => {
-          const roleUpper = (u.role || '').toUpperCase();
-          const segmentUpper = (u.segment || '').toUpperCase();
-          return (roleUpper === 'ADMIN' || u.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || u.isBvSuperAdmin === true) &&
-                 (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&
-                 u.status === 'Active';
-        });
-
-        const adminEmails = pwAdmins.map((u: any) => u.email).filter(Boolean);
-        if (guideRecord?.email && !adminEmails.includes(guideRecord.email)) {
-          adminEmails.push(guideRecord.email);
-        }
-
-        for (const email of adminEmails) {
-          await Email.send({
-            to: email,
-            subject: `New Devotee Awaiting Approval — ${input.fullName} | PW Sadhana Tracker`,
-            body: [
-              {
-                type: 'text',
-                content: `Hare Krishna,\n\nA new devotee has registered for Prabhupada World and is awaiting your approval.\n\n<strong>Name:</strong> ${input.fullName}\n<strong>Phone:</strong> ${input.phoneE164}\n<strong>Ashray Level:</strong> ${ashrayLevel}\n\nPlease click the button below to go directly to the Approvals tab and review this registration.`,
-              },
-              {
-                type: 'button',
-                label: 'Review & Approve →',
-                href: `${appUrl}/pw-admin/dashboard`,
-                alignment: 'center',
-              },
-              {
-                type: 'text',
-                content: `Hare Krishna!`,
-              },
-            ],
-          }).catch(() => {});
-        }
-      } else if (guideRecord.email) {
+      if (!isPw && guideRecord.email) {
         await Email.send({
           to: guideRecord.email,
           subject: `New Devotee Awaiting Approval — ${input.fullName} | FOLK Sadhana Tracker`,
