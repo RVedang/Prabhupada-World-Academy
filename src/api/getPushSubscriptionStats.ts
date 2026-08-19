@@ -72,7 +72,7 @@ export default createEndpoint({
     };
 
     // Get unique user IDs
-    const userIds = [...new Set(subs.map(s => getUserIdStr(s.user)).filter(Boolean))] as string[];
+    const userIds = Array.from(new Set(subs.map(s => getUserIdStr(s.user)).filter(Boolean))) as string[];
 
     if (userIds.length === 0) {
       return { totalSubscriptions: 0, subscribers: [] };
@@ -151,7 +151,7 @@ export default createEndpoint({
     const subscribers = subs
       .map((s: any) => {
         const uid = getUserIdStr(s.user);
-        const u = uid ? userMap.get(uid) : null;
+        const u = uid ? userMap.get(uid) as any : null;
         return u ? { name: u.fullName || '—', email: u.email || '—' } : null;
       })
       .filter(Boolean) as { name: string; email: string }[];

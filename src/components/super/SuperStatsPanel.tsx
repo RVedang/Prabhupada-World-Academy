@@ -36,12 +36,12 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
         ]);
         setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
         const stats = await Promise.all(
-          guides.map(g =>
+          guides.map((g: any) =>
             getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
               .then(r => {
-                const scored = r.users.filter(u => u.latestScore != null);
+                const scored = r.users.filter((u: any) => u.latestScore != null);
                 const avg = scored.length > 0
-                  ? Math.round(scored.reduce((s, u) => s + (u.latestScore || 0), 0) / scored.length)
+                  ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
                   : null;
                 return { ...g, userCount: r.users.length, avgScore: avg };
               })
