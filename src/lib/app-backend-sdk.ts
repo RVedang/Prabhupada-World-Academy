@@ -146,6 +146,61 @@ function initFirestoreOnStartup() {
             });
             console.log(`[Startup DB Patch] Pre-seeded Users collection for iamthevedang@gmail.com (role: Super Admin, segment: PW)`);
           }
+
+          // 4. One-time cleanup of all pending approvals (registrations, level requests, transfers)
+          try {
+            console.log('[Startup DB Patch] Starting one-time cleanup of pending approvals...');
+            
+            // Delete users with status: 'Pending Approval'
+            const pendingUsersSnap = await usersRef.where('status', '==', 'Pending Approval').get();
+            console.log(`[Startup DB Patch] Found ${pendingUsersSnap.size} pending users to delete.`);
+            for (const doc of pendingUsersSnap.docs) {
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted pending user registration: ${doc.id}`);
+            }
+
+            // Delete pending/approved Ashray Upgrade requests
+            const ashrayRef = firestoreDb.collection('AshrayUpgradeRequests');
+            const ashraySnap = await ashrayRef.get();
+            let ashrayCount = 0;
+            for (const doc of ashraySnap.docs) {
+              const status = String(doc.data().status || '').toUpperCase();
+              if (status === 'PENDING' || status === 'APPROVED') {
+                await doc.ref.delete();
+                console.log(`[Startup DB Patch] Deleted pending/approved Ashray request: ${doc.id}`);
+                ashrayCount++;
+              }
+            }
+            console.log(`[Startup DB Patch] Cleaned up ${ashrayCount} Ashray requests.`);
+
+            // Delete pending guide transfers (status: 'Pending')
+            const guideTransferRef = firestoreDb.collection('GuideTransferRequests');
+            const transferSnap = await guideTransferRef.where('status', '==', 'Pending').get();
+            for (const doc of transferSnap.docs) {
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted pending guide transfer: ${doc.id}`);
+            }
+
+            // Delete pending residency transfers (status: 'Pending')
+            const residencyTransferRef = firestoreDb.collection('ResidencyTransferRequests');
+            const resSnap = await residencyTransferRef.where('status', '==', 'Pending').get();
+            for (const doc of resSnap.docs) {
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted pending residency transfer: ${doc.id}`);
+            }
+
+            // Delete pending BV registrations (status: 'Pending Approval')
+            const bvRegRef = firestoreDb.collection('BvMemberRegistrations');
+            const bvSnap = await bvRegRef.where('status', '==', 'Pending Approval').get();
+            for (const doc of bvSnap.docs) {
+              await doc.ref.delete();
+              console.log(`[Startup DB Patch] Deleted pending BV registration: ${doc.id}`);
+            }
+
+            console.log('[Startup DB Patch] Pending approvals cleanup complete.');
+          } catch (cleanupError) {
+            console.warn('[Startup DB Patch] Failed during pending approvals cleanup:', cleanupError);
+          }
         } catch (e) {
           console.warn('[Startup DB Patch] Failed to apply patch:', e);
         }
