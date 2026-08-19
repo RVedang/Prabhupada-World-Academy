@@ -5,8 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Users, Home, BookOpen, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getGuides, getGuideUsers, getAllResidenciesWithStats, deletePendingApprovals, hardDeleteBvGroups, getSystemBvGroups } from '@/lib/endpoints-sdk';
-import type { GetGuidesOutputType, GetSystemBvGroupsOutputType } from '@/lib/endpoints-sdk';
+import { getGuides, getGuideUsers, getAllResidenciesWithStats } from '@/lib/endpoints-sdk';
+import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -25,26 +25,16 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
 
   const [guideStats, setGuideStats] = useState<GuideStat[]>([]);
   const [totalHostels, setTotalHostels] = useState(0);
-  const [systemGroups, setSystemGroups] = useState<GetSystemBvGroupsOutputType['groups']>([]);
   const [loading, setLoading] = useState(true);
-
-  const reloadSystemGroups = async () => {
-    try {
-      const res = await getSystemBvGroups({});
-      setSystemGroups(res.groups);
-    } catch {}
-  };
 
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const [{ guides }, hostels, sysGroupsRes] = await Promise.all([
+      const [{ guides }, hostels] = await Promise.all([
         getGuides({ segment: effectiveSegment }),
         getAllResidenciesWithStats({}).catch(() => [] as any[]),
-        getSystemBvGroups({}).catch(() => ({ groups: [] as any[] })),
       ]);
       setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
-      setSystemGroups(sysGroupsRes.groups);
       const stats = await Promise.all(
         guides.map((g: any) =>
           getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
@@ -113,167 +103,6 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
         </CardContent>
       </Card>
 
-      <Card className="border-destructive/30 bg-destructive/5">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base text-destructive flex items-center gap-2">
-            ⚠️ Administrative Danger Zone
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            Use these tools with caution. The following action will permanently delete all pending user registrations, level requests, and transfers across the database.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={async () => {
-                if (!window.confirm("ARE YOU ABSOLUTELY SURE you want to delete ALL pending registrations, upgrades, and transfers? This cannot be undone.")) {
-                  return;
-                }
-                const loadToast = toast.loading("Deleting all pending approvals...");
-                try {
-                  const res = await deletePendingApprovals({});
-                  toast.dismiss(loadToast);
-                  if (res.success) {
-                    toast.success(
-                      `Cleaned up: ${res.deletedUsersCount} users, ${res.deletedAshrayCount} upgrades, ${res.deletedGuideTransfersCount} guide transfers, ${res.deletedResidencyTransfersCount} residency transfers, ${res.deletedBvRegistrationsCount} BV regs.`
-                    );
-                    loadData(false);
-                  } else {
-                    toast.error("Failed to delete pending approvals.");
-                  }
-                } catch (e: any) {
-                  toast.dismiss(loadToast);
-                  toast.error(`Error: ${e.message || "Failed to process request"}`);
-                }
-              }}
-            >
-              Delete All Pending Approvals
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={async () => {
-                if (!window.confirm("Delete all dummy Bhakti Vriksha groups (Blissful Sanga, Bhakti Sadhana, Srinivasa, Back to Godhead, Sadhana Report Submission)? This cannot be undone.")) {
-                  return;
-                }
-                const loadToast = toast.loading("Deleting dummy BV groups...");
-                try {
-                  const res = await hardDeleteBvGroups({
-                    groupNames: ['Blissful Sanga', 'Bhakti Sadhana', 'Srinivasa', 'Back to Godhead', 'Sadhana Report Submission'],
-                  });
-                  toast.dismiss(loadToast);
-                  toast.success(`Deleted ${res.deleted} dummy group(s). ${res.details.join(' | ')}`);
-                  loadData(false);
-                } catch (e: any) {
-                  toast.dismiss(loadToast);
-                  toast.error(`Error: ${e.message || 'Failed to delete groups'}`);
-                }
-              }}
-            >
-              Delete 5 Default Dummy BV Groups
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={async () => {
-                const check = window.prompt("Type 'DELETE ALL' to confirm wiping ALL Bhakti Vriksha groups in the database:");
-                if (check !== 'DELETE ALL') {
-                  if (check !== null) toast.error("Verification failed. Please type 'DELETE ALL' exactly.");
-                  return;
-                }
-                const loadToast = toast.loading("Wiping all Bhakti Vriksha groups...");
-                try {
-                  const res = await hardDeleteBvGroups({ deleteAll: true });
-                  toast.dismiss(loadToast);
-                  toast.success(`Successfully deleted all ${res.deleted} group(s).`);
-                  loadData(false);
-                } catch (e: any) {
-                  toast.dismiss(loadToast);
-                  toast.error(`Error: ${e.message || 'Failed to delete groups'}`);
-                }
-              }}
-            >
-              Delete ALL Bhakti Vriksha Groups
-            </Button>
-          </div>
-
-          <div className="border-t border-destructive/20 pt-4 mt-4 space-y-3">
-            <h4 className="text-sm font-semibold text-destructive flex items-center gap-1.5">
-              Permanent Bhakti Vriksha Groups Deletion ({systemGroups.length} total)
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              Search and delete any active or dummy Bhakti Vriksha groups directly from Firestore.
-            </p>
-            <div className="max-h-[300px] overflow-y-auto border rounded-md bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Group Name</TableHead>
-                    <TableHead>Facilitator (RGF)</TableHead>
-                    <TableHead className="text-center">Segment</TableHead>
-                    <TableHead className="text-center">Members</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {systemGroups.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-4">
-                        No Bhakti Vriksha groups found in system.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    systemGroups.map((g: any) => (
-                      <TableRow key={g.id} className="text-xs">
-                        <TableCell className="font-semibold">{g.groupName}</TableCell>
-                        <TableCell>{g.bvslName || '—'}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="outline" className={g.segment === 'PW' ? 'border-primary text-primary' : 'border-blue-500 text-blue-500'}>
-                            {g.segment || '—'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center font-bold">{g.memberCount}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={g.isActive ? 'default' : 'secondary'}>
-                            {g.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="h-6 text-[10px] px-2"
-                            onClick={async () => {
-                              if (!window.confirm(`Are you absolutely sure you want to permanently delete "${g.groupName}"? All group data and member associations will be erased.`)) {
-                                return;
-                              }
-                              const loadToast = toast.loading(`Deleting "${g.groupName}"...`);
-                              try {
-                                const res = await hardDeleteBvGroups({ groupIds: [g.id] });
-                                toast.dismiss(loadToast);
-                                toast.success(`Successfully deleted "${g.groupName}"`);
-                                loadData(false);
-                              } catch (e: any) {
-                                toast.dismiss(loadToast);
-                                toast.error(`Error: ${e.message || 'Failed to delete group'}`);
-                              }
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
