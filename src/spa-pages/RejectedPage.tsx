@@ -1,11 +1,8 @@
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { XCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 export default function RejectedPage() {
-  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary flex items-center justify-center p-4">
@@ -29,10 +26,6 @@ export default function RejectedPage() {
             <p className="text-muted-foreground">
               Please contact your guide directly for more information or to discuss reapplying.
             </p>
-
-            <Button variant="outline" className="w-full cursor-pointer" onClick={() => navigate('/')}>
-              Return to Home
-            </Button>
           </CardContent>
         </Card>
       </motion.div>

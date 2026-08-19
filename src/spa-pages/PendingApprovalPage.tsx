@@ -115,10 +115,6 @@ export default function PendingApprovalPage() {
                 <><RefreshCw className="w-4 h-4 mr-2" /> Check Approval Status</>
               )}
             </Button>
-
-            <Button variant="outline" className="w-full cursor-pointer" onClick={() => navigate('/')}>
-              Return to Home
-            </Button>
           </CardContent>
         </Card>
       </motion.div>
