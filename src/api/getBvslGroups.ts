@@ -15,6 +15,7 @@ const groupSchema = z.object({
   guideName: z.string().nullable(),
   meetingTime: z.string().nullable().optional(),
   segment: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export default createEndpoint({
@@ -110,6 +111,7 @@ export default createEndpoint({
         guideName: (guideRes as any)?.fullName || null,
         meetingTime: g.meetingTime || g.preferredTimeSlot || null,
         segment: g.segment || facilitatorUser?.segment || 'PW',
+        isActive: g.isActive ?? true,
       };
     }));
 

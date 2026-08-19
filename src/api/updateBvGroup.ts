@@ -10,6 +10,7 @@ export default createEndpoint({
     description: z.string().optional(),
     whatsAppLink: z.string().optional(),
     subFacilitatorId: z.string().optional(),
+    isActive: z.boolean().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input }: any) => {
@@ -21,6 +22,7 @@ export default createEndpoint({
     if (input.groupName !== undefined) updates.groupName = input.groupName;
     if (input.description !== undefined) updates.description = input.description;
     if (input.whatsAppLink !== undefined) updates.whatsAppLink = input.whatsAppLink;
+    if (input.isActive !== undefined) updates.isActive = input.isActive;
     if (input.subFacilitatorId !== undefined) {
       updates.subFacilitatorId = input.subFacilitatorId;
       updates.rgsfId = input.subFacilitatorId;

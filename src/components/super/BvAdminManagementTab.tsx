@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, Plus, Users, ShieldCheck, UserCheck, Leaf, Clock, BookOpen, ChevronRight } from 'lucide-react';
-import { createBvGroup, assignBvRole, getBvslGroups, getGuides } from '@/lib/app-endpoints-sdk';
+import { createBvGroup, assignBvRole, getBvslGroups, getGuides, updateBvGroup } from '@/lib/app-endpoints-sdk';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -236,7 +236,34 @@ export default function BvAdminManagementTab() {
                           <code className="bg-muted px-1.5 py-0.5 rounded font-mono font-bold text-[10px] text-primary">{group.joinToken}</code>
                         </div>
                       )}
-                      <div className="pt-2 flex justify-end">
+                      <div className="pt-2 flex items-center justify-between">
+                        <Badge variant={group.isActive === false ? 'secondary' : 'default'} className="text-[10px]">
+                          {group.isActive === false ? 'Inactive' : 'Active'}
+                        </Badge>
+                      </div>
+                      <div className="pt-2 flex items-center justify-between border-t mt-2">
+                        <Button
+                          variant={group.isActive === false ? 'default' : 'secondary'}
+                          size="sm"
+                          className="h-6 text-[10px] px-2"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const action = group.isActive === false ? 'activate' : 'deactivate';
+                            if (!window.confirm(`Are you sure you want to ${action} "${group.groupName}"?`)) return;
+                            const loadToast = toast.loading(`${action === 'activate' ? 'Activating' : 'Deactivating'} group...`);
+                            try {
+                              await updateBvGroup({ groupId: group.groupId || group.id, isActive: group.isActive === false });
+                              toast.dismiss(loadToast);
+                              toast.success(`Group successfully ${action}d`);
+                              loadData();
+                            } catch (err: any) {
+                              toast.dismiss(loadToast);
+                              toast.error(err?.message || `Failed to ${action} group`);
+                            }
+                          }}
+                        >
+                          {group.isActive === false ? 'Activate' : 'Deactivate'}
+                        </Button>
                         <span className="text-[11px] font-semibold text-primary group-hover:underline flex items-center gap-1">
                           View Group Details <ChevronRight className="w-3 h-3" />
                         </span>
