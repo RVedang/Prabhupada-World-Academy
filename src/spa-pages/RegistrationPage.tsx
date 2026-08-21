@@ -373,8 +373,8 @@ export default function RegistrationPage() {
             </div>
           )}
 
-          {/* FOLK Center — hidden for Prabhupada World users */}
-          {formData.selectedGuideId && !isPwMentorSelected && (
+          {/* FOLK Center — always shown on FOLK registration page */}
+          {!isPwFlow && (
             <div className="space-y-1.5">
               <label htmlFor="folkCenter" className="text-sm font-medium text-gray-700 block mb-1">
                 FOLK Center <span className="text-red-500 font-bold">*</span>
@@ -410,8 +410,8 @@ export default function RegistrationPage() {
             </div>
           )}
 
-          {/* Residency Toggle — hidden for Prabhupada World users */}
-          {formData.selectedGuideId && !isPwMentorSelected && (
+          {/* Residency Toggle — always shown on FOLK registration page */}
+          {!isPwFlow && (
             <div className="space-y-3">
               <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-md shadow-sm">
                 <label htmlFor="residency" className="cursor-pointer text-sm font-medium text-gray-700">Staying in FOLK Residency?</label>
