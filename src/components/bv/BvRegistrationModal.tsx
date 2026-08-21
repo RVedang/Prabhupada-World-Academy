@@ -251,7 +251,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
                     value={phone}
                     onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
                     maxLength={15}
-                    placeholder="Phone number"
+                    placeholder={initialPhoneParts.num || "Phone number"}
                     required
                   />
                 </div>
@@ -273,7 +273,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
                     value={whatsappNumber}
                     onChange={e => setWhatsappNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
                     maxLength={10}
-                    placeholder="9876543210"
+                    placeholder={initialPhoneParts.num || "9876543210"}
                     required
                   />
                 </div>
