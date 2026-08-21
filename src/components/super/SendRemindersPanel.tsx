@@ -204,6 +204,7 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
               customBody: config.body,
               senderEmail,
               segment: activeSegment,
+              forceSend: true,
             });
 
             // 3. Show toast only when at least 1 notification was actually delivered
@@ -321,6 +322,7 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
         customBody: config.body,
         senderEmail,
         segment: activeSegment,
+        forceSend: true,
       });
 
       // 3. Show toast only when at least 1 notification was actually delivered

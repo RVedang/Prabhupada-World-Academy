@@ -1,33 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLatestBroadcast } from '@/lib/notificationBroadcast';
-import { PushSubscriptions, SadhanaEntries, Users } from '@/lib/backend-sdk';
+import { Users } from '@/lib/backend-sdk';
 
 /**
  * GET /api/push-events
  *
  * Long-poll endpoint for real-time push notification delivery.
- * Client sends `lastId` and `userId` params; server waits up to 25s for a newer broadcast.
- * For meeting notifications, only delivers to users whose ID is in inviteeIds.
- *
- * getLatestBroadcast() is now async (reads from Firestore for cross-instance sharing).
+ * Client sends `lastId`, `email`, and `userId` params; server waits up to 25s for a newer broadcast.
+ * For meeting notifications, only delivers to users whose ID/email is in invitee list.
  */
-
-/** Extract a plain string ID from a Firestore DocumentReference, array, or string. */
-function getUserIdStr(userField: any): string | null {
-  if (!userField) return null;
-  if (typeof userField === 'string') return userField;
-  if (Array.isArray(userField)) return getUserIdStr(userField[0]);
-  if (userField.id) return String(userField.id);
-  if (userField.path) {
-    const segs = userField.path.split('/');
-    return segs[segs.length - 1];
-  }
-  if (userField._path?.segments) {
-    const segs = userField._path.segments;
-    return segs[segs.length - 1];
-  }
-  return String(userField);
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -35,14 +16,9 @@ export async function GET(req: NextRequest) {
   const email = (searchParams.get('email') || '').toLowerCase();
   const userId = searchParams.get('userId') || '';
 
-  // getLatestBroadcast is now async (reads from Firestore)
   const current = await getLatestBroadcast();
 
   async function shouldDeliver(broadcast: NonNullable<typeof current>): Promise<boolean> {
-    // If sender is the current user, skip
-    const senderEmail = (broadcast.senderEmail || '').toLowerCase();
-    if (email && senderEmail && email === senderEmail) return false;
-
     // If broadcast has an inviteeIds/inviteeEmails list (meeting notification), only deliver to invitees.
     const hasInviteeList =
       (broadcast.inviteeIds && broadcast.inviteeIds.length > 0) ||
@@ -54,47 +30,7 @@ export async function GET(req: NextRequest) {
       return !!(isInvitedById || isInvitedByEmail);
     }
 
-    // Verify if the user has an active push subscription record.
-    // Use getUserIdStr to properly handle Firestore DocumentReferences.
-    if (userId || email) {
-      let resolvedUserId = userId;
-      if (!resolvedUserId && email) {
-        const { records: matchingUsers } = await Users.findAll({ filters: { email } }).catch(() => ({ records: [] }));
-        if (matchingUsers.length > 0) {
-          resolvedUserId = matchingUsers[0].id;
-        }
-      }
-      
-      if (!resolvedUserId) return false;
-
-      const { records: userSubs } = await PushSubscriptions.findAll({ limit: 1000 }).catch(() => ({ records: [] }));
-      const hasSub = userSubs.some(s => {
-        const subUid = getUserIdStr(s.user);
-        return subUid === resolvedUserId;
-      });
-      if (!hasSub) return false;
-    }
-
-    // Also check if they already submitted sadhana for the target date
-    const isSadhanaBroadcast = (broadcast.slot === 'night-1' || broadcast.slot === 'night-2' || broadcast.slot === 'morning');
-    if (isSadhanaBroadcast && (userId || email)) {
-      const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
-      const todayDate = istNow.toISOString().slice(0, 10);
-      const yesterdayDate = new Date(Date.now() + 5.5 * 3600 * 1000 - 24 * 3600 * 1000).toISOString().slice(0, 10);
-      const checkDate = broadcast.slot === 'morning' ? yesterdayDate : todayDate;
-
-      const userFilters = userId ? { user: userId } : { email };
-      const { records: userEntries } = await SadhanaEntries.findAll({
-        filters: { entryDate: checkDate, ...userFilters } as any,
-        limit: 1,
-      }).catch(() => ({ records: [] }));
-
-      if (userEntries.length > 0) {
-        return false;
-      }
-    }
-
-    // General segment check: if the broadcast has a segment (FOLK or PW), check if user is in that segment
+    // General segment check: if the broadcast specifies a segment (FOLK or PW), check if user belongs to that segment
     const targetSegment = broadcast.segment;
     if (targetSegment && (userId || email)) {
       const filter = userId ? { id: userId } : { email };
@@ -165,6 +101,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Timeout — return empty so client reconnects
+  // Timeout — return heartbeat so client reconnects immediately
   return NextResponse.json({ type: 'HEARTBEAT' });
 }

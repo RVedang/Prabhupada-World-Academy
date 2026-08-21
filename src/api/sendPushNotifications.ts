@@ -89,9 +89,13 @@ async function generateVapidJwt(audience: string, subject: string, privateKeyBas
 }
 
 async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey('raw', ikm.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const saltBuf = salt.length ? (salt.buffer as ArrayBuffer) : new ArrayBuffer(32);
-  const prk = new Uint8Array(await crypto.subtle.sign('HMAC', key, saltBuf));
+  // RFC 5869 Extract: PRK = HMAC-SHA-256(salt, IKM)
+  // IMPORTANT: salt is the HMAC *key*, IKM is the *data* — not the other way around.
+  const saltForKey = salt.length ? salt : new Uint8Array(32);
+  const saltKey = await crypto.subtle.importKey('raw', saltForKey.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const prk = new Uint8Array(await crypto.subtle.sign('HMAC', saltKey, ikm.buffer as ArrayBuffer));
+
+  // RFC 5869 Expand: OKM = HMAC-SHA-256(PRK, info || 0x01)
   const prkKey = await crypto.subtle.importKey('raw', prk.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const infoLen = new Uint8Array([...info, 1]);
   const okm = new Uint8Array(await crypto.subtle.sign('HMAC', prkKey, infoLen.buffer as ArrayBuffer));
@@ -220,6 +224,7 @@ export default createEndpoint({
     customBody: z.string().optional(),
     senderEmail: z.string().optional(),
     segment: z.enum(['PW', 'FOLK']).optional(),
+    forceSend: z.boolean().optional(),
   }),
   outputSchema: z.object({
     sent: z.number(),
@@ -314,10 +319,6 @@ export default createEndpoint({
     const isPwTarget = targetSegment === 'PW';
 
     const targetUsers = activeUsers.filter((u: any) => {
-      const isSender = (senderId && u.id === senderId) ||
-                       (senderEmail && (u.email || '').toLowerCase() === senderEmail);
-      if (isSender) return false;
-
       const uSegment = (u.segment || '').toUpperCase();
       const name = (u.fullName || '').toUpperCase();
       const email = (u.email || '').toLowerCase();
@@ -386,7 +387,7 @@ export default createEndpoint({
 
     // Send in parallel batches of 10
     const toSend = [...subsByUser.entries()].filter(([uid]) => {
-      if (submittedUserIds.has(uid)) { skipped++; return false; }
+      if (!input.forceSend && submittedUserIds.has(uid)) { skipped++; return false; }
       if (!activeUserIds.has(uid)) { skipped++; return false; }
       return true;
     });
@@ -412,7 +413,6 @@ export default createEndpoint({
     }
 
     // Store the broadcast so active tabs pick it up via long-polling
-    // senderEmail is used by the long-poll route to filter the sender's tabs
     try {
       storeBroadcast(
         title,
@@ -421,7 +421,7 @@ export default createEndpoint({
         senderEmail || undefined,
         broadcastId,
         undefined,
-        undefined,
+        '/sadhana',
         undefined,
         targetSegment
       );

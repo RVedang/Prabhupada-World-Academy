@@ -1,6 +1,6 @@
 /**
  * Sadhana Notification Utility
- * Manages Web Push subscriptions and local reminder scheduling
+ * Manages Web Push subscriptions, real-time in-app toast alerts, and OS notifications.
  */
 
 import * as React from 'react';
@@ -18,8 +18,6 @@ export interface PwSadhanaNotificationConfig {
   updatedAt: string;
   updatedBy: string;
 }
-
-const CONFIG_STORAGE_KEY = 'pw_sadhana_notification_config';
 
 export const DEFAULT_PW_NOTIFICATION_CONFIG: PwSadhanaNotificationConfig = {
   enabled: true,
@@ -128,33 +126,153 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 // ── Service Worker registration ──
 let _swRegistration: ServiceWorkerRegistration | null = null;
 
-/** Returns true when SW registration is safe (secure context, not in iframe/editor preview) */
 function canRegisterSw(): boolean {
+  if (typeof window === 'undefined') return false;
   if (!('serviceWorker' in navigator)) return false;
-  // Service workers require a secure context (HTTPS or localhost)
   if (!window.isSecureContext) return false;
-  // Skip registration inside iframes (e.g. App editor preview)
   if (window.self !== window.top) return false;
   return true;
 }
 
 export async function ensureSwRegistered(): Promise<ServiceWorkerRegistration | null> {
-  if ('caches' in window) {
-    caches.keys().then((names) => {
-      names.forEach((name) => caches.delete(name));
-    }).catch(() => {});
-  }
-
-  if (_swRegistration) return _swRegistration;
+  if (typeof window === 'undefined') return null;
   if (!canRegisterSw()) return null;
+
   try {
-    _swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    _swRegistration = reg;
+    // Check for updates
+    reg.update().catch(() => {});
+    if (reg.waiting) {
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
     await navigator.serviceWorker.ready;
     return _swRegistration;
-  } catch {
-    // SW registration can fail in restricted contexts — non-critical, degrade gracefully
+  } catch (e) {
+    console.warn('[SW] Registration failed:', e);
     return null;
   }
+}
+
+// ── Deduplication set for toasts / in-app notifications ──
+const _seenBroadcastIds = new Set<string>();
+
+/**
+ * Unified trigger for in-app toast (foreground) OR native system notification (background).
+ */
+export function triggerInAppOrNativeNotification(data: {
+  id?: string;
+  title?: string;
+  body?: string;
+  slot?: string;
+  senderEmail?: string;
+  url?: string;
+}): void {
+  if (!data) return;
+
+  // Check user local preference
+  if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') {
+    return;
+  }
+
+  // Deduplication
+  const msgId = data.id || `${data.title}_${data.body}_${Date.now()}`;
+  if (_seenBroadcastIds.has(msgId)) {
+    return;
+  }
+  _seenBroadcastIds.add(msgId);
+  if (_seenBroadcastIds.size > 100) {
+    const first = _seenBroadcastIds.values().next().value;
+    if (first !== undefined) _seenBroadcastIds.delete(first);
+  }
+
+  const title = data.title || '📿 Sadhana Reminder';
+  const body = data.body || 'Time to fill your Sadhana report before sleeping tonight!';
+  const urlToUse = data.url || '/sadhana';
+
+  const isForeground = typeof document !== 'undefined' && document.visibilityState === 'visible';
+
+  if (isForeground) {
+    // ── 1. FOREGROUND: Display rich in-app interactive toast ──
+    const navigateToTarget = () => {
+      if (urlToUse) {
+        if (urlToUse.startsWith('http')) {
+          window.open(urlToUse, '_blank');
+        } else {
+          window.location.href = urlToUse;
+        }
+      }
+    };
+
+    toast(
+      React.createElement(
+        'div',
+        {
+          onClick: navigateToTarget,
+          className: 'cursor-pointer w-full text-left flex items-start gap-3 select-none py-1',
+        },
+        React.createElement(
+          'div',
+          { className: 'w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center shrink-0 text-lg shadow-xs' },
+          '📿'
+        ),
+        React.createElement(
+          'div',
+          { className: 'flex-1 min-w-0' },
+          React.createElement(
+            'div',
+            { className: 'font-bold text-foreground text-sm leading-tight flex items-center justify-between' },
+            React.createElement('span', { className: 'truncate' }, title),
+            React.createElement('span', { className: 'text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary/15 text-primary ml-2 shrink-0' }, 'Reminder')
+          ),
+          React.createElement('div', { className: 'text-xs text-muted-foreground mt-1 leading-snug' }, body),
+          React.createElement(
+            'div',
+            { className: 'mt-2 text-xs font-semibold text-primary flex items-center gap-1 hover:underline' },
+            'Tap here to open Sadhana →'
+          )
+        )
+      ),
+      {
+        id: `sadhana-toast-${Date.now()}`,
+        duration: 10000,
+      }
+    );
+  } else {
+    // ── 2. BACKGROUND: Display native OS system notification ──
+    const uniqueTag = `sadhana-${data.slot || 'reminder'}-${data.id || Date.now()}`;
+    if (_swRegistration) {
+      _swRegistration.showNotification(title, {
+        body: body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        tag: uniqueTag,
+        data: { url: urlToUse, slot: data.slot || 'night-1' },
+        renotify: true,
+        requireInteraction: true,
+      } as any).catch(() => {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification(title, { body: body, icon: '/icons/icon-192.png', tag: uniqueTag });
+        }
+      });
+    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification(title, { body: body, icon: '/icons/icon-192.png', tag: uniqueTag });
+    }
+  }
+}
+
+// ── Global Service Worker Message Listener (Active as soon as client loads) ──
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'GET_STATE') {
+      navigator.serviceWorker.controller?.postMessage({
+        type: 'SYNC_STATE',
+        submittedToday: hasSubmittedToday(),
+      });
+    } else if (event.data?.type === 'PUSH_RECEIVED') {
+      triggerInAppOrNativeNotification(event.data);
+    }
+  });
 }
 
 export async function registerServiceWorker(): Promise<void> {
@@ -164,7 +282,7 @@ export async function registerServiceWorker(): Promise<void> {
   const reg = await ensureSwRegistered();
   if (!reg) return;
 
-  // Immediately tell SW if page is visible
+  // Tell SW if page is visible
   function notifySwVisibility() {
     const type = document.visibilityState === 'visible' ? 'PAGE_VISIBLE' : 'PAGE_HIDDEN';
     navigator.serviceWorker.controller?.postMessage({ type });
@@ -180,7 +298,7 @@ export async function registerServiceWorker(): Promise<void> {
   }
   syncSwUser();
 
-  // Sync settings (enabled/disabled status, times, title, body) to service worker
+  // Sync settings to service worker
   function syncSwSettings() {
     getPwNotificationConfig().then((config) => {
       const userDisabled = localStorage.getItem('push_notifications_disabled') === 'true';
@@ -203,7 +321,7 @@ export async function registerServiceWorker(): Promise<void> {
     syncSwSettings();
   });
 
-  // Periodically check if user has logged in/out or changed email, and sync with SW
+  // Periodically check if user changed email/settings and sync with SW
   let lastSyncedEmail = localStorage.getItem('auth_email') || '';
   let lastSyncedDisabled = localStorage.getItem('push_notifications_disabled') === 'true';
   setInterval(() => {
@@ -219,45 +337,9 @@ export async function registerServiceWorker(): Promise<void> {
         lastSyncedDisabled = currentDisabled;
       }
     }
-  }, 2000);
+  }, 3000);
 
-  // Set to prevent duplicate toasts in page-level client
-  const _seenBroadcasts = new Set<string>();
-
-  // Listen for messages from SW
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data?.type === 'GET_STATE') {
-      navigator.serviceWorker.controller?.postMessage({
-        type: 'SYNC_STATE',
-        submittedToday: hasSubmittedToday(),
-      });
-    } else if (event.data?.type === 'PUSH_RECEIVED') {
-      // If the current tab belongs to the sender, ignore it
-      const currentEmail = (localStorage.getItem('auth_email') || '').toLowerCase();
-      const senderEmail = (event.data.senderEmail || '').toLowerCase();
-      if (currentEmail && senderEmail && currentEmail === senderEmail) {
-        return;
-      }
-      
-      const msgId = event.data.id;
-      if (msgId) {
-        if (_seenBroadcasts.has(msgId)) return;
-        _seenBroadcasts.add(msgId);
-        if (_seenBroadcasts.size > 50) {
-          const first = _seenBroadcasts.values().next().value;
-          if (first !== undefined) _seenBroadcasts.delete(first);
-        }
-      }
-
-      toast(event.data.title || '📿 Sadhana Reminder', {
-        id: `sadhana-${Date.now()}`,
-        description: event.data.body || 'New Sadhana reminder',
-        duration: 6000,
-      });
-    }
-  });
-
-  // Fire-and-forget: always sync subscription with DB if permission is granted and not explicitly disabled
+  // Fire-and-forget: sync push subscription with DB if permission is granted
   const perm = getNotificationPermission();
   if (perm === 'granted') {
     if (localStorage.getItem('push_notifications_disabled') !== 'true') {
@@ -268,128 +350,47 @@ export async function registerServiceWorker(): Promise<void> {
 
 /**
  * Long-poll /api/push-events for real-time Super Admin push broadcasts.
- *
- * The server holds the request for up to 25 s and returns immediately when a
- * new broadcast is stored.  The client reconnects right away, creating a
- * near-real-time channel without SSE streaming issues.
  */
 export function connectToNotificationStream(): void {
   if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
   let lastId = '';
+  let isConnecting = false;
 
   async function poll(): Promise<void> {
-    const userId = localStorage.getItem('auth_user_id') || '';
-    const email = localStorage.getItem('auth_email') || '';
-
-    if (!userId && !email) {
-      // Not logged in yet. Check again in 1 second.
-      await new Promise<void>((r) => setTimeout(r, 1000));
-      poll();
-      return;
-    }
+    if (isConnecting) return;
+    isConnecting = true;
 
     try {
+      const userId = localStorage.getItem('auth_user_id') || '';
+      const email = localStorage.getItem('auth_email') || '';
+
       const url = `/api/push-events?lastId=${encodeURIComponent(lastId)}&email=${encodeURIComponent(email)}&userId=${encodeURIComponent(userId)}`;
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) {
-        // Wait before retrying on error
-        await new Promise<void>((r) => setTimeout(r, 5000));
+        isConnecting = false;
+        await new Promise<void>((r) => setTimeout(r, 4000));
         poll();
         return;
       }
+
       const data = await res.json();
       if (data?.id) {
         lastId = data.id;
       }
       if (data?.type === 'PUSH_RECEIVED') {
-        handlePushReceived(data);
+        triggerInAppOrNativeNotification(data);
       }
-      // Immediately reconnect for next event
+      isConnecting = false;
+      // Immediately reconnect
       poll();
     } catch {
-      // Network error — retry after 5 s
-      await new Promise<void>((r) => setTimeout(r, 5000));
+      isConnecting = false;
+      await new Promise<void>((r) => setTimeout(r, 4000));
       poll();
     }
   }
 
   poll();
-}
-
-function handlePushReceived(data: { id?: string; title?: string; body?: string; slot?: string; senderEmail?: string; url?: string }): void {
-  // Check user local preference first
-  if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') {
-    return;
-  }
-
-  // If the current tab belongs to the sender, ignore it
-  const currentEmail = (localStorage.getItem('auth_email') || '').toLowerCase();
-  const senderEmail = (data.senderEmail || '').toLowerCase();
-  if (currentEmail && senderEmail && currentEmail === senderEmail) {
-    return;
-  }
-
-  // Check for duplicate messages
-  const msgId = data.id;
-  if (msgId) {
-    if (typeof window !== 'undefined') {
-      const win = window as any;
-      if (!win._seenBroadcasts) win._seenBroadcasts = new Set<string>();
-      if (win._seenBroadcasts.has(msgId)) return;
-      win._seenBroadcasts.add(msgId);
-      if (win._seenBroadcasts.size > 50) {
-        const first = win._seenBroadcasts.values().next().value;
-        if (first !== undefined) win._seenBroadcasts.delete(first);
-      }
-    }
-  }
-
-  const title = data.title || '📿 Sadhana Reminder';
-  const body = data.body || 'You have a new Sadhana reminder.';
-  const slot = data.slot || 'broadcast';
-  const urlToUse = data.url || '/sadhana';
-
-  // If page is in foreground, show in-app toast
-  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-    toast(
-      React.createElement(
-        'div',
-        {
-          onClick: () => {
-            if (urlToUse) {
-              if (urlToUse.startsWith('http')) {
-                window.open(urlToUse, '_blank');
-              } else {
-                window.location.href = urlToUse;
-              }
-            }
-          },
-          className: 'cursor-pointer w-full text-left',
-        },
-        React.createElement('div', { className: 'font-semibold text-foreground text-xs' }, title),
-        React.createElement('div', { className: 'text-[11px] text-muted-foreground mt-0.5' }, body)
-      ),
-      {
-        id: `sadhana-${Date.now()}`,
-        duration: 8000,
-      }
-    );
-  } else {
-    const uniqueTag = `sadhana-${slot}-${data.id || Date.now()}`;
-    // If page is in background, show native system Chrome notification
-    if (_swRegistration) {
-      _swRegistration.showNotification(title, {
-        body: body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        tag: uniqueTag,
-        data: { url: urlToUse, slot },
-        renotify: true,
-      } as any);
-    } else if (typeof Notification !== 'undefined') {
-      new Notification(title, { body: body, tag: uniqueTag });
-    }
-  }
 }
 
 // ── Push subscription ──
@@ -401,8 +402,6 @@ export async function subscribeToPush(): Promise<boolean> {
     try {
       const email = localStorage.getItem('auth_email') || '';
       const userId = localStorage.getItem('auth_user_id') || '';
-      // Sync userDisabled=false AND user email — if SW was restarted, swUserEmail is empty
-      // which prevents the polling loop from starting. Re-syncing email restarts it.
       navigator.serviceWorker.controller?.postMessage({
         type: 'SYNC_SETTINGS',
         userDisabled: false,
@@ -534,30 +533,17 @@ export async function checkPushSubscriptionStatus(): Promise<boolean> {
 let _reminderTimers: ReturnType<typeof setTimeout>[] = [];
 
 export async function scheduleSadhanaReminder(submittedToday: boolean, segment?: string): Promise<void> {
-  // Clear existing timers
   _reminderTimers.forEach(t => clearTimeout(t));
   _reminderTimers = [];
 
-  // Super Admin/Admin role check - Super Admins do not receive or trigger Sadhana reminders
-  if (typeof window !== 'undefined') {
-    const isPwAdmin = localStorage.getItem('is_pw_admin') === 'true';
-    const authRole = localStorage.getItem('auth_role');
-    if (isPwAdmin || authRole === 'SUPER_ADMIN') {
-      return;
-    }
-  }
-
   const config = await getPwNotificationConfig();
-  // If PW department and disabled by PW Super Admin, skip scheduling
   if (segment === 'PW' && !config.enabled) return;
 
-  // Notify the SW
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({
       type: 'SUBMITTED_TODAY',
       submittedToday,
     });
-    // Send updated config values
     const userDisabled = localStorage.getItem('push_notifications_disabled') === 'true';
     navigator.serviceWorker.controller.postMessage({
       type: 'SYNC_SETTINGS',
@@ -569,12 +555,11 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
     });
   }
 
-  if (submittedToday) return; // No reminders needed
+  if (submittedToday) return;
   const configPerm = getNotificationPermission();
   if (configPerm === 'unsupported' || configPerm !== 'granted') return;
 
   const now = new Date();
-  // IST offset
   const istOffset = 5.5 * 60 * 60 * 1000;
   const istNow = new Date(now.getTime() + istOffset);
   const istHour = istNow.getUTCHours();
@@ -600,40 +585,32 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
     const targetIST = new Date(istNow);
     targetIST.setUTCHours(time.hour, time.minute, 0, 0);
 
-    // If target time is in the past for today, schedule for next day
     if (istHour < time.hour || (istHour === time.hour && istMinute < time.minute)) {
-      // Fine, target is today in future
+      // Future today
     } else {
       targetIST.setUTCDate(targetIST.getUTCDate() + 1);
     }
 
-    // Convert IST target to local time
     const targetLocal = new Date(targetIST.getTime() - istOffset);
     const delay = targetLocal.getTime() - now.getTime();
 
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
       const timer = setTimeout(async () => {
-        // Re-read live config at fire-time — fail closed: if we can't verify, skip
         const liveConfig = await getPwNotificationConfig().catch(() => null);
-        if (!liveConfig || !liveConfig.enabled) {
-          console.log('[Push] Skipping local reminder: notifications disabled by admin (or config unavailable)');
-          return;
-        }
-        // Re-check user's own disable flag at fire-time
-        if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') {
-          console.log('[Push] Skipping local reminder: user has disabled notifications');
-          return;
-        }
+        if (!liveConfig || !liveConfig.enabled) return;
+        if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') return;
 
-        // Check subscription still exists
         const hasSub = await checkPushSubscriptionStatus();
-        if (!hasSub) {
-          console.log('[Push] Skipping reminder: user is not subscribed');
-          return;
-        }
+        if (!hasSub) return;
 
         if (!hasSubmittedToday()) {
-          showLocalNotification(slot, liveConfig);
+          triggerInAppOrNativeNotification({
+            id: `local-${slot}-${Date.now()}`,
+            title: liveConfig.title,
+            body: liveConfig.body,
+            slot,
+            url: '/sadhana',
+          });
         }
       }, delay);
       _reminderTimers.push(timer);
@@ -641,42 +618,6 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
   }
 }
 
-function showLocalNotification(slot: string, config?: PwSadhanaNotificationConfig): void {
-  const title = config?.title || '📿 Sadhana Reminder';
-  const body = config?.body || 'Time to fill your Sadhana report before sleeping tonight!';
-
-  // When the app is in the foreground, the SW push event already sends PUSH_RECEIVED
-  // to the page which triggers the in-app toast via registerServiceWorker listener.
-  // Only show in-app toast here if the app IS in foreground AND no SW is controlling the page
-  // (i.e. fallback path where SW-based delivery isn't available).
-  const swControlled = typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller;
-  if (!swControlled && typeof document !== 'undefined' && document.visibilityState === 'visible') {
-    toast(title, {
-      id: `sadhana-local-${slot}-${Date.now()}`,
-      description: body,
-      duration: 6000,
-    });
-  }
-
-  // Show native Chrome system notification when app is in background
-  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-    const uniqueTag = `sadhana-local-${slot}-${Date.now()}`;
-    if (_swRegistration) {
-      _swRegistration.showNotification(title, {
-        body: body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        tag: uniqueTag,
-        data: { url: '/sadhana', slot },
-        renotify: true,
-      } as any);
-    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      new Notification(title, { body: body, tag: uniqueTag });
-    }
-  }
-}
-
-// ── Visibility change handler ──
 export function initReminderVisibilityCheck(): void {
   const handler = () => {
     if (document.visibilityState === 'visible') {
