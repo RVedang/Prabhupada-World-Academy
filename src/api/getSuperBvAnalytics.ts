@@ -47,7 +47,7 @@ export default createEndpoint({
 
     // Fetch guides for name lookup
     const { records: guideRecs } = await Guides.findAll({
-      filters: { isActive: true }, fields: ['id', 'fullName'], limit: 200,
+      fields: ['id', 'fullName'], limit: 500,
     });
     const guideNameMap = new Map<string, string>(guideRecs.map(g => [g.id, g.fullName || '']));
 
@@ -130,7 +130,7 @@ export default createEndpoint({
       const { totals, avgs } = makeAgg(rows);
       return {
         guideId,
-        guideName: guideNameMap.get(guideId) || 'Unknown Guide',
+        guideName: guideNameMap.get(guideId) || (guideId === '_unknown' ? 'Unassigned' : 'Unknown Guide'),
         bvslCount: rows.length,
         submittedCount: rows.filter(r => r.submitted).length,
         totals, avgs, bvsls: rows,

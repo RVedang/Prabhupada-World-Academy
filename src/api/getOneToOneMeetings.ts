@@ -75,7 +75,13 @@ export default createEndpoint({
       }),
     ]);
 
-    const users = usersRes.records;
+    const users = usersRes.records.filter(u => {
+      // Exclude the logged-in user from their own tracker
+      if (context.user && (u.id === context.user.id || u.email === context.user.email)) {
+        return false;
+      }
+      return true;
+    });
 
     // Batch fetch delegate names
     const delegateIds = [...new Set(
