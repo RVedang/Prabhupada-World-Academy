@@ -9,14 +9,34 @@ import { PushSubscriptions, SadhanaEntries, Users } from '@/lib/backend-sdk';
  * Client sends `lastId` and `userId` params; server waits up to 25s for a newer broadcast.
  * For meeting notifications, only delivers to users whose ID is in inviteeIds.
  *
- * This avoids streaming/SSE controller issues with Next.js webpack bundling.
+ * getLatestBroadcast() is now async (reads from Firestore for cross-instance sharing).
  */
+
+/** Extract a plain string ID from a Firestore DocumentReference, array, or string. */
+function getUserIdStr(userField: any): string | null {
+  if (!userField) return null;
+  if (typeof userField === 'string') return userField;
+  if (Array.isArray(userField)) return getUserIdStr(userField[0]);
+  if (userField.id) return String(userField.id);
+  if (userField.path) {
+    const segs = userField.path.split('/');
+    return segs[segs.length - 1];
+  }
+  if (userField._path?.segments) {
+    const segs = userField._path.segments;
+    return segs[segs.length - 1];
+  }
+  return String(userField);
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const lastId = searchParams.get('lastId') || '';
   const email = (searchParams.get('email') || '').toLowerCase();
   const userId = searchParams.get('userId') || '';
-  const current = getLatestBroadcast();
+
+  // getLatestBroadcast is now async (reads from Firestore)
+  const current = await getLatestBroadcast();
 
   async function shouldDeliver(broadcast: NonNullable<typeof current>): Promise<boolean> {
     // If sender is the current user, skip
@@ -34,11 +54,12 @@ export async function GET(req: NextRequest) {
       return !!(isInvitedById || isInvitedByEmail);
     }
 
-    // Verify if the user has an active push subscription record
+    // Verify if the user has an active push subscription record.
+    // Use getUserIdStr to properly handle Firestore DocumentReferences.
     if (userId || email) {
       const { records: userSubs } = await PushSubscriptions.findAll({ limit: 1000 }).catch(() => ({ records: [] }));
       const hasSub = userSubs.some(s => {
-        const subUid = Array.isArray(s.user) ? s.user[0] : s.user;
+        const subUid = getUserIdStr(s.user);
         const subEmail = (s.email || '').toLowerCase();
         return (userId && subUid === userId) || (email && subEmail === email);
       });
@@ -121,12 +142,12 @@ export async function GET(req: NextRequest) {
 
   // Long-poll: wait up to 25s for a new broadcast
   const MAX_WAIT_MS = 25_000;
-  const POLL_INTERVAL_MS = 200;
+  const POLL_INTERVAL_MS = 500;
   const deadline = Date.now() + MAX_WAIT_MS;
 
   while (Date.now() < deadline) {
     await new Promise<void>((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const latest = getLatestBroadcast();
+    const latest = await getLatestBroadcast();
     if (latest && latest.id !== lastId) {
       if (!await shouldDeliver(latest)) {
         return NextResponse.json({ type: 'HEARTBEAT', id: latest.id });

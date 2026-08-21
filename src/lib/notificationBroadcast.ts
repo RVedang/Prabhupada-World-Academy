@@ -1,13 +1,15 @@
 /**
- * Notification broadcast via /tmp file.
- * Works across Next.js route isolation (worker threads, separate VM sandboxes).
- * Writing to /tmp does NOT trigger Next.js hot-reload (outside the watched src/).
+ * Notification broadcast store.
+ *
+ * Primary store: Firestore document `meta/latestBroadcast`
+ * — shared across ALL server instances on Firebase App Hosting.
+ *
+ * Fallback: in-process memory + /tmp file
+ * — used when Firestore is unavailable (local dev, cold starts).
  */
 
 import fs from 'fs';
 import path from 'path';
-
-const BROADCAST_FILE = path.join('/tmp', 'pw-latest-broadcast.json');
 
 export interface BroadcastData {
   id: string;
@@ -22,7 +24,26 @@ export interface BroadcastData {
   segment?: string;
 }
 
+// In-process memory cache so the long-poll tight loop doesn't hammer Firestore
+let _memCache: BroadcastData | null = null;
+let _memCacheTime = 0;
+const MEM_CACHE_TTL_MS = 500; // refresh from Firestore at most every 500ms
+
 let _idCounter = 0;
+const BROADCAST_FILE = path.join('/tmp', 'pw-latest-broadcast.json');
+
+// Lazy Firestore reference — avoids import-time side effects
+function getDb(): any | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getFirestoreDb } = require('./app-backend-sdk');
+    return getFirestoreDb?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const FIRESTORE_DOC = { collection: 'meta', doc: 'latestBroadcast' };
 
 export function storeBroadcast(
   title: string,
@@ -47,19 +68,67 @@ export function storeBroadcast(
     url,
     segment,
   };
+
+  // Update in-process cache immediately
+  _memCache = broadcast;
+  _memCacheTime = Date.now();
+
+  // Write to Firestore (async, non-blocking)
+  const db = getDb();
+  if (db) {
+    db.collection(FIRESTORE_DOC.collection)
+      .doc(FIRESTORE_DOC.doc)
+      .set(broadcast)
+      .then(() => {
+        console.log('[Notifications] Stored broadcast to Firestore:', broadcast.id, title);
+      })
+      .catch((e: any) => {
+        console.error('[Notifications] Failed to write broadcast to Firestore:', e);
+      });
+  }
+
+  // Also write /tmp as local fallback
   try {
     fs.writeFileSync(BROADCAST_FILE, JSON.stringify(broadcast), 'utf8');
-    console.log('[Notifications] Stored broadcast to', BROADCAST_FILE, ':', broadcast.id, title);
-  } catch (e) {
-    console.error('[Notifications] Failed to write broadcast file:', e);
+  } catch {
+    // Non-critical — Firestore is the primary store
   }
 }
 
-export function getLatestBroadcast(): BroadcastData | null {
+export async function getLatestBroadcast(): Promise<BroadcastData | null> {
+  // Return in-process cache if fresh enough (avoids Firestore reads on every poll tick)
+  if (_memCache && (Date.now() - _memCacheTime) < MEM_CACHE_TTL_MS) {
+    return _memCache;
+  }
+
+  // Try Firestore first (shared across all instances)
+  const db = getDb();
+  if (db) {
+    try {
+      const snap = await db
+        .collection(FIRESTORE_DOC.collection)
+        .doc(FIRESTORE_DOC.doc)
+        .get();
+      if (snap.exists) {
+        const data = snap.data() as BroadcastData;
+        _memCache = data;
+        _memCacheTime = Date.now();
+        return data;
+      }
+      return null;
+    } catch (e) {
+      console.warn('[Notifications] Firestore read failed, falling back to /tmp:', e);
+    }
+  }
+
+  // Fallback: /tmp file (single-instance or local dev)
   try {
     if (!fs.existsSync(BROADCAST_FILE)) return null;
     const raw = fs.readFileSync(BROADCAST_FILE, 'utf8');
-    return JSON.parse(raw) as BroadcastData;
+    const data = JSON.parse(raw) as BroadcastData;
+    _memCache = data;
+    _memCacheTime = Date.now();
+    return data;
   } catch {
     return null;
   }
