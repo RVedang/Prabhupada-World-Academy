@@ -614,7 +614,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                     <>
                       <Th col="guideName" label="Admin" />
                       <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Sadhana Mentor</th>
-                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Assigned Sadhana Mentor Role</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Assign Sadhana Mentor Role</th>
                     </>
                   ) : (
                     <>
