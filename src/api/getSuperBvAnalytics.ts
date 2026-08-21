@@ -1,7 +1,7 @@
 
 
 import { z } from 'zod';
-import { createEndpoint, Users, BvslPreachingEntries, Guides, BvGroups } from '@/lib/backend-sdk';
+import { createEndpoint, Users, BvslPreachingEntries, Guides, BvGroups, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole, getRefId } from '../lib/userUtils';
 import getGuides from './getGuides';
 
@@ -12,6 +12,23 @@ const NUM_KEYS = [
 
 const IS_COUNT_KEY = (k: string) =>
   ['booksDistributed', 'contactsCollected', 'uniqueOneOnOnes'].includes(k);
+
+const KNOWN_GUIDES: Record<string, string> = {
+  'HVD': 'Hiranyavarna Das',
+  'GMP': 'Gaurmandal Prabhu',
+  'VED': 'Vedang Prabhu',
+  'MMKD': 'Madana Mohan Krishna Das',
+  'SRGD': 'Shrikrishna Rupa Gauranga Das',
+  'RMTD': 'Ramadasa Tirtha Das',
+  'GGUD': 'Gauranga Gunadhama Das',
+  'URGD': 'Urukrama Gauranga Dasa',
+  'MTND': 'Murtinarayana Das',
+  'SG': 'Spiritual Guide',
+  'res_powai': 'FOLK Powai',
+  'res_mulund': 'FOLK Mulund',
+  'res_thane': 'FOLK Thane',
+  'res_chembur': 'FOLK Chembur',
+};
 
 function makeAgg(rows: any[]) {
   const submitted = rows.filter((r: any) => r.submitted);
@@ -48,47 +65,171 @@ export default createEndpoint({
 
     const emptyAgg = () => Object.fromEntries(NUM_KEYS.map(k => [k, 0]));
 
-    // Fetch guides using the unified getGuides endpoint (resolves from both Guides and Users tables)
-    const [guidesRes, { records: allUserRecs }, { records: guideRecs }] = await Promise.all([
+    // Fetch guides, users, residencies, and groups in parallel
+    const [
+      guidesRes,
+      { records: allUserRecs },
+      { records: guideRecs },
+      { records: folkResRecs },
+      { records: bvslUsers },
+      { records: bvGroups },
+    ] = await Promise.all([
       getGuides.execute({ input: {}, context }).catch(() => ({ guides: [] })),
-      Users.findAll({ fields: ['id', 'userId', 'fullName', 'email'], limit: 1000 }).catch(() => ({ records: [] })),
-      Guides.findAll({ fields: ['id', 'guideId', 'fullName', 'name'], limit: 500 }).catch(() => ({ records: [] })),
+      Users.findAll({ fields: ['id', 'userId', 'fullName', 'email', 'role', 'segment', 'residency', 'guide'], limit: 2000 }).catch(() => ({ records: [] })),
+      Guides.findAll({ fields: ['id', 'guideId', 'fullName', 'name', 'abbreviation', 'folkResidencies', 'email'], limit: 500 }).catch(() => ({ records: [] })),
+      FolkResidencies.findAll({ fields: ['id', 'residencyId', 'residencyName', 'guide', 'guideName'], limit: 200 }).catch(() => ({ records: [] })),
+      Users.findAll({ filters: { isBvsl: true, status: 'Active' }, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'residency', 'segment', 'isPrabhupadaWorldUser'], limit: 500 }),
+      BvGroups.findAll({ filters: { isActive: true }, fields: ['id', 'groupName', 'bvslLeader', 'guide', 'guideName', 'bvReportingAdminName', 'center'], limit: 500 }).catch(() => ({ records: [] })),
     ]);
-
-    const guideNameMap = new Map<string, string>();
-    for (const g of (guidesRes.guides || [])) {
-      if (g.guideId && g.name) guideNameMap.set(g.guideId, g.name);
-    }
-    for (const g of guideRecs) {
-      const name = g.fullName || (g as any).name;
-      if (g.id && name && !guideNameMap.has(g.id)) guideNameMap.set(g.id, name);
-      if ((g as any).guideId && name && !guideNameMap.has((g as any).guideId)) guideNameMap.set((g as any).guideId, name);
-    }
-    for (const u of allUserRecs) {
-      if (u.id && u.fullName && !guideNameMap.has(u.id)) guideNameMap.set(u.id, u.fullName);
-      if (u.userId && u.fullName && !guideNameMap.has(u.userId)) guideNameMap.set(u.userId, u.fullName);
-    }
-
-    // Fetch all active BVSLs with their guide reference
-    const { records: bvslUsers } = await Users.findAll({
-      filters: { isBvsl: true, status: 'Active' },
-      fields: ['id', 'fullName', 'guide'],
-      limit: 500,
-    });
 
     if (bvslUsers.length === 0) {
       return { centers: [], overall: { bvslCount: 0, submittedCount: 0, totals: emptyAgg(), avgs: emptyAgg() } };
     }
 
-    // BV group name lookup per BVSL
-    const { records: bvGroups } = await BvGroups.findAll({
-      filters: { isActive: true }, fields: ['groupName', 'bvslLeader'], limit: 500,
-    });
+    // 1. Build Residencies Map
+    const residencyMap = new Map<string, string>();
+    for (const [k, v] of Object.entries(KNOWN_GUIDES)) {
+      residencyMap.set(k, v);
+      residencyMap.set(k.toLowerCase(), v);
+    }
+    for (const r of folkResRecs) {
+      const name = (r as any).residencyName || (r as any).name || '';
+      if (name) {
+        if (r.id) {
+          residencyMap.set(r.id, name);
+          residencyMap.set(r.id.toLowerCase(), name);
+        }
+        if ((r as any).residencyId) {
+          residencyMap.set((r as any).residencyId, name);
+          residencyMap.set((r as any).residencyId.toLowerCase(), name);
+        }
+      }
+    }
+
+    // 2. Build Comprehensive Guide & Center Lookup Map
+    const guideNameMap = new Map<string, string>();
+
+    // Add known defaults
+    for (const [k, v] of Object.entries(KNOWN_GUIDES)) {
+      guideNameMap.set(k, v);
+      guideNameMap.set(k.toLowerCase(), v);
+    }
+
+    // From getGuides endpoint
+    for (const g of (guidesRes.guides || [])) {
+      if (g.guideId && g.name && !g.name.includes('Unknown')) {
+        guideNameMap.set(g.guideId, g.name);
+        guideNameMap.set(g.guideId.toLowerCase(), g.name);
+      }
+    }
+
+    // From Guides table
+    for (const g of guideRecs) {
+      const name = g.fullName || (g as any).name || (g as any).abbreviation || '';
+      if (name && !name.includes('Unknown')) {
+        if (g.id) {
+          guideNameMap.set(g.id, name);
+          guideNameMap.set(g.id.toLowerCase(), name);
+        }
+        if ((g as any).guideId) {
+          guideNameMap.set((g as any).guideId, name);
+          guideNameMap.set((g as any).guideId.toLowerCase(), name);
+        }
+        if ((g as any).abbreviation) {
+          const mappedAbbr = KNOWN_GUIDES[(g as any).abbreviation] || (g as any).abbreviation;
+          guideNameMap.set((g as any).abbreviation, mappedAbbr);
+          guideNameMap.set((g as any).abbreviation.toLowerCase(), mappedAbbr);
+        }
+        if (g.email) {
+          guideNameMap.set(g.email.toLowerCase(), name);
+        }
+      }
+
+      // Map linked residencies to guide
+      const fRes = Array.isArray((g as any).folkResidencies)
+        ? (g as any).folkResidencies
+        : typeof (g as any).folkResidencies === 'string'
+        ? (g as any).folkResidencies.split(',').map((s: string) => s.trim())
+        : [];
+      for (const rid of fRes) {
+        if (rid && name && !name.includes('Unknown') && !guideNameMap.has(rid)) {
+          guideNameMap.set(rid, name);
+        }
+      }
+    }
+
+    // From Users table
+    for (const u of allUserRecs) {
+      if (u.fullName && !u.fullName.includes('Unknown')) {
+        if (u.id) {
+          guideNameMap.set(u.id, u.fullName);
+          guideNameMap.set(u.id.toLowerCase(), u.fullName);
+        }
+        if (u.userId) {
+          guideNameMap.set(u.userId, u.fullName);
+          guideNameMap.set(u.userId.toLowerCase(), u.fullName);
+        }
+        if (u.email) {
+          guideNameMap.set(u.email.toLowerCase(), u.fullName);
+        }
+      }
+    }
+
+    // 3. BV group name & admin lookup per BVSL leader
     const groupByBvsl = new Map<string, string>();
+    const groupAdminByBvsl = new Map<string, string>();
     for (const g of bvGroups) {
       const lid = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader;
-      if (lid) groupByBvsl.set(lid as string, g.groupName || '');
+      if (lid) {
+        groupByBvsl.set(lid as string, g.groupName || '');
+        const adminName = (g as any).bvReportingAdminName || (g as any).guideName || '';
+        if (adminName) groupAdminByBvsl.set(lid as string, adminName);
+      }
     }
+
+    // Function to safely resolve Guide / Center display name for a BVSL
+    const resolveCenterName = (u: any): { key: string; name: string } => {
+      const rawGid = getRefId(u.guide);
+      const rawRid = getRefId(u.residency);
+
+      // Check direct guide match
+      if (rawGid) {
+        const directName = guideNameMap.get(rawGid) || guideNameMap.get(rawGid.toLowerCase());
+        if (directName && !directName.includes('Unknown')) {
+          return { key: rawGid, name: directName };
+        }
+        const resName = residencyMap.get(rawGid) || residencyMap.get(rawGid.toLowerCase());
+        if (resName) {
+          return { key: rawGid, name: resName };
+        }
+      }
+
+      // Check residency match
+      if (rawRid) {
+        const resName = residencyMap.get(rawRid) || residencyMap.get(rawRid.toLowerCase());
+        if (resName) {
+          return { key: rawRid, name: resName };
+        }
+        const guideForRes = guideNameMap.get(rawRid) || guideNameMap.get(rawRid.toLowerCase());
+        if (guideForRes && !guideForRes.includes('Unknown')) {
+          return { key: rawRid, name: guideForRes };
+        }
+      }
+
+      // Check BV group admin name
+      const grpAdmin = groupAdminByBvsl.get(u.id);
+      if (grpAdmin && !grpAdmin.includes('Unknown')) {
+        return { key: grpAdmin, name: grpAdmin };
+      }
+
+      // Segment fallback
+      const uSeg = (u.segment || '').toUpperCase();
+      if (uSeg === 'PW' || u.isPrabhupadaWorldUser) {
+        return { key: 'MENTOR-PW-HIRANYAVARNA', name: 'Hiranyavarna Das' };
+      }
+
+      return { key: 'MENTOR-FOLK-GAURMANDAL', name: 'Gaurmandal Prabhu' };
+    };
 
     // Fetch preaching entries for the date range
     const dateFilter: any = reportType === 'daily'
@@ -135,20 +276,22 @@ export default createEndpoint({
       };
     };
 
-    // Group BVSLs by guide
-    const byGuide = new Map<string, any[]>();
+    // Group BVSLs by resolved center/guide
+    const byCenter = new Map<string, { guideId: string; guideName: string; users: any[] }>();
     for (const u of bvslUsers) {
-      const gid = getRefId(u.guide) || '_unknown';
-      if (!byGuide.has(gid)) byGuide.set(gid, []);
-      byGuide.get(gid)!.push(u);
+      const { key, name } = resolveCenterName(u);
+      if (!byCenter.has(name)) {
+        byCenter.set(name, { guideId: key, guideName: name, users: [] });
+      }
+      byCenter.get(name)!.users.push(u);
     }
 
-    const centers = [...byGuide.entries()].map(([guideId, users]) => {
-      const rows = users.map(buildRow).sort((a, b) => b.totalMinutes - a.totalMinutes);
+    const centers = [...byCenter.values()].map(group => {
+      const rows = group.users.map(buildRow).sort((a, b) => b.totalMinutes - a.totalMinutes);
       const { totals, avgs } = makeAgg(rows);
       return {
-        guideId,
-        guideName: guideNameMap.get(guideId) || (guideId === '_unknown' ? 'Unassigned' : 'Unknown Guide'),
+        guideId: group.guideId,
+        guideName: group.guideName,
         bvslCount: rows.length,
         submittedCount: rows.filter(r => r.submitted).length,
         totals, avgs, bvsls: rows,
@@ -167,3 +310,4 @@ export default createEndpoint({
     };
   },
 });
+
