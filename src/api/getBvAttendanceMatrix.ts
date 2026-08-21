@@ -10,7 +10,7 @@ export default createEndpoint({
     endDate: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input }: any) => {
     if (!input.groupId) return { sessions: [], members: [], matrix: {}, rows: [], dates: [] };
 
     // Resolve group
@@ -31,12 +31,24 @@ export default createEndpoint({
       .map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user)
       .filter(Boolean) as string[];
 
-    const userRecords = memberUserIds.length > 0
-      ? await Users.findAll({ filters: { id: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'ashrayLevel'], limit: 500 })
-      : { records: [] };
+    const [userRecordsById, userRecordsByUserId] = await Promise.all([
+      memberUserIds.length > 0
+        ? Users.findAll({ filters: { id: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'ashrayLevel'], limit: 500 })
+        : { records: [] },
+      memberUserIds.length > 0
+        ? Users.findAll({ filters: { userId: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'ashrayLevel'], limit: 500 })
+        : { records: [] },
+    ]);
 
     const userMap: Record<string, any> = {};
-    userRecords.records.forEach((u: any) => { userMap[u.id] = u; });
+    const addRecord = (u: any) => {
+      userMap[u.id] = u;
+      if (u.userId) {
+        userMap[u.userId] = u;
+      }
+    };
+    userRecordsById.records.forEach(addRecord);
+    userRecordsByUserId.records.forEach(addRecord);
 
     // Build date range filter
     const dateFilter: any = {};

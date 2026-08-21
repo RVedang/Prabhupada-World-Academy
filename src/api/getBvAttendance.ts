@@ -10,7 +10,7 @@ export default createEndpoint({
     sinceDate: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     const uid = input.userId || context.user!.id;
     const sinceDate = input.sinceDate || new Date(Date.now() - 90 * 86400_000).toISOString().split('T')[0];
 
@@ -23,32 +23,59 @@ export default createEndpoint({
     // Query SadhanaEntries for all users — even those not in a BvGroup
     const { records: sadhanaRecords } = await SadhanaEntries.findAll({
       filters: { user: uid } as any,
-      fields: ['id', 'entryDate', 'fieldValuesJson'],
       limit: 1000,
     }).catch(() => ({ records: [] }));
 
-    // Get user's group membership
-    const membershipRes = await BvGroupMembers.findAll({ filters: { user: uid }, limit: 5, fields: ['id', 'group'] });
-    const membership = membershipRes.records[0];
+    const sadhanaMap = new Map(sadhanaRecords.map((s: any) => [s.entryDate, s]));
 
-    const groupId = membership ? (Array.isArray(membership.group) ? membership.group[0] : membership.group) : null;
+    // Query BvAttendance directly by user ID (or other user keys)
+    let allAtt: any[] = [];
+    for (const key of userKeys) {
+      const { records } = await BvAttendance.findAll({
+        filters: { user: key, attendanceDate: { gte: sinceDate } },
+        limit: 1000,
+      }).catch(() => ({ records: [] }));
+      allAtt = allAtt.concat(records);
+    }
 
-    // Query all BvAttendance records and filter by userKeys
-    const { records: allBvRecords } = await BvAttendance.findAll({
-      limit: 2000,
-      fields: ['id', 'user', 'present', 'attendanceDate'],
-    }).catch(() => ({ records: [] }));
-
-    const myAttRecords = allBvRecords.filter((a: any) => {
-      const rawU = Array.isArray(a.user) ? a.user[0] : a.user;
-      const uStr = String(rawU || '').toLowerCase();
-      return userKeys.has(uStr);
+    // Deduplicate attendance records by ID
+    const seenAttIds = new Set<string>();
+    allAtt = allAtt.filter(a => {
+      if (seenAttIds.has(a.id)) return false;
+      seenAttIds.add(a.id);
+      return true;
     });
 
-    const allAtt = allBvRecords;
+    const formattedHistory = allAtt.map(a => ({
+      attendanceId: a.id,
+      attendanceDate: a.attendanceDate || '',
+      present: !!a.present,
+    })).sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate));
+
+    // Leaderboard — get all unique member user IDs
+    const memberIds = [...new Set(allAtt.map((a: any) => Array.isArray(a.user) ? a.user[0] : a.user).filter(Boolean))] as string[];
+    const [userRecordsById, userRecordsByUserId] = await Promise.all([
+      memberIds.length > 0
+        ? Users.findAll({ filters: { id: { in: memberIds } }, fields: ['id', 'fullName', 'userId'] })
+        : { records: [] },
+      memberIds.length > 0
+        ? Users.findAll({ filters: { userId: { in: memberIds } }, fields: ['id', 'fullName', 'userId'] })
+        : { records: [] },
+    ]);
+
+    const userNameMap = new Map<string, { name: string; userId: string }>();
+    const addNameMap = (u: any) => {
+      const details = { name: u.fullName || '', userId: u.userId || u.id };
+      userNameMap.set(u.id, details);
+      if (u.userId) {
+        userNameMap.set(u.userId, details);
+      }
+    };
+    userRecordsById.records.forEach(addNameMap);
+    userRecordsByUserId.records.forEach(addNameMap);
 
     const dateMap = new Map<string, boolean>();
-    myAttRecords.forEach((a: any) => {
+    allAtt.forEach((a: any) => {
       if (a.attendanceDate) dateMap.set(a.attendanceDate, a.present || false);
     });
 
@@ -79,14 +106,11 @@ export default createEndpoint({
       sessionTopic: '',
     })).sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate));
 
-    // Leaderboard — get all unique member user IDs
-    const memberIds = [...new Set(allAtt.map((a: any) => Array.isArray(a.user) ? a.user[0] : a.user).filter(Boolean))] as string[];
-    const userRecords = memberIds.length > 0
-      ? await Users.findAll({ filters: { id: { in: memberIds } }, fields: ['id', 'fullName', 'userId'] })
-      : { records: [] };
-    const userNameMap = new Map<string, { name: string; userId: string }>(
-      userRecords.records.map((u: any) => [u.id, { name: u.fullName || '', userId: u.userId || u.id }] as [string, { name: string; userId: string }])
-    );
+    const myAttRecords = allAtt.filter((a: any) => {
+      const rawU = Array.isArray(a.user) ? a.user[0] : a.user;
+      const uStr = String(rawU || '').toLowerCase();
+      return userKeys.has(uStr);
+    });
 
     // Count distinct attendance dates = total sessions
     const totalSessionDates = new Set(allAtt.map((a: any) => a.attendanceDate).filter(Boolean)).size;

@@ -6,7 +6,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({ groupId: z.string() }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input }: any) => {
     if (!input.groupId) throw new AppError({ code: 'BAD_REQUEST', message: 'groupId is required' });
 
     // Try finding by the custom groupId field first, then fall back to DB record ID
@@ -32,12 +32,24 @@ export default createEndpoint({
       .map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user)
       .filter(Boolean) as string[];
 
-    const userRecords = memberUserIds.length > 0
-      ? await Users.findAll({ filters: { id: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel'], limit: 500 })
-      : { records: [] };
+    const [userRecordsById, userRecordsByUserId] = await Promise.all([
+      memberUserIds.length > 0
+        ? Users.findAll({ filters: { id: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel'], limit: 500 })
+        : { records: [] },
+      memberUserIds.length > 0
+        ? Users.findAll({ filters: { userId: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel'], limit: 500 })
+        : { records: [] },
+    ]);
 
     const userMap: Record<string, any> = {};
-    userRecords.records.forEach((u: any) => { userMap[u.id] = u; });
+    const addRecord = (u: any) => {
+      userMap[u.id] = u;
+      if (u.userId) {
+        userMap[u.userId] = u;
+      }
+    };
+    userRecordsById.records.forEach(addRecord);
+    userRecordsByUserId.records.forEach(addRecord);
 
     const members = membersRes.records.map((m: any) => {
       const uid = Array.isArray(m.user) ? m.user[0] : m.user;

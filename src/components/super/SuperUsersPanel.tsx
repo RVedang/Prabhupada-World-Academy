@@ -797,31 +797,39 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                       </td>
                       {isPwAdmin && (
                         <>
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                            <Select 
-                              value={u.sadhanaMentor || ''} 
-                              onValueChange={mentorId => handleAssignSadhanaMentor(u.userId, mentorId)}
-                              disabled={isSelf}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-44">
-                                <SelectValue placeholder="Select Sadhana Mentor">
-                                  {sadhanaMentors.find(m => m.userId === u.sadhanaMentor)?.fullName || 'Unassigned'}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {sadhanaMentors.map(m => (
-                                  <SelectItem key={m.userId} value={m.userId}>{m.fullName}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
+                            {isBvUser ? (
+                              <span className="text-muted-foreground/60 font-normal">NA</span>
+                            ) : (
+                              <Select 
+                                value={u.sadhanaMentor || ''} 
+                                onValueChange={mentorId => handleAssignSadhanaMentor(u.userId, mentorId)}
+                                disabled={isSelf}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-44">
+                                  <SelectValue placeholder="Select Sadhana Mentor">
+                                    {sadhanaMentors.find(m => m.userId === u.sadhanaMentor)?.fullName || 'Unassigned'}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {sadhanaMentors.map(m => (
+                                    <SelectItem key={m.userId} value={m.userId}>{m.fullName}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </td>
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                            <button
-                              className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
-                              onClick={() => setSadhanaMentorDialog({ user: u, action: (u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'untag' : 'tag' })}
-                            >
-                              {(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
-                            </button>
+                          <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
+                            {isBvUser ? (
+                              <span className="text-muted-foreground/60 font-normal">NA</span>
+                            ) : (
+                              <button
+                                className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
+                                onClick={() => setSadhanaMentorDialog({ user: u, action: (u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'untag' : 'tag' })}
+                              >
+                                {(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? <><StarOff className="w-3 h-3 mr-1" />Remove</> : <><Star className="w-3 h-3 mr-1" />Assign</>}
+                              </button>
+                            )}
                           </td>
                         </>
                       )}
