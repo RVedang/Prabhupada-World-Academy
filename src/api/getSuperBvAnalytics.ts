@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Users, BvslPreachingEntries, Guides, BvGroups } from '@/lib/backend-sdk';
-import { requireGuideRole } from '../lib/userUtils';
+import { requireGuideRole, getRefId } from '../lib/userUtils';
 
 const NUM_KEYS = [
   'callingTime', 'oneOnOneTime', 'bookDistTime', 'rduaTime', 'planTime',
@@ -34,7 +34,7 @@ export default createEndpoint({
     endDate: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
     requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl });
 
@@ -120,7 +120,7 @@ export default createEndpoint({
     // Group BVSLs by guide
     const byGuide = new Map<string, any[]>();
     for (const u of bvslUsers) {
-      const gid = (Array.isArray(u.guide) ? u.guide[0] : (u.guide as string)) || '_unknown';
+      const gid = getRefId(u.guide) || '_unknown';
       if (!byGuide.has(gid)) byGuide.set(gid, []);
       byGuide.get(gid)!.push(u);
     }

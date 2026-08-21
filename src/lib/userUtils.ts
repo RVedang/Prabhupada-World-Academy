@@ -158,3 +158,23 @@ export function requireGuideRole(
     throw new Error('Unauthorized: Guide or higher role required');
   }
 }
+
+/**
+ * Safely extracts a string ID from a Firestore DocumentReference, array, or string.
+ * Used to normalize database references (like u.guide or u.user) to their ID strings.
+ */
+export function getRefId(ref: any): string {
+  if (!ref) return '';
+  if (typeof ref === 'string') return ref;
+  if (Array.isArray(ref)) return getRefId(ref[0]);
+  if (ref.id) return String(ref.id);
+  if (ref.path) {
+    const segments = ref.path.split('/');
+    return segments[segments.length - 1];
+  }
+  if (ref._path && ref._path.segments) {
+    const segments = ref._path.segments;
+    return segments[segments.length - 1];
+  }
+  return String(ref);
+}

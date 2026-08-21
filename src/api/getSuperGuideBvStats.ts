@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, Guides } from '@/lib/backend-sdk';
+import { getRefId } from '../lib/userUtils';
 
 /** ISO week number for a given Date */
 function getISOWeek(d: Date): number {
@@ -271,7 +272,7 @@ export default createEndpoint({
         const u = userInfoMap.get(uid);
         const totalPts = userTotalPoints.get(uid) || 0;
         const totalAtt = userTotalSessions.get(uid) || 0;
-        const guideId = u ? (Array.isArray(u.guide) ? u.guide[0] : u.guide) : null;
+        const guideId = u ? getRefId(u.guide) : null;
         return {
           userId: uid,
           displayName: u ? ((u.fullName as string) || uid) : uid,
