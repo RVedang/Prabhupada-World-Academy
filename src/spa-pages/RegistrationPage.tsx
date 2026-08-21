@@ -309,11 +309,11 @@ export default function RegistrationPage() {
             </div>
           </div>
 
-          {/* Mentor / FoLK Guide Selector */}
+          {/* Mentor / FOLK Guide Selector */}
           {!isPwFlow && (
             <div className="space-y-1.5">
               <label htmlFor="guide" className="text-sm font-medium text-gray-700 block mb-1">
-                FoLK Guide <span className="text-red-500 font-bold">*</span>
+                FOLK Guide <span className="text-red-500 font-bold">*</span>
               </label>
               {loadingGuides ? (
                 <div className="flex items-center justify-center h-8 border border-gray-200 rounded-md bg-gray-50">
@@ -332,7 +332,7 @@ export default function RegistrationPage() {
                     onValueChange={(value) => { if (value) setFormData({ ...formData, selectedGuideId: value, residencyUserClaim: false, selectedFolkResidency: '' }); }}
                   >
                     <SelectTrigger className="w-full !h-8 border border-gray-200 rounded-md text-sm text-gray-900 bg-white focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] focus-visible:border-[#ea6506] focus-visible:ring-1 focus-visible:ring-[#ea6506] outline-none shadow-sm">
-                      <SelectValue placeholder="Select your FoLK Guide">
+                      <SelectValue placeholder="Select your FOLK Guide">
                         {(val) => {
                           const matched = guides.find((g: any) => g.guideId === val);
                           if (!matched) return val;

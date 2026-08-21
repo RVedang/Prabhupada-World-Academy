@@ -49,7 +49,7 @@ export default function PendingApprovalPage() {
       } else if (updatedProfile?.status === 'REJECTED') {
         navigate('/rejected', { replace: true });
       } else {
-        toast.info(isPw ? 'Still pending approval. Please check with your administrator.' : 'Still pending approval. Please check with your FoLK Guide.');
+        toast.info(isPw ? 'Still pending approval. Please check with your administrator.' : 'Still pending approval. Please check with your FOLK Guide.');
       }
     } catch {
       toast.error('Failed to check status. Please try again.');
@@ -75,7 +75,7 @@ export default function PendingApprovalPage() {
             <CardDescription>
               {isPw 
                 ? 'Your registration is awaiting approval from admin'
-                : 'Your registration is awaiting approval from your FoLK Guide'
+                : 'Your registration is awaiting approval from your FOLK Guide'
               }
             </CardDescription>
           </CardHeader>
@@ -96,13 +96,13 @@ export default function PendingApprovalPage() {
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground pl-6">
-                  Please contact your FoLK Guide to confirm your registration.
+                  Please contact your FOLK Guide to confirm your registration.
                 </p>
               </div>
             ) : (
               <p className="text-muted-foreground">
-                You will be notified once your FoLK Guide approves your registration.
-                Please contact your FoLK Guide directly if you have any questions.
+                You will be notified once your FOLK Guide approves your registration.
+                Please contact your FOLK Guide directly if you have any questions.
               </p>
             )}
 
