@@ -65,12 +65,24 @@ const TIME_PREFERENCES = [
   '11:00 AM – 12:00 PM (Saturday & Sunday only)',
 ];
 
+const parsePhone = (p?: string) => {
+  if (!p) return { cc: '+91', num: '' };
+  if (p.startsWith('+') && p.length > 10) {
+    return { cc: p.slice(0, -10), num: p.slice(-10) };
+  }
+  return { cc: '+91', num: p.replace(/\D/g, '').slice(-10) };
+};
+
 export default function BvRegistrationModal({ open, onOpenChange, onSuccess, segment }: Props) {
   const { profile } = useUserProfile();
+  
+  const initialPhoneParts = parsePhone((profile as any)?.phone);
 
   const [fullName, setFullName] = useState(profile?.fullName || '');
-  const [phoneCountryCode, setPhoneCountryCode] = useState('+91');
-  const [phone, setPhone] = useState((profile as any)?.phone || '');
+  const [phoneCountryCode, setPhoneCountryCode] = useState(initialPhoneParts.cc);
+  const [phone, setPhone] = useState(initialPhoneParts.num);
+  const [whatsappCountryCode, setWhatsappCountryCode] = useState(initialPhoneParts.cc);
+  const [whatsappNumber, setWhatsappNumber] = useState(initialPhoneParts.num);
   const [address, setAddress] = useState('');
   const [occupation, setOccupation] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -112,7 +124,12 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
     e.preventDefault();
     if (!fullName.trim()) { toast.error('Please enter your full name'); return; }
     const sanitizedPhone = phone.replace(/\D/g, '');
-    if (sanitizedPhone.length !== 10) {
+    if (sanitizedPhone.length < 7) {
+      toast.error('Phone number must be at least 7 digits');
+      return;
+    }
+    const sanitizedWhatsapp = whatsappNumber.replace(/\D/g, '');
+    if (sanitizedWhatsapp.length !== 10) {
       toast.error('WhatsApp number must be exactly 10 digits');
       return;
     }
@@ -156,6 +173,8 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
         fullName: fullName.trim(),
         phoneCountryCode,
         phone: sanitizedPhone,
+        whatsappCountryCode,
+        whatsappNumber: sanitizedWhatsapp,
         address: address.trim(),
         occupation: occupation.trim(),
         companyName: companyName.trim(),
@@ -217,7 +236,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
               </div>
 
               <div className="space-y-1.5">
-                <Label>WhatsApp Number *</Label>
+                <Label>Phone Number *</Label>
                 <div className="flex gap-2">
                   <Input
                     type="text"
@@ -230,7 +249,29 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
                     type="tel"
                     inputMode="numeric"
                     value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                    maxLength={15}
+                    placeholder="Phone number"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>WhatsApp Number *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={whatsappCountryCode}
+                    onChange={e => setWhatsappCountryCode(e.target.value)}
+                    placeholder="+91"
+                    className="w-[70px] text-center font-mono px-2"
+                  />
+                  <Input
+                    type="tel"
+                    inputMode="numeric"
+                    value={whatsappNumber}
+                    onChange={e => setWhatsappNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
                     maxLength={10}
                     placeholder="9876543210"
                     required

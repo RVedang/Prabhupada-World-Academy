@@ -10,6 +10,8 @@ export default createEndpoint({
     fullName: z.string().min(1).max(200),
     phoneCountryCode: z.string().max(10),
     phone: z.string().min(7).max(25),
+    whatsappCountryCode: z.string().max(10),
+    whatsappNumber: z.string().min(7).max(25),
     address: z.string().max(500).optional(),
     occupation: z.string().max(200).optional(),
     companyName: z.string().max(200).optional(),
@@ -35,6 +37,7 @@ export default createEndpoint({
     const userId = context.user.id;
     const userEmail = (context.user.email || '').toLowerCase();
     const phoneE164 = `${input.phoneCountryCode}${input.phone.replace(/\D/g, '')}`;
+    const whatsappE164 = `${input.whatsappCountryCode}${input.whatsappNumber.replace(/\D/g, '')}`;
 
     let userRecord = await Users.findOne({
       id: userId,
@@ -58,6 +61,9 @@ export default createEndpoint({
       phoneCountryCode: input.phoneCountryCode,
       phone: input.phone,
       phoneE164,
+      whatsappCountryCode: input.whatsappCountryCode,
+      whatsappNumber: input.whatsappNumber,
+      whatsappE164,
       address: input.address || '',
       occupation: input.occupation || '',
       companyName: input.companyName || '',
