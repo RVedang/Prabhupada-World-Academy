@@ -89,6 +89,12 @@ export default createEndpoint({
       },
     });
 
+    // Clear sadhana mentor
+    await Users.update({
+      id: context.user.id,
+      record: { sadhanaMentor: null },
+    });
+
     return { success: true, alreadyMember: false, groupName: group.groupName || null, error: null };
   },
 });

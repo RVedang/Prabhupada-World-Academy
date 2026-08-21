@@ -145,6 +145,7 @@ export default createEndpoint({
       updates.bvReportingFacilitatorName = '';
     } else {
       updates.isBvMember = true;
+      updates.sadhanaMentor = null;
       if (input.multiRoles) {
         updates.isBvAdmin = !!input.multiRoles.isAdmin;
         updates.isBvSupervisor = !!input.multiRoles.isSupervisor;

@@ -58,6 +58,7 @@ export default createEndpoint({
         bvReportingAdminName: rgfAdminName,
         supervisorName: rgfName,
         isBvMember: true,
+        sadhanaMentor: null,
         ...(rgfAdminId ? { guide: rgfAdminId } : {}),
       },
     }).catch(() => {});

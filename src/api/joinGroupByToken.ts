@@ -21,6 +21,12 @@ export default createEndpoint({
       record: { user: context.user.id, group: group.id, role: 'Member', joinedAt: new Date().toISOString() },
     });
 
+    const Users = (await import('@/lib/backend-sdk')).Users;
+    await Users.update({
+      id: context.user.id,
+      record: { sadhanaMentor: null },
+    });
+
     return { success: true, groupName: group.groupName, message: `Successfully joined ${group.groupName}!` };
   },
 });

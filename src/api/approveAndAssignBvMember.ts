@@ -116,6 +116,7 @@ export default createEndpoint({
           supervisorName: rgfName, // Legacy fallback
           guide: rgfAdminId || callerRecord.id, // Ensures Admin's member list includes this user
           pendingBvApprovalNotice: true,
+          sadhanaMentor: null, // Clear sadhana mentor upon BV approval
         },
       });
       serverCacheInvalidate(profileCacheKey(targetUser.id));

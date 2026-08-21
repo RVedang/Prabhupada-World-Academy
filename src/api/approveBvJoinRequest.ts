@@ -40,6 +40,12 @@ export default createEndpoint({
           joinedAt: new Date().toISOString(),
         },
       });
+
+      const Users = (await import('@/lib/backend-sdk')).Users;
+      await Users.update({
+        id: requestUserId,
+        record: { sadhanaMentor: null },
+      });
     }
 
     return { success: true, message: `Join request ${input.action === 'approve' ? 'approved' : 'rejected'}` };
