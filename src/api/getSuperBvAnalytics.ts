@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, BvslPreachingEntries, Guides, BvGroups } from '@/lib/backend-sdk';
 import { requireGuideRole, getRefId } from '../lib/userUtils';
+import getGuides from './getGuides';
 
 const NUM_KEYS = [
   'callingTime', 'oneOnOneTime', 'bookDistTime', 'rduaTime', 'planTime',
@@ -45,11 +46,26 @@ export default createEndpoint({
 
     const emptyAgg = () => Object.fromEntries(NUM_KEYS.map(k => [k, 0]));
 
-    // Fetch guides for name lookup
-    const { records: guideRecs } = await Guides.findAll({
-      fields: ['id', 'fullName'], limit: 500,
-    });
-    const guideNameMap = new Map<string, string>(guideRecs.map(g => [g.id, g.fullName || '']));
+    // Fetch guides using the unified getGuides endpoint (resolves from both Guides and Users tables)
+    const [guidesRes, { records: allUserRecs }, { records: guideRecs }] = await Promise.all([
+      getGuides.execute({ input: {}, context }).catch(() => ({ guides: [] })),
+      Users.findAll({ fields: ['id', 'userId', 'fullName', 'email'], limit: 1000 }).catch(() => ({ records: [] })),
+      Guides.findAll({ fields: ['id', 'guideId', 'fullName', 'name'], limit: 500 }).catch(() => ({ records: [] })),
+    ]);
+
+    const guideNameMap = new Map<string, string>();
+    for (const g of (guidesRes.guides || [])) {
+      if (g.guideId && g.name) guideNameMap.set(g.guideId, g.name);
+    }
+    for (const g of guideRecs) {
+      const name = g.fullName || (g as any).name;
+      if (g.id && name && !guideNameMap.has(g.id)) guideNameMap.set(g.id, name);
+      if ((g as any).guideId && name && !guideNameMap.has((g as any).guideId)) guideNameMap.set((g as any).guideId, name);
+    }
+    for (const u of allUserRecs) {
+      if (u.id && u.fullName && !guideNameMap.has(u.id)) guideNameMap.set(u.id, u.fullName);
+      if (u.userId && u.fullName && !guideNameMap.has(u.userId)) guideNameMap.set(u.userId, u.fullName);
+    }
 
     // Fetch all active BVSLs with their guide reference
     const { records: bvslUsers } = await Users.findAll({
