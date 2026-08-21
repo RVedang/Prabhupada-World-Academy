@@ -74,6 +74,7 @@ export default function RoleAcknowledgementHandler() {
           'Reading Group Sub-Facilitator (RGSF)': '/bv-supervisor/dashboard',
           'BV Admin': '/pw-admin/dashboard',
           'Regular Member': '/user/dashboard',
+          'Sadhana Mentor': '/mentor/dashboard',
         };
         redirectPath = routeMap[roleNoticeLabel] || null;
       }
@@ -142,6 +143,7 @@ export default function RoleAcknowledgementHandler() {
         'Reading Group Sub-Facilitator (RGSF)': 'Sub-Facilitator (RGSF) Dashboard',
         'BV Admin': 'Admin Dashboard',
         'Regular Member': 'My Sadhana Dashboard',
+        'Sadhana Mentor': 'Sadhana Mentor Dashboard',
       };
       const dashboardName = dashboardMap[roleNoticeLabel] || 'your updated dashboard';
       title = 'Bhakti Vriksha Role Updated 🎉';

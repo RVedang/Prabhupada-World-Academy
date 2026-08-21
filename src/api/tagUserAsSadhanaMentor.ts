@@ -60,9 +60,15 @@ export default createEndpoint({
       ? (existingIsBvsl ? 'BVSL' : 'Sadhana Mentor')
       : (existingIsBvsl ? 'BVSL' : 'User');
 
+    const updates: any = { role: newRole, isSadhanaMentor: shouldTag };
+    if (shouldTag) {
+      updates.pendingRoleNotice = 'Sadhana Mentor';
+      updates.roleNoticeAcknowledged = false;
+    }
+
     await Users.update({
       id: userRecord.id,
-      record: { role: newRole, isSadhanaMentor: shouldTag },
+      record: updates,
     });
     serverCacheInvalidate('user_profile:' + userRecord.id);
     return { success: true };

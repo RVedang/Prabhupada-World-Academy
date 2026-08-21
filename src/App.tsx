@@ -324,6 +324,11 @@ function DashboardRouter() {
     return isPw ? <Navigate to={`/pw-admin/dashboard${suffix}`} replace /> : <Navigate to={`/folk-guide/dashboard${suffix}`} replace />;
   }
 
+  // Sadhana Mentor
+  if (profile.isSadhanaMentor || (profile.role as string) === 'SADHANA_MENTOR' || (profile.role as string) === 'Sadhana Mentor') {
+    return <Navigate to={`/mentor/dashboard${suffix}`} replace />;
+  }
+
   // Supervisor
   if (profile.isBvSupervisor || profile.isBvMentor) return <Navigate to={`/bv-supervisor/dashboard${suffix}`} replace />;
 

@@ -469,8 +469,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   const baseUsers = useMemo(() => {
     let r = users;
 
-    // Filter strictly by the current department segment (PW vs FOLK) for both Admins and Super Admins
-    r = r.filter(u => isUserInCurrentDepartment(u, isPwMode));
+    // Filter strictly by the current department segment (PW vs FOLK) and only show active (approved) members
+    r = r.filter(u => isUserInCurrentDepartment(u, isPwMode) && u.status === 'ACTIVE');
 
     // Operational roles below Admin (Supervisors, Mentors) filter to members under their direct supervision scope
     const isDepartmentAdmin = isSuperAdmin || profile?.isBvAdmin || (profile?.role as string) === 'ADMIN';
@@ -613,8 +613,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   {isPwAdmin ? (
                     <>
                       <Th col="guideName" label="Admin" />
-                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Assigned Mentor</th>
-                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Sadhana Mentor (Role)</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Sadhana Mentor</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Assigned Sadhana Mentor Role</th>
                     </>
                   ) : (
                     <>
@@ -669,7 +669,6 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                     (u as any).isBvFacilitator ||
                     (u as any).isBvsl ||
                     (u as any).isBvSubFacilitator ||
-                    u.segment === 'PW' ||
                     (u as any).bvGroupId ||
                     (u as any).bvReportingFacilitatorId ||
                     (u as any).bvReportingSupervisorId ||

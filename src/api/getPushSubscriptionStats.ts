@@ -91,6 +91,8 @@ export default createEndpoint({
     const isPwTarget = targetSegment === 'PW';
 
     const targetUsers = users.filter((u: any) => {
+      if (u.status !== 'Active') return false;
+
       const isCaller = (callerId && u.id === callerId) || 
                        (callerEmail && (u.email || '').toLowerCase() === callerEmail);
       if (isCaller) return false;

@@ -30,7 +30,7 @@ export default createEndpoint({
     // Fetch user record (needed for both auth check and email notification)
     const userRecord = await Users.findOne({
       id: input.userId,
-      fields: ['id', 'email', 'fullName', 'residency', 'guide', 'phone', 'ashrayLevel', 'tagMangoEnrollmentAttempts'],
+      fields: ['id', 'email', 'fullName', 'residency', 'guide', 'phone', 'ashrayLevel', 'tagMangoEnrollmentAttempts', 'segment', 'isPrabhupadaWorldUser'],
     });
     if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
@@ -92,25 +92,29 @@ export default createEndpoint({
       // Email failure must not block approval
     }
 
-    // TagMango enrollment — NEVER blocks approval
+    // TagMango enrollment — NEVER blocks approval, and skip for PW users
     let enrollmentStatus: 'Enrolled' | 'Failed' | 'Skipped' = 'Skipped';
     let enrollmentError: string | undefined;
 
-    try {
-      const effectiveAshray = input.ashrayLevel || (userRecord.ashrayLevel as string | undefined);
-      const result = await enrollUserOnTagMango({
-        userId: input.userId,
-        name: userRecord.fullName || '',
-        email: userRecord.email || '',
-        phone: userRecord.phone || '',
-        ashrayLevel: effectiveAshray,
-        currentAttempts: userRecord.tagMangoEnrollmentAttempts || 0,
-      });
-      enrollmentStatus = result.status;
-      enrollmentError = result.error;
-    } catch (err: any) {
-      enrollmentStatus = 'Failed';
-      enrollmentError = err?.message || 'Unexpected enrollment error';
+    const isPwUser = userRecord?.segment === 'PW' || !!userRecord?.isPrabhupadaWorldUser;
+
+    if (!isPwUser) {
+      try {
+        const effectiveAshray = input.ashrayLevel || (userRecord.ashrayLevel as string | undefined);
+        const result = await enrollUserOnTagMango({
+          userId: input.userId,
+          name: userRecord.fullName || '',
+          email: userRecord.email || '',
+          phone: userRecord.phone || '',
+          ashrayLevel: effectiveAshray,
+          currentAttempts: userRecord.tagMangoEnrollmentAttempts || 0,
+        });
+        enrollmentStatus = result.status;
+        enrollmentError = result.error;
+      } catch (err: any) {
+        enrollmentStatus = 'Failed';
+        enrollmentError = err?.message || 'Unexpected enrollment error';
+      }
     }
 
     return { success: true, enrollmentStatus, enrollmentError };
