@@ -2,6 +2,23 @@ import { z } from 'zod';
 import { createEndpoint, PushSubscriptions, Users, SadhanaEntries, AppError } from '@/lib/backend-sdk';
 import { storeBroadcast } from '@/lib/notificationBroadcast';
 
+/** Extract a plain string ID from a Firestore DocumentReference, array, or string. */
+function getUserIdStr(userField: any): string | null {
+  if (!userField) return null;
+  if (typeof userField === 'string') return userField;
+  if (Array.isArray(userField)) return getUserIdStr(userField[0]);
+  if (userField.id) return String(userField.id);
+  if (userField.path) {
+    const segs = userField.path.split('/');
+    return segs[segs.length - 1];
+  }
+  if (userField._path?.segments) {
+    const segs = userField._path.segments;
+    return segs[segs.length - 1];
+  }
+  return String(userField);
+}
+
 // ── VAPID + Web Push helpers (pure Web Crypto — no npm packages) ──
 
 function base64UrlEncode(buf: ArrayBuffer | ArrayBufferLike): string {
@@ -234,31 +251,39 @@ export default createEndpoint({
 
     if (subs.length === 0) return { sent: 0, failed: 0, skipped: 0 };
 
-    // Get unique user IDs from subscriptions
+    // Get unique user IDs from subscriptions — use getUserIdStr to handle Firestore DocumentReferences
     const subsByUser = new Map<string, typeof subs[0]>();
     for (const sub of subs) {
-      const uid = Array.isArray(sub.user) ? sub.user[0] : sub.user;
+      const uid = getUserIdStr(sub.user);
       if (uid) subsByUser.set(uid, sub);
     }
 
     // Check who submitted sadhana for checkDate
     const userIds = [...subsByUser.keys()];
     const { records: entries } = await SadhanaEntries.findAll({
-      filters: { entryDate: checkDate, user: { in: userIds } },
+      filters: { entryDate: checkDate },
       fields: ['user'],
       limit: 2000,
     });
 
+    // Use getUserIdStr to extract plain string IDs from sadhana entry references
     const submittedUserIds = new Set(
-      entries.map(e => (Array.isArray(e.user) ? e.user[0] : e.user)).filter(Boolean)
+      entries.map(e => getUserIdStr(e.user)).filter(Boolean) as string[]
     );
 
-    // Get active users who have push subscriptions
-    const { records: activeUsers } = await Users.findAll({
-      filters: { id: { in: userIds }, status: 'Active' },
-      fields: ['id', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'isFolkLead', 'residencyId'],
-      limit: 2000,
-    });
+    // Get active users who have push subscriptions.
+    // Use individual lookups (same as getPushSubscriptionStats) to avoid compound
+    // Firestore index requirements that fail on production.
+    const userRecordsList = await Promise.all(
+      userIds.map(uid =>
+        Users.findOne({ id: uid })
+          .catch(() => null)
+          .then(u => u || null)
+      )
+    );
+    const activeUsers = userRecordsList.filter(
+      (u): u is NonNullable<typeof u> => !!u && (u as any).status === 'Active'
+    );
 
     const senderId = context?.user?.id;
     // Use input.senderEmail when called in cron mode (no auth context)
