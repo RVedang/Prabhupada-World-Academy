@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Mail, CheckCircle2, Clock, AlertTriangle, Zap, ShieldCheck, Settings, Plus, Trash2, Save, Sparkles, BellRing, Send, RefreshCw, Loader2 } from 'lucide-react';
 import { sendPushNotifications, getPushSubscriptionStats, getMeetings, sendMeetingReminder, type GetPushSubscriptionStatsOutputType } from '@/lib/endpoints-sdk';
+import { TimePicker } from '@/components/ui/time-picker';
 import { toast } from 'sonner';
 import {
   getPwNotificationConfig,
@@ -470,11 +471,10 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
                 ))}
               </div>
               <div className="flex items-center gap-2 pt-2">
-                <Input
-                  type="time"
+                <TimePicker
                   value={newTimeInput}
-                  onChange={(e) => setNewTimeInput(e.target.value)}
-                  className="h-8 text-xs w-32"
+                  onChange={(val) => setNewTimeInput(val)}
+                  className="w-32"
                 />
                 <Button size="sm" variant="outline" onClick={handleAddTimeSlot} className="h-8 text-xs gap-1">
                   <Plus className="w-3.5 h-3.5" /> Add Time
