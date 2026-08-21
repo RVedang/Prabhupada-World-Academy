@@ -107,7 +107,14 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
     if (profile?.fullName) {
       setFullName(profile.fullName);
     }
-  }, [profile?.fullName]);
+    if (profile?.phone) {
+      const parts = parsePhone(profile.phone);
+      setPhoneCountryCode(parts.cc);
+      setPhone(parts.num);
+      setWhatsappCountryCode(parts.cc);
+      setWhatsappNumber(parts.num);
+    }
+  }, [profile?.fullName, profile?.phone]);
 
   const handleDobChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(/\D/g, '');

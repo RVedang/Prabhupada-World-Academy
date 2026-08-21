@@ -94,6 +94,7 @@ export interface ProfileSummary {
   pendingAshrayNoticeStatus?: string | null;
   pendingAshrayNoticeLevel?: string | null;
   ashrayNoticeAcknowledged?: boolean;
+  phone?: string | null;
 }
 
 // ─── Guide Domain ────────────────────────────────────────────────────────────

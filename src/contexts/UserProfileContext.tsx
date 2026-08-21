@@ -103,6 +103,7 @@ function buildProfile(userObj: any): ProfileData {
     pendingAshrayNoticeStatus: userObj.pendingAshrayNoticeStatus ?? null,
     pendingAshrayNoticeLevel: userObj.pendingAshrayNoticeLevel ?? null,
     ashrayNoticeAcknowledged: !!(userObj.ashrayNoticeAcknowledged),
+    phone: userObj.phone ?? null,
   };
 }
 
