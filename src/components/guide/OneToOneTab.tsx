@@ -183,7 +183,9 @@ export default function OneToOneTab({ guideId }: Props) {
           <div className="text-xs text-muted-foreground flex items-center gap-4 flex-wrap">
             <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded bg-green-100 border border-green-300" /> Meeting logged</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded border border-dashed border-border" /> No meeting</span>
-            <span className="text-blue-600">→ Name = Delegated to BVSL</span>
+            {!profile?.isSadhanaMentor && availableBvsls.length > 0 && (
+              <span className="text-blue-600">→ Name = Delegated</span>
+            )}
             <span>{filteredMembers.length} of {members.length} members shown</span>
           </div>
           <OneToOneMatrix
@@ -203,7 +205,7 @@ export default function OneToOneTab({ guideId }: Props) {
         memberId={dialog.memberId}
         memberName={dialog.memberName}
         weekDate={dialog.weekDate}
-        existing={dialog.existing}
+        existing={dialog.existing as any}
         guideId={profile?.isSadhanaMentor ? guideId : undefined}
       />
 
