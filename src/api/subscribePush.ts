@@ -13,8 +13,9 @@ export default createEndpoint({
     success: z.boolean(),
     action: z.enum(['created', 'updated']),
   }),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     const userId = context.user.id;
+    const email = context.user.email || '';
 
     // Check if this exact endpoint already exists for this user
     const existing = await PushSubscriptions.findOne({
@@ -25,7 +26,7 @@ export default createEndpoint({
       // Update keys on existing record
       await PushSubscriptions.update({
         id: existing.id,
-        record: { p256DhKey: input.p256dh, authKey: input.auth },
+        record: { p256DhKey: input.p256dh, authKey: input.auth, email },
       });
       return { success: true, action: 'updated' as const };
     }
@@ -44,6 +45,7 @@ export default createEndpoint({
       record: {
         endpoint: input.endpoint,
         user: userId,
+        email,
         p256DhKey: input.p256dh,
         authKey: input.auth,
       },

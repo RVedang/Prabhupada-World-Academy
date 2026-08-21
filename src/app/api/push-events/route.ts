@@ -57,11 +57,20 @@ export async function GET(req: NextRequest) {
     // Verify if the user has an active push subscription record.
     // Use getUserIdStr to properly handle Firestore DocumentReferences.
     if (userId || email) {
+      let resolvedUserId = userId;
+      if (!resolvedUserId && email) {
+        const { records: matchingUsers } = await Users.findAll({ filters: { email } }).catch(() => ({ records: [] }));
+        if (matchingUsers.length > 0) {
+          resolvedUserId = matchingUsers[0].id;
+        }
+      }
+      
+      if (!resolvedUserId) return false;
+
       const { records: userSubs } = await PushSubscriptions.findAll({ limit: 1000 }).catch(() => ({ records: [] }));
       const hasSub = userSubs.some(s => {
         const subUid = getUserIdStr(s.user);
-        const subEmail = (s.email || '').toLowerCase();
-        return (userId && subUid === userId) || (email && subEmail === email);
+        return subUid === resolvedUserId;
       });
       if (!hasSub) return false;
     }

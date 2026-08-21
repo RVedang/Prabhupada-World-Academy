@@ -172,10 +172,11 @@ export async function registerServiceWorker(): Promise<void> {
   notifySwVisibility();
   document.addEventListener('visibilitychange', notifySwVisibility);
 
-  // Sync user email to service worker
+  // Sync user email and userId to service worker
   function syncSwUser() {
     const email = localStorage.getItem('auth_email') || '';
-    navigator.serviceWorker.controller?.postMessage({ type: 'SYNC_USER', email });
+    const userId = localStorage.getItem('auth_user_id') || '';
+    navigator.serviceWorker.controller?.postMessage({ type: 'SYNC_USER', email, userId });
   }
   syncSwUser();
 
@@ -399,13 +400,14 @@ export async function subscribeToPush(): Promise<boolean> {
     localStorage.removeItem('push_notifications_disabled');
     try {
       const email = localStorage.getItem('auth_email') || '';
+      const userId = localStorage.getItem('auth_user_id') || '';
       // Sync userDisabled=false AND user email — if SW was restarted, swUserEmail is empty
       // which prevents the polling loop from starting. Re-syncing email restarts it.
       navigator.serviceWorker.controller?.postMessage({
         type: 'SYNC_SETTINGS',
         userDisabled: false,
       });
-      navigator.serviceWorker.controller?.postMessage({ type: 'SYNC_USER', email });
+      navigator.serviceWorker.controller?.postMessage({ type: 'SYNC_USER', email, userId });
     } catch {}
   }
   if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {

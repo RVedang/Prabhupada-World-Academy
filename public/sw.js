@@ -29,6 +29,7 @@ const SLOT_MESSAGES = {
 
 // ── Long-poll state for broadcast delivery ──
 let swUserEmail = '';
+let swUserId = '';
 let swLastId = '';
 let isPolling = false;
 
@@ -47,7 +48,7 @@ async function startPollingLoop() {
       return;
     }
     try {
-      const url = '/api/push-events?lastId=' + encodeURIComponent(swLastId) + '&email=' + encodeURIComponent(swUserEmail);
+      const url = '/api/push-events?lastId=' + encodeURIComponent(swLastId) + '&email=' + encodeURIComponent(swUserEmail) + '&userId=' + encodeURIComponent(swUserId);
       const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
@@ -241,6 +242,7 @@ self.addEventListener('message', (event) => {
   }
   if (data.type === 'SYNC_USER') {
     swUserEmail = (data.email || '').toLowerCase();
+    swUserId = data.userId || '';
     if (swUserEmail) {
       startPollingLoop();
     } else {
