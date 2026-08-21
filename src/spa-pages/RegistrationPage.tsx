@@ -288,33 +288,13 @@ export default function RegistrationPage() {
               Mobile Number <span className="text-red-500 font-bold">*</span>
             </label>
             <div className="flex gap-2.5">
-              <Select
+              <input
+                type="text"
                 value={formData.phoneCountryCode}
-                onValueChange={(value) => { if (value) setFormData({ ...formData, phoneCountryCode: value }); }}
-              >
-                <SelectTrigger className="w-[115px] !h-10 border border-gray-200 rounded-[10px] text-sm text-gray-900 bg-white focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] focus-visible:border-[#ea6506] focus-visible:ring-1 focus-visible:ring-[#ea6506] outline-none px-3.5 flex items-center justify-between shadow-sm">
-                  <span className="flex items-baseline gap-1.5 font-mono">
-                    {(() => {
-                      const selected = COUNTRY_CODES.find(c => c.code === formData.phoneCountryCode);
-                      return selected ? (
-                        <>
-                          <span className="text-[12px] font-normal text-gray-950 uppercase tracking-wide">{selected.abbr}</span>
-                          <span className="text-sm font-normal text-gray-950">{selected.code}</span>
-                        </>
-                      ) : (
-                        <span className="text-sm font-normal text-gray-950">{formData.phoneCountryCode}</span>
-                      );
-                    })()}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_CODES.map((item) => (
-                    <SelectItem key={item.code} value={item.code}>
-                      {item.flag} {item.abbr} ({item.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(e) => setFormData({ ...formData, phoneCountryCode: e.target.value })}
+                placeholder="+91"
+                className="w-[70px] h-10 px-2 border border-gray-200 rounded-[10px] text-sm text-gray-900 bg-white focus:outline-none focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] transition-all shadow-sm text-center font-mono"
+              />
               <input
                 id="phone"
                 type="text"

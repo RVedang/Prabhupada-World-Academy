@@ -219,22 +219,13 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
               <div className="space-y-1.5">
                 <Label>WhatsApp Number *</Label>
                 <div className="flex gap-2">
-                  <Select value={phoneCountryCode} onValueChange={(val) => val && setPhoneCountryCode(val)}>
-                    <SelectTrigger className="w-[140px] shrink-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60 overflow-y-auto">
-                      {COUNTRY_CODES.map(c => (
-                        <SelectItem key={c.code} value={c.code}>
-                          <span className="flex items-center gap-1.5">
-                            <span>{c.flag}</span>
-                            <span>{c.code}</span>
-                            <span className="text-xs text-muted-foreground">({c.country})</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    type="text"
+                    value={phoneCountryCode}
+                    onChange={e => setPhoneCountryCode(e.target.value)}
+                    placeholder="+91"
+                    className="w-[70px] text-center font-mono px-2"
+                  />
                   <Input
                     type="tel"
                     inputMode="numeric"
