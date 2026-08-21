@@ -614,8 +614,18 @@ export class Table {
     }
 
     const store = getMockTable(this.tableName);
-    const existing = store.get(id);
-    store.delete(id);
+    const existing = store.get(id) || Array.from(store.values()).find((r: any) =>
+      r.id === id || r.userId === id || (r.email || '').toLowerCase() === String(id).toLowerCase()
+    );
+    if (existing) {
+      for (const [key, val] of store.entries()) {
+        if (val === existing) {
+          store.delete(key);
+        }
+      }
+    } else {
+      store.delete(id);
+    }
     return existing || record;
   }
 
