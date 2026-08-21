@@ -242,7 +242,7 @@ export default function RegistrationPage() {
         {/* Title */}
         <div className="text-left space-y-2">
           <h1 className="text-[28px] font-bold text-gray-900 tracking-tight leading-tight">
-            {isPwFlow ? 'Create Your PW Account' : 'Create Your Account'}
+            Create Your Account
           </h1>
           <p className="text-sm text-gray-500 leading-normal">
             {isPwFlow
