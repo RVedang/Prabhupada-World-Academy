@@ -251,45 +251,6 @@ export default createEndpoint({
     const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
     const checkDate = input.checkDate || istNow.toISOString().slice(0, 10);
 
-    // Get all push subscriptions
-    const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
-
-    if (subs.length === 0) return { sent: 0, failed: 0, skipped: 0 };
-
-    // Get unique user IDs from subscriptions — use getUserIdStr to handle Firestore DocumentReferences
-    const subsByUser = new Map<string, typeof subs[0]>();
-    for (const sub of subs) {
-      const uid = getUserIdStr(sub.user);
-      if (uid) subsByUser.set(uid, sub);
-    }
-
-    // Check who submitted sadhana for checkDate
-    const userIds = [...subsByUser.keys()];
-    const { records: entries } = await SadhanaEntries.findAll({
-      filters: { entryDate: checkDate },
-      fields: ['user'],
-      limit: 2000,
-    });
-
-    // Use getUserIdStr to extract plain string IDs from sadhana entry references
-    const submittedUserIds = new Set(
-      entries.map(e => getUserIdStr(e.user)).filter(Boolean) as string[]
-    );
-
-    // Get active users who have push subscriptions.
-    // Use individual lookups (same as getPushSubscriptionStats) to avoid compound
-    // Firestore index requirements that fail on production.
-    const userRecordsList = await Promise.all(
-      userIds.map(uid =>
-        Users.findOne({ id: uid })
-          .catch(() => null)
-          .then(u => u || null)
-      )
-    );
-    const activeUsers = userRecordsList.filter(
-      (u): u is NonNullable<typeof u> => !!u && (u as any).status === 'Active'
-    );
-
     const senderId = context?.user?.id;
     // Use input.senderEmail when called in cron mode (no auth context)
     const senderEmail = ((input.senderEmail || context?.user?.email || '')).toLowerCase();
@@ -317,6 +278,65 @@ export default createEndpoint({
     }
 
     const isPwTarget = targetSegment === 'PW';
+
+    const slotMsg = SLOT_MESSAGES[input.reminderSlot] || SLOT_MESSAGES['night-1'];
+    const title = input.customTitle || slotMsg.title;
+    const body = input.customBody || slotMsg.body;
+    const broadcastId = String(Date.now()) + '_' + String(Math.floor(Math.random() * 1000000));
+
+    // Store the broadcast so active tabs pick it up via long-polling immediately
+    try {
+      storeBroadcast(
+        title,
+        body,
+        input.reminderSlot || 'night-1',
+        senderEmail || undefined,
+        broadcastId,
+        undefined,
+        '/sadhana',
+        undefined,
+        targetSegment
+      );
+    } catch (e) {
+      console.warn('[Push] Store broadcast failed:', e);
+    }
+
+    // Get all push subscriptions
+    const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
+
+    if (subs.length === 0) return { sent: 0, failed: 0, skipped: 0 };
+
+    // Get unique user IDs from subscriptions — use getUserIdStr to handle Firestore DocumentReferences
+    const subsByUser = new Map<string, typeof subs[0]>();
+    for (const sub of subs) {
+      const uid = getUserIdStr(sub.user);
+      if (uid) subsByUser.set(uid, sub);
+    }
+
+    // Check who submitted sadhana for checkDate
+    const userIds = [...subsByUser.keys()];
+    const { records: entries } = await SadhanaEntries.findAll({
+      filters: { entryDate: checkDate },
+      fields: ['user'],
+      limit: 2000,
+    });
+
+    // Use getUserIdStr to extract plain string IDs from sadhana entry references
+    const submittedUserIds = new Set(
+      entries.map(e => getUserIdStr(e.user)).filter(Boolean) as string[]
+    );
+
+    // Get active users who have push subscriptions.
+    const userRecordsList = await Promise.all(
+      userIds.map(uid =>
+        Users.findOne({ id: uid })
+          .catch(() => null)
+          .then(u => u || null)
+      )
+    );
+    const activeUsers = userRecordsList.filter(
+      (u): u is NonNullable<typeof u> => !!u && (u as any).status === 'Active'
+    );
 
     const targetUsers = activeUsers.filter((u: any) => {
       const uSegment = (u.segment || '').toUpperCase();
@@ -354,12 +374,6 @@ export default createEndpoint({
 
     const activeUserIds = new Set(targetUsers.map(u => u.id));
 
-    const slotMsg = SLOT_MESSAGES[input.reminderSlot] || SLOT_MESSAGES['night-1'];
-    const title = input.customTitle || slotMsg.title;
-    const body = input.customBody || slotMsg.body;
-
-    const broadcastId = String(Date.now()) + '_' + String(Math.floor(Math.random() * 1000000));
-
     const payloadStr = JSON.stringify({
       id: broadcastId,
       title,
@@ -377,13 +391,13 @@ export default createEndpoint({
       process.env.APP_VAPID_PRIVATE_KEY ||
       process.env.ZITE_VAPID_PRIVATE_KEY ||
       process.env.VAPID_PRIVATE_KEY ||
-      '';
+      'vkYwOKyr1RhRONW-oh3kMz3FHMBI9pJLyPsOkWDzDRQ';
     const vapidPublic =
       process.env.APP_VAPID_PUBLIC_KEY ||
       process.env.ZITE_VAPID_PUBLIC_KEY ||
       process.env.VAPID_PUBLIC_KEY ||
       process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-      '';
+      'BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE';
 
     // Send in parallel batches of 10
     const toSend = [...subsByUser.entries()].filter(([uid]) => {
@@ -410,23 +424,6 @@ export default createEndpoint({
         if (r.status === 'fulfilled' && r.value) sent++;
         else failed++;
       }
-    }
-
-    // Store the broadcast so active tabs pick it up via long-polling
-    try {
-      storeBroadcast(
-        title,
-        body,
-        input.reminderSlot || 'night-1',
-        senderEmail || undefined,
-        broadcastId,
-        undefined,
-        '/sadhana',
-        undefined,
-        targetSegment
-      );
-    } catch (e) {
-      console.warn('[Push] Store broadcast failed:', e);
     }
 
     return { sent, failed, skipped };

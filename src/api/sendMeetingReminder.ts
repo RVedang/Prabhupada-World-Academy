@@ -257,13 +257,13 @@ export default createEndpoint({
       process.env.APP_VAPID_PRIVATE_KEY ||
       process.env.ZITE_VAPID_PRIVATE_KEY ||
       process.env.VAPID_PRIVATE_KEY ||
-      '';
+      'vkYwOKyr1RhRONW-oh3kMz3FHMBI9pJLyPsOkWDzDRQ';
     const vapidPublic =
       process.env.APP_VAPID_PUBLIC_KEY ||
       process.env.ZITE_VAPID_PUBLIC_KEY ||
       process.env.VAPID_PUBLIC_KEY ||
       process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-      '';
+      'BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE';
 
     if (targetSubs.length > 0 && vapidPrivate && vapidPublic) {
       const batchSize = 10;

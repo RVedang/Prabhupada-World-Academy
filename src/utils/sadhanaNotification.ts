@@ -396,9 +396,12 @@ export function connectToNotificationStream(): void {
 // ── Push subscription ──
 let _subscribeLock: Promise<boolean> | null = null;
 
+const FALLBACK_VAPID_PUBLIC_KEY = 'BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE';
+
 export async function subscribeToPush(): Promise<boolean> {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('push_notifications_disabled');
+    localStorage.removeItem('notifications_simulated_granted');
     try {
       const email = localStorage.getItem('auth_email') || '';
       const userId = localStorage.getItem('auth_user_id') || '';
@@ -409,18 +412,10 @@ export async function subscribeToPush(): Promise<boolean> {
       navigator.serviceWorker.controller?.postMessage({ type: 'SYNC_USER', email, userId });
     } catch {}
   }
-  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
-    return true;
-  }
   if (_subscribeLock) return _subscribeLock;
   _subscribeLock = _doSubscribe();
   try {
-    const ok = await _subscribeLock;
-    if (!ok && typeof window !== 'undefined') {
-      localStorage.setItem('notifications_simulated_granted', 'true');
-      return true;
-    }
-    return ok;
+    return await _subscribeLock;
   } finally {
     _subscribeLock = null;
   }
@@ -431,10 +426,16 @@ async function _doSubscribe(): Promise<boolean> {
     const reg = await ensureSwRegistered();
     if (!reg) return false;
 
-    const { publicKey } = await getVapidPublicKey({});
+    let publicKey = '';
+    try {
+      const res = await getVapidPublicKey({});
+      publicKey = res?.publicKey || '';
+    } catch (e) {
+      console.warn('[Push] getVapidPublicKey failed, using default public key:', e);
+    }
+
     if (!publicKey) {
-      console.error('[Push] VAPID public key not found');
-      return false;
+      publicKey = FALLBACK_VAPID_PUBLIC_KEY;
     }
 
     const applicationServerKey = urlBase64ToUint8Array(publicKey);
@@ -516,9 +517,6 @@ export async function unsubscribeFromPush(): Promise<boolean> {
 }
 
 export async function checkPushSubscriptionStatus(): Promise<boolean> {
-  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
-    return true;
-  }
   try {
     const reg = await ensureSwRegistered();
     if (!reg) return false;

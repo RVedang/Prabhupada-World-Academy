@@ -33,10 +33,16 @@ export async function GET(req: NextRequest) {
     // General segment check: if the broadcast specifies a segment (FOLK or PW), check if user belongs to that segment
     const targetSegment = broadcast.segment;
     if (targetSegment && (userId || email)) {
-      const filter = userId ? { id: userId } : { email };
-      const { records: userRecords } = await Users.findAll({ filters: filter as any, limit: 1 }).catch(() => ({ records: [] }));
-      if (userRecords.length > 0) {
-        const u = userRecords[0];
+      let u: any = null;
+      if (userId) {
+        u = await Users.findOne({ id: userId }).catch(() => null);
+      }
+      if (!u && email) {
+        const { records: userRecords } = await Users.findAll({ filters: { email }, limit: 1 }).catch(() => ({ records: [] }));
+        u = userRecords[0] || null;
+      }
+
+      if (u) {
         const uSegment = (u.segment || '').toUpperCase();
         const uEmail = (u.email || '').toLowerCase();
         const uName = (u.fullName || '').toUpperCase();
