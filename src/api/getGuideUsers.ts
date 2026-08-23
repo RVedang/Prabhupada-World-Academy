@@ -28,6 +28,7 @@ export default createEndpoint({
     statusFilter: z.string().optional(),
     residencyId: z.string().optional(),
     residencyFilter: z.string().optional(),
+    minimal: z.boolean().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
@@ -177,58 +178,52 @@ export default createEndpoint({
 
     // Batch fetch residency names — ONE query instead of N
     // Fetch sadhana entries for the last 100 days to compute latestEntryDate and latestScore
-    const cutoffStr = daysAgo(todayStr, 100);
-    const entries: any[] = [];
-    let entryOffset = 0;
-    while (true) {
-      const { records, hasMore } = await SadhanaEntries.findAll({
-        filters: { entryDate: { gte: cutoffStr } } as any,
-        fields: ['id', 'user', 'entryDate', 'scorePercent', 'submittedAt'],
-        limit: 2000,
-        offset: entryOffset,
-      }).catch(() => ({ records: [], hasMore: false }));
-      entries.push(...records);
-      if (!hasMore || entries.length > 6000) break;
-      entryOffset += 2000;
-    }
-
     const entriesByUser = new Map<string, any[]>();
-    for (const e of entries) {
-      const uid = Array.isArray(e.user) ? e.user[0] : e.user;
-      if (!uid) continue;
-      if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
-      entriesByUser.get(uid)!.push(e);
-    }
-
-    const residencyIds = [
-      ...new Set(
-        users
-          .map(u => Array.isArray(u.residency) ? u.residency[0] : u.residency)
-          .filter(Boolean) as string[]
-      ),
-    ];
-
-    const [residenciesRes, guidesRes] = await Promise.all([
-      FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 }).catch(() => ({ records: [] })),
-      Guides.findAll({ fields: ['id', 'fullName', 'abbreviation', 'email'], limit: 500 }).catch(() => ({ records: [] }))
-    ]);
-
     const residencyMap = new Map<string, string>();
-    for (const r of (residenciesRes?.records || [])) {
-      if (r.id) {
-        residencyMap.set(r.id, (r as any).residencyName || '');
-        if ((r as any).residencyId) residencyMap.set((r as any).residencyId, (r as any).residencyName || '');
-      }
-    }
-
-    // Build guide lookup map to normalize raw guide names/abbreviations/emails to UUIDs
     const guideLookup = new Map<string, string>();
-    for (const g of (guidesRes?.records || [])) {
-      if (g.id) {
-        guideLookup.set(g.id.toLowerCase(), g.fullName || g.id);
-        if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.fullName);
-        if (g.abbreviation) guideLookup.set(g.abbreviation.toLowerCase(), g.fullName);
-        if (g.email) guideLookup.set(g.email.toLowerCase(), g.fullName);
+
+    if (!input.minimal) {
+      const cutoffStr = daysAgo(todayStr, 100);
+      const entries: any[] = [];
+      let entryOffset = 0;
+      while (true) {
+        const { records, hasMore } = await SadhanaEntries.findAll({
+          filters: { entryDate: { gte: cutoffStr } } as any,
+          fields: ['id', 'user', 'entryDate', 'scorePercent', 'submittedAt'],
+          limit: 2000,
+          offset: entryOffset,
+        }).catch(() => ({ records: [], hasMore: false }));
+        entries.push(...records);
+        if (!hasMore || entries.length > 6000) break;
+        entryOffset += 2000;
+      }
+
+      for (const e of entries) {
+        const uid = Array.isArray(e.user) ? e.user[0] : e.user;
+        if (!uid) continue;
+        if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
+        entriesByUser.get(uid)!.push(e);
+      }
+
+      const [residenciesRes, guidesRes] = await Promise.all([
+        FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 }).catch(() => ({ records: [] })),
+        Guides.findAll({ fields: ['id', 'fullName', 'abbreviation', 'email'], limit: 500 }).catch(() => ({ records: [] }))
+      ]);
+
+      for (const r of (residenciesRes?.records || [])) {
+        if (r.id) {
+          residencyMap.set(r.id, (r as any).residencyName || '');
+          if ((r as any).residencyId) residencyMap.set((r as any).residencyId, (r as any).residencyName || '');
+        }
+      }
+
+      for (const g of (guidesRes?.records || [])) {
+        if (g.id) {
+          guideLookup.set(g.id.toLowerCase(), g.fullName || g.id);
+          if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.fullName);
+          if (g.abbreviation) guideLookup.set(g.abbreviation.toLowerCase(), g.fullName);
+          if (g.email) guideLookup.set(g.email.toLowerCase(), g.fullName);
+        }
       }
     }
 
@@ -293,6 +288,26 @@ export default createEndpoint({
 
       return true;
     });
+
+    if (input.minimal) {
+      return {
+        users: registeredUsers.map(u => ({
+          userId: u.id,
+          userDbId: u.userId || u.id,
+          fullName: u.fullName || '',
+          phone: u.phone || '',
+          email: u.email || '',
+          role: normalizeRole(u.role || 'User'),
+          status: normalizeStatus(u.status || 'Pending Approval'),
+          segment: u.segment || null,
+          isBvsl: u.isBvsl || false,
+          isBvSupervisor: u.isBvSupervisor || false,
+          isBvFacilitator: u.isBvFacilitator || false,
+          isBvSubFacilitator: u.isBvSubFacilitator || false,
+          isBvAdmin: u.isBvAdmin || false,
+        }))
+      };
+    }
 
     return {
       users: registeredUsers.map(u => {

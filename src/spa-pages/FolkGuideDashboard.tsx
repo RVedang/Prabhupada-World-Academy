@@ -93,25 +93,31 @@ export default function FolkGuideDashboard() {
         if (r.guide?.id) setGuideId(r.guide.id);
       }).catch(() => {});
 
-      Promise.all([
-        getPendingApprovals({ guideId: 'ALL' }).catch(() => []),
-        getGuideRequests({ guideId: 'ALL' }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
-        getResidencyTransferRequests({ guideId: 'ALL' } as any).catch(() => []),
-        getCleanlinessReviews({ guideId: 'ALL' }).catch(() => []),
-        getPendingBvRegistrations({ segment: 'FOLK' }).catch(() => []),
-      ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
-        const pendingArr = Array.isArray(pending) ? pending : (pending as any).records || [];
-        const guideTransfers = Array.isArray(requests?.guideTransfers) ? requests.guideTransfers : [];
-        const ashrayUpgrades = Array.isArray(requests?.ashrayUpgrades) ? requests.ashrayUpgrades : [];
-        const resTransfers = Array.isArray(resTrans) ? resTrans : [];
-        const cleanliness = Array.isArray(cleanReviews) ? cleanReviews : [];
+      const fetchCounts = () => {
+        Promise.all([
+          getPendingApprovals({ guideId: 'ALL', _nocache: true }).catch(() => []),
+          getGuideRequests({ guideId: 'ALL', _nocache: true }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
+          getResidencyTransferRequests({ guideId: 'ALL', _nocache: true } as any).catch(() => []),
+          getCleanlinessReviews({ guideId: 'ALL', _nocache: true }).catch(() => []),
+          getPendingBvRegistrations({ segment: 'FOLK', _nocache: true }).catch(() => []),
+        ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
+          const pendingArr = Array.isArray(pending) ? pending : (pending as any).records || [];
+          const guideTransfers = Array.isArray(requests?.guideTransfers) ? requests.guideTransfers : [];
+          const ashrayUpgrades = Array.isArray(requests?.ashrayUpgrades) ? requests.ashrayUpgrades : [];
+          const resTransfers = Array.isArray(resTrans) ? resTrans : [];
+          const cleanliness = Array.isArray(cleanReviews) ? cleanReviews : [];
 
-        const totalUserApprovals = pendingArr.length + guideTransfers.length + ashrayUpgrades.length + resTransfers.length + cleanliness.length;
-        setApprovalCount(totalUserApprovals);
+          const totalUserApprovals = pendingArr.length + guideTransfers.length + ashrayUpgrades.length + resTransfers.length + cleanliness.length;
+          setApprovalCount(totalUserApprovals);
 
-        const bvRegsArr = Array.isArray(bvRegs) ? bvRegs : (bvRegs as any).records || [];
-        setBvRegCount(bvRegsArr.length);
-      }).catch(() => {});
+          const bvRegsArr = Array.isArray(bvRegs) ? bvRegs : (bvRegs as any).records || [];
+          setBvRegCount(bvRegsArr.length);
+        }).catch(() => {});
+      };
+
+      fetchCounts();
+      const interval = setInterval(fetchCounts, 15000);
+      return () => clearInterval(interval);
     }
   }, [user]);
 

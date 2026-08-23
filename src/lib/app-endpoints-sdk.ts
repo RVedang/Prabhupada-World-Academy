@@ -2,7 +2,26 @@
 // app-endpoints-sdk.ts — Auto-generated client-side SDK for calling API routes.
 // ══════════════════════════════════════════════════════════════════════════════
 import { auth } from './app-auth-sdk';
+const clientCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL_MS = 15000; // 15 seconds cache TTL for tab-switching speed
+
 async function invokeEndpoint(name: string, input: any): Promise<any> {
+  const isQuery = name.startsWith('get') || name.startsWith('load') || name.startsWith('list') || name.includes('Stats') || name.includes('Report') || name.includes('Analytics');
+  const bypassCache = input && (input.bypassCache || input._nocache);
+
+  // Bust cache on any mutation
+  if (!isQuery) {
+    clientCache.clear();
+  }
+
+  const cacheKey = `${name}:${JSON.stringify(input || {})}`;
+  if (isQuery && !bypassCache) {
+    const cached = clientCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return Promise.resolve(JSON.parse(JSON.stringify(cached.data)));
+    }
+  }
+
   // Retrieve Firebase ID Token (auth header)
   let idToken = '';
 
@@ -31,7 +50,13 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || 'API request failed');
   }
-  return res.json();
+  const data = await res.json();
+
+  if (isQuery) {
+    clientCache.set(cacheKey, { data, timestamp: Date.now() });
+  }
+
+  return data;
 }
 
 import type acceptSwap_Type from '../api/acceptSwap';

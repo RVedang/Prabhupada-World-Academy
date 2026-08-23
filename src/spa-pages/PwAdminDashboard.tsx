@@ -100,17 +100,23 @@ export default function PwAdminDashboard() {
 
   // Fetch pending approvals total count & BV registrations count for badges
   useEffect(() => {
-    Promise.all([
-      getPendingApprovals({ guideId: 'ALL' }),
-      getGuideRequests({ guideId: 'ALL' }),
-      getResidencyTransferRequests({ guideId: 'ALL' } as any),
-      getPendingBvRegistrations({ segment: 'PW' }).catch(() => []),
-    ]).then(([pending, requests, resTrans, bvRegs]) => {
-      setApprovalCount(
-        pending.length + requests.guideTransfers.length + requests.ashrayUpgrades.length + resTrans.length
-      );
-      setBvRegCount(Array.isArray(bvRegs) ? bvRegs.length : 0);
-    }).catch(() => {});
+    const fetchCounts = () => {
+      Promise.all([
+        getPendingApprovals({ guideId: 'ALL', _nocache: true }),
+        getGuideRequests({ guideId: 'ALL', _nocache: true }),
+        getResidencyTransferRequests({ guideId: 'ALL', _nocache: true } as any),
+        getPendingBvRegistrations({ segment: 'PW', _nocache: true }).catch(() => []),
+      ]).then(([pending, requests, resTrans, bvRegs]) => {
+        setApprovalCount(
+          pending.length + (requests?.guideTransfers || []).length + (requests?.ashrayUpgrades || []).length + resTrans.length
+        );
+        setBvRegCount(Array.isArray(bvRegs) ? bvRegs.length : 0);
+      }).catch(() => {});
+    };
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const navItems = [

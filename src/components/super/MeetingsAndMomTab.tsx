@@ -185,14 +185,14 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
   const activeMeetingForMom = selectedMeetingForMom || (editingMom ? meetings.find(m => m.id === editingMom.meeting_id) : null);
   const canEditMom = !!(isSuperAdmin || isAdminUser);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const [mRes, momRes, usersRes] = await Promise.all([
-        getMeetings({}),
-        getMoms({}),
-        getGuideUsers({ guideId: 'ALL', statusFilter: 'all' }).catch(() => ({ users: [] })),
+        getMeetings(options?.silent ? { _nocache: true } : {}),
+        getMoms(options?.silent ? { _nocache: true } : {}),
+        getGuideUsers({ guideId: 'ALL', statusFilter: 'all', minimal: true, ...(options?.silent ? { _nocache: true } : {}) }).catch(() => ({ users: [] })),
       ]);
       const now = Date.now();
       const mappedMeetings = (mRes.meetings || []).map((m: any) => {
@@ -267,14 +267,18 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
       setRegisteredUsers(pwUsers);
     } catch (err: any) {
       console.error('Failed to load meetings/moms/users:', err);
-      setError(err.message || 'Failed to load meetings and MoMs');
+      if (!options?.silent) setError(err.message || 'Failed to load meetings and MoMs');
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      loadData({ silent: true });
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const openNewMeetingModal = () => {
