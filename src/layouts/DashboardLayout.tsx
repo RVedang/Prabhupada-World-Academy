@@ -185,7 +185,7 @@ export default function DashboardLayout({
           
           // 1. Trigger 10-minute reminder (starts in 9 to 11 mins)
           if (diffMins > 9 && diffMins <= 11 && !m.notification10mSent) {
-            const meetingKey = m.id;
+            const meetingKey = `${m.id}-${m.scheduledAt}`;
             const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders_10m') || '{}');
             if (!localSentObj[meetingKey]) {
               localSentObj[meetingKey] = true;
@@ -202,7 +202,7 @@ export default function DashboardLayout({
 
           // 2. Trigger 1-minute reminder (starts in 0.1 to 2 mins)
           if (diffMins > 0.05 && diffMins <= 2 && !m.notification1mSent) {
-            const meetingKey = m.id;
+            const meetingKey = `${m.id}-${m.scheduledAt}`;
             const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders_1m') || '{}');
             if (!localSentObj[meetingKey]) {
               localSentObj[meetingKey] = true;

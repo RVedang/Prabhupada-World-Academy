@@ -53,7 +53,12 @@ export default createEndpoint({
 
     const updateFields: any = { updatedAt: new Date().toISOString() };
     if (input.title !== undefined) updateFields.title = input.title;
-    if (input.scheduledAt !== undefined) updateFields.scheduledAt = input.scheduledAt;
+    if (input.scheduledAt !== undefined && input.scheduledAt !== existing.scheduledAt) {
+      updateFields.scheduledAt = input.scheduledAt;
+      updateFields.notification10mSent = false;
+      updateFields.notification1mSent = false;
+      updateFields.notificationSent = false;
+    }
     if (input.locationOrLink !== undefined) updateFields.locationOrLink = input.locationOrLink;
     if (input.description !== undefined) updateFields.description = input.description;
     if (input.status !== undefined) updateFields.status = input.status;
