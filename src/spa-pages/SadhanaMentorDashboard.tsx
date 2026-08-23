@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BookOpen, Users, BarChart3, Phone, MessageCircle, Flame, Search, LayoutDashboard, ArrowUpDown, MessageSquare } from 'lucide-react';
+import { BookOpen, Users, BarChart3, Phone, MessageCircle, Flame, Search, LayoutDashboard, ArrowUpDown, MessageSquare, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { getMentorMembers } from '@/lib/endpoints-sdk';
 import type { GetMentorMembersOutputType } from '@/lib/endpoints-sdk';
@@ -15,6 +15,7 @@ import TabRouter from '@/shared/TabRouter';
 import type { TabConfig } from '@/shared/TabRouter';
 import SadhanaSection from '@/components/guide/SadhanaSection';
 import OneToOneTab from '@/components/guide/OneToOneTab';
+import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 import { format } from 'date-fns';
 import { scoreColor } from '@/lib/scoring';
 import { normalizePhoneForLinks } from '@/lib/userUtils';
@@ -295,6 +296,7 @@ export default function SadhanaMentorDashboard() {
   const tabs: TabConfig[] = [
     { value: 'reports', label: 'Sadhana Report', icon: BarChart3 },
     { value: 'members', label: 'Members List', icon: Users },
+    { value: 'meetings', label: 'Meetings & MoM', icon: Video },
     { value: 'one-to-one', label: 'One-to-One', icon: MessageSquare },
   ];
 
@@ -308,7 +310,7 @@ export default function SadhanaMentorDashboard() {
       {loading ? (
         <LoadingPage rows={2} />
       ) : (
-        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={3}>
+        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={4}>
           {(activeTab) => (
             <>
               {activeTab === 'reports' && (
@@ -316,6 +318,9 @@ export default function SadhanaMentorDashboard() {
               )}
               {activeTab === 'one-to-one' && (
                 <OneToOneTab guideId={effectiveGuideId} />
+              )}
+              {activeTab === 'meetings' && (
+                <MeetingsAndMomTab />
               )}
               {activeTab === 'members' && (
                 <MembersTable
