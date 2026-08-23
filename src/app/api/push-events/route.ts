@@ -19,6 +19,11 @@ export async function GET(req: NextRequest) {
   const current = await getLatestBroadcast();
 
   async function shouldDeliver(broadcast: NonNullable<typeof current>): Promise<boolean> {
+    // Exclude sender
+    if (broadcast.senderEmail && email && email === broadcast.senderEmail.toLowerCase()) {
+      return false;
+    }
+
     // If broadcast has an inviteeIds/inviteeEmails list (meeting notification), only deliver to invitees.
     const hasInviteeList =
       (broadcast.inviteeIds && broadcast.inviteeIds.length > 0) ||

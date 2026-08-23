@@ -339,6 +339,10 @@ export default createEndpoint({
     );
 
     const targetUsers = activeUsers.filter((u: any) => {
+      const isSender = (senderId && u.id === senderId) ||
+                       (senderEmail && (u.email || '').toLowerCase() === senderEmail);
+      if (isSender) return false;
+
       const uSegment = (u.segment || '').toUpperCase();
       const name = (u.fullName || '').toUpperCase();
       const email = (u.email || '').toLowerCase();
