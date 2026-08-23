@@ -664,7 +664,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
     if (!isSuperAdmin && !isAdminUser) {
       const associatedMeeting = meetings.find(meeting => meeting.id === m.meeting_id);
       const isCreator = (associatedMeeting && (associatedMeeting.created_by_email === user?.id || (user?.email && associatedMeeting.created_by_email?.toLowerCase() === user.email.toLowerCase()))) ||
-                        m.created_by_id === user?.id;
+                        (m as any).created_by_id === user?.id;
       const isInvited = (associatedMeeting && (
         (associatedMeeting.inviteeUserIds || []).includes(user?.id || '') ||
         (associatedMeeting.invitees || []).some((inv: any) => inv.userId === user?.id || (user?.email && inv.email?.toLowerCase() === user.email.toLowerCase()))
@@ -813,7 +813,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
             {isAdminUser && (
               <button
                 onClick={openNewMeetingModal}
-                className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl"
+                className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl hover:bg-primary/90 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Schedule Meeting Now
@@ -1000,7 +1000,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
             {isAdminUser && (
               <button
                 onClick={() => openNewMomModal()}
-                className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl"
+                className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl hover:bg-primary/90 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Create MoM Now
@@ -1495,13 +1495,13 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
                   <button
                     type="button"
                     onClick={() => setShowMeetingModal(false)}
-                    className="px-4 py-2 border rounded-xl hover:bg-accent"
+                    className="px-4 py-2 border rounded-xl hover:bg-accent hover:text-accent-foreground active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-xl shadow"
+                    className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-xl shadow hover:bg-primary/90 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   >
                     {editingMeeting ? 'Save Changes' : 'Schedule Meeting'}
                   </button>
@@ -1722,14 +1722,14 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
                   <button
                     type="button"
                     onClick={() => setShowMomModal(false)}
-                    className="px-4 py-2 border rounded-xl hover:bg-accent font-semibold transition-all"
+                    className="px-4 py-2 border rounded-xl hover:bg-accent hover:text-accent-foreground active:scale-[0.98] transition-all duration-200 cursor-pointer font-semibold"
                   >
                     {canEditMom ? 'Cancel' : 'Close'}
                   </button>
                   {canEditMom && (
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-xl shadow"
+                      className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-xl shadow hover:bg-primary/90 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
                     >
                       {editingMom ? 'Update MoM' : 'Save MoM Record'}
                     </button>
