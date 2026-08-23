@@ -163,44 +163,56 @@ export default function PwAdminDashboard() {
       role={dashboardRole}
       maxWidth="max-w-none"
     >
-      {/* Mobile Scrollable Tabs navigation */}
+      {/* Mobile Select Tab Selector (Beautified Dropdown) */}
       <div className="block md:hidden mb-5">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Navigate Dashboard
-          </label>
-          <span className="text-[10px] text-primary/90 font-semibold bg-primary/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            Active: {navItems.find(item => item.value === activeTab || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations'))?.label || activeTab}
-          </span>
-        </div>
-        <div className="overflow-x-auto -mx-4 px-4 pb-2.5 flex gap-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.value || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations');
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.value}
-                onClick={() => handleTabChange(item.value)}
-                className={`relative flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition-all border shrink-0 cursor-pointer ${
-                  isActive
-                    ? 'bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20 scale-102'
-                    : 'bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/10'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
-                <span>{item.label}</span>
-                {item.badge != null && item.badge > 0 && (
-                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full leading-none shrink-0 ${
-                    isActive ? 'bg-primary-foreground text-primary' : 'bg-destructive text-destructive-foreground'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+          Navigate Dashboard
+        </label>
+        {(() => {
+          const activeItem = navItems.find(item => item.value === activeTab || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations'));
+          return (
+            <Select value={activeTab} onValueChange={(val) => val && handleTabChange(val)}>
+              <SelectTrigger className="w-full h-11 bg-card hover:bg-muted/10 border-primary/20 rounded-xl shadow-xs transition-all flex items-center justify-between px-3.5 cursor-pointer text-sm font-semibold">
+                <div className="flex items-center gap-2.5">
+                  {activeItem && React.createElement(activeItem.icon, { className: "w-4 h-4 text-primary shrink-0" })}
+                  <span className="text-sm font-semibold text-foreground">{activeItem?.label || 'Select Tab...'}</span>
+                  {activeItem?.badge != null && activeItem.badge > 0 && (
+                    <span className="bg-destructive text-destructive-foreground text-[10px] font-extrabold px-1.5 py-0.5 rounded-full leading-none">
+                      {activeItem.badge}
+                    </span>
+                  )}
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border border-border bg-card shadow-lg max-h-[300px]">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.value || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations');
+                  return (
+                    <SelectItem 
+                      key={item.value} 
+                      value={item.value} 
+                      className={`cursor-pointer py-2.5 px-3 rounded-lg transition-colors ${
+                        isActive ? 'bg-primary/10 text-primary font-semibold' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full gap-8">
+                        <div className="flex items-center gap-2.5">
+                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                          <span className="text-xs font-medium">{item.label}</span>
+                        </div>
+                        {item.badge != null && item.badge > 0 && (
+                          <span className="bg-destructive text-destructive-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0">
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          );
+        })()}
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
