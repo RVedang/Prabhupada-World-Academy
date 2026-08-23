@@ -10,6 +10,11 @@ export default function RoleAcknowledgementModal() {
   const [roleNotice, setRoleNotice] = useState<{
     added: string[];
     removed: string[];
+    guideChange?: {
+      type: 'assigned' | 'changed' | 'removed';
+      oldName?: string;
+      newName?: string;
+    };
     snapshotKey: string;
     newSnapshot: string;
   } | null>(null);
@@ -54,7 +59,8 @@ export default function RoleAcknowledgementModal() {
       activeRoles.push('RGSF (Sub-Facilitator)');
     }
 
-    const currentSnapshot = activeRoles.sort().join('|');
+    // Snapshot structure: Roles list + Guide ID + Guide Name
+    const currentSnapshot = activeRoles.sort().join('|') + '##' + (profile.selectedGuideId || '') + '##' + (profile.guideName || '');
     const storageKey = `seen_role_snapshot_${profile.userId}`;
     const previousSnapshot = localStorage.getItem(storageKey);
 
@@ -65,16 +71,36 @@ export default function RoleAcknowledgementModal() {
     }
 
     if (previousSnapshot !== currentSnapshot) {
-      const prevRoles = previousSnapshot ? previousSnapshot.split('|').filter(Boolean) : [];
-      const currRoles = currentSnapshot ? currentSnapshot.split('|').filter(Boolean) : [];
+      const prevParts = previousSnapshot.split('##');
+      const currParts = currentSnapshot.split('##');
+
+      const prevRoles = prevParts[0] ? prevParts[0].split('|').filter(Boolean) : [];
+      const currRoles = currParts[0] ? currParts[0].split('|').filter(Boolean) : [];
+
+      const prevGuideId = prevParts[1] || '';
+      const prevGuideName = prevParts[2] || '';
+      const currGuideId = currParts[1] || '';
+      const currGuideName = currParts[2] || '';
 
       const added = currRoles.filter(r => !prevRoles.includes(r));
       const removed = prevRoles.filter(r => !currRoles.includes(r));
 
-      if (added.length > 0 || removed.length > 0) {
+      let guideChange: any = undefined;
+      if (prevGuideId !== currGuideId) {
+        if (currGuideId && !prevGuideId) {
+          guideChange = { type: 'assigned', newName: currGuideName };
+        } else if (currGuideId && prevGuideId) {
+          guideChange = { type: 'changed', oldName: prevGuideName, newName: currGuideName };
+        } else if (!currGuideId && prevGuideId) {
+          guideChange = { type: 'removed', oldName: prevGuideName };
+        }
+      }
+
+      if (added.length > 0 || removed.length > 0 || guideChange) {
         setRoleNotice({
           added,
           removed,
+          guideChange,
           snapshotKey: storageKey,
           newSnapshot: currentSnapshot,
         });
@@ -128,15 +154,43 @@ export default function RoleAcknowledgementModal() {
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 id="role-modal-title" className="text-lg font-bold text-foreground">Role Update Notice</h3>
-                <p className="text-xs text-muted-foreground">Your account permissions have been updated</p>
+                <h3 id="role-modal-title" className="text-lg font-bold text-foreground">
+                  {roleNotice.guideChange && (roleNotice.added.length === 0 && roleNotice.removed.length === 0) 
+                    ? 'Guide Assignment Notice' 
+                    : 'Account Updates Notice'}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {roleNotice.guideChange && (roleNotice.added.length === 0 && roleNotice.removed.length === 0)
+                    ? 'Your spiritual guide has been updated'
+                    : 'Your account permissions and responsibilities have been updated'}
+                </p>
               </div>
             </div>
 
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Your account access and responsibilities have been updated:
+                Please review the latest updates to your profile below:
               </p>
+
+              {roleNotice.guideChange && (
+                <div className="p-3.5 bg-sky-500/10 border border-sky-500/20 rounded-xl space-y-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex items-center gap-2 text-xs font-bold text-sky-600 dark:text-sky-400">
+                    <UserCheck className="w-4 h-4" />
+                    <span>Spiritual Guide Notice:</span>
+                  </div>
+                  <div className="text-xs font-semibold text-foreground pl-1">
+                    {roleNotice.guideChange.type === 'assigned' && (
+                      <span>You have been assigned to Guide: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                    )}
+                    {roleNotice.guideChange.type === 'changed' && (
+                      <span>Your Guide has been changed from <span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span> to <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                    )}
+                    {roleNotice.guideChange.type === 'removed' && (
+                      <span>Your Guide (<span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span>) has been removed.</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {roleNotice.added.length > 0 && (
                 <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-1.5">

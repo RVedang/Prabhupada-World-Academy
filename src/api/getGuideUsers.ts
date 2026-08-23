@@ -305,6 +305,8 @@ export default createEndpoint({
           isBvFacilitator: u.isBvFacilitator || false,
           isBvSubFacilitator: u.isBvSubFacilitator || false,
           isBvAdmin: u.isBvAdmin || false,
+          isSadhanaMentor: u.isSadhanaMentor || false,
+          isBvMentor: u.isBvMentor || false,
         }))
       };
     }

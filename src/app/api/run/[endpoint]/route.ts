@@ -98,21 +98,20 @@ async function verifyToken(token: string): Promise<{ email: string | null; uid: 
   throw new Error('Authentication verification not configured. Check process.env.FIREBASE_SERVICE_ACCOUNT.');
 }
 
-// Sliding window in-memory rate limiter per IP (max 60 requests per minute)
+// Sliding window in-memory rate limiter per key (max 60 requests per minute for IPs, 180 for authenticated keys)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 60;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
-function isRateLimited(ip: string): boolean {
+function isRateLimited(key: string, limit: number): boolean {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+  const entry = rateLimitMap.get(key);
 
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return false;
   }
 
-  if (entry.count >= RATE_LIMIT_MAX) {
+  if (entry.count >= limit) {
     return true;
   }
 
@@ -124,8 +123,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ endpoint: string }> }
 ) {
-  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
-  if (process.env.NODE_ENV !== 'development' && isRateLimited(clientIp)) {
+  const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const rateLimitKey = token ? `token:${token.slice(-30)}` : `ip:${req.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1'}`;
+  const limit = token ? 180 : 60;
+
+  if (process.env.NODE_ENV !== 'development' && isRateLimited(rateLimitKey, limit)) {
     return NextResponse.json(
       { message: 'Too many requests. Please slow down and try again.' },
       { status: 429 }

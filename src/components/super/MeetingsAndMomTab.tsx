@@ -1434,6 +1434,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
                         .map((u: any) => {
                           const isSelected = selectedInviteeIds.includes(u.userId);
                           const isSupervisor = u.isBvSupervisor || u.role?.toUpperCase().includes('SUPERVISOR');
+                          const isMentor = u.isSadhanaMentor || u.isBvMentor || u.role?.toUpperCase().includes('MENTOR');
                           const isFac = u.isBvFacilitator || u.isBvsl || u.role?.toUpperCase() === 'BVSL' || u.role?.toUpperCase() === 'FACILITATOR';
                           const isRgf = u.isBvFacilitator || u.role?.toUpperCase() === 'FACILITATOR';
                           const isRgsf = u.isBvSubFacilitator || u.role?.toUpperCase() === 'SUB_FACILITATOR' || u.role?.toUpperCase() === 'SUB-FACILITATOR';
@@ -1470,6 +1471,11 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
                                 {isSupervisor && (
                                   <span className="text-[7px] font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 px-1 py-0.2 rounded shrink-0">
                                     SUPERVISOR
+                                  </span>
+                                )}
+                                {isMentor && (
+                                  <span className="text-[7px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1 py-0.2 rounded shrink-0">
+                                    MENTOR
                                   </span>
                                 )}
                                 {isFac && (

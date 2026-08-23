@@ -170,6 +170,11 @@ export function triggerInAppOrNativeNotification(data: {
 }): void {
   if (!data) return;
 
+  // Do not show side notifications (toasts) for role or guide updates
+  if (data.slot === 'role_changed' || data.slot === 'guide_changed') {
+    return;
+  }
+
   // Check user local preference
   if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') {
     return;
