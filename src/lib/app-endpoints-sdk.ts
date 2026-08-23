@@ -1,22 +1,22 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // app-endpoints-sdk.ts — Auto-generated client-side SDK for calling API routes.
 // ══════════════════════════════════════════════════════════════════════════════
-
+import { auth } from './app-auth-sdk';
 async function invokeEndpoint(name: string, input: any): Promise<any> {
   // Retrieve Firebase ID Token (auth header)
   let idToken = '';
+
   try {
-    // Get auth token from global window or auth cache if set
-    idToken = (window as any).__firebase_id_token || '';
-    if (!idToken && typeof localStorage !== 'undefined') {
-      const storedEmail = localStorage.getItem('auth_email');
-      if (storedEmail) {
-        idToken = `mock_token_for_${storedEmail}`;
-        (window as any).__firebase_id_token = idToken;
-      }
+    const currentUser = auth?.currentUser;
+
+    if (!currentUser) {
+      throw new Error('User is not authenticated');
     }
-  } catch {
-    // ignore on server-side
+
+    idToken = await currentUser.getIdToken();
+  } catch (error) {
+    console.error('Failed to get Firebase ID token:', error);
+    throw error;
   }
 
   const res = await fetch(`/api/run/${name}`, {

@@ -151,3 +151,5 @@ export function useAuth() {
   }
   return context;
 }
+
+export { auth };
