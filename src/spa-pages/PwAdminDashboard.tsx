@@ -113,12 +113,28 @@ export default function PwAdminDashboard() {
     }).catch(() => {});
   }, []);
 
+  const navItems = [
+    { value: 'sadhana', label: 'Sadhana Report', icon: Database },
+    { value: 'bv', label: 'Bhakti Vriksha Report', icon: CalendarCheck },
+    { value: 'users', label: 'Members / Users', icon: Users },
+    { value: 'approvals', label: 'Approvals', icon: ClipboardCheck, badge: approvalCount },
+    { value: 'bhakti-vriksha', label: 'Bhakti Vriksha', icon: Leaf, badge: bvRegCount },
+    { value: 'meetings', label: 'Meetings & MoM', icon: Video },
+    { value: 'reminders', label: 'Notifications', icon: Bell },
+    ...(isSuperAdmin ? [{ value: 'stats', label: 'Stats', icon: LayoutGrid }] : []),
+    { value: 'missing-sadhana', label: 'Missing Sadhana', icon: AlertCircle },
+    { value: 'attendance', label: 'Attendance', icon: ClipboardCheck },
+    { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
+    { value: 'jigyasa', label: 'Jigyasa', icon: BookOpen },
+    { value: 'tagmango', label: 'TagMango', icon: Zap },
+  ];
+
   const SidebarButton = ({ value, label, icon: Icon, badge }: { value: string; label: string; icon: any; badge?: number }) => {
     const isActive = activeTab === value || (value === 'bhakti-vriksha' && activeTab === 'bv-registrations');
     return (
       <button
         onClick={() => handleTabChange(value)}
-        className="relative w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+        className="relative w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
       >
         {isActive && (
           <motion.div
@@ -147,54 +163,59 @@ export default function PwAdminDashboard() {
       role={dashboardRole}
       maxWidth="max-w-none"
     >
-      {/* Mobile Select Tab Selector */}
-      <div className="block md:hidden mb-4">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 block">
-          Navigate Dashboard
-        </label>
-        <Select value={activeTab} onValueChange={(val) => val && handleTabChange(val)}>
-          <SelectTrigger className="w-full bg-card border">
-            <SelectValue placeholder="Select tab..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="sadhana">Sadhana Report</SelectItem>
-            <SelectItem value="bv">Bhakti Vriksha Report</SelectItem>
-            <SelectItem value="users">Members / Users</SelectItem>
-            <SelectItem value="approvals">
-              Approvals {approvalCount > 0 ? `(${approvalCount})` : ''}
-            </SelectItem>
-            <SelectItem value="bhakti-vriksha">
-              Bhakti Vriksha {bvRegCount > 0 ? `(${bvRegCount})` : ''}
-            </SelectItem>
-            <SelectItem value="meetings">Meetings & MoM</SelectItem>
-            <SelectItem value="reminders">Notifications</SelectItem>
-            {isSuperAdmin && <SelectItem value="stats">Stats</SelectItem>}
-            <SelectItem value="missing-sadhana">Missing Sadhana</SelectItem>
-            <SelectItem value="attendance">Attendance</SelectItem>
-            <SelectItem value="callreports">1:1 Call Reports</SelectItem>
-            <SelectItem value="jigyasa">Jigyasa</SelectItem>
-            <SelectItem value="tagmango">TagMango</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Mobile Scrollable Tabs navigation */}
+      <div className="block md:hidden mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Navigate Dashboard
+          </label>
+          <span className="text-[10px] text-primary/90 font-semibold bg-primary/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            Active: {navItems.find(item => item.value === activeTab || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations'))?.label || activeTab}
+          </span>
+        </div>
+        <div className="overflow-x-auto -mx-4 px-4 pb-2.5 flex gap-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {navItems.map((item) => {
+            const isActive = activeTab === item.value || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations');
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.value}
+                onClick={() => handleTabChange(item.value)}
+                className={`relative flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition-all border shrink-0 cursor-pointer ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20 scale-102'
+                    : 'bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/10'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+                <span>{item.label}</span>
+                {item.badge != null && item.badge > 0 && (
+                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full leading-none shrink-0 ${
+                    isActive ? 'bg-primary-foreground text-primary' : 'bg-destructive text-destructive-foreground'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
         {/* Desktop Sidebar Navigation */}
         <div className="hidden md:block w-64 shrink-0 sticky top-[93px] self-start max-h-[calc(100vh-125px)] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="bg-card border rounded-xl p-3 space-y-0.5 shadow-sm">
-            <SidebarButton value="sadhana" label="Sadhana Report" icon={Database} />
-            <SidebarButton value="bv" label="Bhakti Vriksha Report" icon={CalendarCheck} />
-            <SidebarButton value="users" label="Members / Users" icon={Users} />
-            <SidebarButton value="approvals" label="Approvals" icon={ClipboardCheck} badge={approvalCount} />
-            <SidebarButton value="bhakti-vriksha" label="Bhakti Vriksha" icon={Leaf} badge={bvRegCount} />
-            <SidebarButton value="meetings" label="Meetings & MoM" icon={Video} />
-            <SidebarButton value="reminders" label="Notifications" icon={Bell} />
-            {isSuperAdmin && <SidebarButton value="stats" label="Stats" icon={LayoutGrid} />}
-            <SidebarButton value="missing-sadhana" label="Missing Sadhana" icon={AlertCircle} />
-            <SidebarButton value="attendance" label="Attendance" icon={ClipboardCheck} />
-            <SidebarButton value="callreports" label="1:1 Call Reports" icon={CalendarClock} />
-            <SidebarButton value="jigyasa" label="Jigyasa" icon={BookOpen} />
-            <SidebarButton value="tagmango" label="TagMango" icon={Zap} />
+            {navItems.map((item) => (
+              <SidebarButton
+                key={item.value}
+                value={item.value}
+                label={item.label}
+                icon={item.icon}
+                badge={item.badge}
+              />
+            ))}
           </div>
         </div>
 
