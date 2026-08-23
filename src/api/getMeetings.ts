@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Meetings, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Meetings, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get Prabhupada World meetings',
@@ -75,28 +75,50 @@ export default createEndpoint({
     // Sort by scheduledAt descending (newest / upcoming first)
     filtered.sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
-    const meetings = filtered.map((m: any) => ({
-      id: m.id,
-      title: m.title || 'Untitled Meeting',
-      type: m.type || 'OTHER',
-      segment: m.segment || 'PW',
-      scheduledAt: m.scheduledAt || new Date().toISOString(),
-      durationMinutes: m.durationMinutes || 60,
-      locationOrLink: m.locationOrLink || '',
-      description: m.description || '',
-      createdByUserId: m.createdByUserId || '',
-      createdByName: m.createdByName || 'Admin',
-      createdByRole: m.createdByRole || '',
-      inviteeUserIds: m.inviteeUserIds || [],
-      invitees: m.invitees || [],
-      notificationLeadMinutes: m.notificationLeadMinutes || 10,
-      notificationSent: !!m.notificationSent,
-      notification10mSent: !!m.notification10mSent,
-      notification1mSent: !!m.notification1mSent,
-      status: m.status || 'SCHEDULED',
-      createdAt: m.createdAt || new Date().toISOString(),
-      updatedAt: m.updatedAt || new Date().toISOString(),
-    }));
+    // Resolve creator display names by checking the Users database
+    const creatorIds = Array.from(new Set(filtered.map((m: any) => m.createdByUserId).filter(Boolean))) as string[];
+    const creatorUsersList = await Promise.all(
+      creatorIds.map(uid =>
+        Users.findOne({ id: uid })
+          .catch(() => null)
+          .then(u => u || null)
+      )
+    );
+    const creatorMap = new Map<string, string>();
+    for (const u of creatorUsersList) {
+      if (u && u.id && u.fullName) {
+        creatorMap.set(u.id, u.fullName);
+      }
+    }
+
+    const meetings = filtered.map((m: any) => {
+      let displayName = m.createdByName || 'Admin';
+      if (m.createdByUserId && creatorMap.has(m.createdByUserId)) {
+        displayName = creatorMap.get(m.createdByUserId)!;
+      }
+      return {
+        id: m.id,
+        title: m.title || 'Untitled Meeting',
+        type: m.type || 'OTHER',
+        segment: m.segment || 'PW',
+        scheduledAt: m.scheduledAt || new Date().toISOString(),
+        durationMinutes: m.durationMinutes || 60,
+        locationOrLink: m.locationOrLink || '',
+        description: m.description || '',
+        createdByUserId: m.createdByUserId || '',
+        createdByName: displayName,
+        createdByRole: m.createdByRole || '',
+        inviteeUserIds: m.inviteeUserIds || [],
+        invitees: m.invitees || [],
+        notificationLeadMinutes: m.notificationLeadMinutes || 10,
+        notificationSent: !!m.notificationSent,
+        notification10mSent: !!m.notification10mSent,
+        notification1mSent: !!m.notification1mSent,
+        status: m.status || 'SCHEDULED',
+        createdAt: m.createdAt || new Date().toISOString(),
+        updatedAt: m.updatedAt || new Date().toISOString(),
+      };
+    });
 
     return { meetings };
   },

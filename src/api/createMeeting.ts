@@ -76,6 +76,14 @@ export default createEndpoint({
       }));
     }
 
+    let creatorName = context.user.fullName || context.user.email || 'Admin';
+    if (context.user.id) {
+      const creatorUser = await Users.findOne({ id: context.user.id }).catch(() => null);
+      if (creatorUser && creatorUser.fullName) {
+        creatorName = creatorUser.fullName;
+      }
+    }
+
     const meetingDoc = {
       title: input.title.trim(),
       type: input.type,
@@ -85,7 +93,7 @@ export default createEndpoint({
       locationOrLink: input.locationOrLink.trim(),
       description: input.description.trim(),
       createdByUserId: context.user.id || '',
-      createdByName: context.user.fullName || context.user.email || 'Admin',
+      createdByName: creatorName,
       createdByRole: callerRole,
       inviteeUserIds: inviteeIdsArray,
       invitees,
