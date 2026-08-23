@@ -194,6 +194,23 @@ export function triggerInAppOrNativeNotification(data: {
 
   if (isForeground) {
     // ── 1. FOREGROUND: Display rich in-app interactive toast ──
+    const isMeeting = data.slot === 'meeting' || 
+                      urlToUse.includes('/meeting') || 
+                      urlToUse.includes('zoom.us') || 
+                      urlToUse.includes('meet.google.com') ||
+                      body.toLowerCase().includes('meeting') ||
+                      title.toLowerCase().includes('meeting');
+    const iconEmoji = isMeeting ? '📅' : '📿';
+
+    let actionText = 'Tap here to open Sadhana →';
+    if (isMeeting) {
+      actionText = 'Tap here to join Meeting →';
+    } else if (urlToUse.startsWith('http')) {
+      actionText = 'Tap here to open link →';
+    } else if (urlToUse !== '/sadhana') {
+      actionText = 'Tap here to view →';
+    }
+
     const navigateToTarget = () => {
       if (urlToUse) {
         if (urlToUse.startsWith('http')) {
@@ -214,7 +231,7 @@ export function triggerInAppOrNativeNotification(data: {
         React.createElement(
           'div',
           { className: 'w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center shrink-0 text-lg shadow-xs' },
-          '📿'
+          iconEmoji
         ),
         React.createElement(
           'div',
@@ -229,7 +246,7 @@ export function triggerInAppOrNativeNotification(data: {
           React.createElement(
             'div',
             { className: 'mt-2 text-xs font-semibold text-primary flex items-center gap-1 hover:underline' },
-            'Tap here to open Sadhana →'
+            actionText
           )
         )
       ),
