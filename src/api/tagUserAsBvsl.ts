@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 import { serverCacheInvalidate } from '../lib/serverCache';
+import { storeBroadcast } from '../lib/notificationBroadcast';
 
 export default createEndpoint({
   description: 'Tag/untag a user as BVSL — center-based access',
@@ -55,6 +56,20 @@ export default createEndpoint({
       id: userRecord.id,
       record: { role: newRole, isBvsl: shouldTag, bvServiceAllocated: shouldTag },
     });
+
+    try {
+      storeBroadcast(
+        'Role Updated',
+        `Your role has been updated`,
+        'role_changed',
+        undefined,
+        undefined,
+        [userRecord.id].filter(Boolean),
+      );
+    } catch (err) {
+      console.error('[tagUserAsBvsl] Failed to broadcast role update:', err);
+    }
+
     serverCacheInvalidate('user_profile:');
     return { success: true };
   },

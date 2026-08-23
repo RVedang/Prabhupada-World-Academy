@@ -4,7 +4,7 @@
       "/home/vedanarayana_das/.nvm/versions/node/v24.18.0/bin/node",
       "/home/vedanarayana_das/Prabhupada World Academy/node_modules/.bin/playwright",
       "test",
-      "tests/e2e/99-verify-ui.spec.ts"
+      "tests/e2e/01-api-backend.spec.ts"
     ],
     "configFile": "/home/vedanarayana_das/Prabhupada World Academy/playwright.config.ts",
     "rootDir": "/home/vedanarayana_das/Prabhupada World Academy/tests/e2e",
@@ -73,107 +73,999 @@
   },
   "suites": [
     {
-      "title": "99-verify-ui.spec.ts",
-      "file": "99-verify-ui.spec.ts",
+      "title": "01-api-backend.spec.ts",
+      "file": "01-api-backend.spec.ts",
       "column": 0,
       "line": 0,
-      "specs": [
+      "specs": [],
+      "suites": [
         {
-          "title": "Verify FOLK Super Admin Dashboard — Sadhana & Missing Sadhana Tabs UI",
-          "ok": true,
-          "tags": [],
-          "tests": [
+          "title": "Public API",
+          "file": "01-api-backend.spec.ts",
+          "line": 28,
+          "column": 6,
+          "specs": [
             {
-              "timeout": 60000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
+              "title": "GET /api/run/getGuides returns guides array",
+              "ok": false,
+              "tags": [],
+              "tests": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
-                  "status": "interrupted",
-                  "duration": 59904,
-                  "error": {
-                    "message": "Error: locator.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'FOLK Super Admin' })\u001b[22m\n",
-                    "stack": "Error: locator.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'FOLK Super Admin' })\u001b[22m\n\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/99-verify-ui.spec.ts:9:27",
-                    "location": {
-                      "file": "/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/99-verify-ui.spec.ts",
-                      "column": 27,
-                      "line": 9
-                    },
-                    "snippet": "\u001b[0m \u001b[90m  7 |\u001b[39m   console\u001b[33m.\u001b[39mlog(\u001b[32m'2. Clicking FOLK Super Admin (Gaurmandal Prabhu) button...'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m  8 |\u001b[39m   \u001b[36mconst\u001b[39m folkSuperAdminBtn \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button'\u001b[39m\u001b[33m,\u001b[39m { hasText\u001b[33m:\u001b[39m \u001b[32m'FOLK Super Admin'\u001b[39m })\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m  9 |\u001b[39m   \u001b[36mawait\u001b[39m folkSuperAdminBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 10 |\u001b[39m\n \u001b[90m 11 |\u001b[39m   console\u001b[33m.\u001b[39mlog(\u001b[32m'3. Waiting for dashboard navigation...'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 12 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForURL(\u001b[35m/\\/super\\/dashboard|\\/dashboard/\u001b[39m\u001b[33m,\u001b[39m { timeout\u001b[33m:\u001b[39m \u001b[35m15000\u001b[39m })\u001b[33m;\u001b[39m\u001b[0m"
-                  },
-                  "errors": [
-                    {
-                      "location": {
-                        "file": "/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/99-verify-ui.spec.ts",
-                        "column": 27,
-                        "line": 9
-                      },
-                      "message": "Error: locator.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'FOLK Super Admin' })\u001b[22m\n\n\n\u001b[0m \u001b[90m  7 |\u001b[39m   console\u001b[33m.\u001b[39mlog(\u001b[32m'2. Clicking FOLK Super Admin (Gaurmandal Prabhu) button...'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m  8 |\u001b[39m   \u001b[36mconst\u001b[39m folkSuperAdminBtn \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button'\u001b[39m\u001b[33m,\u001b[39m { hasText\u001b[33m:\u001b[39m \u001b[32m'FOLK Super Admin'\u001b[39m })\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m  9 |\u001b[39m   \u001b[36mawait\u001b[39m folkSuperAdminBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 10 |\u001b[39m\n \u001b[90m 11 |\u001b[39m   console\u001b[33m.\u001b[39mlog(\u001b[32m'3. Waiting for dashboard navigation...'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 12 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForURL(\u001b[35m/\\/super\\/dashboard|\\/dashboard/\u001b[39m\u001b[33m,\u001b[39m { timeout\u001b[33m:\u001b[39m \u001b[35m15000\u001b[39m })\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/99-verify-ui.spec.ts:9:27\u001b[22m"
-                    }
-                  ],
-                  "stdout": [
-                    {
-                      "text": "1. Navigating to login page...\n"
-                    },
-                    {
-                      "text": "2. Clicking FOLK Super Admin (Gaurmandal Prabhu) button...\n"
-                    }
-                  ],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-08-03T06:07:27.636Z",
+                  "timeout": 60000,
                   "annotations": [],
-                  "attachments": [
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
                     {
-                      "name": "screenshot",
-                      "contentType": "image/png",
-                      "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/99-verify-ui-Verify-FOLK-S-9db47-ana-Missing-Sadhana-Tabs-UI-chromium/test-failed-1.png"
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 627,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getGuides\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getGuides\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:30:43",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getGuides\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n\u001b[2m    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\u001b[22m\n\u001b[2m    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\u001b[22m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:30:43\u001b[22m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "Error in beforeAll getGuides fetch: [TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3000\n  \u001b[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)\u001b[39m {\n    errno: \u001b[33m-111\u001b[39m,\n    code: \u001b[32m'ECONNREFUSED'\u001b[39m,\n    syscall: \u001b[32m'connect'\u001b[39m,\n    address: \u001b[32m'127.0.0.1'\u001b[39m,\n    port: \u001b[33m3000\u001b[39m\n  }\n}\n"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-08-23T04:53:51.593Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--b189d-Guides-returns-guides-array-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--b189d-Guides-returns-guides-array-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
                     },
                     {
-                      "name": "video",
-                      "contentType": "video/webm",
-                      "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/99-verify-ui-Verify-FOLK-S-9db47-ana-Missing-Sadhana-Tabs-UI-chromium/video.webm"
-                    },
-                    {
-                      "name": "error-context",
-                      "contentType": "text/markdown",
-                      "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/99-verify-ui-Verify-FOLK-S-9db47-ana-Missing-Sadhana-Tabs-UI-chromium/error-context.md"
-                    },
-                    {
-                      "name": "trace",
-                      "contentType": "application/zip",
-                      "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/99-verify-ui-Verify-FOLK-S-9db47-ana-Missing-Sadhana-Tabs-UI-chromium/trace.zip"
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 553,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getGuides\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getGuides\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:30:43",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getGuides\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n\u001b[2m    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\u001b[22m\n\u001b[2m    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\u001b[22m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:30:43\u001b[22m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "Error in beforeAll getGuides fetch: [TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3000\n  \u001b[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)\u001b[39m {\n    errno: \u001b[33m-111\u001b[39m,\n    code: \u001b[32m'ECONNREFUSED'\u001b[39m,\n    syscall: \u001b[32m'connect'\u001b[39m,\n    address: \u001b[32m'127.0.0.1'\u001b[39m,\n    port: \u001b[33m3000\u001b[39m\n  }\n}\n"
+                        }
+                      ],
+                      "retry": 1,
+                      "startTime": "2026-08-23T04:53:53.127Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--b189d-Guides-returns-guides-array-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--b189d-Guides-returns-guides-array-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
                     }
                   ],
-                  "errorLocation": {
-                    "file": "/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/99-verify-ui.spec.ts",
-                    "column": 27,
-                    "line": 9
-                  }
+                  "status": "unexpected"
                 }
               ],
-              "status": "skipped"
+              "id": "eac1fa797544f4929fa7-f34396093a9592c4e20f",
+              "file": "01-api-backend.spec.ts",
+              "line": 29,
+              "column": 7
+            },
+            {
+              "title": "GET /api/run/getAllResidencies returns residencies",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 544,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getAllResidencies\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getAllResidencies\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:41:43",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getAllResidencies\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n\u001b[2m    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\u001b[22m\n\u001b[2m    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\u001b[22m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:41:43\u001b[22m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "Error in beforeAll getGuides fetch: [TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3000\n  \u001b[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)\u001b[39m {\n    errno: \u001b[33m-111\u001b[39m,\n    code: \u001b[32m'ECONNREFUSED'\u001b[39m,\n    syscall: \u001b[32m'connect'\u001b[39m,\n    address: \u001b[32m'127.0.0.1'\u001b[39m,\n    port: \u001b[33m3000\u001b[39m\n  }\n}\n"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-08-23T04:53:54.627Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--09263-dencies-returns-residencies-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--09263-dencies-returns-residencies-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    },
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 565,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getAllResidencies\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getAllResidencies\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:41:43",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getAllResidencies\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n\u001b[2m    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\u001b[22m\n\u001b[2m    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\u001b[22m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:41:43\u001b[22m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "Error in beforeAll getGuides fetch: [TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3000\n  \u001b[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)\u001b[39m {\n    errno: \u001b[33m-111\u001b[39m,\n    code: \u001b[32m'ECONNREFUSED'\u001b[39m,\n    syscall: \u001b[32m'connect'\u001b[39m,\n    address: \u001b[32m'127.0.0.1'\u001b[39m,\n    port: \u001b[33m3000\u001b[39m\n  }\n}\n"
+                        }
+                      ],
+                      "retry": 1,
+                      "startTime": "2026-08-23T04:53:56.170Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--09263-dencies-returns-residencies-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API--09263-dencies-returns-residencies-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-4733bc145c2e016901df",
+              "file": "01-api-backend.spec.ts",
+              "line": 40,
+              "column": 7
+            },
+            {
+              "title": "Non-existent endpoint returns 404",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 555,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/nonExistentEndpoint\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/nonExistentEndpoint\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:47:37",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/nonExistentEndpoint\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n\u001b[2m    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\u001b[22m\n\u001b[2m    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\u001b[22m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:47:37\u001b[22m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "Error in beforeAll getGuides fetch: [TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3000\n  \u001b[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)\u001b[39m {\n    errno: \u001b[33m-111\u001b[39m,\n    code: \u001b[32m'ECONNREFUSED'\u001b[39m,\n    syscall: \u001b[32m'connect'\u001b[39m,\n    address: \u001b[32m'127.0.0.1'\u001b[39m,\n    port: \u001b[33m3000\u001b[39m\n  }\n}\n"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-08-23T04:53:57.624Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API-Non-existent-endpoint-returns-404-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API-Non-existent-endpoint-returns-404-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    },
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 508,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/nonExistentEndpoint\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/nonExistentEndpoint\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:47:37",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/nonExistentEndpoint\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n\u001b[2m    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\u001b[22m\n\u001b[2m    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\u001b[22m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:47:37\u001b[22m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "Error in beforeAll getGuides fetch: [TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3000\n  \u001b[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)\u001b[39m {\n    errno: \u001b[33m-111\u001b[39m,\n    code: \u001b[32m'ECONNREFUSED'\u001b[39m,\n    syscall: \u001b[32m'connect'\u001b[39m,\n    address: \u001b[32m'127.0.0.1'\u001b[39m,\n    port: \u001b[33m3000\u001b[39m\n  }\n}\n"
+                        }
+                      ],
+                      "retry": 1,
+                      "startTime": "2026-08-23T04:53:58.973Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API-Non-existent-endpoint-returns-404-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Public-API-Non-existent-endpoint-returns-404-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-df6c230d8eb823126e74",
+              "file": "01-api-backend.spec.ts",
+              "line": 46,
+              "column": 7
             }
-          ],
-          "id": "a5097edfd2b68e15fa5c-ae857b6b22e4928befce",
-          "file": "99-verify-ui.spec.ts",
-          "line": 3,
-          "column": 5
+          ]
+        },
+        {
+          "title": "Auth — getUserProfile",
+          "file": "01-api-backend.spec.ts",
+          "line": 54,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Regular user profile loads correctly",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 519,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getUserProfile\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - Authorization: Bearer mock_token_for_nileshkund8@gmail.com\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getUserProfile\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - Authorization: Bearer mock_token_for_nileshkund8@gmail.com\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\n    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:56:43",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/run/getUserProfile\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - Authorization: Bearer mock_token_for_nileshkund8@gmail.com\u001b[22m\n\u001b[2m    - content-length: 2\u001b[22m\n\n\u001b[2m    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\u001b[22m\n\u001b[2m    at apiCall (/home/vedanarayana_das/Prabhupada World Academy/tests/e2e/helpers.ts:37:29)\u001b[22m\n\u001b[2m    at /home/vedanarayana_das/Prabhupada World Academy/tests/e2e/01-api-backend.spec.ts:56:43\u001b[22m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "Error in beforeAll getGuides fetch: [TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3000\n  \u001b[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)\u001b[39m {\n    errno: \u001b[33m-111\u001b[39m,\n    code: \u001b[32m'ECONNREFUSED'\u001b[39m,\n    syscall: \u001b[32m'connect'\u001b[39m,\n    address: \u001b[32m'127.0.0.1'\u001b[39m,\n    port: \u001b[33m3000\u001b[39m\n  }\n}\n"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-08-23T04:54:00.149Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Auth-—-getU-4b898-ser-profile-loads-correctly-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/vedanarayana_das/Prabhupada World Academy/test-results/01-api-backend-Auth-—-getU-4b898-ser-profile-loads-correctly-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-66a6b553530feb87f1ea",
+              "file": "01-api-backend.spec.ts",
+              "line": 55,
+              "column": 7
+            },
+            {
+              "title": "Guide profile has correct role",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-289d1f81d516524da74b",
+              "file": "01-api-backend.spec.ts",
+              "line": 62,
+              "column": 7
+            },
+            {
+              "title": "Super Guide profile has correct role",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-3884a057ab6638d9498a",
+              "file": "01-api-backend.spec.ts",
+              "line": 68,
+              "column": 7
+            },
+            {
+              "title": "Sadhana Mentor profile has correct role",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-f7af4d0731a97ae7b78b",
+              "file": "01-api-backend.spec.ts",
+              "line": 74,
+              "column": 7
+            },
+            {
+              "title": "BVSL profile has correct role",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-218ec85f31dbb78ffb1a",
+              "file": "01-api-backend.spec.ts",
+              "line": 80,
+              "column": 7
+            },
+            {
+              "title": "Unauthenticated request is rejected",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-e55d61e5a4627b55a964",
+              "file": "01-api-backend.spec.ts",
+              "line": 86,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Guide Dashboard API",
+          "file": "01-api-backend.spec.ts",
+          "line": 99,
+          "column": 6,
+          "specs": [
+            {
+              "title": "getCurrentGuide returns guide record",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-e4b1c0888be8a1a8ad59",
+              "file": "01-api-backend.spec.ts",
+              "line": 100,
+              "column": 7
+            },
+            {
+              "title": "getGuideUsers returns users for the guide",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-e63cebad0a245486a51b",
+              "file": "01-api-backend.spec.ts",
+              "line": 106,
+              "column": 7
+            },
+            {
+              "title": "getSadhanaFormData returns fields list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-8a4e059266d55b498c51",
+              "file": "01-api-backend.spec.ts",
+              "line": 113,
+              "column": 7
+            },
+            {
+              "title": "getGuideDetailedReport returns report data",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-ca6895d44189c2ed6541",
+              "file": "01-api-backend.spec.ts",
+              "line": 121,
+              "column": 7
+            },
+            {
+              "title": "getSadhanaStats returns stats",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-c19253d7bce841d9c51f",
+              "file": "01-api-backend.spec.ts",
+              "line": 129,
+              "column": 7
+            },
+            {
+              "title": "Regular user cannot access guide-only getCurrentGuide",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-a237f7ded348ae2105a5",
+              "file": "01-api-backend.spec.ts",
+              "line": 136,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Super Guide API",
+          "file": "01-api-backend.spec.ts",
+          "line": 150,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Super guide can fetch all users",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-fcdd4b1c1ae677c7c9ed",
+              "file": "01-api-backend.spec.ts",
+              "line": 151,
+              "column": 7
+            },
+            {
+              "title": "Super guide can list all guides",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-028e773eaa1251cd284a",
+              "file": "01-api-backend.spec.ts",
+              "line": 159,
+              "column": 7
+            },
+            {
+              "title": "getPushSubscriptionStats is accessible to super guide",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-fd43bf9e57329cfe7ce2",
+              "file": "01-api-backend.spec.ts",
+              "line": 165,
+              "column": 7
+            },
+            {
+              "title": "Regular user cannot call super-only endpoints",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-efa961c83c2f574f955f",
+              "file": "01-api-backend.spec.ts",
+              "line": 170,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Sadhana Mentor API",
+          "file": "01-api-backend.spec.ts",
+          "line": 178,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Mentor can fetch their members",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-1d4e337aa78e744a6dfd",
+              "file": "01-api-backend.spec.ts",
+              "line": 179,
+              "column": 7
+            },
+            {
+              "title": "Mentor can fetch sadhana fields",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-e1d1cc3377abd60e5e2d",
+              "file": "01-api-backend.spec.ts",
+              "line": 185,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "User Self-Service API",
+          "file": "01-api-backend.spec.ts",
+          "line": 195,
+          "column": 6,
+          "specs": [
+            {
+              "title": "User can fetch their own profile",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-e985c51e12a0303dc6b0",
+              "file": "01-api-backend.spec.ts",
+              "line": 196,
+              "column": 7
+            },
+            {
+              "title": "User can fetch sadhana history",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-1925577e81f20079a31e",
+              "file": "01-api-backend.spec.ts",
+              "line": 202,
+              "column": 7
+            },
+            {
+              "title": "Sadhana fields are returned for user submission",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-ed998247eedbb8d04e7c",
+              "file": "01-api-backend.spec.ts",
+              "line": 208,
+              "column": 7
+            },
+            {
+              "title": "User profile contains latest guide transfer request info",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-ebd902bddaa45d67f1c2",
+              "file": "01-api-backend.spec.ts",
+              "line": 215,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Data Integrity",
+          "file": "01-api-backend.spec.ts",
+          "line": 224,
+          "column": 6,
+          "specs": [
+            {
+              "title": "All guides in getGuides have required fields",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-922431fc71ab43fefb52",
+              "file": "01-api-backend.spec.ts",
+              "line": 225,
+              "column": 7
+            },
+            {
+              "title": "All residencies have required fields",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-1d1736d600d21fa85fb8",
+              "file": "01-api-backend.spec.ts",
+              "line": 233,
+              "column": 7
+            },
+            {
+              "title": "Sadhana fields have name and type",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "eac1fa797544f4929fa7-9b83e493889cbb2ab805",
+              "file": "01-api-backend.spec.ts",
+              "line": 241,
+              "column": 7
+            }
+          ]
         }
       ]
     }
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-08-03T06:07:24.961Z",
-    "duration": 63284.681,
+    "startTime": "2026-08-23T04:53:50.654Z",
+    "duration": 10367.556999999999,
     "expected": 0,
-    "skipped": 1,
-    "unexpected": 0,
+    "skipped": 24,
+    "unexpected": 4,
     "flaky": 0
   }
 }

@@ -396,6 +396,9 @@ export function connectToNotificationStream(): void {
       }
       if (data?.type === 'PUSH_RECEIVED') {
         triggerInAppOrNativeNotification(data);
+        if (data.slot === 'role_changed' || data.slot === 'guide_changed') {
+          window.dispatchEvent(new CustomEvent('pwa_profile_refresh_needed'));
+        }
       }
       isConnecting = false;
       // Immediately reconnect

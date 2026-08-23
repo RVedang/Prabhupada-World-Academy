@@ -31,6 +31,16 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
     return window.location.hash.slice(1) || defaultTab || tabs[0]?.value || '';
   });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([ignoreUrlHash ? (defaultTab || tabs[0]?.value || '') : (typeof window !== 'undefined' ? window.location.hash.slice(1) || defaultTab || tabs[0]?.value || '' : defaultTab || tabs[0]?.value || '')]));
+
+  useEffect(() => {
+    setVisitedTabs(prev => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showRightFade, setShowRightFade] = useState(false);
   const [showLeftFade, setShowLeftFade] = useState(false);
@@ -189,7 +199,11 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
       </div>
 
       <TabTransition activeTab={activeTab}>
-        {children(activeTab, handleChange)}
+        {Array.from(visitedTabs).map(tabVal => (
+          <div key={tabVal} className={activeTab === tabVal ? 'block' : 'hidden'}>
+            {children(tabVal, handleChange)}
+          </div>
+        ))}
       </TabTransition>
     </Tabs>
   );

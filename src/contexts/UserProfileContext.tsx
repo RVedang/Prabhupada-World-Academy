@@ -163,6 +163,16 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Real-time broadcast listener for immediate profile/role refreshes
+  useEffect(() => {
+    if (!user?.email) return;
+    const handleRefreshEvent = () => {
+      load(user.email!, 0, true);
+    };
+    window.addEventListener('pwa_profile_refresh_needed', handleRefreshEvent);
+    return () => window.removeEventListener('pwa_profile_refresh_needed', handleRefreshEvent);
+  }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /**
    * @param email         - User email to load profile for
    * @param retryCount    - Retry attempt number (0 = first attempt)

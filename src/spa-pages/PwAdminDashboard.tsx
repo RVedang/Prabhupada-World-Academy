@@ -69,6 +69,15 @@ export default function PwAdminDashboard() {
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
+  useEffect(() => {
+    setVisitedTabs(prev => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
   const [approvalCount, setApprovalCount] = useState(0);
   const [bvRegCount, setBvRegCount] = useState(0);
 
@@ -242,8 +251,8 @@ export default function PwAdminDashboard() {
           <TabErrorBoundary tabName={activeTab}>
             <Suspense fallback={<LoadingPage rows={2} />}>
               <TabTransition activeTab={activeTab}>
-                {activeTab === 'sadhana' && (
-                  <div>
+                {visitedTabs.has('sadhana') && (
+                  <div className={activeTab === 'sadhana' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Sadhana Reports</h2>
                       <p className="text-sm text-muted-foreground">Overview of all Prabhupada World sadhana records</p>
@@ -252,8 +261,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'bv' && (
-                  <div>
+                {visitedTabs.has('bv') && (
+                  <div className={activeTab === 'bv' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Bhakti Vriksha Preaching Overview</h2>
                       <p className="text-sm text-muted-foreground">Bhakti Vriksha attendance and group reports</p>
@@ -262,8 +271,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'users' && (
-                  <div>
+                {visitedTabs.has('users') && (
+                  <div className={activeTab === 'users' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Prabhupada World Members</h2>
                       <p className="text-sm text-muted-foreground">All registered members — sortable, filterable, with role management</p>
@@ -272,8 +281,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'approvals' && (
-                  <div>
+                {visitedTabs.has('approvals') && (
+                  <div className={activeTab === 'approvals' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Ashraya Requests & Approvals</h2>
                       <p className="text-sm text-muted-foreground">Review and approve Ashraya upgrade requests for Prabhupada World members</p>
@@ -282,16 +291,16 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') && (
-                  <div className="space-y-6">
+                {(visitedTabs.has('bhakti-vriksha') || visitedTabs.has('bv-registrations')) && (
+                  <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') ? 'space-y-6 block' : 'hidden'}>
                     <SuperBvRegistrationsTab segment="PW" />
                     <hr className="my-6 border-t" />
                     <BvAdminManagementTab />
                   </div>
                 )}
 
-                {activeTab === 'reminders' && (
-                  <div>
+                {visitedTabs.has('reminders') && (
+                  <div className={activeTab === 'reminders' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Sadhana Reminders & Notifications</h2>
                       <p className="text-sm text-muted-foreground">Configure automatic Sadhana reminders, custom schedule times, and dispatch instant push notifications</p>
@@ -302,8 +311,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'stats' && isSuperAdmin && (
-                  <div>
+                {visitedTabs.has('stats') && isSuperAdmin && (
+                  <div className={activeTab === 'stats' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">System Stats & Administration</h2>
                       <p className="text-sm text-muted-foreground">Aggregate metrics and data management</p>
@@ -314,14 +323,14 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'missing-sadhana' && (
-                  <div>
+                {visitedTabs.has('missing-sadhana') && (
+                  <div className={activeTab === 'missing-sadhana' ? 'block' : 'hidden'}>
                     <MissingSadhanaTab guideId="ALL" />
                   </div>
                 )}
 
-                {activeTab === 'attendance' && (
-                  <div>
+                {visitedTabs.has('attendance') && (
+                  <div className={activeTab === 'attendance' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Attendance Report</h2>
                       <p className="text-sm text-muted-foreground">Course and session attendance records</p>
@@ -330,8 +339,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'jigyasa' && (
-                  <div>
+                {visitedTabs.has('jigyasa') && (
+                  <div className={activeTab === 'jigyasa' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Jigyasa Attendance Tracker</h2>
                       <p className="text-sm text-muted-foreground">Upload TagMango CSVs and track session attendance</p>
@@ -340,8 +349,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'tagmango' && (
-                  <div>
+                {visitedTabs.has('tagmango') && (
+                  <div className={activeTab === 'tagmango' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">TagMango Configuration</h2>
                       <p className="text-sm text-muted-foreground">Manage API credentials and course ID mappings for auto-enrollment</p>
@@ -350,8 +359,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'meetings' && (
-                  <div>
+                {visitedTabs.has('meetings') && (
+                  <div className={activeTab === 'meetings' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Meetings & Minutes of Meeting (MoM)</h2>
                       <p className="text-sm text-muted-foreground">Schedule meetings, track attendance, and record actionable Minutes of Meeting</p>
@@ -360,8 +369,8 @@ export default function PwAdminDashboard() {
                   </div>
                 )}
 
-                {activeTab === 'callreports' && (
-                  <div>
+                {visitedTabs.has('callreports') && (
+                  <div className={activeTab === 'callreports' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">1:1 Call Reports</h2>
                       <p className="text-sm text-muted-foreground">All one-on-one call logs between Facilitators (RGF) and their members</p>

@@ -43,6 +43,15 @@ export default function UserDashboard() {
 
   const initialTab = window.location.hash.slice(1) || 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
+  useEffect(() => {
+    setVisitedTabs(prev => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
   // Lazy: leaderboard is the heaviest endpoint — only fetch when user opens that tab
   const [lbRequested, setLbRequested] = useState(initialTab === 'leaderboard');
 
@@ -165,48 +174,62 @@ export default function UserDashboard() {
           )}
         </TabsList>
         <TabTransition activeTab={activeTab}>
-          {activeTab === 'sadhana' && (
-            <SectionErrorBoundary sectionName="Sadhana Tab">
-              <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
-            </SectionErrorBoundary>
+          {visitedTabs.has('sadhana') && (
+            <div className={activeTab === 'sadhana' ? 'block' : 'hidden'}>
+              <SectionErrorBoundary sectionName="Sadhana Tab">
+                <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
+              </SectionErrorBoundary>
+            </div>
           )}
-          {activeTab === 'leaderboard' && (
-            <SectionErrorBoundary sectionName="Leaderboard Tab">
-              <LeaderboardTab
-                leaderboardData={leaderboardData as any}
-                userId={profile.userId}
-                userResidencyName={profile.residencyName ?? undefined}
-              />
-            </SectionErrorBoundary>
+          {visitedTabs.has('leaderboard') && (
+            <div className={activeTab === 'leaderboard' ? 'block' : 'hidden'}>
+              <SectionErrorBoundary sectionName="Leaderboard Tab">
+                <LeaderboardTab
+                  leaderboardData={leaderboardData as any}
+                  userId={profile.userId}
+                  userResidencyName={profile.residencyName ?? undefined}
+                />
+              </SectionErrorBoundary>
+            </div>
           )}
-          {activeTab === 'bv' && (
-            <SectionErrorBoundary sectionName="Bhakti Vriksha Tab">
-              <BvTab userId={profile.userId} />
-            </SectionErrorBoundary>
+          {visitedTabs.has('bv') && (
+            <div className={activeTab === 'bv' ? 'block' : 'hidden'}>
+              <SectionErrorBoundary sectionName="Bhakti Vriksha Tab">
+                <BvTab userId={profile.userId} />
+              </SectionErrorBoundary>
+            </div>
           )}
-          {activeTab === 'attendance' && (
-            <SectionErrorBoundary sectionName="Attendance Tab">
-              <AttendanceTab userId={profile.userId} />
-            </SectionErrorBoundary>
+          {visitedTabs.has('attendance') && (
+            <div className={activeTab === 'attendance' ? 'block' : 'hidden'}>
+              <SectionErrorBoundary sectionName="Attendance Tab">
+                <AttendanceTab userId={profile.userId} />
+              </SectionErrorBoundary>
+            </div>
           )}
-          {activeTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (
-            <SectionErrorBoundary sectionName="Cleanliness Tab">
-              {(profile as any).isCleanlinessManager ? (
-                <CleanlinessManagerDashboard residencyId={profile.selectedFolkResidency!} residencyName={profile.residencyName ?? undefined} />
-              ) : (
-                <CleanlinessCalendarTab userId={profile.userId} residencyId={profile.selectedFolkResidency!} />
-              )}
-            </SectionErrorBoundary>
+          {visitedTabs.has('cleanliness') && isResident && !!profile.selectedFolkResidency && (
+            <div className={activeTab === 'cleanliness' ? 'block' : 'hidden'}>
+              <SectionErrorBoundary sectionName="Cleanliness Tab">
+                {(profile as any).isCleanlinessManager ? (
+                  <CleanlinessManagerDashboard residencyId={profile.selectedFolkResidency!} residencyName={profile.residencyName ?? undefined} />
+                ) : (
+                  <CleanlinessCalendarTab userId={profile.userId} residencyId={profile.selectedFolkResidency!} />
+                )}
+              </SectionErrorBoundary>
+            </div>
           )}
-          {activeTab === 'services' && FEATURES.SERVICE_ALLOCATION && isResident && !!profile.selectedFolkResidency && (
-            <SectionErrorBoundary sectionName="Services Tab">
-              <UserServicesTab userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
-            </SectionErrorBoundary>
+          {visitedTabs.has('services') && FEATURES.SERVICE_ALLOCATION && isResident && !!profile.selectedFolkResidency && (
+            <div className={activeTab === 'services' ? 'block' : 'hidden'}>
+              <SectionErrorBoundary sectionName="Services Tab">
+                <UserServicesTab userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
+              </SectionErrorBoundary>
+            </div>
           )}
-          {activeTab === 'folk-mgmt' && FEATURES.SERVICE_ALLOCATION && !!profile.isServiceAllocator && (
-            <SectionErrorBoundary sectionName="FOLK Mgmt Tab">
-              <GuideServicesTab residencyId={profile.folkResidencyCustomId ?? undefined} />
-            </SectionErrorBoundary>
+          {visitedTabs.has('folk-mgmt') && FEATURES.SERVICE_ALLOCATION && !!profile.isServiceAllocator && (
+            <div className={activeTab === 'folk-mgmt' ? 'block' : 'hidden'}>
+              <SectionErrorBoundary sectionName="FOLK Mgmt Tab">
+                <GuideServicesTab residencyId={profile.folkResidencyCustomId ?? undefined} />
+              </SectionErrorBoundary>
+            </div>
           )}
         </TabTransition>
       </Tabs>

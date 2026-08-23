@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
+import { storeBroadcast } from '../lib/notificationBroadcast';
 
 export default createEndpoint({
   description: 'Tag or untag a user as Reading Group Sub-Facilitator (RGSF) — Admin or Super Admin only. When tagging, must specify which RGF this RGSF will report to.',
@@ -51,6 +52,20 @@ export default createEndpoint({
         bvReportingFacilitatorName: shouldTag ? (input.facilitatorName || '') : '',
       },
     });
+
+    try {
+      storeBroadcast(
+        'Role Updated',
+        `Your role has been updated`,
+        'role_changed',
+        undefined,
+        undefined,
+        [userRecord.id].filter(Boolean),
+      );
+    } catch (err) {
+      console.error('[tagUserAsBvSubFacilitator] Failed to broadcast role update:', err);
+    }
+
     serverCacheInvalidate('user_profile:');
 
     return { success: true };

@@ -386,9 +386,9 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
       .filter((u: any) => {
         const roleUpper = (u.role || '').toUpperCase();
         if (preset === 'FACILITATORS') return u.isBvFacilitator || u.isBvsl || roleUpper === 'BVSL' || roleUpper === 'FACILITATOR';
-        if (preset === 'RGFS') return u.isBvFacilitator || roleUpper === 'FACILITATOR';
-        if (preset === 'RGSFS') return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR';
-        if (preset === 'SUPERVISORS') return u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
+        if (preset === 'RGFS') return u.isBvFacilitator || u.isBvsl || roleUpper === 'FACILITATOR' || roleUpper === 'BVSL';
+        if (preset === 'RGSFS') return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR' || roleUpper === 'RGSF';
+        if (preset === 'SUPERVISORS') return u.isBvSupervisor || roleUpper.includes('SUPERVISOR') || roleUpper.includes('MENTOR');
         if (preset === 'ADMINS') return u.isBvAdmin || roleUpper === 'ADMIN' || roleUpper === 'PW_ADMIN' || roleUpper === 'SUPER_ADMIN';
         return false;
       })
@@ -409,13 +409,13 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
           return u.isBvFacilitator || u.isBvsl || roleUpper === 'BVSL' || roleUpper === 'FACILITATOR';
         }
         if (preset === 'RGFS') {
-          return u.isBvFacilitator || roleUpper === 'FACILITATOR';
+          return u.isBvFacilitator || u.isBvsl || roleUpper === 'FACILITATOR' || roleUpper === 'BVSL';
         }
         if (preset === 'RGSFS') {
-          return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR';
+          return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR' || roleUpper === 'RGSF';
         }
         if (preset === 'SUPERVISORS') {
-          return u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
+          return u.isBvSupervisor || roleUpper.includes('SUPERVISOR') || roleUpper.includes('MENTOR');
         }
         if (preset === 'ADMINS') {
           return u.isBvAdmin || roleUpper === 'ADMIN' || roleUpper === 'PW_ADMIN' || roleUpper === 'SUPER_ADMIN';

@@ -66,6 +66,15 @@ export default function FolkGuideDashboard() {
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
+  useEffect(() => {
+    setVisitedTabs(prev => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
   const [approvalCount, setApprovalCount] = useState(0);
   const [bvRegCount, setBvRegCount] = useState(0);
 
@@ -234,12 +243,28 @@ export default function FolkGuideDashboard() {
 
         <main className="flex-1 min-w-0">
           <TabTransition activeTab={activeTab}>
-            {activeTab === 'sadhana' && <ReportsTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />}
-            {activeTab === 'bv' && <SuperBvReportTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />}
-            {activeTab === 'users' && <SuperUsersPanel segment="FOLK" isSuperAdminOverride={isSuperAdmin} />}
-            {activeTab === 'approvals' && <ApprovalsTab />}
-            {(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations' || activeTab === 'bv-admins') && (
-              <div className="space-y-8">
+            {visitedTabs.has('sadhana') && (
+              <div className={activeTab === 'sadhana' ? 'block' : 'hidden'}>
+                <ReportsTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />
+              </div>
+            )}
+            {visitedTabs.has('bv') && (
+              <div className={activeTab === 'bv' ? 'block' : 'hidden'}>
+                <SuperBvReportTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />
+              </div>
+            )}
+            {visitedTabs.has('users') && (
+              <div className={activeTab === 'users' ? 'block' : 'hidden'}>
+                <SuperUsersPanel segment="FOLK" isSuperAdminOverride={isSuperAdmin} />
+              </div>
+            )}
+            {visitedTabs.has('approvals') && (
+              <div className={activeTab === 'approvals' ? 'block' : 'hidden'}>
+                <ApprovalsTab />
+              </div>
+            )}
+            {(visitedTabs.has('bhakti-vriksha') || visitedTabs.has('bv-registrations') || visitedTabs.has('bv-admins')) && (
+              <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations' || activeTab === 'bv-admins') ? 'space-y-8 block' : 'hidden'}>
                 <SuperBvRegistrationsTab segment="FOLK" />
                 <div className="pt-6 border-t border-border">
                   <div className="mb-4">
@@ -250,14 +275,46 @@ export default function FolkGuideDashboard() {
                 </div>
               </div>
             )}
-            {activeTab === 'residencies' && isSuperAdmin && <FolkResidencyManagement />}
-            {activeTab === 'stats' && isSuperAdmin && <SuperStatsPanel segment="FOLK" />}
-            {activeTab === 'missing-sadhana' && <MissingSadhanaTab segment="FOLK" />}
-            {activeTab === 'attendance' && <SuperAttendanceTab segment="FOLK" />}
-            {activeTab === 'jigyasa' && <JigyasaTrackerTab />}
-            {activeTab === 'tagmango' && isSuperAdmin && <TagMangoConfigTab />}
-            {activeTab === 'reminders' && isSuperAdmin && <SendRemindersPanel segment="FOLK" />}
-            {activeTab === 'callreports' && <BvslOneToOneTab />}
+            {visitedTabs.has('residencies') && isSuperAdmin && (
+              <div className={activeTab === 'residencies' ? 'block' : 'hidden'}>
+                <FolkResidencyManagement />
+              </div>
+            )}
+            {visitedTabs.has('stats') && isSuperAdmin && (
+              <div className={activeTab === 'stats' ? 'block' : 'hidden'}>
+                <SuperStatsPanel segment="FOLK" />
+              </div>
+            )}
+            {visitedTabs.has('missing-sadhana') && (
+              <div className={activeTab === 'missing-sadhana' ? 'block' : 'hidden'}>
+                <MissingSadhanaTab segment="FOLK" />
+              </div>
+            )}
+            {visitedTabs.has('attendance') && (
+              <div className={activeTab === 'attendance' ? 'block' : 'hidden'}>
+                <SuperAttendanceTab segment="FOLK" />
+              </div>
+            )}
+            {visitedTabs.has('jigyasa') && (
+              <div className={activeTab === 'jigyasa' ? 'block' : 'hidden'}>
+                <JigyasaTrackerTab />
+              </div>
+            )}
+            {visitedTabs.has('tagmango') && isSuperAdmin && (
+              <div className={activeTab === 'tagmango' ? 'block' : 'hidden'}>
+                <TagMangoConfigTab />
+              </div>
+            )}
+            {visitedTabs.has('reminders') && isSuperAdmin && (
+              <div className={activeTab === 'reminders' ? 'block' : 'hidden'}>
+                <SendRemindersPanel segment="FOLK" />
+              </div>
+            )}
+            {visitedTabs.has('callreports') && (
+              <div className={activeTab === 'callreports' ? 'block' : 'hidden'}>
+                <BvslOneToOneTab />
+              </div>
+            )}
           </TabTransition>
         </main>
       </div>
