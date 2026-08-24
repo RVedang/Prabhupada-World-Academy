@@ -91,13 +91,16 @@ export default createEndpoint({
     await Users.update({ id: targetUserRecord.id, record: { guide: resolvedGuideId } });
 
     try {
+      const targetEmail = targetUserRecord.email ? [targetUserRecord.email.toLowerCase()] : [];
       storeBroadcast(
         'Guide Assigned',
         `You have been assigned to a new guide`,
         'guide_changed',
         undefined,
         undefined,
-        [targetUserRecord.id, targetUserRecord.userId].filter(Boolean),
+        [targetUserRecord.id, targetUserRecord.userId].filter(Boolean) as string[],
+        undefined,
+        targetEmail,
       );
     } catch (err) {
       console.error('[assignGuide] Failed to broadcast guide update:', err);

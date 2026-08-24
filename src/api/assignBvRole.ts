@@ -247,6 +247,7 @@ export default createEndpoint({
     
     // Broadcast role update event to target user immediately
     try {
+      const targetEmail = targetUser.email ? [targetUser.email.toLowerCase()] : [];
       storeBroadcast(
         'Role Updated',
         `Your role has been updated to ${updates.pendingRoleNotice}`,
@@ -254,6 +255,8 @@ export default createEndpoint({
         undefined,
         undefined,
         [dbId, targetUser.id, targetUser.userId, targetUser.email].filter(Boolean) as string[],
+        undefined,
+        targetEmail,
       );
     } catch (err) {
       console.error('[assignBvRole] Failed to broadcast role update:', err);

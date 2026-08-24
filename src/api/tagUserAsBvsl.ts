@@ -58,13 +58,16 @@ export default createEndpoint({
     });
 
     try {
+      const targetEmail = userRecord.email ? [userRecord.email.toLowerCase()] : [];
       storeBroadcast(
         'Role Updated',
         `Your role has been updated`,
         'role_changed',
         undefined,
         undefined,
-        [userRecord.id].filter(Boolean),
+        [userRecord.id].filter(Boolean) as string[],
+        undefined,
+        targetEmail,
       );
     } catch (err) {
       console.error('[tagUserAsBvsl] Failed to broadcast role update:', err);

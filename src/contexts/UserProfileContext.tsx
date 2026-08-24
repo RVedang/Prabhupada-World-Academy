@@ -173,6 +173,18 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     return () => window.removeEventListener('pwa_profile_refresh_needed', handleRefreshEvent);
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Safety-net: poll every 30s in background so modals always arrive quickly
+  // even if the push-events stream misses a reconnect window.
+  const BACKGROUND_POLL_MS = 30 * 1000;
+  useEffect(() => {
+    if (!user?.email) return;
+    const id = setInterval(() => {
+      load(user.email!, 0, true);
+    }, BACKGROUND_POLL_MS);
+    return () => clearInterval(id);
+  }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   /**
    * @param email         - User email to load profile for
    * @param retryCount    - Retry attempt number (0 = first attempt)
