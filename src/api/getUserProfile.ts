@@ -120,6 +120,18 @@ export default createEndpoint({
         guideId = guideRecord.id;
       } else {
         guideId = rawGuideId;
+        // Fallback: Resolve guide name from Users collection if not found in Guides
+        const userGuideRecord = await Users.findOne({ id: rawGuideId }).catch(() => null) ||
+                           await Users.findOne({ filters: { userId: rawGuideId } }).catch(() => null) ||
+                           await Users.findOne({ filters: { email: rawGuideId } }).catch(() => null) ||
+                           await Users.findOne({ filters: { email: rawGuideId.toLowerCase() } }).catch(() => null);
+        if (userGuideRecord) {
+          guideRecord = {
+            id: userGuideRecord.id,
+            fullName: userGuideRecord.fullName || userGuideRecord.email,
+            email: userGuideRecord.email,
+          };
+        }
       }
     }
 

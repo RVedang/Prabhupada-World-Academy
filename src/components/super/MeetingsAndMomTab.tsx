@@ -381,14 +381,15 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
     }
   };
 
-  const isPresetSelected = (preset: 'FACILITATORS' | 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'ADMINS') => {
+  const isPresetSelected = (preset: 'FACILITATORS' | 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'MENTORS' | 'ADMINS') => {
     const targetIds = registeredUsers
       .filter((u: any) => {
         const roleUpper = (u.role || '').toUpperCase();
         if (preset === 'FACILITATORS') return u.isBvFacilitator || u.isBvsl || roleUpper === 'BVSL' || roleUpper === 'FACILITATOR';
         if (preset === 'RGFS') return u.isBvFacilitator || u.isBvsl || roleUpper === 'FACILITATOR' || roleUpper === 'BVSL';
         if (preset === 'RGSFS') return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR' || roleUpper === 'RGSF';
-        if (preset === 'SUPERVISORS') return u.isBvSupervisor || roleUpper.includes('SUPERVISOR') || roleUpper.includes('MENTOR');
+        if (preset === 'SUPERVISORS') return u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
+        if (preset === 'MENTORS') return u.isSadhanaMentor || u.isBvMentor || roleUpper.includes('MENTOR');
         if (preset === 'ADMINS') return u.isBvAdmin || roleUpper === 'ADMIN' || roleUpper === 'PW_ADMIN' || roleUpper === 'SUPER_ADMIN';
         return false;
       })
@@ -396,7 +397,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
     return targetIds.length > 0 && targetIds.every(id => selectedInviteeIds.includes(id));
   };
 
-  const selectPresetGroup = (preset: 'FACILITATORS' | 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'ADMINS' | 'CLEAR') => {
+  const selectPresetGroup = (preset: 'FACILITATORS' | 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'MENTORS' | 'ADMINS' | 'CLEAR') => {
     if (preset === 'CLEAR') {
       setSelectedInviteeIds([]);
       return;
@@ -415,7 +416,10 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
           return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR' || roleUpper === 'RGSF';
         }
         if (preset === 'SUPERVISORS') {
-          return u.isBvSupervisor || roleUpper.includes('SUPERVISOR') || roleUpper.includes('MENTOR');
+          return u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
+        }
+        if (preset === 'MENTORS') {
+          return u.isSadhanaMentor || u.isBvMentor || roleUpper.includes('MENTOR');
         }
         if (preset === 'ADMINS') {
           return u.isBvAdmin || roleUpper === 'ADMIN' || roleUpper === 'PW_ADMIN' || roleUpper === 'SUPER_ADMIN';
@@ -1346,6 +1350,17 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
                         }`}
                       >
                         {isPresetSelected('SUPERVISORS') ? '✓ Supervisors' : '+ Supervisors'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => selectPresetGroup('MENTORS')}
+                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                          isPresetSelected('MENTORS')
+                            ? 'bg-orange-600 text-white border border-orange-600 hover:bg-orange-655'
+                            : 'bg-orange-100 hover:bg-orange-200 text-orange-700 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
+                        }`}
+                      >
+                        {isPresetSelected('MENTORS') ? '✓ Sadhana Mentors' : '+ Sadhana Mentors'}
                       </button>
                       <button
                         type="button"

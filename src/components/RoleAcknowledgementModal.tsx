@@ -176,17 +176,21 @@ export default function RoleAcknowledgementModal() {
                 <div className="p-3.5 bg-sky-500/10 border border-sky-500/20 rounded-xl space-y-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="flex items-center gap-2 text-xs font-bold text-sky-600 dark:text-sky-400">
                     <UserCheck className="w-4 h-4" />
-                    <span>Spiritual Guide Notice:</span>
+                    <span>
+                      {roleNotice.guideChange.type === 'assigned' && 'Spiritual Guide Assigned:'}
+                      {roleNotice.guideChange.type === 'changed' && 'Spiritual Guide Changed:'}
+                      {roleNotice.guideChange.type === 'removed' && 'Spiritual Guide Removed:'}
+                    </span>
                   </div>
                   <div className="text-xs font-semibold text-foreground pl-1">
                     {roleNotice.guideChange.type === 'assigned' && (
-                      <span>You have been assigned to Guide: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                      <span>Your new spiritual guide is: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
                     )}
                     {roleNotice.guideChange.type === 'changed' && (
-                      <span>Your Guide has been changed from <span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span> to <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                      <span>Your spiritual guide has been changed from <span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span> to: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
                     )}
                     {roleNotice.guideChange.type === 'removed' && (
-                      <span>Your Guide (<span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span>) has been removed.</span>
+                      <span>Your spiritual guide (<span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span>) has been removed.</span>
                     )}
                   </div>
                 </div>
@@ -226,7 +230,7 @@ export default function RoleAcknowledgementModal() {
                 onClick={handleAcknowledge}
                 className="w-full h-11 text-sm font-semibold rounded-xl cursor-pointer"
               >
-                Got it, Acknowledge
+                Got it
               </Button>
             </div>
           </motion.div>
