@@ -26,27 +26,46 @@ interface ProposedByDropdownProps {
 function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 'Name' }: ProposedByDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [listMaxHeight, setListMaxHeight] = useState(220);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const portalRef = React.useRef<HTMLDivElement>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const listboxId = React.useId();
 
   // Recalculate position whenever open
   const openDropdown = () => {
     if (!inputRef.current) return;
     const rect = inputRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const dropHeight = Math.min(192, options.length * 34 + 8); // max-h-48 = 192px
-    const showAbove = spaceBelow < dropHeight + 8;
+    const viewportPadding = 12;
+    const gap = 6;
+    const menuWidth = Math.min(280, Math.max(224, rect.width));
+    const menuLeft = Math.min(
+      Math.max(viewportPadding, rect.left),
+      window.innerWidth - menuWidth - viewportPadding
+    );
+    const estimatedHeight = Math.min(292, 44 + Math.max(options.length, 1) * 42 + 10);
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+    const showAbove = spaceBelow < Math.min(estimatedHeight, 210) && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(128, showAbove ? spaceAbove - gap : spaceBelow - gap);
+    const menuMaxHeight = Math.min(292, availableHeight);
+
+    setListMaxHeight(Math.max(84, menuMaxHeight - 44));
     setDropdownStyle({
       position: 'fixed',
-      left: rect.left,
-      width: rect.width,
+      left: menuLeft,
+      width: menuWidth,
+      maxHeight: menuMaxHeight,
       ...(showAbove
-        ? { bottom: window.innerHeight - rect.top + 4 }
-        : { top: rect.bottom + 4 }),
+        ? { bottom: window.innerHeight - rect.top + gap }
+        : { top: rect.bottom + gap }),
       zIndex: 9999,
     });
     setFilter('');
+    setActiveIndex(Math.max(0, options.findIndex(opt => opt === value)));
     setIsOpen(true);
   };
 
@@ -54,8 +73,7 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         // Also check if click is inside the portal dropdown
-        const portal = document.getElementById('proposed-by-portal');
-        if (portal && portal.contains(event.target as Node)) return;
+        if (portalRef.current?.contains(event.target as Node)) return;
         setIsOpen(false);
       }
     }
@@ -67,8 +85,7 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
   useEffect(() => {
     if (!isOpen) return;
     const close = (e: Event) => {
-      const portal = document.getElementById('proposed-by-portal');
-      if (portal && (portal === e.target || portal.contains(e.target as Node))) return;
+      if (portalRef.current && (portalRef.current === e.target || portalRef.current.contains(e.target as Node))) return;
       setIsOpen(false);
     };
     window.addEventListener('scroll', close, true);
@@ -83,35 +100,109 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
     opt.toLowerCase().includes(filter.toLowerCase())
   );
 
+  useEffect(() => {
+    if (!isOpen || !listRef.current) return;
+    listRef.current
+      .querySelector<HTMLElement>(`[data-option-index="${activeIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, isOpen]);
+
+  const chooseOption = (option: string) => {
+    onChange(option);
+    setFilter('');
+    setIsOpen(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const dropdownEl = isOpen && !disabled ? (
     <div
-      id="proposed-by-portal"
+      ref={portalRef}
+      id={listboxId}
       style={dropdownStyle}
-      className="max-h-48 overflow-y-auto bg-popover border border-border/80 rounded-xl shadow-xl py-1 divide-y divide-border/20 backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150"
+      role="listbox"
+      aria-label="Proposed by"
+      className="flex flex-col overflow-hidden bg-popover/98 border border-primary/20 rounded-2xl shadow-[0_18px_45px_-18px_rgba(0,0,0,0.45)] ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
     >
-      {filteredOptions.length > 0 ? (
-        filteredOptions.map(opt => (
-          <button
-            key={opt}
-            type="button"
-            onMouseDown={e => {
-              e.preventDefault();
-              onChange(opt);
-              setIsOpen(false);
-            }}
-            className={`w-full text-left px-3 py-2 text-[11px] font-semibold transition-colors flex items-center gap-2 hover:bg-primary/5 hover:text-primary ${
-              value === opt ? 'bg-primary/10 text-primary' : 'text-foreground'
-            }`}
-          >
-            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" style={{ visibility: value === opt ? 'visible' : 'hidden' }} />
-            <span>{opt}</span>
-          </button>
-        ))
-      ) : (
-        <div className="px-3 py-2 text-[11px] text-muted-foreground italic text-center">
-          No matches found
+      <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 border-b border-border/70 bg-muted/35 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="grid place-items-center w-6 h-6 rounded-lg bg-primary/10 text-primary shrink-0">
+            <UsersIcon className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground truncate">
+            Select participant
+          </span>
         </div>
-      )}
+        <span className="text-[9px] font-semibold text-muted-foreground/80 bg-background/80 border border-border/60 rounded-full px-2 py-0.5 shrink-0">
+          {filteredOptions.length} {filteredOptions.length === 1 ? 'person' : 'people'}
+        </span>
+      </div>
+
+      <div
+        ref={listRef}
+        style={{
+          maxHeight: listMaxHeight,
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'color-mix(in srgb, var(--primary) 45%, transparent) transparent',
+        }}
+        className="overflow-y-auto overflow-x-hidden overscroll-contain p-1.5 scroll-py-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 hover:[&::-webkit-scrollbar-thumb]:bg-primary/50"
+      >
+        {filteredOptions.length > 0 ? (
+          filteredOptions.map((opt, index) => {
+            const isSelected = value === opt;
+            const isActive = activeIndex === index;
+            const initials = opt
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map(part => part[0]?.toUpperCase())
+              .join('');
+
+            return (
+              <button
+                key={opt}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                data-option-index={index}
+                onMouseEnter={() => setActiveIndex(index)}
+                onMouseDown={e => {
+                  e.preventDefault();
+                  chooseOption(opt);
+                }}
+                className={`group w-full min-w-0 text-left px-2.5 py-2 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-2.5 outline-none ${
+                  isSelected
+                    ? 'bg-primary/12 text-primary'
+                    : isActive
+                      ? 'bg-muted text-foreground'
+                      : 'text-foreground hover:bg-muted/70'
+                }`}
+              >
+                <span className={`grid place-items-center w-7 h-7 rounded-full text-[9px] font-bold shrink-0 transition-colors ${
+                  isSelected
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-primary/8 text-primary group-hover:bg-primary/15'
+                }`}>
+                  {initials || <User className="w-3.5 h-3.5" />}
+                </span>
+                <span className="truncate flex-1" title={opt}>{opt}</span>
+                {isSelected && (
+                  <span className="grid place-items-center w-5 h-5 rounded-full bg-primary/15 text-primary shrink-0">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                  </span>
+                )}
+              </button>
+            );
+          })
+        ) : (
+          <div className="px-3 py-6 text-center">
+            <div className="mx-auto mb-2 grid place-items-center w-8 h-8 rounded-full bg-muted text-muted-foreground">
+              <Search className="w-4 h-4" />
+            </div>
+            <p className="text-[11px] font-semibold text-foreground">No participant found</p>
+            <p className="mt-0.5 text-[9px] text-muted-foreground">Try a different name</p>
+          </div>
+        )}
+      </div>
     </div>
   ) : null;
 
@@ -127,16 +218,47 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
           onChange={e => {
             if (!isOpen) openDropdown();
             setFilter(e.target.value);
+            setActiveIndex(0);
             onChange(e.target.value);
           }}
+          onKeyDown={e => {
+            if (e.key === 'Escape' && isOpen) {
+              e.preventDefault();
+              setIsOpen(false);
+              setFilter('');
+              return;
+            }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault();
+              if (!isOpen) {
+                openDropdown();
+                return;
+              }
+              if (filteredOptions.length === 0) return;
+              setActiveIndex(current => {
+                const direction = e.key === 'ArrowDown' ? 1 : -1;
+                return (current + direction + filteredOptions.length) % filteredOptions.length;
+              });
+              return;
+            }
+            if (e.key === 'Enter' && isOpen && filteredOptions[activeIndex]) {
+              e.preventDefault();
+              chooseOption(filteredOptions[activeIndex]);
+            }
+          }}
           onFocus={openDropdown}
-          className="w-full p-1.5 pr-6 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px] placeholder:text-muted-foreground/60 transition-all font-medium"
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          className="w-full p-1.5 pr-7 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary text-[11px] placeholder:text-muted-foreground/60 transition-all font-medium"
         />
         <button
           type="button"
           disabled={disabled}
           onClick={() => isOpen ? setIsOpen(false) : openDropdown()}
-          className="absolute right-1.5 p-0.5 text-muted-foreground/60 hover:text-foreground disabled:opacity-50"
+          aria-label={isOpen ? 'Close proposed by options' : 'Open proposed by options'}
+          className="absolute right-1.5 grid place-items-center w-5 h-5 rounded-md text-muted-foreground/70 hover:text-primary hover:bg-primary/10 disabled:opacity-50 transition-colors"
         >
           <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
         </button>
