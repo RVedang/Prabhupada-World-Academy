@@ -63,10 +63,14 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close on scroll/resize to avoid misalignment
+  // Close on scroll/resize to avoid misalignment — but NOT when scrolling inside the dropdown itself
   useEffect(() => {
     if (!isOpen) return;
-    const close = () => setIsOpen(false);
+    const close = (e: Event) => {
+      const portal = document.getElementById('proposed-by-portal');
+      if (portal && (portal === e.target || portal.contains(e.target as Node))) return;
+      setIsOpen(false);
+    };
     window.addEventListener('scroll', close, true);
     window.addEventListener('resize', close);
     return () => {

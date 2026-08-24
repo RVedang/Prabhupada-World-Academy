@@ -318,7 +318,7 @@ export default function PwAdminDashboard() {
                       <p className="text-sm text-muted-foreground">Aggregate metrics and data management</p>
                     </div>
                     <div className="space-y-6">
-                      <SuperStatsPanel />
+                      <SuperStatsPanel isActive={activeTab === 'stats'} />
                     </div>
                   </div>
                 )}

@@ -15,9 +15,10 @@ type GuideStat = GetGuidesOutputType['guides'][0] & { userCount: number; avgScor
 
 interface SuperStatsPanelProps {
   segment?: 'PW' | 'FOLK';
+  isActive?: boolean; // true when this tab is currently visible
 }
 
-export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
+export default function SuperStatsPanel({ segment, isActive }: SuperStatsPanelProps) {
   const { profile } = useUserProfile();
   const userEmail = (profile?.userId || '').toLowerCase();
   const effectiveSegment = segment || profile?.segment || (userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') ? 'PW' : 'FOLK');
@@ -44,7 +45,7 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
         const allUsersRes = await getGuideUsers({ guideId: 'ALL', statusFilter: 'active' }).catch(() => ({ users: [] }));
         const allUsers: any[] = allUsersRes.users;
 
-        // Build a lookup: adminId (or userId) -> users[]
+        // Build a lookup: adminId / email -> users[]
         const usersByAdmin = new Map<string, any[]>();
         for (const u of allUsers) {
           const adminId = String(u.bvReportingAdminId || '').toLowerCase();
@@ -54,10 +55,11 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
         }
 
         stats = guides.map((g: any) => {
-          // Match on guideId (userId-style e.g. "GUIDE-VEDANG") or id (Firebase UID)
+          // Match on guideId, fallback to id, then email — covers hardcoded IDs like MENTOR-PW-HIRANYAVARNA
           const gId = String(g.guideId || '').toLowerCase();
           const gId2 = String(g.id || '').toLowerCase();
-          const users = usersByAdmin.get(gId) || usersByAdmin.get(gId2) || [];
+          const gEmail = String(g.email || '').toLowerCase();
+          const users = usersByAdmin.get(gId) || usersByAdmin.get(gId2) || (gEmail ? usersByAdmin.get(gEmail) : undefined) || [];
           const scored = users.filter((u: any) => u.latestScore != null);
           const avg = scored.length > 0
             ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
@@ -90,6 +92,11 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
   useEffect(() => {
     loadData();
   }, [isPw]);
+
+  // Re-fetch silently every time the stats tab becomes visible
+  useEffect(() => {
+    if (isActive) loadData(false);
+  }, [isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalUsers = guideStats.reduce((s, g) => s + g.userCount, 0);
   const overallAvg = guideStats.filter(g => g.avgScore != null).length > 0
