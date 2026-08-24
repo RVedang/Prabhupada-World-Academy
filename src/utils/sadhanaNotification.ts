@@ -421,7 +421,7 @@ export function connectToNotificationStream(): void {
 // ── Push subscription ──
 let _subscribeLock: Promise<boolean> | null = null;
 
-const FALLBACK_VAPID_PUBLIC_KEY = 'BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE';
+const FALLBACK_VAPID_PUBLIC_KEY = 'BAarbQem_U8AvpVQFhZuwDGpEML2AV7iG-Ts4EVRyM3PpJXDS1EevhEE5E85OUv56u9BiTo_27qo8nLW_JOMwtw';
 
 export async function subscribeToPush(): Promise<boolean> {
   if (typeof window !== 'undefined') {

@@ -52,7 +52,7 @@ env:
       - RUNTIME
 
   - variable: ZITE_VAPID_PUBLIC_KEY
-    value: BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE
+    value: BAarbQem_U8AvpVQFhZuwDGpEML2AV7iG-Ts4EVRyM3PpJXDS1EevhEE5E85OUv56u9BiTo_27qo8nLW_JOMwtw
 
   - variable: ZITE_VAPID_PRIVATE_KEY
     secret: ziteVapidPrivateKey

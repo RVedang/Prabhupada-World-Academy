@@ -12,7 +12,7 @@ export default createEndpoint({
       process.env.ZITE_VAPID_PUBLIC_KEY ||
       process.env.VAPID_PUBLIC_KEY ||
       process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-      'BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE';
+      'BAarbQem_U8AvpVQFhZuwDGpEML2AV7iG-Ts4EVRyM3PpJXDS1EevhEE5E85OUv56u9BiTo_27qo8nLW_JOMwtw';
     return { publicKey };
   },
 });
