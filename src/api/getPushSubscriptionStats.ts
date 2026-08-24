@@ -4,6 +4,7 @@ import { createEndpoint, PushSubscriptions, Users, AppError } from '@/lib/backen
 export default createEndpoint({
   description: 'Get push subscription stats (Super Guide / Admin only)',
   authenticated: true,
+  requiredCapabilities: 'notifications.send',
   inputSchema: z.object({
     segment: z.enum(['PW', 'FOLK']).optional(),
   }),

@@ -5,6 +5,27 @@ import { auth } from './app-auth-sdk';
 const clientCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL_MS = 15000; // 15 seconds cache TTL for tab-switching speed
 
+// Must stay in sync with endpoint configs that explicitly declare `public: true`.
+// Public callers receive no Firebase identity or database-backed capabilities.
+export const PUBLIC_ENDPOINTS = new Set([
+  'checkGuideEmail',
+  'courseCompleted10',
+  'courseCompleted50',
+  'courseCompleted100',
+  'getAllResidencies',
+  'getGuides',
+  'getPwNotificationConfig',
+  'getSessionByToken',
+  'getVapidPublicKey',
+  'joinSessionChallenge',
+  'markSessionAttendance',
+  'registerAndAttend',
+  'sendPushNotifications',
+  'sendSadhanaReminders',
+  'sendServiceReminders',
+  'tagMangoWebhook',
+]);
+
 export function getClientCachedQuery(name: string, input: any): any | null {
   const cacheKey = `${name}:${JSON.stringify(input || {})}`;
   const cached = clientCache.get(cacheKey);
@@ -37,11 +58,11 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
   try {
     const currentUser = auth?.currentUser;
 
-    if (!currentUser) {
+    if (!currentUser && !PUBLIC_ENDPOINTS.has(name)) {
       throw new Error('User is not authenticated');
     }
 
-    idToken = await currentUser.getIdToken();
+    if (currentUser) idToken = await currentUser.getIdToken();
   } catch (error) {
     console.error('Failed to get Firebase ID token:', error);
     throw error;

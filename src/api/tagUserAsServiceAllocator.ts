@@ -6,6 +6,7 @@ import { serverCacheInvalidate } from '../lib/serverCache';
 export default createEndpoint({
   description: 'Tag/untag a user as Service Allocator — center-based access',
   authenticated: true,
+  requiredCapabilities: 'roles.assign',
   inputSchema: z.object({
     userId: z.string(),
     action: z.enum(['tag', 'untag']),

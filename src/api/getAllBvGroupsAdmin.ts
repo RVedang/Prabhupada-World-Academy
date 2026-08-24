@@ -3,6 +3,8 @@ import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, Guides }
 
 export default createEndpoint({
   description: 'Get all BV groups and BVSLs under a guide (admin view — for Guide/Super Guide)',
+  authenticated: true,
+  requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     guideId: z.string(),
   }),

@@ -6,6 +6,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Tag or untag a user as BV Supervisor — Admin or Super Admin only. When tagging, must specify which Admin this Supervisor will report to.',
   authenticated: true,
+  requiredCapabilities: 'bv.roles.assign',
   inputSchema: z.object({
     userId: z.string(),
     action: z.enum(['tag', 'untag']),

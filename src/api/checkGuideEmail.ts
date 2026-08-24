@@ -3,6 +3,7 @@ import { createEndpoint, Guides } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Check if an email belongs to an active guide',
+  public: true,
   inputSchema: z.object({ email: z.string().email() }),
   outputSchema: z.object({ isGuide: z.boolean() }),
   execute: async ({ input }) => {

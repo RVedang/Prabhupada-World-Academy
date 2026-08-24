@@ -9,6 +9,7 @@ const RESIDENCY_FIELDS = ['id', 'residencyName'];
 export default createEndpoint({
   description: 'Get users pending approval — includes all users in the guide\'s centers, not just direct folk',
   authenticated: true,
+  requiredCapabilities: 'users.approve',
   inputSchema: z.object({ guideId: z.string().optional() }),
   outputSchema: z.any(),
   execute: async ({ context }: any) => {

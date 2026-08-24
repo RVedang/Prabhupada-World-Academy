@@ -4,6 +4,7 @@ import { createEndpoint, Meetings, Users, AppError } from '@/lib/backend-sdk';
 export default createEndpoint({
   description: 'Update a meeting or trigger instant reminder notification',
   authenticated: true,
+  requiredCapabilities: 'meetings.manage',
   inputSchema: z.object({
     meetingId: z.string().min(1),
     title: z.string().optional(),

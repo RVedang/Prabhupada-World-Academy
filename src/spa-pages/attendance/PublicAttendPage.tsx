@@ -45,9 +45,9 @@ export default function PublicAttendPage() {
       <div className="w-full max-w-md">
         <SessionHeader session={session} />
         {user ? (
-          <LoggedInAttendance session={session} userId={user.id || ''} userName={profile?.fullName || user.email || 'Devotee'} />
+          <LoggedInAttendance session={session} token={token!} userId={user.id || ''} userName={profile?.fullName || user.email || 'Devotee'} />
         ) : (
-          <PhoneAttendance session={session} />
+          <PhoneAttendance session={session} token={token!} />
         )}
       </div>
     </div>
@@ -68,14 +68,14 @@ function SessionHeader({ session }: { session: SessionInfo }) {
   );
 }
 
-function LoggedInAttendance({ session, userId, userName }: { session: SessionInfo; userId: string; userName: string }) {
+function LoggedInAttendance({ session, token, userId, userName }: { session: SessionInfo; token: string; userId: string; userName: string }) {
   const [state, setState] = useState<'idle' | 'loading' | 'success' | 'already'>('idle');
   const [challengeData, setChallengeData] = useState<{ enrollmentId?: string; currentStreak?: number; challengeDays?: number } | null>(null);
 
   const handleMark = async () => {
     setState('loading');
     try {
-      const res = await markSessionAttendance({ sessionId: session.id, userId });
+      const res = await markSessionAttendance({ sessionId: session.id, token, userId });
       setState(res.alreadyMarked ? 'already' : 'success');
       if (res.challengeEnabled) {
         setChallengeData({ enrollmentId: res.enrollmentId, currentStreak: res.currentStreak, challengeDays: res.challengeDays });
@@ -93,6 +93,7 @@ function LoggedInAttendance({ session, userId, userName }: { session: SessionInf
         name={userName}
         alreadyMarked={state === 'already'}
         session={session}
+        token={token}
         challengeData={challengeData}
         identifiers={{ userId }}
       />
@@ -112,7 +113,7 @@ function LoggedInAttendance({ session, userId, userName }: { session: SessionInf
   );
 }
 
-function PhoneAttendance({ session }: { session: SessionInfo }) {
+function PhoneAttendance({ session, token }: { session: SessionInfo; token: string }) {
   const [phone, setPhone] = useState('');
   const [state, setState] = useState<'phone' | 'loading' | 'success' | 'already' | 'notfound' | 'register'>('phone');
   const [resultName, setResultName] = useState('');
@@ -123,7 +124,7 @@ function PhoneAttendance({ session }: { session: SessionInfo }) {
     if (!phone.trim()) return;
     setState('loading');
     try {
-      const res = await markSessionAttendance({ sessionId: session.id, phone: phone.trim() });
+      const res = await markSessionAttendance({ sessionId: session.id, token, phone: phone.trim() });
       setResultName(res.participantName);
       setState(res.alreadyMarked ? 'already' : 'success');
       if (res.challengeEnabled) {
@@ -146,6 +147,7 @@ function PhoneAttendance({ session }: { session: SessionInfo }) {
         name={resultName}
         alreadyMarked={state === 'already'}
         session={session}
+        token={token}
         challengeData={challengeData}
         identifiers={participantId ? { participantId } : {}}
       />
@@ -156,6 +158,7 @@ function PhoneAttendance({ session }: { session: SessionInfo }) {
     return (
       <RegistrationForm
         session={session}
+        token={token}
         phone={phone}
         onBack={() => setState('phone')}
         onSuccess={(name, pId) => {
@@ -208,8 +211,8 @@ function PhoneAttendance({ session }: { session: SessionInfo }) {
   );
 }
 
-function RegistrationForm({ session, phone, onBack, onSuccess }: {
-  session: SessionInfo; phone: string;
+function RegistrationForm({ session, token, phone, onBack, onSuccess }: {
+  session: SessionInfo; token: string; phone: string;
   onBack: () => void; onSuccess: (name: string, participantId: string) => void;
 }) {
   const [name, setName] = useState('');
@@ -227,6 +230,7 @@ function RegistrationForm({ session, phone, onBack, onSuccess }: {
     try {
       const res = await registerAndAttend({
         sessionId: session.id,
+        token,
         name: name.trim(),
         phone: phoneVal.trim(),
         email: email.trim() || undefined,
@@ -292,8 +296,8 @@ function RegistrationForm({ session, phone, onBack, onSuccess }: {
   );
 }
 
-function SuccessView({ name, alreadyMarked, session, challengeData, identifiers }: {
-  name: string; alreadyMarked: boolean; session: SessionInfo;
+function SuccessView({ name, alreadyMarked, session, token, challengeData, identifiers }: {
+  name: string; alreadyMarked: boolean; session: SessionInfo; token: string;
   challengeData: { enrollmentId?: string; currentStreak?: number; challengeDays?: number } | null;
   identifiers: { userId?: string; participantId?: string };
 }) {
@@ -305,7 +309,7 @@ function SuccessView({ name, alreadyMarked, session, challengeData, identifiers 
   const handleJoin = async () => {
     setJoining(true);
     try {
-      const res = await joinSessionChallenge({ sessionId: session.id, ...identifiers });
+      const res = await joinSessionChallenge({ sessionId: session.id, token, ...identifiers });
       setEnrolled(true);
       setStreak(res.currentStreak);
       toast.success('Challenge joined!');

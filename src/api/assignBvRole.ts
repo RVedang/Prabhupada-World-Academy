@@ -6,6 +6,7 @@ import { storeBroadcast } from '../lib/notificationBroadcast';
 export default createEndpoint({
   description: 'Assign or update Bhakti Vriksha roles for a user (Supervisor, Facilitator/RGF, Sub-Facilitator/RGSF, Admin). Requires a parentId for hierarchy roles.',
   authenticated: true,
+  requiredCapabilities: 'bv.roles.assign',
   inputSchema: z.object({
     userId: z.string().min(1),
     role: z.enum(['SUPERVISOR', 'FACILITATOR', 'SUB_FACILITATOR', 'ADMIN', 'MEMBER']),
@@ -29,35 +30,10 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const userEmail = (context.user.email || '').toLowerCase();
-    const callerRole = (context.user.role || '').toUpperCase();
-
-    // Comprehensive Admin / Super Admin check
-    const isSuperAdmin = !!(
-      context.user.isBvSuperAdmin ||
-      callerRole.includes('SUPER') ||
-      context.user.isBvSuperAdmin ||
-      userEmail.includes('gaurmandal') ||
-      userEmail.includes('superadmin')
-    );
-
-    const isAdmin = !!(
-      isSuperAdmin ||
-      context.user.isBvAdmin ||
-      callerRole.includes('ADMIN') ||
-      callerRole.includes('GUIDE') ||
-      userEmail === 'admin@prabhupadaworld.org' ||
-      userEmail === 'folkadmin@folk.org' ||
-      userEmail.includes('admin')
-    );
-
-    const isAuthorized = isAdmin || isSuperAdmin;
-    if (!isAuthorized) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Super Admin access required to assign BV roles' });
-    }
+    const isSuperAdmin = context.user.capabilities?.includes('*') === true;
 
     // Only Super Admins can assign BV Admin role
-    if (input.role === 'ADMIN' && !isSuperAdmin) {
+    if ((input.role === 'ADMIN' || input.multiRoles?.isAdmin === true) && !isSuperAdmin) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Only Super Admins can assign BV Admin roles' });
     }
 

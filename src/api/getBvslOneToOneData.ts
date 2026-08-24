@@ -20,6 +20,7 @@ function getWeeks(weeksBack: number): string[] {
 export default createEndpoint({
   description: 'Get 1:1 meeting data for RGSF, RGF, Supervisor, Admin, Super Admin scoped strictly to users under them with hierarchy names.',
   authenticated: true,
+  requiredCapabilities: 'meetings.manage',
   inputSchema: z.object({ weeksBack: z.number().optional() }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {

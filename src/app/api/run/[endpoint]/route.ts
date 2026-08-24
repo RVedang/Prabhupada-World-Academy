@@ -2,8 +2,38 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Users } from '@/lib/app-backend-sdk';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { timingSafeEqual } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import {
+  buildApiUserContext,
+  hasApiCapabilities,
+  type ApiCapability,
+  type ApiDatabaseUser,
+  type ApiUserContext,
+} from '@/lib/apiAuthorization';
+
+interface EndpointSchema {
+  safeParse(input: unknown):
+    | { success: true; data: unknown }
+    | { success: false; error: { errors: unknown } };
+}
+
+interface EndpointConfig {
+  public?: boolean;
+  publicSecretEnv?: string;
+  requiredCapabilities?: ApiCapability | ApiCapability[];
+  inputSchema?: EndpointSchema;
+  execute(args: { input: unknown; context: { user: ApiUserContext | null } }): Promise<unknown> | unknown;
+}
+
+function errorDetails(error: unknown): { message: string; code?: string } {
+  if (error instanceof Error) {
+    const code = 'code' in error && typeof error.code === 'string' ? error.code : undefined;
+    return { message: error.message, code };
+  }
+  return { message: 'Internal Server Error' };
+}
 
 // Initialize Firebase Admin safely
 const apps = getApps();
@@ -22,7 +52,7 @@ if (apps.length === 0) {
         });
         initialized = true;
       }
-    } catch (e) {
+    } catch {
       console.warn('[Firebase Admin Route] Failed to initialize using local file, using project ID fallback.');
     }
   }
@@ -37,7 +67,7 @@ if (apps.length === 0) {
         });
         initialized = true;
       }
-    } catch (e) {
+    } catch {
       console.warn('[Firebase Admin Route] Failed to initialize using env var, using project ID fallback.');
     }
   }
@@ -51,14 +81,15 @@ if (apps.length === 0) {
   }
 }
 
-async function verifyToken(token: string): Promise<{ email: string | null; uid: string }> {
+async function verifyToken(token: string): Promise<{ email: string; uid: string; emailVerified: boolean }> {
   // Support Mock auth token for local offline development
   if (token.startsWith('mock_token_for_')) {
     if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_USE_AUTH_EMULATOR !== 'true') {
       throw new Error('Unauthorized: Mock tokens are forbidden in production.');
     }
     const email = token.replace('mock_token_for_', '');
-    return { email, uid: email };
+    if (!email) throw new Error('Unauthorized: Mock token has no email.');
+    return { email, uid: email, emailVerified: true };
   }
 
   // When using the Firebase Auth emulator locally, tokens are NOT signed with
@@ -72,7 +103,7 @@ async function verifyToken(token: string): Promise<{ email: string | null; uid: 
         const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
         const email = payload.email || payload.firebase?.identities?.email?.[0] || null;
         const uid = payload.sub || payload.user_id || payload.uid;
-        if (uid) return { email, uid };
+        if (uid && email) return { email, uid, emailVerified: payload.email_verified !== false };
       } catch {}
     }
   }
@@ -81,7 +112,12 @@ async function verifyToken(token: string): Promise<{ email: string | null; uid: 
   const activeApps = getApps();
   if (activeApps.length > 0) {
     const decoded = await getAuth().verifyIdToken(token);
-    return { email: decoded.email || null, uid: decoded.uid };
+    if (!decoded.email) throw new Error('Unauthorized: An email address is required.');
+    return {
+      email: decoded.email,
+      uid: decoded.uid,
+      emailVerified: decoded.email_verified === true,
+    };
   }
 
   // Fallback JWT payload decoder for local testing without Admin credentials
@@ -90,12 +126,35 @@ async function verifyToken(token: string): Promise<{ email: string | null; uid: 
     if (parts.length === 3) {
       try {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-        return { email: payload.email || null, uid: payload.sub || payload.user_id };
+        const email = payload.email || null;
+        const uid = payload.sub || payload.user_id;
+        if (email && uid) return { email, uid, emailVerified: payload.email_verified !== false };
       } catch {}
     }
   }
 
   throw new Error('Authentication verification not configured. Check process.env.FIREBASE_SERVICE_ACCOUNT.');
+}
+
+function secretsMatch(provided: string, expected: string): boolean {
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function verifyPublicEndpointSecret(req: NextRequest, endpointConfig: EndpointConfig): boolean {
+  const secretEnv = endpointConfig.publicSecretEnv;
+  if (!secretEnv) return true;
+
+  const expected = process.env[secretEnv] || '';
+  if (!expected) return false;
+
+  const provided =
+    req.headers.get('x-webhook-secret') ||
+    req.headers.get('x-api-secret') ||
+    '';
+
+  return !!provided && secretsMatch(provided, expected);
 }
 
 // Sliding window in-memory rate limiter per key (max 60 requests per minute for IPs, 180 for authenticated keys)
@@ -137,16 +196,36 @@ export async function POST(
 
   const { endpoint } = await params;
 
+  // Prevent path traversal and importing anything outside the endpoint module namespace.
+  if (!/^[A-Za-z][A-Za-z0-9_-]{0,99}$/.test(endpoint)) {
+    return NextResponse.json({ message: 'Invalid endpoint' }, { status: 404 });
+  }
+
+  const contentLength = Number(req.headers.get('content-length') || 0);
+  if (Number.isFinite(contentLength) && contentLength > 1_000_000) {
+    return NextResponse.json({ message: 'Request body is too large' }, { status: 413 });
+  }
+
   try {
     // 1. Dynamic import of the requested endpoint file
-    let endpointConfig;
+    let endpointConfig: EndpointConfig;
     try {
-      endpointConfig = (await import(`@/api/${endpoint}`)).default;
-    } catch (e: any) {
-      console.error(`[API Router] Endpoint not found: ${endpoint}`, e);
+      endpointConfig = (await import(`@/api/${endpoint}`)).default as EndpointConfig;
+    } catch (error: unknown) {
+      console.error(`[API Router] Endpoint not found: ${endpoint}`, error);
       return NextResponse.json(
         { message: `Endpoint ${endpoint} not found or failed to load.` },
         { status: 404 }
+      );
+    }
+
+    // Public access must be explicitly declared. Missing configuration is private.
+    const isPublicEndpoint = endpointConfig.public === true;
+
+    if (isPublicEndpoint && !verifyPublicEndpointSecret(req, endpointConfig)) {
+      return NextResponse.json(
+        { message: 'Public endpoint authentication failed' },
+        { status: 401 }
       );
     }
 
@@ -157,101 +236,38 @@ export async function POST(
     }
 
     // 3. Setup context
-    let context: any = { user: null };
-
-    const authHeader = req.headers.get('Authorization') || '';
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const context: { user: ApiUserContext | null } = { user: null };
 
     if (token) {
       try {
         const decodedUser = await verifyToken(token);
-        
-        let dbUser = null;
-        if (decodedUser.email) {
-          const emailLower = decodedUser.email.toLowerCase();
-          dbUser = await Users.findOne({ filters: { email: decodedUser.email } }).catch(() => null) ||
-                   await Users.findOne({ filters: { email: emailLower } }).catch(() => null);
+        if (!decodedUser.emailVerified) {
+          return NextResponse.json({ message: 'A verified email is required' }, { status: 403 });
         }
 
-        const emailLower = (decodedUser.email || '').toLowerCase();
-        const isKnownSuperAdmin = !!(
-          emailLower === 'srilaprabhupadaworld@gmail.com' ||
-          emailLower === 'iamthevedang@gmail.com' ||
-          emailLower === 'hrvd@hkmmumbai.org' ||
-          emailLower.includes('gaurmandal') ||
-          emailLower.includes('superadmin')
-        );
-        const isKnownAdmin = !!(
-          isKnownSuperAdmin ||
-          emailLower === 'admin@prabhupadaworld.org' ||
-          emailLower === 'folkadmin@folk.org' ||
-          emailLower.includes('admin')
-        );
+        const emailLower = decodedUser.email.toLowerCase();
+        const dbUser = (
+          await Users.findOne({ filters: { email: decodedUser.email } }).catch(() => null) ||
+          await Users.findOne({ filters: { email: emailLower } }).catch(() => null)
+        ) as ApiDatabaseUser | null;
 
-        if (dbUser) {
-          const dbRole = (dbUser.role || '').toUpperCase();
-          const isSuperAdmin = !!(
-            isKnownSuperAdmin ||
-            dbUser.isBvSuperAdmin ||
-            dbRole.includes('SUPER')
-          );
-          const isAdmin = !!(
-            isKnownAdmin ||
-            isSuperAdmin ||
-            dbUser.isBvAdmin ||
-            dbRole.includes('ADMIN') ||
-            dbRole.includes('GUIDE')
-          );
-
-          context.user = {
-            id: dbUser.id,
-            email: dbUser.email || decodedUser.email,
-            role: dbUser.role || (isSuperAdmin ? 'Super Admin' : (isAdmin ? 'Admin' : 'User')),
-            isBvAdmin: isAdmin,
-            isBvSuperAdmin: isSuperAdmin,
-            isBvSupervisor: !!dbUser.isBvSupervisor,
-            isBvMentor: !!dbUser.isBvMentor,
-            isBvFacilitator: !!dbUser.isBvFacilitator,
-            isBvSubFacilitator: !!dbUser.isBvSubFacilitator,
-            isBvsl: !!dbUser.isBvsl,
-            segment: dbUser.segment || null,
-            userId: dbUser.userId || dbUser.id,
-          };
-        } else {
-          let userRole = isKnownSuperAdmin ? 'Super Admin' : (isKnownAdmin ? 'Admin' : 'User');
-          try {
-            const { records } = await Users.findAll({ limit: 1 });
-            if (records.length === 0) {
-              userRole = 'Super Guide';
-            }
-          } catch (e) {}
-
-          context.user = {
-            id: decodedUser.uid,
-            email: decodedUser.email,
-            role: userRole,
-            isBvAdmin: isKnownAdmin || isKnownSuperAdmin || userRole === 'Super Guide',
-            isBvSuperAdmin: isKnownSuperAdmin || userRole === 'Super Guide',
-            isBvSupervisor: false,
-            isBvMentor: false,
-            isBvFacilitator: false,
-            isBvSubFacilitator: false,
-            isBvsl: false,
-            segment: null,
-            userId: decodedUser.uid,
-          };
-        }
-      } catch (authError: any) {
+        context.user = buildApiUserContext(decodedUser, dbUser);
+      } catch (authError: unknown) {
+        const authFailure = errorDetails(authError);
         console.error('[API Router] Authentication error:', authError);
-        if (endpointConfig.authenticated) {
-          return NextResponse.json(
-            { message: authError.message || 'Unauthorized' },
-            { status: 401 }
-          );
-        }
+        // Never fail open when a caller presents an invalid token, even for a public endpoint.
+        return NextResponse.json(
+          { message: authFailure.message || 'Unauthorized' },
+          { status: 401 }
+        );
       }
-    } else if (endpointConfig.authenticated) {
+    } else if (!isPublicEndpoint) {
       return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
+    }
+
+    const requiredCapabilities = endpointConfig.requiredCapabilities as ApiCapability | ApiCapability[] | undefined;
+    if (!hasApiCapabilities(context.user, requiredCapabilities)) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     // 4. Input validation using Zod schema defined in endpoint
@@ -273,13 +289,22 @@ export async function POST(
     // 6. Return response
     return NextResponse.json(output);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const failure = errorDetails(error);
     console.error(`[API Router] Error running ${endpoint}:`, error);
     
     // Check if it is a AppError or contains code property
-    const status = error.code === 'FORBIDDEN' ? 403 : error.code === 'NOT_FOUND' ? 404 : 500;
+    const statusByCode: Record<string, number> = {
+      BAD_REQUEST: 400,
+      UNAUTHORIZED: 401,
+      FORBIDDEN: 403,
+      NOT_FOUND: 404,
+      CONFLICT: 409,
+      TOO_MANY_REQUESTS: 429,
+    };
+    const status = (failure.code && statusByCode[failure.code]) || 500;
     return NextResponse.json(
-      { message: error.message || 'Internal Server Error', code: error.code || 'INTERNAL_ERROR' },
+      { message: failure.message, code: failure.code || 'INTERNAL_ERROR' },
       { status }
     );
   }

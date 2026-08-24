@@ -197,13 +197,10 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
             }
 
             // 2. Trigger push notification
-            const senderEmail = typeof window !== 'undefined' ? localStorage.getItem('auth_email') || '' : '';
             const res = await sendPushNotifications({
               reminderSlot: 'night-1',
-              cronSecret: process.env.NEXT_PUBLIC_CRON_SECRET || 'app_cron_secret',
               customTitle: config.title,
               customBody: config.body,
-              senderEmail,
               segment: activeSegment,
               forceSend: true,
             });
@@ -315,13 +312,10 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
       setPushStats(stats);
 
       // 2. Dispatch notifications
-      const senderEmail = typeof window !== 'undefined' ? localStorage.getItem('auth_email') || '' : '';
       const res = await sendPushNotifications({
         reminderSlot: slotMap[round],
-        cronSecret: process.env.NEXT_PUBLIC_CRON_SECRET || 'app_cron_secret',
         customTitle: config.title,
         customBody: config.body,
-        senderEmail,
         segment: activeSegment,
         forceSend: true,
       });

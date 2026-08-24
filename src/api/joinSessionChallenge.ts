@@ -3,20 +3,27 @@ import { createEndpoint, AppError, ChallengeEnrollments, AttendanceSessions } fr
 
 export default createEndpoint({
   description: 'Join a challenge for a session (public)',
+  public: true,
   inputSchema: z.object({
-    sessionId: z.string(),
-    userId: z.string().optional(),
-    participantId: z.string().optional(),
+    sessionId: z.string().min(1).max(128),
+    token: z.string().min(16).max(200),
+    userId: z.string().min(1).max(128).optional(),
+    participantId: z.string().min(1).max(128).optional(),
   }),
   outputSchema: z.object({
     enrollmentId: z.string(),
     currentStreak: z.number(),
     challengeDays: z.number(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }: any) => {
     const session = await AttendanceSessions.findOne({ id: input.sessionId });
-    if (!session || !session.challengeEnabled) throw new AppError({ code: 'BAD_REQUEST', message: 'Challenge not available' });
+    if (!session || session.shareToken !== input.token || !session.challengeEnabled) {
+      throw new AppError({ code: 'BAD_REQUEST', message: 'Challenge not available' });
+    }
     if (!input.userId && !input.participantId) throw new AppError({ code: 'BAD_REQUEST', message: 'userId or participantId required' });
+    if (input.userId && (!context.user || (input.userId !== context.user.id && input.userId !== context.user.userId))) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You may only join a challenge for your own signed-in account.' });
+    }
 
     // Check existing
     const filters: any = { session: input.sessionId };

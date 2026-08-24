@@ -6,6 +6,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Reject a pending Bhakti Vriksha member registration',
   authenticated: true,
+  requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     registrationId: z.string(),
   }),

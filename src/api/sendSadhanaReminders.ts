@@ -59,8 +59,9 @@ const ROUND_COPY = {
 
 export default createEndpoint({
   description: 'Send Sadhana reminders to active users who have not submitted for the relevant date. Called by external cron at 9 PM, 4:45 AM, and 9:15 AM IST.',
+  public: true,
   inputSchema: z.object({
-    secret: z.string().min(1),
+    secret: z.string().min(16).max(256),
     round: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   }),
   outputSchema: z.object({
@@ -70,7 +71,7 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     // Verify secret to prevent unauthorised calls
-    const expectedSecret = process.env.APP_REMINDER_SECRET ?? '';
+    const expectedSecret = process.env.APP_REMINDER_SECRET || process.env.ZITE_REMINDER_SECRET || '';
     if (!expectedSecret || input.secret !== expectedSecret) {
       // Return silently — don't reveal whether the secret is wrong
       return { sent: 0, skipped: 0, date: '' };
@@ -79,7 +80,7 @@ export default createEndpoint({
     // Round 1 = check today's entry; rounds 2 & 3 = check yesterday's entry
     const targetDate = input.round === 1 ? getISTDate(0) : getISTDate(-1);
     const copy = ROUND_COPY[input.round];
-    const appUrl = process.env.APP_APP_URL ?? '';
+    const appUrl = process.env.APP_APP_URL || process.env.ZITE_APP_URL || '';
     const sadhanaUrl = `${appUrl}/sadhana`;
 
     // Collect all active users with emails (paginated)

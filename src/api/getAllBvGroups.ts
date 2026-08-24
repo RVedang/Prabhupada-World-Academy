@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvGroups, BvGroupMembers, Guides } from '@/lib/backend-sdk';
+import { createEndpoint, Users, BvGroups, BvGroupMembers, Guides, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get all BV groups available to a user (filtered by their guide)',
+  authenticated: true,
   inputSchema: z.object({
     userId: z.string(), // custom userId field
   }),
@@ -18,8 +19,15 @@ export default createEndpoint({
     })),
     error: z.string().nullable(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }: any) => {
     if (!input.userId) return { groups: [], error: null };
+
+    const canManageBv = context.user?.capabilities?.includes('*') ||
+      context.user?.capabilities?.includes('bv.manage');
+    const isSelf = input.userId === context.user?.userId || input.userId === context.user?.id;
+    if (!isSelf && !canManageBv) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You may only view groups available to your own account.' });
+    }
 
     // BUG-5 FIX: Resolve custom userId to DB record to get their guide link
     const userRecord = await Users.findOne({ filters: { userId: input.userId }, fields: ['id', 'guide'] });

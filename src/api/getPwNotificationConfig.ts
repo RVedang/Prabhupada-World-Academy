@@ -14,7 +14,7 @@ const DEFAULT_PW_NOTIFICATION_CONFIG = {
 
 export default createEndpoint({
   description: 'Get PW Sadhana notification config',
-  authenticated: false,
+  public: true,
   inputSchema: z.object({}),
   outputSchema: z.any(),
   execute: async () => {

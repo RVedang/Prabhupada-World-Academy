@@ -5,6 +5,7 @@ import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 export default createEndpoint({
   description: 'Get overview stats and group list for BV Supervisor dashboard',
   authenticated: true,
+  requiredCapabilities: 'bv.manage',
   inputSchema: z.object({}),
   outputSchema: z.object({
     rgfCount: z.number(),

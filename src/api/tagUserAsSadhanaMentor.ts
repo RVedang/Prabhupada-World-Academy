@@ -6,6 +6,7 @@ import { serverCacheInvalidate } from '../lib/serverCache';
 export default createEndpoint({
   description: 'Tag/untag a user as Sadhana Mentor — center-based access',
   authenticated: true,
+  requiredCapabilities: 'sadhana.mentor.assign',
   inputSchema: z.object({
     userId: z.string(),
     isMentor: z.boolean().optional(),

@@ -345,6 +345,8 @@ const spec = {
 };
 
 export default createEndpoint({
+  authenticated: true,
+  requiredCapabilities: 'system.admin',
   description: 'Returns the OpenAPI 3.0 specification JSON for the Sadhana Status API',
   inputSchema: z.object({}),
   outputSchema: z.object({ spec: z.any() }),

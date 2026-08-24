@@ -4,6 +4,7 @@ import { createEndpoint, ResidencyTransferRequests, Users, FolkResidencies, Guid
 export default createEndpoint({
   description: 'Get pending residency transfer requests — only for residencies the current guide manages',
   authenticated: true,
+  requiredCapabilities: 'users.approve',
   inputSchema: z.object({
     status: z.string().optional(),
     guideId: z.string().optional(),

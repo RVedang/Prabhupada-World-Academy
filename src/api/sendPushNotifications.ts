@@ -214,15 +214,15 @@ const SLOT_MESSAGES: Record<string, { title: string; body: string }> = {
 
 export default createEndpoint({
   description: 'Send push notifications to users who have not submitted sadhana',
-  authenticated: false,
+  public: true,
   webhook: {},
   inputSchema: z.object({
     checkDate: z.string().optional(),
     reminderSlot: z.enum(['night-1', 'night-2', 'morning']),
-    cronSecret: z.string().optional(),
-    customTitle: z.string().optional(),
-    customBody: z.string().optional(),
-    senderEmail: z.string().optional(),
+    cronSecret: z.string().min(16).max(256).optional(),
+    customTitle: z.string().max(200).optional(),
+    customBody: z.string().max(1000).optional(),
+    senderEmail: z.string().email().max(320).optional(),
     segment: z.enum(['PW', 'FOLK']).optional(),
     forceSend: z.boolean().optional(),
   }),
@@ -232,18 +232,17 @@ export default createEndpoint({
     skipped: z.number(),
   }),
   execute: async ({ input, context }: any) => {
-    // Validate cron secret or authenticated user
+    // Validate a server-only cron secret or an active user with notification authority.
     const validCronSecrets = [
       process.env.APP_CRON_SECRET,
       process.env.ZITE_CRON_SECRET,
-      process.env.NEXT_PUBLIC_CRON_SECRET,
-      'app_cron_secret',
-      'local_cron_secret_key_12345',
-      'placeholder_cron_secret_change_me',
     ].filter(Boolean);
     const isCron = input.cronSecret && validCronSecrets.includes(input.cronSecret);
-    const isAuth = !!context?.user;
-    if (!isCron && !isAuth) {
+    const canSendNotifications = !!(
+      context?.user?.isActive &&
+      (context.user.capabilities?.includes('*') || context.user.capabilities?.includes('notifications.send'))
+    );
+    if (!isCron && !canSendNotifications) {
       throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized to send push notifications' });
     }
 
@@ -252,30 +251,11 @@ export default createEndpoint({
     const checkDate = input.checkDate || istNow.toISOString().slice(0, 10);
 
     const senderId = context?.user?.id;
-    // Use input.senderEmail when called in cron mode (no auth context)
-    const senderEmail = ((input.senderEmail || context?.user?.email || '')).toLowerCase();
+    const senderEmail = String(context?.user?.email || (isCron ? input.senderEmail : '') || '').toLowerCase();
 
-    // Determine target segment
-    let targetSegment = input.segment || context?.user?.segment;
-    if (!targetSegment) {
-      if (
-        senderEmail.includes('srilaprabhupadaworld') ||
-        senderEmail.includes('hrvd') ||
-        senderEmail.includes('admin@prabhupadaworld') ||
-        context?.user?.isPwAdmin ||
-        context?.user?.isPrabhupadaWorldUser
-      ) {
-        targetSegment = 'PW';
-      } else if (
-        senderEmail.includes('gaurmandal') ||
-        senderEmail.includes('folk') ||
-        senderEmail.includes('superguide')
-      ) {
-        targetSegment = 'FOLK';
-      } else {
-        targetSegment = 'PW';
-      }
-    }
+    // Segment comes from validated input or the trusted database-backed user context.
+    // Never infer authority or scope from email substrings.
+    const targetSegment = input.segment || context?.user?.segment || 'PW';
 
     const isPwTarget = targetSegment === 'PW';
 
@@ -394,14 +374,19 @@ export default createEndpoint({
     const vapidPrivate =
       process.env.APP_VAPID_PRIVATE_KEY ||
       process.env.ZITE_VAPID_PRIVATE_KEY ||
-      process.env.VAPID_PRIVATE_KEY ||
-      'vkYwOKyr1RhRONW-oh3kMz3FHMBI9pJLyPsOkWDzDRQ';
+      process.env.VAPID_PRIVATE_KEY;
     const vapidPublic =
       process.env.APP_VAPID_PUBLIC_KEY ||
       process.env.ZITE_VAPID_PUBLIC_KEY ||
       process.env.VAPID_PUBLIC_KEY ||
-      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-      'BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE';
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
+    if (!vapidPrivate || !vapidPublic) {
+      throw new AppError({
+        code: 'INTERNAL_ERROR',
+        message: 'Web Push credentials are not configured',
+      });
+    }
 
     // Send in parallel batches of 10
     const toSend = [...subsByUser.entries()].filter(([uid]) => {

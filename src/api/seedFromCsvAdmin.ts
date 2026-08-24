@@ -115,6 +115,7 @@ const CSV_COLLECTION_MAP: Record<string, string> = {
 export default createEndpoint({
   description: 'Imports all 47 CSV backup files into Firestore — Super Guide only',
   authenticated: true,
+  requiredCapabilities: 'system.admin',
   inputSchema: z.object({ confirm: z.literal('IMPORT_ALL_CSV') }),
   outputSchema: z.object({
     success: z.boolean(),

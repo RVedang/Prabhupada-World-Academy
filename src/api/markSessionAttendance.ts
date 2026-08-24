@@ -7,10 +7,12 @@ import { normalizePhone } from '@/lib/phoneNormalize';
 
 export default createEndpoint({
   description: 'Mark attendance for a session by phone or userId (public)',
+  public: true,
   inputSchema: z.object({
-    sessionId: z.string(),
-    phone: z.string().optional(),
-    userId: z.string().optional(),
+    sessionId: z.string().min(1).max(128),
+    token: z.string().min(16).max(200),
+    phone: z.string().min(7).max(20).optional(),
+    userId: z.string().min(1).max(128).optional(),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -22,10 +24,12 @@ export default createEndpoint({
     currentStreak: z.number().optional(),
     challengeDays: z.number().optional(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }: any) => {
     const today = new Date().toISOString().slice(0, 10);
     const session = await AttendanceSessions.findOne({ id: input.sessionId });
-    if (!session) throw new AppError({ code: 'NOT_FOUND', message: 'Session not found' });
+    if (!session || session.shareToken !== input.token) {
+      throw new AppError({ code: 'NOT_FOUND', message: 'Session not found' });
+    }
 
     let userId: string | undefined;
     let participantId: string | undefined;
@@ -33,7 +37,11 @@ export default createEndpoint({
     let source: 'Registered User' | 'New Participant' = 'Registered User';
 
     if (input.userId) {
-      const user = await Users.findOne({ id: input.userId });
+      const authenticatedUserId = context.user?.id;
+      if (!authenticatedUserId || (input.userId !== authenticatedUserId && input.userId !== context.user?.userId)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'You may only mark attendance for your own signed-in account.' });
+      }
+      const user = await Users.findOne({ id: authenticatedUserId });
       if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
       userId = user.id;
       participantName = user.fullName || user.email || '';

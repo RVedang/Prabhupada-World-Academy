@@ -77,6 +77,7 @@ const DEFAULT_FOLK_GUIDES = [
 
 export default createEndpoint({
   description: 'Get all active guides for registration / forms (server-cached 10s)',
+  public: true,
   inputSchema: z.object({
     segment: z.enum(['PW', 'FOLK', 'ALL']).optional(),
   }),
@@ -217,13 +218,24 @@ export default createEndpoint({
       });
     };
 
+    const canReadGuideEmails = !!(
+      context?.user?.capabilities?.includes('*') ||
+      context?.user?.capabilities?.includes('users.assigned.read')
+    );
+    const prepareGuides = (list: any[]) => sortGuides(list).map(guide => {
+      if (canReadGuideEmails) return guide;
+      const publicGuide = { ...guide };
+      delete publicGuide.email;
+      return publicGuide;
+    });
+
     if (effectiveSegment === 'PW') {
-      return { guides: sortGuides(allGuides.pw) };
+      return { guides: prepareGuides(allGuides.pw) };
     } else if (effectiveSegment === 'FOLK') {
-      return { guides: sortGuides(allGuides.folk) };
+      return { guides: prepareGuides(allGuides.folk) };
     }
 
-    return { guides: sortGuides(allGuides.all) };
+    return { guides: prepareGuides(allGuides.all) };
   },
 });
 

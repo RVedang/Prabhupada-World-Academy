@@ -8,6 +8,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Guide activates or deactivates a user account — center-based access',
   authenticated: true,
+  requiredCapabilities: 'users.approve',
   inputSchema: z.object({
     userId: z.string(),
     status: z.enum(['Active', 'Inactive']),

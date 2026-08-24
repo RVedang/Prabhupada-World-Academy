@@ -3,7 +3,7 @@ import { createEndpoint } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Returns the VAPID public key for Web Push subscription',
-  authenticated: false,
+  public: true,
   inputSchema: z.object({}),
   outputSchema: z.object({ publicKey: z.string() }),
   execute: async () => {

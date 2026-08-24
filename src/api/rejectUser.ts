@@ -7,6 +7,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Reject a user application — center-based access',
   authenticated: true,
+  requiredCapabilities: 'users.approve',
   inputSchema: z.object({
     userId: z.string(),
     rowId: z.any().optional(),

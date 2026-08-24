@@ -7,6 +7,7 @@ import { storeBroadcast } from '../lib/notificationBroadcast';
 export default createEndpoint({
   description: 'Reassign a user to a different guide — Super Guides can do this for anyone; regular guides can do this for users in their center',
   authenticated: true,
+  requiredCapabilities: 'users.approve',
   inputSchema: z.object({
     userId: z.string(),
     newGuideId: z.string().optional(),

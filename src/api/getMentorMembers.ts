@@ -50,6 +50,7 @@ function getPerformanceStatus(
 export default createEndpoint({
   description: 'Get all members under the same guide as this Sadhana Mentor',
   authenticated: true,
+  requiredCapabilities: 'users.assigned.read',
   inputSchema: z.object({}),
   outputSchema: z.object({
     members: z.array(memberSchema),

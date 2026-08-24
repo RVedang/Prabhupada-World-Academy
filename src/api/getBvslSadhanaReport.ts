@@ -6,6 +6,8 @@ import { createEndpoint } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'BVSL sadhana report (deprecated - use getGuideDetailedReport with bvslMode)',
+  authenticated: true,
+  requiredCapabilities: 'sadhana.reports',
   inputSchema: z.object({}).passthrough(),
   outputSchema: z.any(),
   execute: async () => {

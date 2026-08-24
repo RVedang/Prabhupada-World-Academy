@@ -5,6 +5,7 @@ import { ASHRAY_LEVELS } from '../types/enums';
 export default createEndpoint({
   description: 'Get guide transfer requests — only where toGuide is the current guide, plus ashray upgrades (stub)',
   authenticated: true,
+  requiredCapabilities: 'users.approve',
   inputSchema: z.object({ guideId: z.string().optional() }),
   outputSchema: z.any(),
   execute: async ({ context }: any) => {

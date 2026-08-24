@@ -4,6 +4,7 @@ import { createEndpoint, Meetings, Users, AppError } from '@/lib/backend-sdk';
 export default createEndpoint({
   description: 'Create a new Prabhupada World meeting (Facilitators, Executive, or Other)',
   authenticated: true,
+  requiredCapabilities: 'meetings.manage',
   inputSchema: z.object({
     title: z.string().min(1, 'Meeting title is required'),
     type: z.enum(['FACILITATOR', 'EXECUTIVE', 'OTHER']),

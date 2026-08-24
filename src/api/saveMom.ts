@@ -21,6 +21,7 @@ const DiscussionItemSchema = z.object({
 export default createEndpoint({
   description: 'Save or update Minutes of Meeting (MoM) with 6-column discussion items and visibility controls',
   authenticated: true,
+  requiredCapabilities: 'meetings.manage',
   inputSchema: z.object({
     meetingId: z.string().min(1),
     visibleToUserIds: z.array(z.string()).optional().nullable().transform(v => v || []),

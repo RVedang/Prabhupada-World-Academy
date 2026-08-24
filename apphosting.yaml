@@ -33,17 +33,28 @@ env:
   - variable: ZITE_APP_URL
     value: https://academy.prabhupadaworld.com
 
-  # ── Server-side secrets (placeholder values for initial deployment) ──
-  # These are used by notification/cron systems. Replace with real values later.
+  # ── Server-side secrets ──
+  # Values live in Cloud Secret Manager and are available only at runtime.
+  # Provision/rotate them with `firebase apphosting:secrets:set` before rollout.
   - variable: ZITE_REMINDER_SECRET
-    value: placeholder_reminder_secret_change_me
+    secret: ziteReminderSecret
+    availability:
+      - RUNTIME
 
   - variable: ZITE_CRON_SECRET
-    value: placeholder_cron_secret_change_me
+    secret: ziteCronSecret
+    availability:
+      - RUNTIME
+
+  - variable: APP_TAGMANGO_WEBHOOK_SECRET
+    secret: tagMangoWebhookSecret
+    availability:
+      - RUNTIME
 
   - variable: ZITE_VAPID_PUBLIC_KEY
     value: BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE
 
   - variable: ZITE_VAPID_PRIVATE_KEY
-    value: vkYwOKyr1RhRONW-oh3kMz3FHMBI9pJLyPsOkWDzDRQ
-
+    secret: ziteVapidPrivateKey
+    availability:
+      - RUNTIME

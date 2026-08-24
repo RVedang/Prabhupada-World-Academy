@@ -5,15 +5,17 @@ const MILESTONE = 'Course 100% Completed';
 
 export default createEndpoint({
   description: 'Webhook for TagMango course.completed.100 events',
+  public: true,
+  publicSecretEnv: 'APP_TAGMANGO_WEBHOOK_SECRET',
   webhook: { paused: false },
   inputSchema: z.object({
-    name: z.string().optional(),
-    email: z.string(),
-    phone: z.union([z.string(), z.number()]).optional(),
-    course: z.string().optional(),
-    courseId: z.string().optional(),
-    lastProgressOn: z.string().optional(),
-  }).passthrough(),
+    name: z.string().max(200).optional(),
+    email: z.string().email().max(320),
+    phone: z.union([z.string().max(30), z.number().finite()]).optional(),
+    course: z.string().max(500).optional(),
+    courseId: z.string().max(200).optional(),
+    lastProgressOn: z.string().max(100).optional(),
+  }).passthrough().refine(value => JSON.stringify(value).length <= 100_000, 'Payload is too large'),
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input }) => {
     try {

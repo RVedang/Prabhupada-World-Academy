@@ -4,6 +4,7 @@ import { createEndpoint, BvMemberRegistrations, Users, AppError } from '@/lib/ba
 export default createEndpoint({
   description: 'Get pending Bhakti Vriksha member registrations filtered by access level (FOLK Guides vs Super Admin / Hiranyavarna Prabhu)',
   authenticated: true,
+  requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     segment: z.enum(['PW', 'FOLK']).optional(),
   }),

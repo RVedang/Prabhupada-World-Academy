@@ -14,6 +14,7 @@ const DEFAULT_RESIDENCIES = [
 
 export default createEndpoint({
   description: 'Get all active folk residencies (server-cached 1h)',
+  public: true,
   inputSchema: z.object({
     segment: z.enum(['PW', 'FOLK']).optional(),
   }),

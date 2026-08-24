@@ -83,6 +83,8 @@ async function fetchEntriesForDate(date: string) {
 
 export default createEndpoint({
   description: 'Fetch Sadhana submission status for all users for a given date with optional filters',
+  authenticated: true,
+  requiredCapabilities: 'sadhana.reports',
   inputSchema: z.object({
     /** Target date in yyyy-mm-dd format. Defaults to today if omitted. */
     date: z.string().optional(),

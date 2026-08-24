@@ -666,6 +666,7 @@ function sbPtsToMins(pts: number): number {
 export default createEndpoint({
   description: 'Guide detailed sadhana report — daily/weekly/monthly with field scores per user',
   authenticated: true,
+  requiredCapabilities: 'sadhana.reports',
   inputSchema: z.object({
     guideId: z.string(),
     date: z.string(),

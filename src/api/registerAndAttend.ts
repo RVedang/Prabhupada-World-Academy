@@ -7,12 +7,14 @@ import { normalizePhone } from '@/lib/phoneNormalize';
 
 export default createEndpoint({
   description: 'Register a new participant and mark attendance (public)',
+  public: true,
   inputSchema: z.object({
-    sessionId: z.string(),
-    name: z.string(),
-    phone: z.string(),
-    email: z.string().optional(),
-    customData: z.string().optional(),
+    sessionId: z.string().min(1).max(128),
+    token: z.string().min(16).max(200),
+    name: z.string().trim().min(2).max(100),
+    phone: z.string().min(7).max(20),
+    email: z.string().email().max(320).optional(),
+    customData: z.string().max(5000).optional(),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -21,7 +23,9 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     const session = await AttendanceSessions.findOne({ id: input.sessionId });
-    if (!session) throw new AppError({ code: 'NOT_FOUND', message: 'Session not found' });
+    if (!session || session.shareToken !== input.token) {
+      throw new AppError({ code: 'NOT_FOUND', message: 'Session not found' });
+    }
 
     const eventId = Array.isArray(session.event) ? session.event[0] : session.event;
     const norm = normalizePhone(input.phone);

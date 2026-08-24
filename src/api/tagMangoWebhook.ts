@@ -3,28 +3,30 @@ import { createEndpoint, TagMangoSyncLog, Users, Config } from '@/lib/backend-sd
 
 export default createEndpoint({
   description: 'Webhook endpoint for TagMango order.created.completed events',
+  public: true,
+  publicSecretEnv: 'APP_TAGMANGO_WEBHOOK_SECRET',
   webhook: {
     "paused": false
   },
   inputSchema: z.object({
-    subscriberId: z.string(),
-    name: z.string().optional(),
-    email: z.string(),
-    phone: z.union([z.string(), z.number()]).optional(),
-    orderId: z.string(),
-    orderTime: z.string().optional(),
+    subscriberId: z.string().min(1).max(200),
+    name: z.string().max(200).optional(),
+    email: z.string().email().max(320),
+    phone: z.union([z.string().max(30), z.number().finite()]).optional(),
+    orderId: z.string().min(1).max(200),
+    orderTime: z.string().max(100).optional(),
     amount: z.any().optional(),
     amountPayable: z.any().optional(),
-    mangoName: z.string().optional(),
-    status: z.string().optional(),
-    currency: z.string().optional(),
+    mangoName: z.string().max(500).optional(),
+    status: z.string().max(100).optional(),
+    currency: z.string().max(20).optional(),
     gst: z.any().optional(),
     discount: z.any().optional(),
     coupon: z.any().optional(),
     quantity: z.any().optional(),
     customFields: z.any().optional(),
-    mangoId: z.string().optional(),
-  }).passthrough(),
+    mangoId: z.string().max(200).optional(),
+  }).passthrough().refine(value => JSON.stringify(value).length <= 100_000, 'Payload is too large'),
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input }) => {
     try {

@@ -9,6 +9,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Approve a user (Guide/Super Guide only) — center-based access',
   authenticated: true,
+  requiredCapabilities: 'users.approve',
   inputSchema: z.object({
     userId: z.string(),
     residencyApproved: z.boolean().optional(),

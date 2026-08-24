@@ -12,6 +12,7 @@ import {
 export default createEndpoint({
   description: 'Delete all pending approvals from the system — Super Admin only',
   authenticated: true,
+  requiredCapabilities: 'system.admin',
   inputSchema: z.object({}),
   outputSchema: z.any(),
   execute: async ({ context }: any) => {

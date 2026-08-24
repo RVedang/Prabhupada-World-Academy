@@ -7,6 +7,7 @@ import { storeBroadcast } from '../lib/notificationBroadcast';
 export default createEndpoint({
   description: 'Tag/untag a user as BVSL — center-based access',
   authenticated: true,
+  requiredCapabilities: 'bv.roles.assign',
   inputSchema: z.object({
     userId: z.string(),
     isBvsl: z.boolean().optional(),

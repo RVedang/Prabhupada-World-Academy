@@ -55,8 +55,9 @@ const ROUND_COPY = {
 export default createEndpoint({
   description:
     'Send email reminders to residents who have pending (unmarked) service allocations for today. Called by external cron at 9 PM and 10:30 PM IST.',
+  public: true,
   inputSchema: z.object({
-    secret: z.string().min(1),
+    secret: z.string().min(16).max(256),
     round: z.union([z.literal(1), z.literal(2)]),
   }),
   outputSchema: z.object({
@@ -66,7 +67,7 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     // Verify secret
-    const expectedSecret = process.env.APP_REMINDER_SECRET ?? '';
+    const expectedSecret = process.env.APP_REMINDER_SECRET || process.env.ZITE_REMINDER_SECRET || '';
     if (!expectedSecret || input.secret !== expectedSecret) {
       return { sent: 0, skipped: 0, date: '' };
     }
@@ -77,7 +78,7 @@ export default createEndpoint({
     const weekStartSunday = getServiceWeekStartOf(todayDate); // Sunday of this service week
 
     const copy = ROUND_COPY[input.round];
-    const appUrl = process.env.APP_APP_URL ?? '';
+    const appUrl = process.env.APP_APP_URL || process.env.ZITE_APP_URL || '';
 
     // 1. Fetch all Scheduled allocations for today (this service week + today's day of week)
     const { records: allocs } = await ServiceAllocations.findAll({

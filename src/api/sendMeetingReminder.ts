@@ -166,6 +166,7 @@ async function sendPush(
 export default createEndpoint({
   description: 'Send meeting reminder notifications to invitees',
   authenticated: true,
+  requiredCapabilities: 'meetings.manage',
   inputSchema: z.object({
     meetingId: z.string().min(1),
     reminderType: z.enum(['TEN_MINUTES', 'ONE_MINUTE']).optional().default('TEN_MINUTES'),
@@ -257,7 +258,7 @@ export default createEndpoint({
       process.env.APP_VAPID_PRIVATE_KEY ||
       process.env.ZITE_VAPID_PRIVATE_KEY ||
       process.env.VAPID_PRIVATE_KEY ||
-      'vkYwOKyr1RhRONW-oh3kMz3FHMBI9pJLyPsOkWDzDRQ';
+      '';
     const vapidPublic =
       process.env.APP_VAPID_PUBLIC_KEY ||
       process.env.ZITE_VAPID_PUBLIC_KEY ||
@@ -265,7 +266,11 @@ export default createEndpoint({
       process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
       'BGhWqw3AsssekjkeRVDrDI-hJZh8etMXz9AOr8gVhgKKuYB5VBke2IPxklX3v9_8PbBJxWGyhy0v1kMVWO51qbE';
 
-    if (targetSubs.length > 0 && vapidPrivate && vapidPublic) {
+    if (targetSubs.length > 0 && (!vapidPrivate || !vapidPublic)) {
+      throw new AppError({ code: 'INTERNAL_ERROR', message: 'VAPID keys are not configured' });
+    }
+
+    if (targetSubs.length > 0) {
       const batchSize = 10;
       for (let i = 0; i < targetSubs.length; i += batchSize) {
         const batch = targetSubs.slice(i, i + batchSize);

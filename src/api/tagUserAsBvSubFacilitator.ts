@@ -7,6 +7,7 @@ import { storeBroadcast } from '../lib/notificationBroadcast';
 export default createEndpoint({
   description: 'Tag or untag a user as Reading Group Sub-Facilitator (RGSF) — Admin or Super Admin only. When tagging, must specify which RGF this RGSF will report to.',
   authenticated: true,
+  requiredCapabilities: 'bv.roles.assign',
   inputSchema: z.object({
     userId: z.string(),
     action: z.enum(['tag', 'untag']),

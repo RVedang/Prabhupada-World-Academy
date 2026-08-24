@@ -31,29 +31,34 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const portalRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const listboxId = React.useId();
 
   // Recalculate position whenever open
   const openDropdown = () => {
+    if (isOpen) {
+      searchInputRef.current?.focus();
+      return;
+    }
     if (!inputRef.current) return;
     const rect = inputRef.current.getBoundingClientRect();
     const viewportPadding = 12;
     const gap = 6;
-    const menuWidth = Math.min(280, Math.max(224, rect.width));
+    const menuWidth = Math.min(300, Math.max(260, rect.width));
     const menuLeft = Math.min(
       Math.max(viewportPadding, rect.left),
       window.innerWidth - menuWidth - viewportPadding
     );
-    const estimatedHeight = Math.min(292, 44 + Math.max(options.length, 1) * 42 + 10);
+    const estimatedHeight = Math.min(340, 88 + Math.max(options.length, 1) * 42 + 10);
     const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
     const spaceAbove = rect.top - viewportPadding;
     const showAbove = spaceBelow < Math.min(estimatedHeight, 210) && spaceAbove > spaceBelow;
     const availableHeight = Math.max(128, showAbove ? spaceAbove - gap : spaceBelow - gap);
-    const menuMaxHeight = Math.min(292, availableHeight);
+    const menuMaxHeight = Math.min(340, availableHeight);
 
-    setListMaxHeight(Math.max(84, menuMaxHeight - 44));
+    setListMaxHeight(Math.max(84, menuMaxHeight - 88));
     setDropdownStyle({
       position: 'fixed',
       left: menuLeft,
@@ -67,6 +72,7 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
     setFilter('');
     setActiveIndex(Math.max(0, options.findIndex(opt => opt === value)));
     setIsOpen(true);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
   };
 
   useEffect(() => {
@@ -114,6 +120,33 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
+  const handlePickerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape' && isOpen) {
+      e.preventDefault();
+      setIsOpen(false);
+      setFilter('');
+      inputRef.current?.focus();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!isOpen) {
+        openDropdown();
+        return;
+      }
+      if (filteredOptions.length === 0) return;
+      setActiveIndex(current => {
+        const direction = e.key === 'ArrowDown' ? 1 : -1;
+        return (current + direction + filteredOptions.length) % filteredOptions.length;
+      });
+      return;
+    }
+    if (e.key === 'Enter' && isOpen && filteredOptions[activeIndex]) {
+      e.preventDefault();
+      chooseOption(filteredOptions[activeIndex]);
+    }
+  };
+
   const dropdownEl = isOpen && !disabled ? (
     <div
       ref={portalRef}
@@ -123,18 +156,38 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
       aria-label="Proposed by"
       className="flex flex-col overflow-hidden bg-popover/98 border border-primary/20 rounded-2xl shadow-[0_18px_45px_-18px_rgba(0,0,0,0.45)] ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
     >
-      <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 border-b border-border/70 bg-muted/35 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="grid place-items-center w-6 h-6 rounded-lg bg-primary/10 text-primary shrink-0">
-            <UsersIcon className="w-3.5 h-3.5" />
+      <div className="space-y-2 px-3 py-2.5 border-b border-border/70 bg-muted/30 shrink-0">
+        <div className="flex items-center justify-between gap-3 px-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="grid place-items-center w-6 h-6 rounded-lg bg-primary/10 text-primary shrink-0">
+              <UsersIcon className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">
+              Select participant
+            </span>
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground truncate">
-            Select participant
+          <span className="text-[9px] font-semibold text-muted-foreground/80 bg-background/80 border border-border/60 rounded-full px-2 py-0.5 shrink-0">
+            {filteredOptions.length} {filteredOptions.length === 1 ? 'person' : 'people'}
           </span>
         </div>
-        <span className="text-[9px] font-semibold text-muted-foreground/80 bg-background/80 border border-border/60 rounded-full px-2 py-0.5 shrink-0">
-          {filteredOptions.length} {filteredOptions.length === 1 ? 'person' : 'people'}
-        </span>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            ref={searchInputRef}
+            type="search"
+            value={filter}
+            onChange={e => {
+              setFilter(e.target.value);
+              setActiveIndex(0);
+            }}
+            onKeyDown={handlePickerKeyDown}
+            placeholder="Search participants…"
+            aria-label="Search participants"
+            aria-controls={listboxId}
+            autoComplete="off"
+            className="h-8 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-[11px] font-medium outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
       </div>
 
       <div
@@ -213,45 +266,17 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
           ref={inputRef}
           type="text"
           disabled={disabled}
+          readOnly
           placeholder={placeholder}
-          value={isOpen ? filter : value}
-          onChange={e => {
-            if (!isOpen) openDropdown();
-            setFilter(e.target.value);
-            setActiveIndex(0);
-            onChange(e.target.value);
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Escape' && isOpen) {
-              e.preventDefault();
-              setIsOpen(false);
-              setFilter('');
-              return;
-            }
-            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-              e.preventDefault();
-              if (!isOpen) {
-                openDropdown();
-                return;
-              }
-              if (filteredOptions.length === 0) return;
-              setActiveIndex(current => {
-                const direction = e.key === 'ArrowDown' ? 1 : -1;
-                return (current + direction + filteredOptions.length) % filteredOptions.length;
-              });
-              return;
-            }
-            if (e.key === 'Enter' && isOpen && filteredOptions[activeIndex]) {
-              e.preventDefault();
-              chooseOption(filteredOptions[activeIndex]);
-            }
-          }}
+          value={value}
+          onKeyDown={handlePickerKeyDown}
           onFocus={openDropdown}
+          onClick={openDropdown}
           role="combobox"
           aria-expanded={isOpen}
           aria-controls={listboxId}
-          aria-autocomplete="list"
-          className="w-full p-1.5 pr-7 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary text-[11px] placeholder:text-muted-foreground/60 transition-all font-medium"
+          aria-autocomplete="none"
+          className="w-full p-1.5 pr-7 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary text-[11px] placeholder:text-muted-foreground/60 transition-all font-medium cursor-pointer"
         />
         <button
           type="button"

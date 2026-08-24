@@ -59,6 +59,7 @@ function parseHHMM(timeStr: any): number | null {
 export default createEndpoint({
   description: 'Get sadhana averages for ALL FOLK residencies — powers the Guide Leaderboard sub-tab FOLK Report',
   authenticated: true,
+  requiredCapabilities: 'sadhana.reports',
   inputSchema: z.object({
     date: z.string(),
     startDate: z.string().optional(),

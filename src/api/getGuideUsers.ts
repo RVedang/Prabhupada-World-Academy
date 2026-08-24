@@ -22,6 +22,7 @@ const RESIDENCY_FIELDS = ['id', 'residencyId', 'residencyName'];
 export default createEndpoint({
   description: 'Get all users for a guide — optimized with parallel queries and field selection',
   authenticated: true,
+  requiredCapabilities: 'users.assigned.read',
   inputSchema: z.object({
     guideId: z.string().optional(),
     status: z.enum(['all', 'active', 'inactive', 'pending', 'rejected']).optional(),

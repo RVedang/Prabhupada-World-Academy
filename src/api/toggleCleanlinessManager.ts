@@ -5,6 +5,7 @@ import { serverCacheInvalidate } from '../lib/serverCache';
 export default createEndpoint({
   description: 'Appoint or remove a cleanliness manager',
   authenticated: true,
+  requiredCapabilities: 'roles.assign',
   inputSchema: z.object({
     userId: z.string(),
     isManager: z.boolean(),

@@ -6,6 +6,7 @@ import getGuides from './getGuides';
 export default createEndpoint({
   description: 'Get attendance report for Super Guide (all users, all centers)',
   authenticated: true,
+  requiredCapabilities: 'attendance.manage',
   inputSchema: z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),

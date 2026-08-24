@@ -6,6 +6,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Tag or untag a user as BV Admin — Super Admin or Super Guide only',
   authenticated: true,
+  requiredCapabilities: 'roles.assign',
   inputSchema: z.object({
     userId: z.string(),
     action: z.enum(['tag', 'untag']),
@@ -13,9 +14,10 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const role = (context.user.role || '').toUpperCase();
-    const isSuperAdmin = role === 'SUPER_GUIDE' || context.user.isBvSuperAdmin || (context.user.email || '').toLowerCase().includes('superadmin');
-    if (!isSuperAdmin) {
+    const canAssignAdmins =
+      context.user.capabilities?.includes('*') === true ||
+      context.user.normalizedRole === 'SUPER_GUIDE';
+    if (!canAssignAdmins) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Super Admin access required to assign Admins' });
     }
 

@@ -36,6 +36,7 @@ const ROUND_COPY = {
 export default createEndpoint({
   description: 'Authenticated endpoint for Super Guides to manually trigger Sadhana reminder emails.',
   authenticated: true,
+  requiredCapabilities: 'notifications.send',
   inputSchema: z.object({
     round: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   }),

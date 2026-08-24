@@ -6,6 +6,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Tag/untag a user as BV Mentor and assign their guide — Guide or Super Guide',
   authenticated: true,
+  requiredCapabilities: 'bv.roles.assign',
   inputSchema: z.object({
     userId: z.string(),
     action: z.enum(['tag', 'untag']),

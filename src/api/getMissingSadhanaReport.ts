@@ -8,6 +8,7 @@ const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'residency', 'guide',
 export default createEndpoint({
   description: 'Get missing sadhana report — who did not submit for each date in a range, with late detection',
   authenticated: true,
+  requiredCapabilities: 'sadhana.reports',
   inputSchema: z.object({
     startDate: z.string(),         // YYYY-MM-DD
     endDate: z.string(),           // YYYY-MM-DD

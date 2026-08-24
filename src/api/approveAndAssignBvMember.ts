@@ -6,6 +6,7 @@ import { profileCacheKey } from './getUserProfile';
 export default createEndpoint({
   description: 'Approve pending Bhakti Vriksha member registration and assign them to a Reading Group — Admin or Supervisor access',
   authenticated: true,
+  requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     registrationId: z.string(),
     groupId: z.string(),

@@ -4,6 +4,7 @@ import { enforceRateLimit } from '../utils/rateLimit';
 
 export default createEndpoint({
   description: 'Check if a phone number is registered in the system',
+  authenticated: true,
   inputSchema: z.object({
     phone: z.string().min(7).max(20),
     countryCode: z.string().max(5).default('+91'),
