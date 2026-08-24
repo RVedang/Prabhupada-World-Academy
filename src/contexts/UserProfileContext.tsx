@@ -205,7 +205,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     }, timeoutMs);
 
     try {
-      const res = await getUserProfile({ email });
+      const res = await getUserProfile({ email, _nocache: background ? true : undefined });
       if (timedOut) return null;
       clearTimeout(timeoutId);
       let built: ProfileData = null;

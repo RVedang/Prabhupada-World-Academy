@@ -190,7 +190,7 @@ export default function RoleAcknowledgementModal() {
                     {roleNotice.guideChange.type === 'changed' && (
                       <span>
                         {roleNotice.guideChange.oldName ? (
-                          <span>Your {segment === 'PW' ? 'admin' : 'guide'} has been changed from <span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span> to: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                          <span>Your {segment === 'PW' ? 'admin' : 'guide'} has been changed from <span className="text-muted-foreground font-medium">{roleNotice.guideChange.oldName}</span> to: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
                         ) : (
                           <span>Your {segment === 'PW' ? 'admin' : 'guide'} has been updated to: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
                         )}
