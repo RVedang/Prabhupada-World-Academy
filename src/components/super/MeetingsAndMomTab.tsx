@@ -14,6 +14,92 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 
+interface ProposedByDropdownProps {
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+  options: string[];
+  placeholder?: string;
+}
+
+function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 'Name' }: ProposedByDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt =>
+    opt.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div className="relative flex items-center">
+        <input
+          type="text"
+          disabled={disabled}
+          placeholder={placeholder}
+          value={isOpen ? filter : value}
+          onChange={e => {
+            if (!isOpen) setIsOpen(true);
+            setFilter(e.target.value);
+            onChange(e.target.value);
+          }}
+          onFocus={() => {
+            setFilter('');
+            setIsOpen(true);
+          }}
+          className="w-full p-1.5 pr-6 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px] placeholder:text-muted-foreground/60 transition-all font-medium"
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setIsOpen(!isOpen)}
+          className="absolute right-1.5 p-0.5 text-muted-foreground/60 hover:text-foreground disabled:opacity-50"
+        >
+          <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
+        </button>
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-popover border border-border/80 rounded-xl shadow-xl z-50 py-1 divide-y divide-border/20 backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map(opt => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 text-[11px] font-semibold transition-colors flex items-center gap-2 hover:bg-primary/5 hover:text-primary ${
+                  value === opt ? 'bg-primary/10 text-primary' : 'text-foreground'
+                }`}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" style={{ visibility: value === opt ? 'visible' : 'hidden' }} />
+                <span>{opt}</span>
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-[11px] text-muted-foreground italic text-center">
+              No matches found
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ActionItem {
   id?: string;
   proposedBy: string;
@@ -1602,112 +1688,114 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
                     )}
                   </div>
 
-                  <div className="overflow-x-auto border border-border rounded-xl">
-                    <table className="w-full text-left border-collapse text-[11px]">
-                      <thead>
-                        <tr className="bg-muted text-muted-foreground uppercase text-[9px] font-bold tracking-wider">
-                          <th className="p-2 border-b min-w-[120px]">Proposed By</th>
-                          <th className="p-2 border-b min-w-[180px]">Discussion *</th>
-                          <th className="p-2 border-b min-w-[150px]">Action Item</th>
-                          <th className="p-2 border-b min-w-[120px]">Assigned To</th>
-                          <th className="p-2 border-b min-w-[110px]">Deadline</th>
-                          <th className="p-2 border-b min-w-[120px]">Remarks</th>
-                          {canEditMom && <th className="p-2 border-b w-[40px]"></th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y bg-card">
-                        {momForm.action_items.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-muted/5">
-                            <td className="p-1.5 align-top">
-                              <input
-                                type="text"
-                                list="proposed-by-datalist"
-                                required
-                                disabled={!canEditMom}
-                                placeholder="Name"
-                                value={item.proposedBy}
-                                onChange={e => updateRowField(idx, 'proposedBy', e.target.value)}
-                                className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
-                              />
-                            </td>
-                            <td className="p-1.5 align-top">
-                              <textarea
-                                rows={1}
-                                required
-                                disabled={!canEditMom}
-                                placeholder="Discussion details..."
-                                value={item.discussionPoint}
-                                onChange={e => updateRowField(idx, 'discussionPoint', e.target.value)}
-                                className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
-                              />
-                            </td>
-                            <td className="p-1.5 align-top">
-                              <input
-                                type="text"
-                                disabled={!canEditMom}
-                                placeholder="Action to take"
-                                value={item.actionItem}
-                                onChange={e => updateRowField(idx, 'actionItem', e.target.value)}
-                                className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
-                              />
-                            </td>
-                            <td className="p-1.5 align-top">
-                              <input
-                                type="text"
-                                list="invitees-datalist"
-                                disabled={!canEditMom}
-                                placeholder="Assignee"
-                                value={item.assignedToName}
-                                onChange={e => updateRowField(idx, 'assignedToName', e.target.value)}
-                                className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
-                              />
-                            </td>
-                            <td className="p-1.5 align-top">
-                              <DateTimePicker
-                                value={item.deadline}
-                                onChange={val => updateRowField(idx, 'deadline', val)}
-                                type="datetime"
-                                placeholder="Select date & time"
-                                disabled={!canEditMom}
-                              />
-                            </td>
-                            <td className="p-1.5 align-top">
-                              <input
-                                type="text"
-                                disabled={!canEditMom}
-                                placeholder="Remarks"
-                                value={item.remarks}
-                                onChange={e => updateRowField(idx, 'remarks', e.target.value)}
-                                className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
-                              />
-                            </td>
-                            {canEditMom && (
-                              <td className="p-1.5 align-top text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => removeActionItem(idx)}
-                                  className="text-destructive hover:bg-destructive/10 p-1 rounded-md mt-0.5"
-                                  disabled={momForm.action_items.length <= 1}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
                   {(() => {
                     const activeM = selectedMeetingForMom || meetings.find(m => m.id === editingMom?.meeting_id);
                     const participants = activeM?.invitees || [];
+                    const participantNames = participants.map((p: any) => p.fullName || p.name).filter(Boolean);
+                    
+                    const creatorName = activeM?.created_by_name || activeM?.createdByName || '';
+                    const allOptionsSet = new Set<string>();
+                    if (creatorName) allOptionsSet.add(creatorName);
+                    participantNames.forEach((n: string) => allOptionsSet.add(n));
+                    const proposedByOptions = Array.from(allOptionsSet);
+
                     return (
-                      <datalist id="proposed-by-datalist">
-                        {participants.map((p: any) => (
-                          <option key={p.userId || p.email} value={p.fullName} />
-                        ))}
-                      </datalist>
+                      <>
+                        <div className="overflow-x-auto border border-border rounded-xl">
+                          <table className="w-full text-left border-collapse text-[11px]">
+                            <thead>
+                              <tr className="bg-muted text-muted-foreground uppercase text-[9px] font-bold tracking-wider">
+                                <th className="p-2 border-b min-w-[120px]">Proposed By</th>
+                                <th className="p-2 border-b min-w-[180px]">Discussion *</th>
+                                <th className="p-2 border-b min-w-[150px]">Action Item</th>
+                                <th className="p-2 border-b min-w-[120px]">Assigned To</th>
+                                <th className="p-2 border-b min-w-[110px]">Deadline</th>
+                                <th className="p-2 border-b min-w-[120px]">Remarks</th>
+                                {canEditMom && <th className="p-2 border-b w-[40px]"></th>}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y bg-card">
+                              {momForm.action_items.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-muted/5">
+                                  <td className="p-1.5 align-top">
+                                    <ProposedByDropdown
+                                      value={item.proposedBy}
+                                      onChange={val => updateRowField(idx, 'proposedBy', val)}
+                                      disabled={!canEditMom}
+                                      options={proposedByOptions}
+                                      placeholder="Name"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 align-top">
+                                    <textarea
+                                      rows={1}
+                                      required
+                                      disabled={!canEditMom}
+                                      placeholder="Discussion details..."
+                                      value={item.discussionPoint}
+                                      onChange={e => updateRowField(idx, 'discussionPoint', e.target.value)}
+                                      className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 align-top">
+                                    <input
+                                      type="text"
+                                      disabled={!canEditMom}
+                                      placeholder="Action to take"
+                                      value={item.actionItem}
+                                      onChange={e => updateRowField(idx, 'actionItem', e.target.value)}
+                                      className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 align-top">
+                                    <input
+                                      type="text"
+                                      list="invitees-datalist"
+                                      disabled={!canEditMom}
+                                      placeholder="Assignee"
+                                      value={item.assignedToName}
+                                      onChange={e => updateRowField(idx, 'assignedToName', e.target.value)}
+                                      className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 align-top">
+                                    <DateTimePicker
+                                      value={item.deadline}
+                                      onChange={val => updateRowField(idx, 'deadline', val)}
+                                      type="datetime"
+                                      placeholder="Select date & time"
+                                      disabled={!canEditMom}
+                                      className="h-[27px] py-1 px-2.5 text-[11px] rounded-lg shadow-none border-border"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 align-top">
+                                    <input
+                                      type="text"
+                                      disabled={!canEditMom}
+                                      placeholder="Remarks"
+                                      value={item.remarks}
+                                      onChange={e => updateRowField(idx, 'remarks', e.target.value)}
+                                      className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
+                                    />
+                                  </td>
+                                  {canEditMom && (
+                                    <td className="p-1.5 align-top text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => removeActionItem(idx)}
+                                        className="text-destructive hover:bg-destructive/10 p-1 rounded-md mt-0.5"
+                                        disabled={momForm.action_items.length <= 1}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     );
                   })()}
 

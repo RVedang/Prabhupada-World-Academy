@@ -14,6 +14,7 @@ interface DateTimePickerProps {
   disabled?: boolean;
   min?: string;
   max?: string;
+  className?: string;
 }
 
 const MONTH_NAMES = [
@@ -31,6 +32,7 @@ export function DateTimePicker({
   disabled = false,
   min,
   max,
+  className,
 }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -247,7 +249,8 @@ export function DateTimePicker({
         disabled={disabled}
         className={cn(
           "w-full flex items-center justify-start text-left font-normal h-10 px-3 py-2 bg-card border rounded-xl hover:bg-accent/40 focus:outline-hidden focus:ring-1 focus:ring-primary shadow-xs gap-2",
-          !value && "text-muted-foreground"
+          !value && "text-muted-foreground",
+          className
         )}
       >
         {type === 'date' ? (
