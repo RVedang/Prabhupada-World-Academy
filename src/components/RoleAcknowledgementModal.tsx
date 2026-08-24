@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function RoleAcknowledgementModal() {
   const { profile, refreshProfile } = useUserProfile();
+  const segment = profile?.segment || 'PW';
   const [modalOpen, setModalOpen] = useState(false);
   const [roleNotice, setRoleNotice] = useState<{
     added: string[];
@@ -156,12 +157,12 @@ export default function RoleAcknowledgementModal() {
               <div>
                 <h3 id="role-modal-title" className="text-lg font-bold text-foreground">
                   {roleNotice.guideChange && (roleNotice.added.length === 0 && roleNotice.removed.length === 0) 
-                    ? 'Guide Assignment Notice' 
+                    ? (segment === 'PW' ? 'Admin Assignment Notice' : 'Guide Assignment Notice') 
                     : 'Account Updates Notice'}
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   {roleNotice.guideChange && (roleNotice.added.length === 0 && roleNotice.removed.length === 0)
-                    ? 'Your spiritual guide has been updated'
+                    ? (segment === 'PW' ? 'Your admin assignment has been updated' : 'Your guide assignment has been updated')
                     : 'Your account permissions and responsibilities have been updated'}
                 </p>
               </div>
@@ -177,20 +178,26 @@ export default function RoleAcknowledgementModal() {
                   <div className="flex items-center gap-2 text-xs font-bold text-sky-600 dark:text-sky-400">
                     <UserCheck className="w-4 h-4" />
                     <span>
-                      {roleNotice.guideChange.type === 'assigned' && 'Spiritual Guide Assigned:'}
-                      {roleNotice.guideChange.type === 'changed' && 'Spiritual Guide Changed:'}
-                      {roleNotice.guideChange.type === 'removed' && 'Spiritual Guide Removed:'}
+                      {roleNotice.guideChange.type === 'assigned' && (segment === 'PW' ? 'Admin Assigned:' : 'Guide Assigned:')}
+                      {roleNotice.guideChange.type === 'changed' && (segment === 'PW' ? 'Admin Changed:' : 'Guide Changed:')}
+                      {roleNotice.guideChange.type === 'removed' && (segment === 'PW' ? 'Admin Removed:' : 'Guide Removed:')}
                     </span>
                   </div>
                   <div className="text-xs font-semibold text-foreground pl-1">
                     {roleNotice.guideChange.type === 'assigned' && (
-                      <span>Your new spiritual guide is: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                      <span>Your new {segment === 'PW' ? 'admin' : 'guide'} is: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
                     )}
                     {roleNotice.guideChange.type === 'changed' && (
-                      <span>Your spiritual guide has been changed from <span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span> to: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                      <span>
+                        {roleNotice.guideChange.oldName ? (
+                          <span>Your {segment === 'PW' ? 'admin' : 'guide'} has been changed from <span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span> to: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                        ) : (
+                          <span>Your {segment === 'PW' ? 'admin' : 'guide'} has been updated to: <strong className="text-sky-600 dark:text-sky-400">{roleNotice.guideChange.newName}</strong></span>
+                        )}
+                      </span>
                     )}
                     {roleNotice.guideChange.type === 'removed' && (
-                      <span>Your spiritual guide (<span className="line-through text-muted-foreground">{roleNotice.guideChange.oldName}</span>) has been removed.</span>
+                      <span>Your {segment === 'PW' ? 'admin' : 'guide'} {roleNotice.guideChange.oldName ? `(${roleNotice.guideChange.oldName})` : ''} has been removed.</span>
                     )}
                   </div>
                 </div>

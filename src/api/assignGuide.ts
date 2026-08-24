@@ -29,17 +29,16 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
     }
 
+    // Fetch the target user record first to resolve their actual id (email) and userId
+    const targetUserRecord = await Users.findOne({ id: input.userId }).catch(() => null) ||
+                             await Users.findOne({ filters: { userId: input.userId } }).catch(() => null);
+    if (!targetUserRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
+
     // Regular guides can only reassign users in their center
     if (!isSuperGuide) {
       const scope = await getGuideScope(context.user.email);
       if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide record not found' });
-
-      const userRecord = await Users.findOne({
-        id: input.userId,
-        fields: ['id', 'residency', 'guide'],
-      });
-      if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
-      if (!isUserInGuideScope(scope, userRecord)) {
+      if (!isUserInGuideScope(scope, targetUserRecord)) {
         throw new AppError({ code: 'FORBIDDEN', message: 'You can only reassign users in your center' });
       }
     }
@@ -89,7 +88,7 @@ export default createEndpoint({
       throw new AppError({ code: 'NOT_FOUND', message: 'Guide not found' });
     }
 
-    await Users.update({ id: input.userId, record: { guide: resolvedGuideId } });
+    await Users.update({ id: targetUserRecord.id, record: { guide: resolvedGuideId } });
 
     try {
       storeBroadcast(
@@ -98,13 +97,19 @@ export default createEndpoint({
         'guide_changed',
         undefined,
         undefined,
-        [input.userId].filter(Boolean),
+        [targetUserRecord.id, targetUserRecord.userId].filter(Boolean),
       );
     } catch (err) {
       console.error('[assignGuide] Failed to broadcast guide update:', err);
     }
 
-    serverCacheInvalidate('user_profile:' + input.userId);
+    if (targetUserRecord.id) {
+      serverCacheInvalidate('user_profile:' + targetUserRecord.id);
+      serverCacheInvalidate('user_profile:' + targetUserRecord.id.toLowerCase());
+    }
+    if (targetUserRecord.userId) {
+      serverCacheInvalidate('user_profile:' + targetUserRecord.userId);
+    }
     return { success: true };
   },
 });
