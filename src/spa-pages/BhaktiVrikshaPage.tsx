@@ -221,11 +221,11 @@ export default function BhaktiVrikshaPage() {
                     <Badge className="bg-green-500 text-xs">Active Member</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Servant Leader: <span className="font-medium">{bvStatus.myGroup.bvslName}</span>
+                    Facilitator: <span className="font-medium">{bvStatus.myGroup.bvslName}</span>
                     {' · '}{bvStatus.myGroup.memberCount} members
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    ℹ️ Attendance is marked by your Servant Leader during BV sessions.
+                    ℹ️ Attendance is marked by your Facilitator during BV sessions.
                   </p>
                   <div className="mt-3">
                     <AlertDialog>
@@ -340,7 +340,7 @@ export default function BhaktiVrikshaPage() {
         {/* Read-only Attendance Calendar (no userId = no edit) — BUG-051 FIX: limit to 3 months */}
         {bvData && bvStatus?.myGroup && (() => {
           const threeMonthsAgo = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
-          const recentHistory = bvData.userHistory.filter(h => h.attendanceDate >= threeMonthsAgo);
+          const recentHistory = bvData.userHistory.filter((h: any) => h.attendanceDate >= threeMonthsAgo);
           return <BvCalendarView history={recentHistory} />;
         })()}
 
@@ -370,14 +370,14 @@ export default function BhaktiVrikshaPage() {
               </Card>
             ) : (
               <div className="space-y-2">
-                {bvStatus.availableGroups.map(g => (
+                {bvStatus.availableGroups.map((g: any) => (
                   <Card key={g.groupId}>
                     <CardContent className="pt-4 pb-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-medium">{g.groupName}</p>
                           <p className="text-sm text-muted-foreground">
-                            Servant Leader: {g.bvslName} · {g.memberCount} members
+                            Facilitator: {g.bvslName} · {g.memberCount} members
                           </p>
                           {g.description && (
                             <p className="text-xs text-muted-foreground mt-0.5">{g.description}</p>

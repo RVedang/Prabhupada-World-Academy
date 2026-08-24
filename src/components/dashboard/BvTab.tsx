@@ -99,7 +99,7 @@ export default function BvTab({ userId, segment }: Props) {
                   <Badge className="bg-green-500 text-xs">Active Member</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Servant Leader: <span className="font-medium">{status.myGroup.bvslName}</span> · {status.myGroup.memberCount} members
+                  Facilitator: <span className="font-medium">{status.myGroup.bvslName}</span> · {status.myGroup.memberCount} members
                 </p>
               </div>
 

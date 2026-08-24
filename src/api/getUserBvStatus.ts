@@ -7,7 +7,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({ userId: z.string().optional(), localDate: z.string().optional() }),
   outputSchema: z.any(),
-  execute: async ({ context }) => {
+  execute: async ({ context }: any) => {
     const uid = context.user!.id;
     const today = getTodayIST();
 
@@ -41,7 +41,7 @@ export default createEndpoint({
       const [availGroupsRes, pendingGroup] = await Promise.all([
         (pending || isUserRegPending) ? Promise.resolve({ records: [] }) : BvGroups.findAll({
           filters: { isActive: true }, limit: 50,
-          fields: ['id', 'groupId', 'groupName', 'description', 'bvslLeader'],
+          fields: ['id', 'groupId', 'groupName', 'description', 'bvslLeader', 'bvslId', 'bvslName'],
         }),
         pendingGroupId ? BvGroups.findOne({ id: pendingGroupId, fields: ['id', 'groupName', 'groupId'] }) : Promise.resolve(null),
       ]);
@@ -70,7 +70,7 @@ export default createEndpoint({
         }));
       }
 
-      const leaderIds = [...new Set(groups.map((g: any) => Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader).filter(Boolean))] as string[];
+      const leaderIds = [...new Set(groups.map((g: any) => Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId)).filter(Boolean))] as string[];
       const leaderMap: Record<string, string> = {};
       if (leaderIds.length > 0) {
         const leaderRecords = await Users.findAll({ filters: { id: { in: leaderIds } }, fields: ['id', 'fullName'] });
@@ -81,12 +81,12 @@ export default createEndpoint({
         myGroup: null,
         pendingRequest: null,
         availableGroups: groups.map((g: any) => {
-          const leaderId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader;
+          const leaderId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId);
           return {
             groupId: g.groupId || g.id,
             groupName: g.groupName || '',
             description: g.description || '',
-            bvslName: leaderMap[leaderId || ''] || '',
+            bvslName: leaderMap[leaderId || ''] || g.bvslName || 'Unassigned',
             memberCount: memberCountMap[g.id] ?? 0,
           };
         }),
@@ -99,8 +99,8 @@ export default createEndpoint({
     if (!groupId) return { myGroup: null, pendingRequest: null, availableGroups: [], todayStatus: null, streak: 0, presentCount: 0, totalSessions: 0 };
 
     const [groupRecord, groupMembersRes] = await Promise.all([
-      BvGroups.findOne({ id: groupId, fields: ['id', 'groupId', 'groupName', 'bvslLeader'] })
-        .then(g => g || BvGroups.findOne({ filters: { groupId }, fields: ['id', 'groupId', 'groupName', 'bvslLeader'] })),
+      BvGroups.findOne({ id: groupId, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName'] })
+        .then(g => g || BvGroups.findOne({ filters: { groupId }, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName'] })),
       BvGroupMembers.findAll({ filters: { group: groupId }, fields: ['id', 'user', 'userId'], limit: 1000 }),
     ]);
 
@@ -145,7 +145,7 @@ export default createEndpoint({
 
     const presentCount = myAtt.filter((a: any) => a.present).length;
 
-    const leaderId = Array.isArray(group?.bvslLeader) ? group.bvslLeader[0] : group?.bvslLeader;
+    const leaderId = Array.isArray(group?.bvslLeader) ? group.bvslLeader[0] : (group?.bvslLeader || group?.bvslId);
     let bvslName = '';
     if (leaderId) {
       let leaderRec = await Users.findOne({ id: leaderId, fields: ['id', 'fullName'] });
