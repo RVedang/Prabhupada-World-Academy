@@ -5,6 +5,15 @@ import { auth } from './app-auth-sdk';
 const clientCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL_MS = 15000; // 15 seconds cache TTL for tab-switching speed
 
+export function getClientCachedQuery(name: string, input: any): any | null {
+  const cacheKey = `${name}:${JSON.stringify(input || {})}`;
+  const cached = clientCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    return JSON.parse(JSON.stringify(cached.data));
+  }
+  return null;
+}
+
 async function invokeEndpoint(name: string, input: any): Promise<any> {
   const isQuery = name.startsWith('get') || name.startsWith('load') || name.startsWith('list') || name.includes('Stats') || name.includes('Report') || name.includes('Analytics');
   const bypassCache = input && (input.bypassCache || input._nocache);

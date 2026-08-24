@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, Plus, Users, ShieldCheck, UserCheck, Leaf, Clock, BookOpen, ChevronRight } from 'lucide-react';
-import { createBvGroup, assignBvRole, getBvslGroups, getGuides, updateBvGroup } from '@/lib/app-endpoints-sdk';
+import { createBvGroup, assignBvRole, getBvslGroups, getGuides, updateBvGroup, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -32,9 +32,13 @@ export default function BvAdminManagementTab() {
 
   const segment = profile?.segment ?? 'PW';
 
-  const [groups, setGroups] = useState<any[]>([]);
-  const [guides, setGuides] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
+  const cachedGuides = getClientCachedQuery('getGuides', { segment });
+  const hasCache = cachedGroups !== null && cachedGuides !== null;
+
+  const [groups, setGroups] = useState<any[]>(cachedGroups?.groups || []);
+  const [guides, setGuides] = useState<any[]>(cachedGuides?.guides || []);
+  const [loading, setLoading] = useState(!hasCache);
 
   // Group creation modal state
   const [createGroupOpen, setCreateGroupOpen] = useState(false);

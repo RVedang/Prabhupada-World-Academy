@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, Users, CheckCircle2, Clock, Leaf, Phone, HeartHandshake, BookOpen, Calendar, Building } from 'lucide-react';
-import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, rejectBvRegistration } from '@/lib/app-endpoints-sdk';
+import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, rejectBvRegistration, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
 const normalizeTimeSlot = (str: string) => {
   if (!str) return '';
@@ -39,9 +39,13 @@ const isTimeSlotMatch = (pref: string, groupTime: string) => {
 };
 
 export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 'FOLK' }) {
-  const [registrations, setRegistrations] = useState<any[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedRegs = getClientCachedQuery('getPendingBvRegistrations', { segment });
+  const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
+  const hasCache = cachedRegs !== null && cachedGroups !== null;
+
+  const [registrations, setRegistrations] = useState<any[]>(cachedRegs || []);
+  const [groups, setGroups] = useState<any[]>(cachedGroups?.groups || []);
+  const [loading, setLoading] = useState(!hasCache);
 
   const [selectedReg, setSelectedReg] = useState<any | null>(null);
   const [targetGroupId, setTargetGroupId] = useState<string>('');

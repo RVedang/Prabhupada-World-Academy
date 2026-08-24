@@ -78,26 +78,31 @@ export default createEndpoint({
     const facilitatorUserIds = [...new Set(groupRecords.map((g: any) => g.bvslId || g.bvslLeader).filter(Boolean))] as string[];
     const facilitatorMap = new Map<string, any>();
     if (facilitatorUserIds.length > 0) {
+      const batches: string[][] = [];
       for (let i = 0; i < facilitatorUserIds.length; i += 50) {
-        const batch = facilitatorUserIds.slice(i, i + 50);
-        // First try fetching by userId (custom ID like GUIDE-VEDANG)
-        const { records: byUserId } = await Users.findAll({
-          filters: { userId: { in: batch } } as any,
-          fields: ['id', 'userId', 'segment', 'fullName'],
-          limit: 100,
-        }).catch(() => ({ records: [] }));
-        // Also try fetching by Firestore row id (in case some groups store row id)
-        const { records: byId } = await Users.findAll({
-          filters: { id: { in: batch } } as any,
-          fields: ['id', 'userId', 'segment', 'fullName'],
-          limit: 100,
-        }).catch(() => ({ records: [] }));
-        const allFetched = [...byUserId, ...byId];
-        const seen = new Set<string>();
-        for (const u of allFetched) {
+        batches.push(facilitatorUserIds.slice(i, i + 50));
+      }
+      const results = await Promise.all(batches.map(async (batch) => {
+        const [byUserId, byId] = await Promise.all([
+          Users.findAll({
+            filters: { userId: { in: batch } } as any,
+            fields: ['id', 'userId', 'segment', 'fullName'],
+            limit: 100,
+          }).catch(() => ({ records: [] })),
+          Users.findAll({
+            filters: { id: { in: batch } } as any,
+            fields: ['id', 'userId', 'segment', 'fullName'],
+            limit: 100,
+          }).catch(() => ({ records: [] })),
+        ]);
+        return [...(byUserId?.records || []), ...(byId?.records || [])];
+      }));
+
+      const seen = new Set<string>();
+      for (const list of results) {
+        for (const u of list) {
           if (!seen.has(u.id)) {
             seen.add(u.id);
-            // Key by both row id and custom userId so any lookup hits
             facilitatorMap.set(u.id, u);
             if (u.userId) facilitatorMap.set(u.userId, u);
           }
@@ -109,14 +114,20 @@ export default createEndpoint({
     const guideIds = [...new Set(groupRecords.map((g: any) => Array.isArray(g.guide) ? g.guide[0] : g.guide).filter(Boolean))] as string[];
     const guideMap = new Map<string, any>();
     if (guideIds.length > 0) {
+      const batches: string[][] = [];
       for (let i = 0; i < guideIds.length; i += 50) {
-        const batch = guideIds.slice(i, i + 50);
-        const { records: batchGuides } = await Guides.findAll({
+        batches.push(guideIds.slice(i, i + 50));
+      }
+      const results = await Promise.all(batches.map(async (batch) => {
+        const res = await Guides.findAll({
           filters: { id: { in: batch } } as any,
           fields: ['id', 'fullName'],
           limit: 100,
-        });
-        batchGuides.forEach((g: any) => guideMap.set(g.id, g));
+        }).catch(() => ({ records: [] }));
+        return res?.records || [];
+      }));
+      for (const list of results) {
+        list.forEach((g: any) => guideMap.set(g.id, g));
       }
     }
 
