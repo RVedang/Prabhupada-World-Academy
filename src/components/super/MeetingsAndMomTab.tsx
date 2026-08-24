@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Video, Calendar, Clock, Plus, Trash2, Edit, X, Users as UsersIcon, Check,
@@ -25,11 +26,36 @@ interface ProposedByDropdownProps {
 function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 'Name' }: ProposedByDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // Recalculate position whenever open
+  const openDropdown = () => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const dropHeight = Math.min(192, options.length * 34 + 8); // max-h-48 = 192px
+    const showAbove = spaceBelow < dropHeight + 8;
+    setDropdownStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      ...(showAbove
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+      zIndex: 9999,
+    });
+    setFilter('');
+    setIsOpen(true);
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        // Also check if click is inside the portal dropdown
+        const portal = document.getElementById('proposed-by-portal');
+        if (portal && portal.contains(event.target as Node)) return;
         setIsOpen(false);
       }
     }
@@ -37,67 +63,84 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Close on scroll/resize to avoid misalignment
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = () => setIsOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [isOpen]);
+
   const filteredOptions = options.filter(opt =>
     opt.toLowerCase().includes(filter.toLowerCase())
   );
+
+  const dropdownEl = isOpen && !disabled ? (
+    <div
+      id="proposed-by-portal"
+      style={dropdownStyle}
+      className="max-h-48 overflow-y-auto bg-popover border border-border/80 rounded-xl shadow-xl py-1 divide-y divide-border/20 backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150"
+    >
+      {filteredOptions.length > 0 ? (
+        filteredOptions.map(opt => (
+          <button
+            key={opt}
+            type="button"
+            onMouseDown={e => {
+              e.preventDefault();
+              onChange(opt);
+              setIsOpen(false);
+            }}
+            className={`w-full text-left px-3 py-2 text-[11px] font-semibold transition-colors flex items-center gap-2 hover:bg-primary/5 hover:text-primary ${
+              value === opt ? 'bg-primary/10 text-primary' : 'text-foreground'
+            }`}
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" style={{ visibility: value === opt ? 'visible' : 'hidden' }} />
+            <span>{opt}</span>
+          </button>
+        ))
+      ) : (
+        <div className="px-3 py-2 text-[11px] text-muted-foreground italic text-center">
+          No matches found
+        </div>
+      )}
+    </div>
+  ) : null;
 
   return (
     <div ref={containerRef} className="relative w-full">
       <div className="relative flex items-center">
         <input
+          ref={inputRef}
           type="text"
           disabled={disabled}
           placeholder={placeholder}
           value={isOpen ? filter : value}
           onChange={e => {
-            if (!isOpen) setIsOpen(true);
+            if (!isOpen) openDropdown();
             setFilter(e.target.value);
             onChange(e.target.value);
           }}
-          onFocus={() => {
-            setFilter('');
-            setIsOpen(true);
-          }}
+          onFocus={openDropdown}
           className="w-full p-1.5 pr-6 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px] placeholder:text-muted-foreground/60 transition-all font-medium"
         />
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => isOpen ? setIsOpen(false) : openDropdown()}
           className="absolute right-1.5 p-0.5 text-muted-foreground/60 hover:text-foreground disabled:opacity-50"
         >
           <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
         </button>
       </div>
-
-      {isOpen && !disabled && (
-        <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-popover border border-border/80 rounded-xl shadow-xl z-50 py-1 divide-y divide-border/20 backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150">
-          {filteredOptions.length > 0 ? (
-            filteredOptions.map(opt => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => {
-                  onChange(opt);
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 text-[11px] font-semibold transition-colors flex items-center gap-2 hover:bg-primary/5 hover:text-primary ${
-                  value === opt ? 'bg-primary/10 text-primary' : 'text-foreground'
-                }`}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" style={{ visibility: value === opt ? 'visible' : 'hidden' }} />
-                <span>{opt}</span>
-              </button>
-            ))
-          ) : (
-            <div className="px-3 py-2 text-[11px] text-muted-foreground italic text-center">
-              No matches found
-            </div>
-          )}
-        </div>
-      )}
+      {typeof document !== 'undefined' && ReactDOM.createPortal(dropdownEl, document.body)}
     </div>
   );
+
 }
 
 interface ActionItem {
