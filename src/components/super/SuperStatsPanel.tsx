@@ -35,23 +35,57 @@ export default function SuperStatsPanel({ segment }: SuperStatsPanelProps) {
         getAllResidenciesWithStats({}).catch(() => [] as any[]),
       ]);
       setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
-      const stats = await Promise.all(
-        guides.map((g: any) =>
-          getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
-            .then(r => {
-              const scored = r.users.filter((u: any) => u.latestScore != null);
-              const avg = scored.length > 0
-                ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
-                : null;
-              return { ...g, userCount: r.users.length, avgScore: avg };
-            })
-            .catch(() => ({ ...g, userCount: 0, avgScore: null as null }))
-        )
-      );
+
+      let stats: GuideStat[];
+
+      if (isPw) {
+        // For PW, users are linked via bvReportingAdminId (not the Guides table).
+        // Fetch all active users once and group them by their reporting admin.
+        const allUsersRes = await getGuideUsers({ guideId: 'ALL', statusFilter: 'active' }).catch(() => ({ users: [] }));
+        const allUsers: any[] = allUsersRes.users;
+
+        // Build a lookup: adminId (or userId) -> users[]
+        const usersByAdmin = new Map<string, any[]>();
+        for (const u of allUsers) {
+          const adminId = String(u.bvReportingAdminId || '').toLowerCase();
+          if (!adminId) continue;
+          if (!usersByAdmin.has(adminId)) usersByAdmin.set(adminId, []);
+          usersByAdmin.get(adminId)!.push(u);
+        }
+
+        stats = guides.map((g: any) => {
+          // Match on guideId (userId-style e.g. "GUIDE-VEDANG") or id (Firebase UID)
+          const gId = String(g.guideId || '').toLowerCase();
+          const gId2 = String(g.id || '').toLowerCase();
+          const users = usersByAdmin.get(gId) || usersByAdmin.get(gId2) || [];
+          const scored = users.filter((u: any) => u.latestScore != null);
+          const avg = scored.length > 0
+            ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
+            : null;
+          return { ...g, userCount: users.length, avgScore: avg };
+        });
+      } else {
+        // For FOLK, users are linked via the Guides table — original approach works fine
+        stats = await Promise.all(
+          guides.map((g: any) =>
+            getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
+              .then(r => {
+                const scored = r.users.filter((u: any) => u.latestScore != null);
+                const avg = scored.length > 0
+                  ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
+                  : null;
+                return { ...g, userCount: r.users.length, avgScore: avg };
+              })
+              .catch(() => ({ ...g, userCount: 0, avgScore: null as null }))
+          )
+        );
+      }
+
       setGuideStats(stats);
     } catch { toast.error('Failed to load stats'); }
     finally { setLoading(false); }
   };
+
 
   useEffect(() => {
     loadData();
