@@ -60,7 +60,7 @@ export default function RegistrationPage() {
       fullName: '',
       phoneCountryCode: pendingCc,
       phone: pendingPhone,
-      selectedGuideId: isPwFlow ? 'MENTOR-PW-ADMIN' : '',
+      selectedGuideId: '',
       residencyUserClaim: false,
       selectedFolkResidency: '',
       residencyJoinDate: '',
@@ -91,6 +91,13 @@ export default function RegistrationPage() {
     try {
       const result = await getGuides({ segment: isPwFlow ? 'PW' : 'FOLK' });
       setGuides(result.guides);
+      if (isPwFlow) {
+        const firstGuideId = result.guides[0]?.guideId || '';
+        setFormData(prev => ({
+          ...prev,
+          selectedGuideId: prev.selectedGuideId || firstGuideId,
+        }));
+      }
     } catch {
       toast.error('Failed to load guides. Please try again.');
     } finally { setLoadingGuides(false); }
@@ -171,6 +178,8 @@ export default function RegistrationPage() {
           phone: phoneE164,
           email,
           selectedGuideId: formData.selectedGuideId,
+          isPrabhupadaWorldUser: isPwMentorSelected,
+          segment: isPwMentorSelected ? 'PW' : 'FOLK',
           ashrayLevel: ashrayLevel || null,
           residencyUserClaim: formData.residencyUserClaim,
           selectedFolkResidency: formData.selectedFolkResidency || null,

@@ -4,7 +4,7 @@ import { generateUniqueUserId } from '../lib/userIdGen';
 import { enforceRateLimit } from '../utils/rateLimit';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
-import { resolveGuideReference } from '../lib/guideResolution';
+import { resolveDefaultGuideForSegment, resolveGuideReference } from '../lib/guideResolution';
 
 export default createEndpoint({
   description: 'Register new user — updates the user sync record with profile data. Phone is primary identifier.',
@@ -32,12 +32,24 @@ export default createEndpoint({
     // Rate limit: max 5 registration attempts per user per 10 minutes
     enforceRateLimit(`register:${context.user.id}`, 5, 10 * 60 * 1000);
 
-    // The selected guide/admin and its segment are resolved from Firestore.
-    const guideRecord = await resolveGuideReference(input.guideId);
-    if (!guideRecord) {
-      throw new AppError({ code: 'NOT_FOUND', message: 'Please select a valid guide or admin.' });
+    const requestedPwRegistration = input.isPrabhupadaWorldUser === true;
+
+    // The selected guide/admin and its segment are resolved from Firestore. PW
+    // registration has no visible guide dropdown, so fall back to an active PW
+    // admin from Firestore when the hidden field is absent or stale.
+    let guideRecord = await resolveGuideReference(input.guideId);
+    if (!guideRecord && requestedPwRegistration) {
+      guideRecord = await resolveDefaultGuideForSegment('PW');
     }
-    const isPw = guideRecord.segment === 'PW' || guideRecord.isPrabhupadaWorldMentor === true;
+    if (!guideRecord) {
+      throw new AppError({
+        code: 'NOT_FOUND',
+        message: requestedPwRegistration
+          ? 'No active Prabhupada World admin is available for registration.'
+          : 'Please select a valid guide or admin.',
+      });
+    }
+    const isPw = requestedPwRegistration || guideRecord.segment === 'PW' || guideRecord.isPrabhupadaWorldMentor === true;
 
     // Verify residency if claimed
     let residencyRecordId: string | undefined;
