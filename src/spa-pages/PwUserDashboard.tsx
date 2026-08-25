@@ -142,9 +142,11 @@ export default function PwUserDashboard() {
             <span className="sm:hidden">BV</span>
             <span className="hidden sm:inline">Bhakti Vriksha</span>
           </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-1.5">
-            <ClipboardCheck className="w-4 h-4" />Attendance
-          </TabsTrigger>
+          {!!profile.isBvMember && (
+            <TabsTrigger value="attendance" className="flex items-center gap-1.5">
+              <ClipboardCheck className="w-4 h-4" />Attendance
+            </TabsTrigger>
+          )}
           {isResident && !!profile.selectedFolkResidency && (
             <TabsTrigger value="cleanliness" className="flex items-center gap-1.5">
               <Sparkles className="w-4 h-4" />Cleanliness
@@ -181,11 +183,12 @@ export default function PwUserDashboard() {
               <BvTab userId={profile.userId} segment="PW" />
             </SectionErrorBoundary>
           )}
-          {activeTab === 'attendance' && (
+          {activeTab === 'attendance' && !!profile.isBvMember && (
             <SectionErrorBoundary sectionName="Attendance Tab">
               <AttendanceTab userId={profile.userId} />
             </SectionErrorBoundary>
           )}
+
           {activeTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (
             <SectionErrorBoundary sectionName="Cleanliness Tab">
               {(profile as any).isCleanlinessManager ? (

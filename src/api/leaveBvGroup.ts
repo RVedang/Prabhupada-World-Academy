@@ -27,6 +27,7 @@ export default createEndpoint({
         bvGroupId: '',
         bvGroupName: '',
         bvRegistrationStatus: '',
+        isBvMember: false,
       }
     }).catch(() => {});
 
@@ -37,9 +38,11 @@ export default createEndpoint({
           bvGroupId: '',
           bvGroupName: '',
           bvRegistrationStatus: '',
+          isBvMember: false,
         }
       }).catch(() => {});
     }
+
 
     // Send single notification to RGF, Supervisor, and Admins (deduped)
     try {

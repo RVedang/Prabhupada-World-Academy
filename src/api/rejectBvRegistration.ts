@@ -37,20 +37,47 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
-    const reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
+    let reg: any = null;
+    let isSynthetic = false;
+    if (input.registrationId.startsWith('BVREG-')) {
+      isSynthetic = true;
+      const userDocId = input.registrationId.replace(/^BVREG-/, '');
+      const userRecord = await Users.findOne({ id: userDocId });
+      if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User profile not found' });
+      reg = {
+        id: input.registrationId,
+        userId: userRecord.userId || userRecord.id,
+        email: userRecord.email || '',
+      };
+    } else {
+      reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
+    }
     if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
 
     const now = new Date().toISOString();
 
     // 1. Mark registration rejected
-    await BvMemberRegistrations.update({
-      id: reg.id,
-      record: {
-        status: 'Rejected',
-        rejectedBy: context.user.id,
-        rejectedAt: now,
-      },
-    });
+    if (!isSynthetic) {
+      await BvMemberRegistrations.update({
+        id: reg.id,
+        record: {
+          status: 'Rejected',
+          rejectedBy: context.user.id,
+          rejectedAt: now,
+        },
+      });
+    } else {
+      await BvMemberRegistrations.create({
+        record: {
+          id: reg.id,
+          userId: reg.userId,
+          email: reg.email,
+          status: 'Rejected',
+          rejectedBy: context.user.id,
+          rejectedAt: now,
+        }
+      }).catch(() => {});
+    }
 
     // 2. Update main User record
     let targetUser = await Users.findOne({ id: reg.userId });
@@ -66,6 +93,7 @@ export default createEndpoint({
         record: {
           bvRegistrationStatus: 'Rejected',
           pendingBvRejectionNotice: true,
+          isBvMember: false,
         },
       });
       serverCacheInvalidate(profileCacheKey(targetUser.id));
@@ -74,5 +102,6 @@ export default createEndpoint({
     serverCacheInvalidate(profileCacheKey(reg.userId));
 
     return { success: true };
+
   },
 });

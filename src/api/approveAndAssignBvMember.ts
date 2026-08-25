@@ -36,7 +36,23 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
-    const reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
+    let reg: any = null;
+    let isSynthetic = false;
+    if (input.registrationId.startsWith('BVREG-')) {
+      isSynthetic = true;
+      const userDocId = input.registrationId.replace(/^BVREG-/, '');
+      const userRecord = await Users.findOne({ id: userDocId });
+      if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User profile not found' });
+      reg = {
+        id: input.registrationId,
+        userId: userRecord.userId || userRecord.id,
+        email: userRecord.email || '',
+        fullName: userRecord.fullName || '',
+        phone: userRecord.phone || '',
+      };
+    } else {
+      reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
+    }
     if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
 
     const group = await BvGroups.findOne({ id: input.groupId });
@@ -45,16 +61,34 @@ export default createEndpoint({
     const now = new Date().toISOString();
 
     // 1. Mark registration approved
-    await BvMemberRegistrations.update({
-      id: reg.id,
-      record: {
-        status: 'Approved',
-        assignedGroupId: group.id,
-        assignedGroupName: group.groupName || '',
-        approvedBy: context.user.id,
-        approvedAt: now,
-      },
-    });
+    if (!isSynthetic) {
+      await BvMemberRegistrations.update({
+        id: reg.id,
+        record: {
+          status: 'Approved',
+          assignedGroupId: group.id,
+          assignedGroupName: group.groupName || '',
+          approvedBy: context.user.id,
+          approvedAt: now,
+        },
+      });
+    } else {
+      await BvMemberRegistrations.create({
+        record: {
+          id: reg.id,
+          userId: reg.userId,
+          email: reg.email,
+          fullName: reg.fullName,
+          phone: reg.phone,
+          status: 'Approved',
+          assignedGroupId: group.id,
+          assignedGroupName: group.groupName || '',
+          approvedBy: context.user.id,
+          approvedAt: now,
+        }
+      }).catch(() => {});
+    }
+
 
     // 2. Add member to group
     const memberRecordId = `BVMEM-${reg.userId}-${group.id}`;
@@ -103,6 +137,7 @@ export default createEndpoint({
         id: targetUser.id,
         record: {
           bvRegistrationStatus: 'Approved',
+          isBvMember: true,
           bvGroupId: group.id,
           bvGroupName: group.groupName || '',
           // Default parent is RGF (Reading Group Facilitator)
@@ -118,6 +153,7 @@ export default createEndpoint({
           sadhanaMentor: null, // Clear sadhana mentor upon BV approval
         },
       });
+
       serverCacheInvalidate(profileCacheKey(targetUser.id));
     }
 
