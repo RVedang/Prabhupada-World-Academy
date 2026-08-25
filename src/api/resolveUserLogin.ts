@@ -52,7 +52,9 @@ async function findAndMergeRealProfile(
     fields: ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'status',
       'guide', 'residency', 'residencyClaimed', 'residencyApproved', 'residencyJoinDate',
       'ashrayLevel', 'isBvsl', 'isSadhanaMentor', 'createdAt', 'currentStreak',
-      'lastStreakUpdatedAt', 'bvServiceAllocated', 'isBvMember'],
+      'lastStreakUpdatedAt', 'bvServiceAllocated', 'isBvMember', 'segment',
+      'isPrabhupadaWorldUser', 'isBvSuperAdmin', 'isBvAdmin', 'isBvSupervisor',
+      'isBvFacilitator', 'isBvSubFacilitator', 'isBvMentor'],
     limit: 100,
   });
 
@@ -79,6 +81,14 @@ async function findAndMergeRealProfile(
       residency: Array.isArray(realProfile.residency) ? realProfile.residency[0] : (realProfile.residency || undefined),
       role: realProfile.role || 'User',
       status: realProfile.status,
+      segment: realProfile.segment || undefined,
+      isPrabhupadaWorldUser: realProfile.isPrabhupadaWorldUser ?? false,
+      isBvSuperAdmin: realProfile.isBvSuperAdmin ?? false,
+      isBvAdmin: realProfile.isBvAdmin ?? false,
+      isBvSupervisor: realProfile.isBvSupervisor ?? false,
+      isBvFacilitator: realProfile.isBvFacilitator ?? false,
+      isBvSubFacilitator: realProfile.isBvSubFacilitator ?? false,
+      isBvMentor: realProfile.isBvMentor ?? false,
       residencyClaimed: realProfile.residencyClaimed ?? false,
       residencyApproved: realProfile.residencyApproved ?? false,
       residencyJoinDate: realProfile.residencyJoinDate || undefined,
@@ -180,6 +190,12 @@ export default createEndpoint({
               isBvsl: real.isBvsl || false,
               isSadhanaMentor: real.isSadhanaMentor || false,
               isBvMentor: real.isBvMentor || false,
+              isBvSuperAdmin: !!(real.isBvSuperAdmin || real.role === 'Super Admin' || real.role === 'SUPER_ADMIN'),
+              isBvAdmin: !!(real.isBvAdmin || real.isBvSuperAdmin || real.role === 'Admin' || real.role === 'ADMIN' || real.role === 'Super Admin' || real.role === 'SUPER_ADMIN'),
+              isBvSupervisor: !!(real.isBvSupervisor || real.isBvMentor),
+              isBvFacilitator: !!(real.isBvFacilitator || real.isBvsl),
+              isBvSubFacilitator: !!(real.isBvSubFacilitator),
+              segment: real.segment || null,
             },
           };
         }

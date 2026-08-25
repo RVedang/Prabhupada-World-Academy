@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, Guides, FolkResidencies, GuideTransferRequests, ResidencyTransferRequests, AshrayUpgradeRequests } from '@/lib/backend-sdk';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
-import { serverCacheGet, serverCacheSet } from '../lib/serverCache';
 
-const PROFILE_TTL = 10 * 60 * 1000; // 10 minutes per user
 export const profileCacheKey = (userId: string) => `user_profile:${userId}`;
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'status',
@@ -23,14 +21,12 @@ export default createEndpoint({
   inputSchema: z.object({
     email: z.string().optional(),
     phone: z.string().optional(),
+    _nocache: z.boolean().optional(),
+    bypassCache: z.boolean().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const cacheKey = profileCacheKey(context.user.id);
-    const cached = serverCacheGet<ReturnType<typeof buildProfileResult>>(cacheKey);
-    if (cached) return cached;
-
     let userRecord = await Users.findOne({ id: context.user.id, fields: USER_FIELDS });
 
     // Fallback lookup by email if not found by ID
@@ -78,6 +74,13 @@ export default createEndpoint({
             residency: Array.isArray(realProfile.residency) ? realProfile.residency[0] : (realProfile.residency || undefined),
             role: realProfile.role || 'User',
             status: realProfile.status,
+            segment: realProfile.segment || undefined,
+            isPrabhupadaWorldUser: realProfile.isPrabhupadaWorldUser ?? false,
+            isBvSuperAdmin: realProfile.isBvSuperAdmin ?? false,
+            isBvAdmin: realProfile.isBvAdmin ?? false,
+            isBvSupervisor: realProfile.isBvSupervisor ?? false,
+            isBvFacilitator: realProfile.isBvFacilitator ?? false,
+            isBvSubFacilitator: realProfile.isBvSubFacilitator ?? false,
             residencyClaimed: realProfile.residencyClaimed ?? false,
             residencyApproved: realProfile.residencyApproved ?? false,
             residencyJoinDate: realProfile.residencyJoinDate || undefined,
@@ -196,7 +199,6 @@ export default createEndpoint({
       latestAshrayId: latestAshrayRequest?.id || null,
       latestAshrayRequestedLevel: latestAshrayRequest?.requestedLevel || null,
     });
-    serverCacheSet(cacheKey, result, PROFILE_TTL);
     return result;
   },
 });

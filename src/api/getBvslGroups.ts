@@ -72,7 +72,7 @@ export default createEndpoint({
     const todayDate = getTodayIST();
 
     // 1. Batch fetch Facilitator Users
-    // IMPORTANT: g.bvslId values are CUSTOM userId strings (e.g. "GUIDE-VEDANG"),
+    // IMPORTANT: g.bvslId values are custom app userId strings,
     // NOT Firestore row ids. We must query by userId field, then map by BOTH
     // the row id and the userId so lookups work with either value.
     const facilitatorUserIds = [...new Set(groupRecords.map((g: any) => g.bvslId || g.bvslLeader).filter(Boolean))] as string[];

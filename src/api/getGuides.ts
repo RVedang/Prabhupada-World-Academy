@@ -143,7 +143,7 @@ export default createEndpoint({
                  u.status === 'Active';
         })
         .map(u => ({
-          // Use userId (canonical, e.g. 'GUIDE-VEDANG') not u.id (Firebase UID)
+          // Use userId (canonical app user id) not u.id (Firebase UID)
           // so that registerUser.ts can correctly identify them as PW mentors
           guideId: u.userId || u.id,
           name: formatGuideName(u.fullName, u.email),

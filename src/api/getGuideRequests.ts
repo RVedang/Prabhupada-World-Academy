@@ -10,13 +10,10 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ context }: any) => {
     const userRole = (context.user.role || '').toUpperCase();
-    const userEmail = (context.user.email || '').toLowerCase();
     const isSuperGuide =
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
-      userEmail.includes('superadmin') ||
-      context.user.isBvSuperAdmin ||
       !!context.user.isBvSuperAdmin;
 
     // Find the guide DB record for the current user
@@ -50,8 +47,8 @@ export default createEndpoint({
           const toIdLower = String(toId || '').toLowerCase();
           return toId && (
             toIdLower === String(guideDbId || '').toLowerCase() || 
-            toIdLower === context.user.id.toLowerCase() || 
-            toIdLower === userEmail
+            toIdLower === context.user.id.toLowerCase() ||
+            toIdLower === String(context.user.email || '').toLowerCase()
           );
         });
 
@@ -99,8 +96,8 @@ export default createEndpoint({
       const ashrayUserIds = [...new Set(rawAshray.map((r: any) => r.userId).filter(Boolean))];
       const [usersById, usersByUserId] = ashrayUserIds.length > 0
         ? await Promise.all([
-            Users.findAll({ filters: { id: { in: ashrayUserIds } }, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'isPrabhupadaWorldUser'], limit: 200 }),
-            Users.findAll({ filters: { userId: { in: ashrayUserIds } }, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'isPrabhupadaWorldUser'], limit: 200 })
+            Users.findAll({ filters: { id: { in: ashrayUserIds } }, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'isPrabhupadaWorldUser', 'segment'], limit: 200 }),
+            Users.findAll({ filters: { userId: { in: ashrayUserIds } }, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'isPrabhupadaWorldUser', 'segment'], limit: 200 })
           ])
         : [{ records: [] }, { records: [] }];
 
@@ -114,31 +111,18 @@ export default createEndpoint({
         if (u.userId) ashrayUserMap.set(u.userId, u);
       });
 
-      const userSegment = context.user.segment || (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
+      const userSegment = context.user.segment || null;
       const isHiranyavarnaOrPwAdmin = !!(
         context.user.isBvSuperAdmin ||
         context.user.isBvAdmin ||
         userRole === 'SUPER_ADMIN' ||
-        userRole === 'ADMIN' ||
-        userEmail.includes('superadmin') ||
-        userEmail.includes('admin') ||
-        userEmail === 'iamthevedang@gmail.com' ||
-        userEmail === 'hrvd@hkmmumbai.org'
+        userRole === 'ADMIN'
       );
 
       const filteredAshray = rawAshray.filter((r: any) => {
         const u = ashrayUserMap.get(r.userId);
         if (!u) return false;
-        const uGuideStr = (String(u.guide || '') + ' ' + String(u.selectedGuideId || '') + ' ' + String(u.guideName || '')).toLowerCase();
-        const isPwMember = !!(u.isPrabhupadaWorldUser) || 
-                           u.segment === 'PW' ||
-                           uGuideStr.includes('hiranyavarna') ||
-                           uGuideStr.includes('pw-admin') ||
-                           uGuideStr.includes('iamthevedang') ||
-                           uGuideStr.includes('vedang') ||
-                           // Legacy: requests linked to Vedanarayana Das before migration
-                           uGuideStr.includes('vdnd') ||
-                           uGuideStr.includes('vedanarayana');
+        const isPwMember = !!(u.isPrabhupadaWorldUser) || u.segment === 'PW';
 
         if (userSegment === 'PW') {
           if (!isPwMember) return false;
@@ -147,7 +131,7 @@ export default createEndpoint({
           const uGuideStrLower = String(userGuideId || '').toLowerCase();
           return uGuideStrLower === String(guideDbId || '').toLowerCase() || 
                  uGuideStrLower === context.user.id.toLowerCase() ||
-                 uGuideStrLower === userEmail;
+                 uGuideStrLower === String(context.user.email || '').toLowerCase();
         } else {
           // FOLK guide view
           if (isPwMember) return false;

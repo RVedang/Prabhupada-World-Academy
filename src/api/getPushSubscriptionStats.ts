@@ -28,27 +28,9 @@ export default createEndpoint({
     const callerId = context?.user?.id;
     const callerEmail = (context?.user?.email || '').toLowerCase();
 
-    // Determine target segment: explicit input > caller context > email heuristic
+    // Determine target segment: explicit input > caller context.
     let targetSegment = input?.segment || context.user?.segment;
-    if (!targetSegment) {
-      if (
-        callerEmail.includes('srilaprabhupadaworld') ||
-        callerEmail.includes('hrvd') ||
-        callerEmail.includes('admin@prabhupadaworld') ||
-        context.user?.isPwAdmin ||
-        context.user?.isPrabhupadaWorldUser
-      ) {
-        targetSegment = 'PW';
-      } else if (
-        callerEmail.includes('gaurmandal') ||
-        callerEmail.includes('folk') ||
-        callerEmail.includes('superguide')
-      ) {
-        targetSegment = 'FOLK';
-      } else {
-        targetSegment = 'PW';
-      }
-    }
+    if (!targetSegment) targetSegment = 'PW';
 
     // Get all subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
@@ -98,44 +80,9 @@ export default createEndpoint({
                        (callerEmail && (u.email || '').toLowerCase() === callerEmail);
       if (isCaller) return false;
 
-      const uSegment = (u.segment || '').toUpperCase();
-      const name = (u.fullName || '').toUpperCase();
-      const email = (u.email || '').toLowerCase();
-
-      // Check if user has selected a PW guide/mentor
-      const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-      const guideStr = (String(rawG || '') + ' ' + String(u.guideName || '')).toLowerCase();
-      const hasPwGuide = guideStr.includes('mentor-pw-hiranyavarna') ||
-                         guideStr.includes('mentor-pw-admin') ||
-                         guideStr.includes('hiranyavarna') ||
-                         guideStr.includes('prabhupadaworld') ||
-                         guideStr.includes('iamthevedang@gmail.com') ||
-                         guideStr.includes('guide-vedang') ||
-                         guideStr.includes('vedang') ||
-                         guideStr.includes('vdnd') ||
-                         guideStr.includes('vedanarayana') ||
-                         guideStr.includes('guide-vedanarayana-guide');
-
-      const isPwUser = uSegment === 'PW' || 
-                       !!u.isPrabhupadaWorldUser || 
-                       hasPwGuide ||
-                       email.includes('prabhupadaworld') || 
-                       email.includes('hrvd') || 
-                       email.includes('srilaprabhupadaworld') || 
-                       name.includes('PW') || 
-                       name.includes('PRABHUPADA') || 
-                       name.includes('HIRANYAVARNA');
-
-      const isFolkUser = !hasPwGuide && (
-                         uSegment === 'FOLK' || 
-                         email.includes('folk.org') || 
-                         email.includes('gaurmandal') || 
-                         email.includes('superguide') || 
-                         name.includes('FOLK') || 
-                         name.includes('GAURMANDAL') || 
-                         !!u.residencyId || 
-                         !!u.isFolkLead
-                       );
+      const uSegment = String(u.segment || '').toUpperCase();
+      const isPwUser = uSegment === 'PW' || !!u.isPrabhupadaWorldUser;
+      const isFolkUser = uSegment === 'FOLK' || !!u.isFolkLead || !!u.residencyId;
 
       if (isPwTarget) {
         if (isPwUser) return true;

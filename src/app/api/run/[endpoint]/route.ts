@@ -247,6 +247,7 @@ export async function POST(
 
         const emailLower = decodedUser.email.toLowerCase();
         const dbUser = (
+          await Users.findOne({ id: decodedUser.uid }).catch(() => null) ||
           await Users.findOne({ filters: { email: decodedUser.email } }).catch(() => null) ||
           await Users.findOne({ filters: { email: emailLower } }).catch(() => null)
         ) as ApiDatabaseUser | null;
