@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, Email, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Users, FolkResidencies, Email, AppError } from '@/lib/backend-sdk';
 import { generateUniqueUserId } from '../lib/userIdGen';
 import { enforceRateLimit } from '../utils/rateLimit';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
+import { resolveGuideReference } from '../lib/guideResolution';
 
 export default createEndpoint({
   description: 'Register new user — updates the user sync record with profile data. Phone is primary identifier.',
@@ -31,75 +32,12 @@ export default createEndpoint({
     // Rate limit: max 5 registration attempts per user per 10 minutes
     enforceRateLimit(`register:${context.user.id}`, 5, 10 * 60 * 1000);
 
-    // Verify guide exists (guideId is the UUID of the Guides record or canonical guideId)
-    let guideRecord: any = null;
-    const inputGuideId = input.guideId || 'MENTOR-PW-ADMIN';
-    const gIdLower = inputGuideId.toLowerCase();
-    let isPw = input.isPrabhupadaWorldUser ||
-               gIdLower === 'mentor-pw-hiranyavarna' ||
-               gIdLower === 'mentor-pw-admin' ||
-               gIdLower.includes('hiranyavarna') ||
-               gIdLower.includes('pw-admin') ||
-               gIdLower.includes('iamthevedang@gmail.com') ||
-               gIdLower.includes('guide-vedang') ||
-               gIdLower.includes('vedang') ||
-               gIdLower.includes('vdnd') ||
-               gIdLower.includes('vedanarayana') ||
-               gIdLower.includes('guide-vedanarayana-guide');
-
-    if (!isPw) {
-      // Check if guide exists in Guides and has segment PW
-      const gr = await Guides.findOne({ id: inputGuideId }).catch(() => null) ??
-                 await Guides.findOne({ filters: { guideId: inputGuideId } }).catch(() => null);
-      if (gr && ((gr as any).segment === 'PW' || (gr as any).isPrabhupadaWorldMentor)) {
-        isPw = true;
-      } else {
-        // Check Users collection
-        const gu = await Users.findOne({ id: inputGuideId }).catch(() => null) ??
-                   await Users.findOne({ filters: { email: inputGuideId.toLowerCase() } }).catch(() => null) ??
-                   await Users.findOne({ filters: { userId: inputGuideId } }).catch(() => null);
-        if (gu && ((gu as any).segment === 'PW' || (gu as any).isPrabhupadaWorldUser === true)) {
-          isPw = true;
-        }
-      }
+    // The selected guide/admin and its segment are resolved from Firestore.
+    const guideRecord = await resolveGuideReference(input.guideId);
+    if (!guideRecord) {
+      throw new AppError({ code: 'NOT_FOUND', message: 'Please select a valid guide or admin.' });
     }
-
-    if (isPw) {
-      if (inputGuideId === 'MENTOR-PW-ADMIN' || gIdLower.includes('pw-admin')) {
-        guideRecord = { id: 'MENTOR-PW-ADMIN', fullName: 'PW System Administrator' };
-      } else if (gIdLower.includes('iamthevedang') || gIdLower.includes('vedang')) {
-        guideRecord = { id: 'GUIDE-VEDANG', fullName: 'Vedang Prabhu', email: 'iamthevedang@gmail.com' };
-      } else {
-        guideRecord = { id: 'MENTOR-PW-HIRANYAVARNA', fullName: 'Hiranyavarna Das' };
-      }
-    } else if (inputGuideId === 'MENTOR-FOLK-GAURMANDAL') {
-      guideRecord = { id: 'MENTOR-FOLK-GAURMANDAL', fullName: 'Gaurmandal Prabhu' };
-    } else {
-      // Check if guideId is a User with PW Admin / Super Admin role
-      const guideUser = await Users.findOne({ id: inputGuideId }) ?? 
-                        await Users.findOne({ filters: { email: inputGuideId.toLowerCase() } }) ??
-                        await Users.findOne({ filters: { userId: inputGuideId } });
-      
-      if (guideUser) {
-        const roleUpper = (guideUser.role || '').toUpperCase();
-        const segmentUpper = (guideUser.segment || '').toUpperCase();
-        const isPwAdmin = (roleUpper === 'ADMIN' || guideUser.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || guideUser.isBvSuperAdmin === true) &&
-                          (segmentUpper === 'PW' || guideUser.isPrabhupadaWorldUser === true);
-        if (isPwAdmin) {
-          guideRecord = { id: guideUser.id, fullName: guideUser.fullName, email: guideUser.email, isPrabhupadaWorldMentor: true };
-          isPw = true;
-        }
-      }
-
-      if (!guideRecord) {
-        guideRecord = await Guides.findOne({ id: inputGuideId }) ?? await Guides.findOne({ filters: { guideId: inputGuideId } });
-        if (!guideRecord) {
-          const { records: allG } = await Guides.findAll({ limit: 500 }).catch(() => ({ records: [] }));
-          guideRecord = allG.find((g: any) => g.id === inputGuideId || g.guideId === inputGuideId || g.fullName === inputGuideId);
-        }
-        if (guideRecord?.isPrabhupadaWorldMentor) isPw = true;
-      }
-    }
+    const isPw = guideRecord.segment === 'PW' || guideRecord.isPrabhupadaWorldMentor === true;
 
     // Verify residency if claimed
     let residencyRecordId: string | undefined;

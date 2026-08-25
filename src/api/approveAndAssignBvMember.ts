@@ -14,7 +14,6 @@ export default createEndpoint({
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const userEmail = (context.user.email || '').toLowerCase();
     
     // Fetch full caller record to access hierarchy flags
     const callerRecord = await Users.findOne({ id: context.user.id });
@@ -29,7 +28,6 @@ export default createEndpoint({
       callerRole === 'SUPER_GUIDE' ||
       callerRole === 'GUIDE' ||
       context.user.isBvSuperAdmin ||
-      userEmail.includes('gaurmandal') ||
       !!callerRecord.isBvSuperAdmin ||
       !!callerRecord.isBvAdmin ||
       !!callerRecord.isBvSupervisor;

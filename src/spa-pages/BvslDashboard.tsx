@@ -32,15 +32,12 @@ export default function BvslDashboard() {
   const [bvRegCount, setBvRegCount] = useState(0);
   const [displayName, setDisplayName] = useState('');
 
-  // Determine segment and institutional default name early so effects can use them
-  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
-  const defaultName = isFolk ? 'Gaurmandal Das' : 'Hiranyavarna Das';
+  const isFolk = profile?.segment === 'FOLK';
   const isSuperAdmin = !!(profile?.isBvSuperAdmin || profile?.role === 'SUPER_ADMIN' || profile?.isBvAdmin);
 
   useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId]);
 
   useEffect(() => {
-    // Super Admins always show the institutional name — skip getCurrentGuide for them
     if (authUser?.email && !isSuperAdmin) {
       getCurrentGuide({ email: authUser.email }).then(r => {
         if (r.guide?.fullName) setDisplayName(r.guide.fullName);

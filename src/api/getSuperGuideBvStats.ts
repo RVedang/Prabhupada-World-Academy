@@ -225,13 +225,13 @@ export default createEndpoint({
     // Map: groupId → Admin / Guide display name
     const groupAdminNameMap = new Map<string, string>();
     for (const g of groups) {
-      const gAdmin = (g as any).bvReportingAdminName || (g as any).bvslName || (g as any).guideName || (input.segment === 'PW' ? 'Hiranyavarna Das' : 'Gaurmandal Das');
+      const gAdmin = (g as any).bvReportingAdminName || (g as any).bvslName || (g as any).guideName || 'Unassigned';
       groupAdminNameMap.set(g.id, gAdmin);
     }
 
     for (const [gid, uids] of usersByGroup) {
       const guideDbId = groupGuideMap.get(gid) || '';
-      const name = guideNameMap.get(guideDbId) || groupAdminNameMap.get(gid) || (input.segment === 'PW' ? 'Hiranyavarna Das' : 'Gaurmandal Das');
+      const name = guideNameMap.get(guideDbId) || groupAdminNameMap.get(gid) || 'Unassigned';
       if (!guideBreakdownMap.has(name)) {
         guideBreakdownMap.set(name, {
           guideName: name,
@@ -246,7 +246,7 @@ export default createEndpoint({
 
     for (const [uid, att] of attendanceByUser) {
       const guideDbId = groupGuideMap.get(att.groupId) || '';
-      const name = guideNameMap.get(guideDbId) || groupAdminNameMap.get(att.groupId) || (input.segment === 'PW' ? 'Hiranyavarna Das' : 'Gaurmandal Das');
+      const name = guideNameMap.get(guideDbId) || groupAdminNameMap.get(att.groupId) || 'Unassigned';
       const entry = guideBreakdownMap.get(name);
       if (!entry) continue;
       entry.markedCount++;

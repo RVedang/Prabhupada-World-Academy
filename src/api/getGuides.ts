@@ -51,30 +51,6 @@ function formatGuideName(fullName: string | null | undefined, email: string | nu
 const CACHE_KEY = 'ref:guides_v4';
 const TTL = 10 * 1000; // 10 seconds — updates quickly when role changes
 
-// Prabhupada World Mentors
-const PW_SUPER_ADMIN = {
-  guideId: 'MENTOR-PW-HIRANYAVARNA',
-  name: 'Hiranyavarna Das',
-  abbr: 'HVD',
-  email: 'hrvd@hkmmumbai.org',
-  isPrabhupadaWorldMentor: true,
-};
-
-// FOLK Super Guide
-const FOLK_SUPER_GUIDE = {
-  guideId: 'MENTOR-FOLK-GAURMANDAL',
-  name: 'Gaurmandal Prabhu',
-  abbr: 'GMP',
-  email: 'gaurmandal@folk.org',
-  isPrabhupadaWorldMentor: false,
-};
-
-const DEFAULT_FOLK_GUIDES = [
-  FOLK_SUPER_GUIDE,
-  { guideId: 'GUIDE-VEDANG', name: 'Vedang Prabhu', abbr: 'VED', email: 'vedang.adgokar@gmail.com', isPrabhupadaWorldMentor: false },
-  { guideId: 'GUIDE-001', name: 'Spiritual Guide', abbr: 'SG', email: 'guide@folk.org', isPrabhupadaWorldMentor: false },
-];
-
 export default createEndpoint({
   description: 'Get all active guides for registration / forms (server-cached 10s)',
   public: true,
@@ -97,11 +73,8 @@ export default createEndpoint({
         Users.findAll({ limit: 1000 }).catch(() => ({ records: [] })),
       ]);
 
-      const SYSTEM_GUIDE_IDS = ['GUIDE-000', 'GUIDE-SUPER-PWA-GUIDE', 'GUIDE-001', 'GUIDE-ADMIN-001'];
       const folkGuidesFromDb = guideRecords
         .filter(g => {
-          if (SYSTEM_GUIDE_IDS.includes(g.guideId || g.id)) return false;
-
           // Cross-reference with Users table to check if they were deleted/modified
           if (g.email) {
             const emailLower = g.email.toLowerCase().trim();
@@ -136,14 +109,6 @@ export default createEndpoint({
       const dbFolkGuides = userRecords
         .filter(u => {
           const roleUpper = (u.role || '').toUpperCase();
-          const emailLower = (u.email || '').toLowerCase();
-          const nameLower = (u.fullName || '').toLowerCase();
-
-          // Filter out demo admin account
-          if (emailLower === 'admin@prabhupadaworld.org' || nameLower.includes('pw system administrator')) {
-            return false;
-          }
-
           const isPwUser = u.segment === 'PW' || u.isPrabhupadaWorldUser === true;
 
           if (isPwUser) return false;
@@ -173,14 +138,6 @@ export default createEndpoint({
         .filter(u => {
           const roleUpper = (u.role || '').toUpperCase();
           const segmentUpper = (u.segment || '').toUpperCase();
-          const nameLower = (u.fullName || '').toLowerCase();
-          const emailLower = (u.email || '').toLowerCase();
-
-          // Filter out demo admin account
-          if (emailLower === 'admin@prabhupadaworld.org' || nameLower.includes('pw system administrator')) {
-            return false;
-          }
-
           return (roleUpper === 'ADMIN' || u.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || u.isBvSuperAdmin === true) &&
                  (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&
                  u.status === 'Active';

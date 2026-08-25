@@ -34,15 +34,11 @@ export default function PwAdminDashboard() {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const navigate = useNavigate();
-  const userEmail = (user?.email || '').toLowerCase();
-  const isFolk = profile?.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk.org');
+  const isFolk = profile?.segment === 'FOLK';
 
   const isSuperAdmin = !!(
     profile?.isBvSuperAdmin ||
-    profile?.role === 'SUPER_ADMIN' ||
-    userEmail === 'hrvd@hkmmumbai.org' ||
-    userEmail === 'srilaprabhupadaworld@gmail.com' ||
-    userEmail.includes('gaurmandal')
+    profile?.role === 'SUPER_ADMIN'
   );
 
   const dashboardTitle = isSuperAdmin
@@ -63,8 +59,7 @@ export default function PwAdminDashboard() {
   }, [profile, isBvAdminUser, isFolk, navigate]);
 
   const dashboardRole = isSuperAdmin ? "SUPER_ADMIN" : (isBvAdminUser ? "ADMIN" : "USER");
-  const defaultAdminName = "Hiranyavarna Das";
-  const [adminName, setAdminName] = useState(profile?.fullName || defaultAdminName);
+  const [adminName, setAdminName] = useState(profile?.fullName || 'Administrator');
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';

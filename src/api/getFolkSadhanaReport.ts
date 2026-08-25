@@ -89,15 +89,11 @@ export default createEndpoint({
     }
 
     const userRole = (context.user.role || 'User').toUpperCase().replace(/\s+/g, '_');
-    const userEmail = (context.user.email || '').toLowerCase();
     const isSuperGuide = userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'PW_ADMIN' ||
       !!context.user.isBvSuperAdmin ||
-      !!context.user.isBvAdmin ||
-      userEmail.includes('gaurmandal') ||
-      userEmail.includes('superadmin') ||
-      context.user.isBvSuperAdmin;
+      !!context.user.isBvAdmin;
 
     let guideRecord: any = null;
     if (!isSuperGuide) {

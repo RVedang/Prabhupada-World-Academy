@@ -17,14 +17,10 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const userEmail = (context.user.email || '').toLowerCase();
     const isSuperAdmin =
       context.user.isBvSuperAdmin ||
       context.user.role === 'Super Admin' ||
-      context.user.role === 'SUPER_ADMIN' ||
-      userEmail === 'iamthevedang@gmail.com' ||
-      userEmail.includes('superadmin') ||
-      userEmail.includes('admin');
+      context.user.role === 'SUPER_ADMIN';
 
     if (!isSuperAdmin) {
       throw new AppError({

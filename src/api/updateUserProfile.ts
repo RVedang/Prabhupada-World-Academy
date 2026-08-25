@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides } from '@/lib/backend-sdk';
+import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
+import { resolveGuideReference } from '../lib/guideResolution';
 
 export default createEndpoint({
   description: 'Update user profile fields — writes all provided fields to the Users table',
@@ -32,34 +33,9 @@ export default createEndpoint({
     if (input.guideId) {
       updates.guide = input.guideId;
 
-      // Auto-assign segment based on selected mentor
-      const gIdLower = input.guideId.toLowerCase();
-      let isPw = gIdLower === 'mentor-pw-hiranyavarna' ||
-                 gIdLower === 'mentor-pw-admin' ||
-                 gIdLower.includes('hiranyavarna') ||
-                 gIdLower.includes('pw-admin') ||
-                 gIdLower.includes('iamthevedang@gmail.com') ||
-                 gIdLower.includes('guide-vedang') ||
-                 gIdLower.includes('vedang') ||
-                 gIdLower.includes('vdnd') ||
-                 gIdLower.includes('vedanarayana') ||
-                 gIdLower.includes('guide-vedanarayana-guide');
-
-      if (!isPw) {
-        const gr = await Guides.findOne({ id: input.guideId }).catch(() => null) ??
-                   await Guides.findOne({ filters: { guideId: input.guideId } }).catch(() => null);
-        if (gr && ((gr as any).segment === 'PW' || (gr as any).isPrabhupadaWorldMentor)) {
-          isPw = true;
-        } else {
-          const gu = await Users.findOne({ id: input.guideId }).catch(() => null) ??
-                     await Users.findOne({ filters: { email: input.guideId.toLowerCase() } }).catch(() => null) ??
-                     await Users.findOne({ filters: { userId: input.guideId } }).catch(() => null);
-          if (gu && ((gu as any).segment === 'PW' || (gu as any).isPrabhupadaWorldUser === true)) {
-            isPw = true;
-          }
-        }
-      }
-
+      const guide = await resolveGuideReference(input.guideId);
+      if (!guide) throw new AppError({ code: 'NOT_FOUND', message: 'Selected guide or admin was not found.' });
+      const isPw = guide.segment === 'PW' || guide.isPrabhupadaWorldMentor === true;
       updates.segment = isPw ? 'PW' : 'FOLK';
       updates.isPrabhupadaWorldUser = isPw;
     }

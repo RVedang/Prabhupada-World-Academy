@@ -117,35 +117,6 @@ export default createEndpoint({
     const now = new Date().toISOString();
     const userEmail = (context.user.email || '').toLowerCase();
 
-    // Auto-bootstrap/seed the first user as Super Guide if the Users table in Firestore is empty
-    const { records: existingUsers } = await Users.findAll({ limit: 1 });
-    if (existingUsers.length === 0) {
-      const generatedUserId = 'GUIDE-ADMIN';
-      await Users.create({
-        record: {
-          id: context.user.id,
-          userId: generatedUserId,
-          fullName: 'Initial Administrator',
-          email: context.user.email,
-          role: 'Super Guide',
-          status: 'Active',
-          createdAt: now,
-          lastLoginAt: now
-        }
-      });
-      
-      await Guides.create({
-        record: {
-          id: 'GUIDE-ADMIN-GUIDE',
-          abbreviation: 'ADM',
-          email: context.user.email,
-          fullName: 'Initial Administrator',
-          guideId: generatedUserId,
-          isActive: true
-        }
-      });
-    }
-
     // Direct lookup — no full table scan needed with App DB user sync
     let userRecord = await Users.findOne({ id: context.user.id });
 
@@ -153,61 +124,6 @@ export default createEndpoint({
     if (!userRecord && context.user.email) {
       userRecord = await Users.findOne({ filters: { email: context.user.email } }) ||
                  await Users.findOne({ filters: { email: context.user.email.toLowerCase() } });
-    }
-
-    // Auto-seed default mock users in database if not found (dev only)
-    const isMockAuthEnabled = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_USE_AUTH_EMULATOR === 'true';
-    if (context.user.email && isMockAuthEnabled) {
-      const emailLower = context.user.email.toLowerCase();
-      const defaults: Record<string, any> = {
-        'hrvd@hkmmumbai.org': { userId: 'USER-SUPERADMIN-PW', fullName: 'Hiranyavarna Das', email: 'hrvd@hkmmumbai.org', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
-        'gmnd@hkmmumbai.org': { userId: 'USER-SUPERGUIDE-FOLK', fullName: 'Gaurmandal Das', email: 'gmnd@hkmmumbai.org', role: 'Super Guide', isBvSuperAdmin: false, isBvAdmin: false, status: 'Active', segment: 'FOLK' },
-        'iamthevedang@gmail.com': { userId: 'GUIDE-VEDANG', fullName: 'Vedang Prabhu', email: 'iamthevedang@gmail.com', role: 'Super Admin', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'PW' },
-        'superguide@gmail.com': { userId: 'GUIDE-SUPER-001', fullName: 'Super Guide Admin (FOLK)', email: 'superguide@gmail.com', role: 'Super Guide', isBvSuperAdmin: true, isBvAdmin: true, status: 'Active', segment: 'FOLK' },
-        'admin@prabhupadaworld.org': { userId: 'GUIDE-ADMIN-001', fullName: 'PW System Administrator', email: 'admin@prabhupadaworld.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'PW' },
-        'folkadmin@folk.org': { userId: 'GUIDE-ADMIN-FOLK', fullName: 'FOLK System Administrator', email: 'folkadmin@folk.org', role: 'Admin', isBvAdmin: true, status: 'Active', segment: 'FOLK' },
-        'guide@gmail.com': { userId: 'GUIDE-001', fullName: 'Spiritual Guide (FOLK)', email: 'guide@gmail.com', role: 'Guide', status: 'Active', segment: 'FOLK' },
-        'bvsupervisor@gmail.com': { userId: 'SUPERVISOR-001', fullName: 'PW BV Supervisor', email: 'bvsupervisor@gmail.com', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'PW' },
-        'folksupervisor@folk.org': { userId: 'SUPERVISOR-FOLK', fullName: 'FOLK BV Supervisor', email: 'folksupervisor@folk.org', role: 'Guide', isBvSupervisor: true, status: 'Active', segment: 'FOLK' },
-        'rgf@gmail.com': { userId: 'RGF-001', fullName: 'Reading Group Facilitator (PW RGF)', email: 'rgf@gmail.com', role: 'User', isBvsl: true, isBvFacilitator: true, status: 'Active', segment: 'PW' },
-        'rgsf@gmail.com': { userId: 'RGSF-001', fullName: 'Sub-Facilitator (PW RGSF)', email: 'rgsf@gmail.com', role: 'User', isBvSubFacilitator: true, status: 'Active', segment: 'PW' },
-        'sadhanamentor@gmail.com': { userId: 'MENTOR-001', fullName: 'Sadhana Mentor', email: 'sadhanamentor@gmail.com', role: 'User', isSadhanaMentor: true, isBvMentor: false, status: 'Active', segment: 'PW' },
-        'devotee@gmail.com': { userId: 'USER-001', fullName: 'Regular Devotee', email: 'devotee@gmail.com', role: 'User', status: 'Active', segment: 'PW' },
-        'folkresident@folk.org': { userId: 'FOLK-RESIDENT-001', fullName: 'FOLK Resident Devotee', email: 'folkresident@folk.org', role: 'User', status: 'Active', segment: 'FOLK', residencyApproved: true, residencyClaimed: true, residency: ['FOLK-RESIDENCY-001'], residencyJoinDate: '2023-01-01', ashrayLevel: 'Upasaka' },
-        'folknonresident@folk.org': { userId: 'FOLK-NONRES-001', fullName: 'FOLK Non-Resident Devotee', email: 'folknonresident@folk.org', role: 'User', status: 'Active', segment: 'FOLK', residencyApproved: false, residencyClaimed: false, residency: null, ashrayLevel: 'Upasaka' },
-        'pwdevotee@prabhupadaworld.org': { userId: 'PW-DEVOTEE-001', fullName: 'Prabhupada World Devotee', email: 'pwdevotee@prabhupadaworld.org', role: 'User', status: 'Active', segment: 'PW', isPrabhupadaWorldUser: true, residencyApproved: false, residencyClaimed: false, residency: null, ashrayLevel: 'Upasaka' },
-        'pwuser@prabhupadaworld.org': { userId: 'PW-DEVOTEE-001', fullName: 'Prabhupada World Devotee', email: 'pwuser@prabhupadaworld.org', role: 'User', status: 'Active', segment: 'PW', isPrabhupadaWorldUser: true, residencyApproved: false, residencyClaimed: false, residency: null, ashrayLevel: 'Upasaka' },
-      };
-
-      const matched = defaults[emailLower];
-      if (matched) {
-        if (!userRecord) {
-          userRecord = await Users.create({
-            record: {
-              ...matched,
-              id: context.user.id,
-              createdAt: now,
-              lastLoginAt: now,
-            }
-          }).catch(() => null);
-        } else {
-          // Force update the DB fields to match mock default values (for local testing consistency)
-          await Users.update({
-            id: userRecord.id || context.user.id,
-            record: {
-              ...matched,
-              lastLoginAt: now,
-            }
-          }).catch(() => {});
-          userRecord = { ...userRecord, ...matched };
-        }
-        if (!userRecord) {
-          userRecord = { ...matched, id: context.user.id };
-        }
-        // Invalidate profile cache so fresh login gets latest profile
-        serverCacheInvalidate(`user_profile:${context.user.id}`);
-        serverCacheInvalidate(`sadhana_fields:`);
-      }
     }
 
     // Auto-heal missing userId/status if record exists

@@ -42,7 +42,7 @@ export default createEndpoint({
     if (!guideDbId) return { members: [] };
 
     const guideRec = await Guides.findOne({ id: guideDbId, fields: ['id', 'segment'] }).catch(() => null);
-    const guideSegment = guideRec?.segment || (context.user.email?.includes('gaurmandal') || context.user.email?.includes('folk.org') ? 'FOLK' : 'PW');
+    const guideSegment = guideRec?.segment || context.user.segment || 'PW';
 
     // Fetch all BV groups under this guide to know who's already in a group
     const { records: groups } = await BvGroups.findAll({

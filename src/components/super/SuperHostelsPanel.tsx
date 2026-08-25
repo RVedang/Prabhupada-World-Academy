@@ -33,12 +33,7 @@ function getGuideLabel(r: Residency): string {
     }).filter(Boolean).join(', ');
   }
 
-  const name = r.residencyName.toLowerCase();
-  if (name.includes('powai') || name.includes('vashi')) return 'Gaurmandal Prabhu';
-  if (name.includes('airoli') || name.includes('sion')) return 'Vedang Prabhu';
-  if (name.includes('thane')) return 'Spiritual Guide';
-
-  return (r as any).guideName || 'Gaurmandal Prabhu';
+  return (r as any).guideName || 'Unassigned';
 }
 
 export default function SuperHostelsPanel() {

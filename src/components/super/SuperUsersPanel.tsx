@@ -135,12 +135,12 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       });
 
       const all: User[] = rawUsers.map((u: any) => {
-        const gId = u.selectedGuideId || u.guideId || u.guide || u.mentorId || (isPwAdmin ? 'MENTOR-PW-HIRANYAVARNA' : 'MENTOR-FOLK-GAURMANDAL');
+        const gId = u.selectedGuideId || u.guideId || u.guide || u.mentorId || '';
         let gName = u.selectedGuideName || u.guideName || u.mentorName || u.selectedMentorName || '';
 
         // Resolve mentor name if missing or raw ID
         if (!gName || gName === gId || gName.includes('-') || /\d{4}/.test(gName)) {
-          gName = guideNameMap.get(gId) || (isPwAdmin ? 'Hiranyavarna Prabhu (Super Admin)' : 'Gaurmandal Prabhu (Super Guide)');
+          gName = guideNameMap.get(gId) || 'Unassigned';
         }
 
         return {
@@ -297,25 +297,9 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     if (u.segment === 'PW' || u.isPrabhupadaWorldUser === true) return isPw;
     if (u.segment === 'FOLK') return !isPw;
 
-    // 2. Guide check: if their mentor/guide is a PW mentor, then they are a PW user
-    const gId = String(u.selectedGuideId || u.guideId || u.guide || u.mentorId || '').toLowerCase();
-    const gName = String(u.selectedGuideName || u.guideName || u.mentorName || u.selectedMentorName || '').toLowerCase();
-    const isPwGuide = gId.includes('hiranyavarna') || gId.includes('pw-admin') || gId.includes('iamthevedang@gmail.com') || gId.includes('guide-vedang') ||
-                      gName.includes('hiranyavarna') || gName.includes('pw admin') || gName.includes('vedang');
-
-    if (isPwGuide) return isPw;
-
-    // 3. Fallbacks based on names, emails, and residency records
-    const name = (u.fullName || '').toUpperCase();
-    const email = (u.email || '').toUpperCase();
-    const isFolkUser = name.includes('FOLK') || email.includes('FOLK') || name.includes('GAURMANDAL') || email.includes('GAURMANDAL') || !!u.residencyId || !!u.isFolkLead;
-    const isPwUser = name.includes('PW') || name.includes('PRABHUPADA') || email.includes('PW') || email.includes('PRABHUPADA') || name.includes('HIRANYAVARNA') || email.includes('HIRANYAVARNA');
-
-    if (isPwUser) return isPw;
-    if (isFolkUser) return !isPw;
-
-    // Default to FOLK
-    return !isPw;
+    // Records without a segment are not assigned to either dashboard. Segment
+    // assignment is performed when their guide/admin is selected.
+    return false;
   }, []);
 
   const formatDevoteeName = (u: any) => {
@@ -352,13 +336,6 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       });
     }
 
-    if (list.length === 0) {
-      if (isPwAdmin) {
-        list.push({ id: 'USER-SUPERADMIN-PW', name: 'Hiranyavarna Das Prabhu (Super Admin)', rawUser: null });
-      } else {
-        list.push({ id: 'USER-SUPERADMIN-FOLK', name: 'Gaurmandal Das Prabhu (Super Admin)', rawUser: null });
-      }
-    }
     return list;
   }, [users, guides, isPwAdmin, isUserInCurrentDepartment, profile]);
 
@@ -718,8 +695,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                       {/* 3. Parent */}
                       {(() => {
                         const isUserAdmin = !!((u as any).isBvAdmin || (u as any).isBvSuperAdmin || u.role === 'ADMIN' || u.role === 'SUPER_ADMIN' || u.role === 'PW_ADMIN');
-                        const superAdminDisplayName = (u as any).bvReportingAdminName ||
-                          (isPwAdmin ? 'Hiranyavarna Das (Super Admin)' : 'Gaurmandal Das (Super Admin)');
+                        const superAdminDisplayName = (u as any).bvReportingAdminName || 'Unassigned';
                         return (
                           <td className="px-3 py-2 text-xs" onClick={e => { e.stopPropagation(); if (canEditRole && !isUserAdmin && currentBvRole !== 'NA') openParentDialog(u); }}>
                             {isUserAdmin ? (
@@ -760,7 +736,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
                                     const guideDisplayName = u._guideName && !u._guideName.includes('-')
                                       ? u._guideName
-                                      : (isPwAdmin ? 'Hiranyavarna Prabhu (PW)' : 'Gaurmandal Prabhu (FOLK)');
+                                      : 'Unassigned';
                                     return `${guideDisplayName} (Admin)`;
                                   })()}
                                 </span>
@@ -781,7 +757,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           );
                           const displayName = matchedGuide
                             ? matchedGuide.name
-                            : (u._guideName && !u._guideName.includes('-') ? u._guideName : (isPwAdmin ? 'Hiranyavarna Prabhu (Super Admin)' : 'Gaurmandal Prabhu (Super Guide)'));
+                            : (u._guideName && !u._guideName.includes('-') ? u._guideName : 'Unassigned');
 
                           return (
                             <Select value={matchedGuide?.guideId || currentGid || ''} onValueChange={gid => gid && handleAssignGuide(u.userId, gid)} disabled={assigningGuide === u.userId || isSelf || (!isSuperAdmin && currentBvRole === 'ADMIN')}>

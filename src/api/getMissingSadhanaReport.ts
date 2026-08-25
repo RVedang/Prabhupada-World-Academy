@@ -30,10 +30,7 @@ export default createEndpoint({
       userRole === 'SUPER_ADMIN' ||
       userRole === 'PW_ADMIN' ||
       !!context.user.isBvSuperAdmin ||
-      !!context.user.isBvAdmin ||
-      userEmail.includes('gaurmandal') ||
-      userEmail.includes('superadmin') ||
-      context.user.isBvSuperAdmin;
+      !!context.user.isBvAdmin;
 
     // 1. Find guide record for scoping (regular guide only)
     let guideRecord: any = null;

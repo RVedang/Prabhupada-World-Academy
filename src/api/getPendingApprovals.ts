@@ -16,7 +16,7 @@ export default createEndpoint({
     if (!context.user) throw new Error('Unauthorized');
     const userRole = (context.user.role || '').toUpperCase();
     const userEmail = (context.user.email || '').toLowerCase();
-    const isSuperGuide = userRole === 'SUPER_GUIDE' || userRole === 'SUPER GUIDE' || userEmail.includes('superguide') || userEmail.includes('admin');
+    const isSuperGuide = userRole === 'SUPER_GUIDE' || userRole === 'SUPER GUIDE' || userRole === 'SUPER_ADMIN' || !!context.user.isBvSuperAdmin;
     const pendingFilter = { status: 'Pending Approval' };
 
     // Fetch residencies and guides early
@@ -43,41 +43,18 @@ export default createEndpoint({
     );
     const mentorGuideId = (mentorGuide?.id || userId).toLowerCase();
 
-    // Build the set of canonical IDs this mentor maps to (covers hardcoded PW mentor IDs)
+    // Build the set of canonical IDs this mentor maps to from Firestore.
     const mentorCanonicalIds = new Set<string>([mentorGuideId, userEmail]);
-    // Map known PW mentors by email to their hardcoded guide IDs
-    const PW_MENTOR_EMAIL_TO_ID: Record<string, string> = {
-      'iamthevedang@gmail.com': 'guide-vedang',
-      'hiranyavarna@hkmmumbai.org': 'mentor-pw-hiranyavarna',
-    };
-    const hardcodedId = PW_MENTOR_EMAIL_TO_ID[userEmail];
-    if (hardcodedId) mentorCanonicalIds.add(hardcodedId);
     // Also add any Guides record ID that matches this mentor's email
     if (mentorGuide?.id) mentorCanonicalIds.add(mentorGuide.id.toLowerCase());
 
     // Fetch all pending users from the database
     const { records: pendingRecords } = await Users.findAll({ filters: pendingFilter, fields: USER_FIELDS, limit: 1000 });
 
-    const userSegment = context.user.segment || (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
+    const userSegment = context.user.segment || 'PW';
 
     const checkIsPwUser = (u: any) => {
-      const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-      const guideStr = (String(rawG || '') + ' ' + String(u.selectedGuideId || '') + ' ' + String(u.guideName || '')).toLowerCase();
-      return !!(u.isPrabhupadaWorldUser) ||
-        (u.segment === 'PW') ||
-        guideStr.includes('mentor-pw-hiranyavarna') ||
-        guideStr.includes('mentor-pw-admin') ||
-        guideStr.includes('hiranyavarna') ||
-        guideStr.includes('prabhupadaworld') ||
-        guideStr.includes('iamthevedang@gmail.com') ||
-        guideStr.includes('guide-vedang') ||
-        guideStr.includes('vedang') ||
-        // Legacy: registrations made under Vedanarayana Das before migration
-        guideStr.includes('vdnd@hkmmumbai.org') ||
-        guideStr.includes('guide-vedanarayana-guide') ||
-        guideStr.includes('vedanarayana') ||
-        // Also match if guide is stored as Vedang's Firebase UID (in mentorCanonicalIds)
-        ([...mentorCanonicalIds].some(id => id && guideStr.includes(id.toLowerCase())));
+      return !!u.isPrabhupadaWorldUser || u.segment === 'PW';
     };
 
     let allUsers: any[] = [];
@@ -87,11 +64,7 @@ export default createEndpoint({
         context.user.isBvSuperAdmin ||
         context.user.isBvAdmin ||
         userRole === 'SUPER_ADMIN' ||
-        userRole === 'ADMIN' ||
-        userEmail.includes('superadmin') ||
-        userEmail.includes('admin') ||
-        userEmail === 'iamthevedang@gmail.com' ||
-        userEmail === 'hrvd@hkmmumbai.org'
+        userRole === 'ADMIN'
       );
       allUsers = pendingRecords.filter(u => {
         if (!checkIsPwUser(u)) return false;
@@ -101,15 +74,12 @@ export default createEndpoint({
         const uGuide = String(rawG || u.selectedGuideId || '').toLowerCase();
         const uGuideNormalized = uGuide ? (guideLookup.get(uGuide) || uGuide) : '';
         
-        // Match against all canonical IDs for this mentor (Firebase UID, email, hardcoded guide ID)
+        // Match against all canonical IDs for this mentor (Firestore guide ID, user ID, or email).
         if ([...mentorCanonicalIds].some(id => uGuideNormalized === id || uGuide === id)) return true;
-        return uGuideNormalized === 'mentor-pw-admin' || 
-               uGuideNormalized.includes('admin') || 
-               uGuideNormalized === mentorGuideId || 
-               uGuideNormalized === userEmail;
+        return uGuideNormalized === mentorGuideId || uGuideNormalized === userEmail;
       });
     } else {
-      const isFolkSuperAdmin = userEmail.includes('gaurmandal') || userEmail.includes('folk.org') || userEmail.includes('superguide') || context.user.isBvSuperAdmin;
+      const isFolkSuperAdmin = userSegment === 'FOLK' && (userRole === 'SUPER_GUIDE' || userRole === 'SUPER_ADMIN' || !!context.user.isBvSuperAdmin);
       const scope = isFolkSuperAdmin ? null : await getGuideScope(context.user.email);
       const sId = (scope?.guideId || '').toLowerCase();
       const sName = (scope?.guideName || '').toLowerCase();

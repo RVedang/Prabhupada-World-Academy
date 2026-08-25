@@ -39,7 +39,7 @@ export default createEndpoint({
     // Get strict hierarchy scoped user IDs for the calling user
     const scopedUserIds = await getScopedHierarchyUserIds(context.user).catch(() => null);
 
-    const callerSegment = context.user.segment || (context.user.email?.includes('gaurmandal') || context.user.email?.includes('folk.org') ? 'FOLK' : 'PW');
+    const callerSegment = context.user.segment || 'PW';
 
     // Fetch candidate users
     const { records: allUsers } = await Users.findAll({
@@ -151,8 +151,8 @@ export default createEndpoint({
     allUsers.forEach((u: any) => {
       if (u.isBvAdmin || u.isBvSuperAdmin || u.role === 'Admin' || u.role === 'ADMIN' || u.role === 'Super Admin' || u.role === 'SUPER_ADMIN') {
         const name = u.fullName || u.name || u.email;
-        const isUserFolk = u.segment === 'FOLK' || (u.email || '').includes('gaurmandal') || (u.fullName || '').includes('FOLK');
-        const isUserPw = u.segment === 'PW' || (u.email || '').includes('srilaprabhupadaworld') || (u.email || '').includes('hrvd') || (u.fullName || '').includes('PW') || (u.fullName || '').includes('Prabhupada');
+        const isUserFolk = u.segment === 'FOLK';
+        const isUserPw = u.segment === 'PW' || u.isPrabhupadaWorldUser === true;
         if (isCallerPw) {
           if (isUserPw || (!isUserFolk && !name.toUpperCase().includes('FOLK'))) {
             if (name) allAdminsSet.add(name);

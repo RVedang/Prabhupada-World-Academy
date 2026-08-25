@@ -107,8 +107,7 @@ export default createEndpoint({
       if (isSuperOrAdmin) {
         // Super Admin sees all (excluding other Super Admins / themselves, which are already filtered above)
         const callerRole = (context.user?.role || '').toUpperCase();
-        const callerEmail = String(context.user?.email || '').toLowerCase();
-        const callerIsSuperAdmin = !!(context.user?.isBvSuperAdmin || callerRole === 'SUPER_ADMIN' || callerRole === 'SUPER ADMIN' || callerEmail.includes('superadmin') || callerEmail === 'iamthevedang@gmail.com');
+        const callerIsSuperAdmin = !!(context.user?.isBvSuperAdmin || callerRole === 'SUPER_ADMIN' || callerRole === 'SUPER ADMIN');
         
         // If caller is Admin, do not let them see other Admins
         if (!callerIsSuperAdmin) {

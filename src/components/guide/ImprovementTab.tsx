@@ -300,7 +300,7 @@ interface Props { guideId: string; bvslMode?: boolean; mentorMode?: boolean; }
 export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
-  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+  const isFolk = profile?.segment === 'FOLK';
   // Default to previous week — current week is always incomplete
   const [period, setPeriod] = useState<Period>('prev_week');
   const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>('all');

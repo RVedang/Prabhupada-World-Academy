@@ -540,7 +540,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
       const pwUsers = (usersRes.users || []).filter((u: any) => {
         const emailLower = (u.email || '').toLowerCase();
         const roleUpper = (u.role || '').toUpperCase();
-        const isFolk = u.segment === 'FOLK' || emailLower.includes('gaurmandal') || emailLower.includes('folk.org');
+        const isFolk = u.segment === 'FOLK';
         const isPw = u.segment === 'PW' || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('hrvd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
         return isPw && !isFolk;
       });

@@ -711,10 +711,7 @@ export default createEndpoint({
       userRole === 'SUPER_ADMIN' ||
       userRole === 'PW_ADMIN' ||
       !!context.user.isBvSuperAdmin ||
-      !!context.user.isBvAdmin ||
-      userEmail.includes('gaurmandal') ||
-      userEmail.includes('superadmin') ||
-      context.user.isBvSuperAdmin;
+      !!context.user.isBvAdmin;
 
     if (!isSuperGuide && !bvslMode && !mentorMode) {
       const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] }).catch(() => null);

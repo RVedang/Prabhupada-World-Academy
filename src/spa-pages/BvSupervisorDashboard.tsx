@@ -28,8 +28,6 @@ export default function BvSupervisorDashboard() {
     loadOverview();
   }, []);
 
-  // Supervisor Dashboard is always accessed by Super Admins — always show institutional name
-
   const loadOverview = async () => {
     setLoading(true);
     try {
@@ -54,13 +52,12 @@ export default function BvSupervisorDashboard() {
   ];
 
   const isFolk = profile?.segment === 'FOLK';
-  const defaultName = isFolk ? 'Gaurmandal Das' : 'Hiranyavarna Das';
 
   return (
     <DashboardLayout
       title="Bhakti Vriksha Supervisor Dashboard"
       subtitle={[
-        `Hare Krishna ${profile?.fullName || defaultName}!`,
+        `Hare Krishna ${profile?.fullName || 'Supervisor'}!`,
         (profile as any)?.bvReportingAdminName
           ? `${isFolk ? 'Guide' : 'Admin'}: ${(profile as any).bvReportingAdminName}`
           : null,

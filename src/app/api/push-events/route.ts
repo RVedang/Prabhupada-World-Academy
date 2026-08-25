@@ -49,26 +49,8 @@ export async function GET(req: NextRequest) {
 
       if (u) {
         const uSegment = (u.segment || '').toUpperCase();
-        const uEmail = (u.email || '').toLowerCase();
-        const uName = (u.fullName || '').toUpperCase();
-
-        const isFolkUser = uSegment === 'FOLK' || 
-                           uEmail.includes('folk.org') || 
-                           uEmail.includes('gaurmandal') || 
-                           uEmail.includes('superguide') || 
-                           uName.includes('FOLK') || 
-                           uName.includes('GAURMANDAL') || 
-                           !!u.residencyId || 
-                           !!u.isFolkLead;
-
-        const isPwUser = uSegment === 'PW' || 
-                         !!u.isPrabhupadaWorldUser || 
-                         uEmail.includes('prabhupadaworld') || 
-                         uEmail.includes('hrvd') || 
-                         uEmail.includes('srilaprabhupadaworld') || 
-                         uName.includes('PW') || 
-                         uName.includes('PRABHUPADA') || 
-                         uName.includes('HIRANYAVARNA');
+        const isFolkUser = uSegment === 'FOLK';
+        const isPwUser = uSegment === 'PW' || !!u.isPrabhupadaWorldUser;
 
         if (targetSegment === 'PW') {
           if (isFolkUser && !isPwUser) return false;

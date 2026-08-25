@@ -13,23 +13,6 @@ const NUM_KEYS = [
 const IS_COUNT_KEY = (k: string) =>
   ['booksDistributed', 'contactsCollected', 'uniqueOneOnOnes'].includes(k);
 
-const KNOWN_GUIDES: Record<string, string> = {
-  'HVD': 'Hiranyavarna Das',
-  'GMP': 'Gaurmandal Prabhu',
-  'VED': 'Vedang Prabhu',
-  'MMKD': 'Madana Mohan Krishna Das',
-  'SRGD': 'Shrikrishna Rupa Gauranga Das',
-  'RMTD': 'Ramadasa Tirtha Das',
-  'GGUD': 'Gauranga Gunadhama Das',
-  'URGD': 'Urukrama Gauranga Dasa',
-  'MTND': 'Murtinarayana Das',
-  'SG': 'Spiritual Guide',
-  'res_powai': 'FOLK Powai',
-  'res_mulund': 'FOLK Mulund',
-  'res_thane': 'FOLK Thane',
-  'res_chembur': 'FOLK Chembur',
-};
-
 function makeAgg(rows: any[]) {
   const submitted = rows.filter((r: any) => r.submitted);
   const n = Math.max(submitted.length, 1);
@@ -88,10 +71,6 @@ export default createEndpoint({
 
     // 1. Build Residencies Map
     const residencyMap = new Map<string, string>();
-    for (const [k, v] of Object.entries(KNOWN_GUIDES)) {
-      residencyMap.set(k, v);
-      residencyMap.set(k.toLowerCase(), v);
-    }
     for (const r of folkResRecs) {
       const name = (r as any).residencyName || (r as any).name || '';
       if (name) {
@@ -108,12 +87,6 @@ export default createEndpoint({
 
     // 2. Build Comprehensive Guide & Center Lookup Map
     const guideNameMap = new Map<string, string>();
-
-    // Add known defaults
-    for (const [k, v] of Object.entries(KNOWN_GUIDES)) {
-      guideNameMap.set(k, v);
-      guideNameMap.set(k.toLowerCase(), v);
-    }
 
     // From getGuides endpoint
     for (const g of (guidesRes.guides || [])) {
@@ -136,9 +109,8 @@ export default createEndpoint({
           guideNameMap.set((g as any).guideId.toLowerCase(), name);
         }
         if ((g as any).abbreviation) {
-          const mappedAbbr = KNOWN_GUIDES[(g as any).abbreviation] || (g as any).abbreviation;
-          guideNameMap.set((g as any).abbreviation, mappedAbbr);
-          guideNameMap.set((g as any).abbreviation.toLowerCase(), mappedAbbr);
+          guideNameMap.set((g as any).abbreviation, name);
+          guideNameMap.set((g as any).abbreviation.toLowerCase(), name);
         }
         if (g.email) {
           guideNameMap.set(g.email.toLowerCase(), name);
@@ -225,10 +197,10 @@ export default createEndpoint({
       // Segment fallback
       const uSeg = (u.segment || '').toUpperCase();
       if (uSeg === 'PW' || u.isPrabhupadaWorldUser) {
-        return { key: 'MENTOR-PW-HIRANYAVARNA', name: 'Hiranyavarna Das' };
+        return { key: u.id, name: u.fullName || 'Unassigned' };
       }
 
-      return { key: 'MENTOR-FOLK-GAURMANDAL', name: 'Gaurmandal Prabhu' };
+      return { key: u.id, name: u.fullName || 'Unassigned' };
     };
 
     // Fetch preaching entries for the date range
@@ -310,4 +282,3 @@ export default createEndpoint({
     };
   },
 });
-

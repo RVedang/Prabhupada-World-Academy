@@ -73,7 +73,7 @@ interface Props { guideId?: string; }
 
 export default function GuideLeaderboardTab({ guideId }: Props) {
   const { profile } = useUserProfile();
-  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+  const isFolk = profile?.segment === 'FOLK';
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [selectedDate, setSelectedDate] = useState(yesterday);
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());

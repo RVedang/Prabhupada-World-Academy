@@ -291,7 +291,7 @@ export default function SadhanaMentorDashboard() {
     profile.residencyName ? `FOLK: ${profile.residencyName}` : null,
   ].filter(Boolean).join(' · ');
 
-  const effectiveGuideId = profile.selectedGuideId || (profile as any).guideId || (profile as any).guide || 'MENTOR-FOLK-GAURMANDAL';
+  const effectiveGuideId = profile.selectedGuideId || (profile as any).guideId || (profile as any).guide || profile.userId;
 
   const tabs: TabConfig[] = [
     { value: 'reports', label: 'Sadhana Report', icon: BarChart3 },

@@ -74,8 +74,7 @@ export default function DailySadhanaForm() {
 
   const userId = profile?.userId || '';
   const ashrayLevel = profile?.ashrayLevel || '';
-  const userEmailLower = (profile?.userId || '').toLowerCase();
-  const isFolkUser = profile?.segment === 'FOLK' || (profile as any)?.isFolkUser === true || userEmailLower.includes('folk.org') || userEmailLower.includes('gaurmandal');
+  const isFolkUser = profile?.segment === 'FOLK' || (profile as any)?.isFolkUser === true;
   const [userRoleFromDb, setUserRoleFromDb] = useState<string | null>(null);
   const userRole = userRoleFromDb || profile?.role || 'USER';
   // P1-003 FIX: also check isBvsl flag from profile

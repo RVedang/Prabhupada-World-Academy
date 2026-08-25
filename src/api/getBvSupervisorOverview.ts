@@ -39,7 +39,7 @@ export default createEndpoint({
     const scopedUserIds = await getScopedHierarchyUserIds(context.user);
 
     // Fetch active groups and filter by user segment ('PW' vs 'FOLK')
-    const userSegment = context.user.segment || (userEmail.includes('gaurmandal') || userEmail.includes('folk.org') ? 'FOLK' : 'PW');
+    const userSegment = context.user.segment || 'PW';
     const { records: rawGroups } = await BvGroups.findAll({ filters: { isActive: true }, limit: 500 });
     let groups = rawGroups.filter((g: any) => (g.segment || 'PW') === userSegment);
 

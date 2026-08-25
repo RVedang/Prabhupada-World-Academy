@@ -22,7 +22,7 @@ interface Props { bvslId: string; }
 export default function BvslMembersTable({ bvslId }: Props) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
-  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+  const isFolk = profile?.segment === 'FOLK';
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

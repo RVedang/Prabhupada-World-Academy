@@ -47,7 +47,7 @@ interface Props {
 
 export default function GuideLeaderboardDisplay({ leaderboard, dateLabel }: Props) {
   const { profile } = useUserProfile();
-  const isFolk = profile?.segment === 'FOLK' || ((profile as any)?.email || '').includes('gaurmandal') || ((profile as any)?.email || '').includes('folk.org');
+  const isFolk = profile?.segment === 'FOLK';
 
   const isAllNonResidents = leaderboard.length > 0 && leaderboard.every(e => !e.isResident);
   const [activeFilter, setActiveFilter] = useState<FilterKey>(isAllNonResidents ? 'nr' : 'residents');

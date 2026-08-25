@@ -33,10 +33,7 @@ export default createEndpoint({
       userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'PW_ADMIN' ||
-      !!context.user?.isBvSuperAdmin ||
-      userEmail.includes('gaurmandal') ||
-      userEmail.includes('superadmin') ||
-      context.user.isBvSuperAdmin;
+      !!context.user?.isBvSuperAdmin;
 
     let guideDbId: string | null = input.guideId === 'ALL' ? null : (input.guideId || null);
     if (!isSuperGuide) {

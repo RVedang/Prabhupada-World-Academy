@@ -35,15 +35,11 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const userRole = (context.user.role || 'User').toUpperCase().replace(/\s+/g, '_');
-    const userEmail = (context.user.email || '').toLowerCase();
     const isSuperGuide = userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'PW_ADMIN' ||
       !!context.user.isBvSuperAdmin ||
-      !!context.user.isBvAdmin ||
-      userEmail.includes('gaurmandal') ||
-      userEmail.includes('superadmin') ||
-      context.user.isBvSuperAdmin;
+      !!context.user.isBvAdmin;
     const isBvMentor = !!(context.user as any).isBvMentor;
     const statusKey = input.statusFilter || input.status || 'all';
 
@@ -263,8 +259,8 @@ export default createEndpoint({
 
       // 3. Exclude peers (equal level) or higher level users for Admins / Supervisors / RGFs
       const callerRole = (context.user.role || '').toUpperCase();
-      const callerIsSuperAdmin = !!(context.user.isBvSuperAdmin || callerRole === 'SUPER_ADMIN' || callerRole === 'SUPER ADMIN' || callerEmail.includes('superadmin') || callerEmail === 'iamthevedang@gmail.com');
-      const callerIsAdmin = !!(context.user.isBvAdmin || callerRole === 'ADMIN' || callerRole === 'ADMINISTRATOR' || callerEmail.includes('admin'));
+      const callerIsSuperAdmin = !!(context.user.isBvSuperAdmin || callerRole === 'SUPER_ADMIN' || callerRole === 'SUPER ADMIN');
+      const callerIsAdmin = !!(context.user.isBvAdmin || callerRole === 'ADMIN' || callerRole === 'ADMINISTRATOR');
       
       const uIsAdmin = !!(u.isBvAdmin || uRole === 'ADMIN' || uRole === 'ADMINISTRATOR');
       

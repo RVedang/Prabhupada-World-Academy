@@ -30,12 +30,11 @@ export default function UserDashboard() {
   // Super Admins and Admins redirect to their respective management dashboards
   useEffect(() => {
     if (profile) {
-      const userEmail = (profile.userId || '').toLowerCase();
-      const isSuperAdmin = profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN' || userEmail.includes('gaurmandal') || userEmail.includes('srilaprabhupadaworld') || userEmail.includes('hrvd');
+      const isSuperAdmin = profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN';
       const isAdmin = isSuperAdmin || profile.isBvAdmin || (profile.role as string) === 'ADMIN';
 
       if (isAdmin) {
-        const isFolk = profile.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk');
+        const isFolk = profile.segment === 'FOLK';
         navigate(isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard', { replace: true });
       }
     }

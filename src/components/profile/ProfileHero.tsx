@@ -18,9 +18,10 @@ interface Props {
   isTripCoordinator?: boolean;
   isBvMentor?: boolean;
   isSuperAdmin?: boolean;
+  segment?: 'PW' | 'FOLK' | null;
 }
 
-export default function ProfileHero({ fullName, email, isResident, ashrayLevel, role, isBvsl, isSadhanaMentor, isFolkLead, isTripCoordinator, isBvMentor, isSuperAdmin }: Props) {
+export default function ProfileHero({ fullName, email, isResident, ashrayLevel, role, isBvsl, isSadhanaMentor, isFolkLead, isTripCoordinator, isBvMentor, isSuperAdmin, segment }: Props) {
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
@@ -71,7 +72,7 @@ export default function ProfileHero({ fullName, email, isResident, ashrayLevel, 
         <p className="text-sm text-muted-foreground">{email}</p>
         <div className="flex flex-wrap gap-2 mt-2">
           {(() => {
-            const isFolk = email.toLowerCase().includes('gaurmandal') || email.toLowerCase().includes('folk.org') || role === 'Guide' || role === 'Super Guide' || role === 'GUIDE' || role === 'SUPER_GUIDE';
+            const isFolk = segment === 'FOLK';
             let roleBadgeText = '';
             if (isSuperAdmin) {
               roleBadgeText = isFolk ? '👑 Super Guide' : '👑 Super Admin';

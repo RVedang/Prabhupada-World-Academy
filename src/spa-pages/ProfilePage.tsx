@@ -108,27 +108,20 @@ export default function ProfilePage() {
     !!(profile as any).isBvAdmin ||
     !!(profile as any).isBvSuperAdmin;
 
-  const userEmail = (user?.email || profile.userId || '').toLowerCase();
   const isSuperAdmin =
     profile.role === 'SUPER_ADMIN' ||
     profile.role === 'SUPER_GUIDE' ||
-    !!(profile as any).isBvSuperAdmin ||
-    userEmail.includes('gaurmandal') ||
-    userEmail.includes('srilaprabhupadaworld') ||
-    userEmail.includes('hrvd') ||
-    userEmail.includes('folkadmin') ||
-    userEmail.includes('superadmin');
+    !!(profile as any).isBvSuperAdmin;
 
   const isBvAdminUser =
     isSuperAdmin ||
     profile.role === 'ADMIN' ||
     profile.role === 'GUIDE' ||
-    !!(profile as any).isBvAdmin ||
-    userEmail.includes('vedang');
+    !!(profile as any).isBvAdmin;
 
   const isPwUser = !!(profile as any).isPrabhupadaWorldUser || profile.segment === 'PW';
   const showGuideResidencyCard = !isPwUser && !isBvAdminUser;
-  const isFolk = profile.segment === 'FOLK' || userEmail.includes('gaurmandal') || userEmail.includes('folk');
+  const isFolk = profile.segment === 'FOLK';
   const adminDashboardPath = isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
 
   return (
@@ -144,7 +137,7 @@ export default function ProfilePage() {
 
       <main className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
         {/* SAD-C02 FIX: isResident requires guide-verified approval + valid residency ID */}
-        <ProfileHero fullName={profile.fullName} email={user?.email || ''}
+        <ProfileHero fullName={profile.fullName} email={user?.email || ''} segment={profile.segment}
           isResident={!!(profile.residencyGuideVerified && profile.selectedFolkResidency)} ashrayLevel={isSuperAdmin ? null : profile.ashrayLevel}
           role={profile.role} isBvsl={profile.isBvsl} isSadhanaMentor={profile.isSadhanaMentor}
           isFolkLead={profile.isFolkLead} isTripCoordinator={profile.isTripCoordinator} isBvMentor={profile.isBvMentor}

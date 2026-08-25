@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, BvMemberRegistrations, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
-  description: 'Get pending Bhakti Vriksha member registrations filtered by access level (FOLK Guides vs Super Admin / Hiranyavarna Prabhu)',
+  description: 'Get pending Bhakti Vriksha member registrations filtered by Firestore roles and segment',
   authenticated: true,
   requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
@@ -12,15 +12,13 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const role = (context.user.role || '').toUpperCase();
-    const userEmail = (context.user.email || '').toLowerCase();
     
-    // Check if user is Super Admin / Hiranyavarna Prabhu / Admin
+    // Access is determined entirely from the authenticated Firestore profile.
     const isSuperAdminOrPwAdmin =
       role === 'SUPER_GUIDE' || 
       role === 'SUPER_ADMIN' ||
       role === 'ADMIN' ||
       context.user.isBvSuperAdmin ||
-      userEmail.includes('admin') ||
       context.user.isBvAdmin || 
       context.user.isBvSuperAdmin ||
       context.user.isPwAdmin;
@@ -115,21 +113,8 @@ export default createEndpoint({
 
     const filteredRecords = records.filter(r => {
       const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
-      const uGuide = (String(u?.guide || '') + ' ' + String(u?.selectedGuideId || '') + ' ' + String(u?.guideName || '')).toLowerCase();
       const isPwUser = !!(u?.isPrabhupadaWorldUser || r.isPrabhupadaWorldUser) || 
-        (u?.segment === 'PW' || r.segment === 'PW') ||
-        r.guideId === 'MENTOR-PW-HIRANYAVARNA' || 
-        r.selectedGuideId === 'MENTOR-PW-HIRANYAVARNA' ||
-        uGuide.includes('mentor-pw-hiranyavarna') ||
-        uGuide.includes('hiranyavarna') ||
-        uGuide.includes('prabhupadaworld') ||
-        uGuide.includes('iamthevedang@gmail.com') ||
-        uGuide.includes('guide-vedang') ||
-        uGuide.includes('vedang') ||
-        // Legacy: registrations made under Vedanarayana Das before migration
-        uGuide.includes('vdnd@hkmmumbai.org') ||
-        uGuide.includes('guide-vedanarayana-guide') ||
-        uGuide.includes('vedanarayana');
+        (u?.segment === 'PW' || r.segment === 'PW');
 
       if (targetSegment === 'PW') {
         return isPwUser; // PW Admin / Super Admin sees ONLY Prabhupada World registrations
