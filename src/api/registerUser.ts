@@ -4,7 +4,7 @@ import { generateUniqueUserId } from '../lib/userIdGen';
 import { enforceRateLimit } from '../utils/rateLimit';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
-import { resolveDefaultGuideForSegment, resolveGuideReference } from '../lib/guideResolution';
+import { resolveGuideReference } from '../lib/guideResolution';
 
 export default createEndpoint({
   description: 'Register new user — updates the user sync record with profile data. Phone is primary identifier.',
@@ -34,22 +34,16 @@ export default createEndpoint({
 
     const requestedPwRegistration = input.isPrabhupadaWorldUser === true;
 
-    // The selected guide/admin and its segment are resolved from Firestore. PW
-    // registration has no visible guide dropdown, so fall back to an active PW
-    // admin from Firestore when the hidden field is absent or stale.
-    let guideRecord = await resolveGuideReference(input.guideId);
-    if (!guideRecord && requestedPwRegistration) {
-      guideRecord = await resolveDefaultGuideForSegment('PW');
-    }
-    if (!guideRecord) {
+    // FOLK registrations choose a guide. PW registrations start unassigned;
+    // a Super Admin assigns the admin/guide later from the dashboard.
+    const guideRecord = await resolveGuideReference(input.guideId);
+    if (!guideRecord && !requestedPwRegistration) {
       throw new AppError({
         code: 'NOT_FOUND',
-        message: requestedPwRegistration
-          ? 'No active Prabhupada World admin is available for registration.'
-          : 'Please select a valid guide or admin.',
+        message: 'Please select a valid guide or admin.',
       });
     }
-    const isPw = requestedPwRegistration || guideRecord.segment === 'PW' || guideRecord.isPrabhupadaWorldMentor === true;
+    const isPw = requestedPwRegistration || guideRecord?.segment === 'PW' || guideRecord?.isPrabhupadaWorldMentor === true;
 
     // Verify residency if claimed
     let residencyRecordId: string | undefined;
@@ -113,7 +107,7 @@ export default createEndpoint({
       fullName: input.fullName,
       phone,
       email: userEmail,
-      guide: guideRecord.id,
+      guide: guideRecord?.id || null,
       residency: residencyRecordId || null,
       role: 'User',
       status: 'Pending Approval',
@@ -159,7 +153,7 @@ export default createEndpoint({
 
     // ── Email: notification to the assigned guide or PW Admins ──
     try {
-      if (!isPw && guideRecord.email) {
+      if (!isPw && guideRecord?.email) {
         await Email.send({
           to: guideRecord.email,
           subject: `New Devotee Awaiting Approval — ${input.fullName} | FOLK Sadhana Tracker`,

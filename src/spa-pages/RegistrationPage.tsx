@@ -91,13 +91,6 @@ export default function RegistrationPage() {
     try {
       const result = await getGuides({ segment: isPwFlow ? 'PW' : 'FOLK' });
       setGuides(result.guides);
-      if (isPwFlow) {
-        const firstGuideId = result.guides[0]?.guideId || '';
-        setFormData(prev => ({
-          ...prev,
-          selectedGuideId: prev.selectedGuideId || firstGuideId,
-        }));
-      }
     } catch {
       toast.error('Failed to load guides. Please try again.');
     } finally { setLoadingGuides(false); }
@@ -462,7 +455,7 @@ export default function RegistrationPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || guides.length === 0}
+            disabled={loading || (!isPwFlow && guides.length === 0)}
             className="w-full h-11 mt-4 bg-[#ea6506] hover:bg-[#d35a04] text-white font-semibold text-sm rounded-md shadow-sm hover:shadow transition-all flex items-center justify-center cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
           >
             {loading ? (

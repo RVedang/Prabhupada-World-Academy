@@ -117,7 +117,7 @@ function buildEntryRecord(input: any, context: any, entryId: string, now: string
 
   return {
     entryId,
-    user: context.user.id,
+    user: input.userId || context.user.id,
     entryDate: input.entryDate.split('T')[0],
     totalScore: correctedTotalScore,
     maxScore: correctedMaxScore,
@@ -247,7 +247,7 @@ export default createEndpoint({
 
     if (!existingId) {
       const existing = await SadhanaEntries.findOne({
-        filters: { user: context.user.id, entryDate },
+        filters: { user: input.userId || context.user.id, entryDate },
         fields: ENTRY_FIND_FIELDS,
       });
       existingId = existing?.id;
@@ -273,7 +273,7 @@ export default createEndpoint({
         .reduce((sum, k) => sum + (Number(bvData[k]) || 0), 0);
 
       const existingBv = await BvslPreachingEntries.findOne({
-        filters: { user: context.user.id, entryDate },
+        filters: { user: input.userId || context.user.id, entryDate },
         fields: ['id'],
       });
 
@@ -289,7 +289,7 @@ export default createEndpoint({
 
       const bvRecord: any = {
         entryId: bvEntryId,
-        user: context.user.id,
+        user: input.userId || context.user.id,
         entryDate,
         prCallingTime: Number(bvData.pr_calling_time) || 0,
         prOneOnOneTime: Number(bvData.pr_one_on_one_time) || 0,
@@ -317,7 +317,7 @@ export default createEndpoint({
     const entryDateForStreak = (record.entryDate as string).slice(0, 10);
     const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0];
     if (entryDateForStreak === todayIST) {
-      const userId = context.user.id;
+      const userId = input.userId || context.user.id;
       const streakWindowStart = daysAgo(todayIST, 100);
       SadhanaEntries.findAll({
         filters: { user: userId, entryDate: { gte: streakWindowStart, lte: todayIST } } as any,
@@ -338,12 +338,12 @@ export default createEndpoint({
       Number(fv._pts_bhaktiVriksha) > 0
     );
 
-    BvAttendance.findAll({ filters: { user: context.user.id, attendanceDate: entryDateForStreak }, limit: 1 })
+    BvAttendance.findAll({ filters: { user: input.userId || context.user.id, attendanceDate: entryDateForStreak }, limit: 1 })
       .then(async ({ records }: any) => {
         if (records && records.length > 0) {
           await BvAttendance.update({ id: records[0].id, record: { present: isBvAttended } });
         } else {
-          await BvAttendance.create({ record: { user: context.user.id, attendanceDate: entryDateForStreak, present: isBvAttended } });
+          await BvAttendance.create({ record: { user: input.userId || context.user.id, attendanceDate: entryDateForStreak, present: isBvAttended } });
         }
       })
       .catch(() => {});

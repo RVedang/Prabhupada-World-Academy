@@ -23,14 +23,11 @@ function getGuideEntries(r: Residency): GuideEntry[] {
   return ((r as any).guides as GuideEntry[] | undefined) ?? [];
 }
 
-// Display guide names/abbreviations with per-guide resident counts
+// Display guide names/abbreviations without per-guide resident counts
 function getGuideLabel(r: Residency): string {
   const guides = getGuideEntries(r);
   if (guides.length > 0) {
-    return guides.map(g => {
-      const label = g.abbreviation || g.guideName;
-      return g.residentCount > 0 ? `${label} (${g.residentCount})` : label;
-    }).filter(Boolean).join(', ');
+    return guides.map(g => g.abbreviation || g.guideName).filter(Boolean).join(', ');
   }
 
   return (r as any).guideName || 'Unassigned';

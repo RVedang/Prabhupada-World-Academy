@@ -42,48 +42,6 @@ export async function resolveGuideReference(reference?: string): Promise<Resolve
   return asGuide(user);
 }
 
-export async function resolveDefaultGuideForSegment(segment: 'PW' | 'FOLK'): Promise<ResolvedGuide | null> {
-  const { records } = await Users.findAll({
-    fields: ['id', 'userId', 'fullName', 'email', 'role', 'status', 'segment', 'isPrabhupadaWorldUser', 'isBvAdmin', 'isBvSuperAdmin'],
-    limit: 1000,
-  }).catch(() => ({ records: [] }));
-
-  const candidates = records
-    .filter((user: any) => {
-      const userSegment = getUserSegment(user);
-      const status = String(user.status || '').toUpperCase().replace(/\s+/g, '_');
-      return userSegment === segment && status === 'ACTIVE' && isAdminRole(user);
-    })
-    .sort((a: any, b: any) => {
-      const aSuper = isSuperAdminRole(a) ? 0 : 1;
-      const bSuper = isSuperAdminRole(b) ? 0 : 1;
-      if (aSuper !== bSuper) return aSuper - bSuper;
-      return String(a.fullName || a.email || '').localeCompare(String(b.fullName || b.email || ''));
-    });
-
-  const selected = candidates[0];
-  if (selected) {
-    return {
-      id: selected.userId || selected.id,
-      userId: selected.userId || undefined,
-      fullName: selected.fullName || undefined,
-      email: selected.email || undefined,
-      segment,
-      isPrabhupadaWorldMentor: segment === 'PW',
-    };
-  }
-
-  if (segment !== 'FOLK') return null;
-
-  const { records: guides } = await Guides.findAll({
-    filters: { isActive: true },
-    fields: ['id', 'guideId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldMentor'],
-    limit: 500,
-  }).catch(() => ({ records: [] }));
-  const guide = guides.find((g: any) => asGuide(g)?.segment === segment);
-  return asGuide(guide);
-}
-
 export function getUserSegment(user: { segment?: unknown; isPrabhupadaWorldUser?: unknown } | null | undefined): 'PW' | 'FOLK' | null {
   if (user?.segment === 'PW' || user?.isPrabhupadaWorldUser === true) return 'PW';
   if (user?.segment === 'FOLK') return 'FOLK';

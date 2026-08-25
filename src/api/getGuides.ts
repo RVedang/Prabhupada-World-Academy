@@ -197,12 +197,15 @@ export default createEndpoint({
 });
 
 function dedupeGuides(list: any[]) {
-  const seen = new Set();
+  const seenEmails = new Set();
+  const seenNames = new Set();
   return list.filter(g => {
     const emailKey = (g.email || '').toLowerCase().trim();
-    if (!emailKey) return true;
-    if (seen.has(emailKey)) return false;
-    seen.add(emailKey);
+    const nameKey = (g.name || '').toLowerCase().trim();
+    if (emailKey && seenEmails.has(emailKey)) return false;
+    if (nameKey && seenNames.has(nameKey)) return false;
+    if (emailKey) seenEmails.add(emailKey);
+    if (nameKey) seenNames.add(nameKey);
     return true;
   });
 }
