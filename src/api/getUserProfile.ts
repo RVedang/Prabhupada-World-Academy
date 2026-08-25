@@ -10,7 +10,7 @@ const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'stat
   'isBvMentor', 'bvMentorGuideId', 'isCleanlinessManager', 'isFolkLead', 'isTripCoordinator',
   'acknowledgedFolkLead', 'acknowledgedTripCoordinator', 'acknowledgedSadhanaMentor',
   'isBvSuperAdmin', 'isBvAdmin', 'isBvSupervisor', 'isBvFacilitator', 'isBvSubFacilitator',
-  'pendingRoleNotice', 'roleNoticeAcknowledged', 'bvRegistrationStatus', 'bvGroupId', 'bvGroupName', 'isPrabhupadaWorldUser', 'pendingBvRejectionNotice', 'segment', 'pendingBvApprovalNotice',
+  'pendingRoleNotice', 'roleNoticeAcknowledged', 'bvRegistrationStatus', 'bvGroupId', 'bvGroupName', 'isBvMember', 'isPrabhupadaWorldUser', 'pendingBvRejectionNotice', 'segment', 'pendingBvApprovalNotice',
   'pendingAshrayNoticeStatus', 'pendingAshrayNoticeLevel', 'ashrayNoticeAcknowledged'];
 const GUIDE_FIELDS = ['id', 'fullName', 'abbr'];
 const RESIDENCY_FIELDS = ['id', 'residencyName', 'residencyId'];
@@ -260,6 +260,9 @@ function buildProfileResult({
       bvRegistrationStatus: userRecord.bvRegistrationStatus || null,
       bvGroupId: userRecord.bvGroupId || null,
       bvGroupName: userRecord.bvGroupName || null,
+      // Attendance is available only to active BV members. Keep this field in
+      // the fresh profile response rather than relying on client-side state.
+      isBvMember: !!userRecord.isBvMember,
       isPrabhupadaWorldUser: !!(userRecord.isPrabhupadaWorldUser),
       pendingBvRejectionNotice: !!(userRecord.pendingBvRejectionNotice),
       pendingBvApprovalNotice: !!(userRecord.pendingBvApprovalNotice),

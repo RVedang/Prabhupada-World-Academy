@@ -75,6 +75,9 @@ function buildProfile(userObj: any): ProfileData {
     isBvSupervisor,
     isBvFacilitator,
     isBvSubFacilitator,
+    // This is set when a registration is approved and is what enables the
+    // member-only Attendance tab in each user dashboard.
+    isBvMember: !!userObj.isBvMember,
     isFolkLead: !!(userObj.isFolkLead),
     isTripCoordinator: !!(userObj.isTripCoordinator),
     folkResidencyCustomId,

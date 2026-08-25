@@ -56,9 +56,9 @@ export default createEndpoint({
 
     try {
       const [{ records: list1 }, { records: list2 }, { records: list3 }] = await Promise.all([
-        rawUserIds.length > 0 ? Users.findAll({ filters: { id: rawUserIds }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
-        rawUserIds.length > 0 ? Users.findAll({ filters: { userId: rawUserIds }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
-        rawEmails.length > 0 ? Users.findAll({ filters: { email: rawEmails }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
+        rawUserIds.length > 0 ? Users.findAll({ filters: { id: { in: rawUserIds } }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
+        rawUserIds.length > 0 ? Users.findAll({ filters: { userId: { in: rawUserIds } }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
+        rawEmails.length > 0 ? Users.findAll({ filters: { email: { in: rawEmails } }, limit: 500 }).catch(() => ({ records: [] })) : { records: [] },
       ]);
       [...(list1 || []), ...(list2 || []), ...(list3 || [])].forEach(u => {
         if (u.id) userMap[u.id] = u;
@@ -113,6 +113,9 @@ export default createEndpoint({
 
     const filteredRecords = records.filter(r => {
       const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
+      // A successful assignment is definitive. Do not show an old duplicate
+      // registration record as pending after the member has joined a group.
+      if (u?.isBvMember || u?.bvRegistrationStatus === 'Approved') return false;
       const isPwUser = !!(u?.isPrabhupadaWorldUser || r.isPrabhupadaWorldUser) || 
         (u?.segment === 'PW' || r.segment === 'PW');
 

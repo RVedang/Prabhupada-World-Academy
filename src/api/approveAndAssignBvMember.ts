@@ -155,6 +155,38 @@ export default createEndpoint({
       });
 
       serverCacheInvalidate(profileCacheKey(targetUser.id));
+
+      // Older imports can contain more than one registration document for the
+      // same person. Mark every matching pending document approved so it
+      // cannot reappear in the approval queue after a refresh.
+      const identityValues = new Set([
+        reg.userId,
+        reg.userDbId,
+        targetUser.id,
+        targetUser.userId,
+      ].filter(Boolean).map(String));
+      const email = String(reg.email || targetUser.email || '').toLowerCase();
+      const { records: allRegistrations } = await BvMemberRegistrations.findAll({ limit: 500 });
+      await Promise.all(allRegistrations
+        .filter((candidate: any) => {
+          const candidateEmail = String(candidate.email || '').toLowerCase();
+          return candidate.status !== 'Approved' && (
+            identityValues.has(String(candidate.userId || '')) ||
+            identityValues.has(String(candidate.userDbId || '')) ||
+            (!!email && candidateEmail === email)
+          );
+        })
+        .map((candidate: any) => BvMemberRegistrations.update({
+          id: candidate.id,
+          record: {
+            status: 'Approved',
+            assignedGroupId: group.id,
+            assignedGroupName: group.groupName || '',
+            approvedBy: context.user.id,
+            approvedAt: now,
+          },
+        }))
+      );
     }
 
     serverCacheInvalidate(profileCacheKey(reg.userId));
