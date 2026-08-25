@@ -100,22 +100,67 @@ export default function BvLeaderboard({ leaderboard, currentUserId }: Props) {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          <div className="flex gap-1">
-            <Button size="sm" variant={ashrayFilter === 'all' ? 'default' : 'outline'} className="text-xs h-7"
-              onClick={() => setAshray('all')}>All Ashraya</Button>
-            {currentUserAshrayLevel && (
-              <Button size="sm" variant={ashrayFilter === 'mine' ? 'default' : 'outline'} className="text-xs h-7"
-                onClick={() => setAshray('mine')}>My Ashraya</Button>
-            )}
-          </div>
-          <div className="flex gap-1">
-            <Button size="sm" variant={residencyFilter === 'all' ? 'default' : 'outline'} className="text-xs h-7"
-              onClick={() => setResidency('all')}>All Residencies</Button>
-            {currentUserIsResident && currentUserResidency && (
-              <Button size="sm" variant={residencyFilter === 'mine' ? 'default' : 'outline'} className="text-xs h-7"
-                onClick={() => setResidency('mine')}>My Residency</Button>
-            )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3 pt-3 border-t border-border">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Ashray Level Filter Group */}
+            <div className="flex items-center gap-1.5 bg-muted p-0.5 rounded-lg border">
+              <Button
+                size="sm"
+                variant="ghost"
+                className={`text-[11px] h-6 px-2.5 rounded-md transition-all ${
+                  ashrayFilter === 'all'
+                    ? 'bg-background text-foreground shadow-sm font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setAshray('all')}
+              >
+                All Levels
+              </Button>
+              {currentUserAshrayLevel && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`text-[11px] h-6 px-2.5 rounded-md transition-all ${
+                    ashrayFilter === 'mine'
+                      ? 'bg-background text-foreground shadow-sm font-semibold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setAshray('mine')}
+                >
+                  My Level ({currentUserAshrayLevel})
+                </Button>
+              )}
+            </div>
+
+            {/* Residency Filter Group */}
+            <div className="flex items-center gap-1.5 bg-muted p-0.5 rounded-lg border">
+              <Button
+                size="sm"
+                variant="ghost"
+                className={`text-[11px] h-6 px-2.5 rounded-md transition-all ${
+                  residencyFilter === 'all'
+                    ? 'bg-background text-foreground shadow-sm font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setResidency('all')}
+              >
+                All Hostels
+              </Button>
+              {currentUserIsResident && currentUserResidency && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`text-[11px] h-6 px-2.5 rounded-md transition-all ${
+                    residencyFilter === 'mine'
+                      ? 'bg-background text-foreground shadow-sm font-semibold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setResidency('mine')}
+                >
+                  My Hostel ({currentUserResidency.replace('FOLK ', '')})
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>

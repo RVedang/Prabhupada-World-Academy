@@ -81,7 +81,7 @@ export default createEndpoint({
             const correspondingUser = userRecords.find(u => (u.email || '').toLowerCase().trim() === emailLower);
             if (correspondingUser) {
               // If user exists, status must be Active and role must be a guide/admin role
-              const roleUpper = (correspondingUser.role || '').toUpperCase();
+              const roleUpper = (correspondingUser.role || '').toUpperCase().replace(/\s+/g, '_').trim();
               const isGuideOrAdmin =
                 roleUpper === 'GUIDE' ||
                 roleUpper === 'SUPER_GUIDE' ||
@@ -108,7 +108,7 @@ export default createEndpoint({
       // Dynamically fetch FOLK Guides / Supervisors / Admins from Users table
       const dbFolkGuides = userRecords
         .filter(u => {
-          const roleUpper = (u.role || '').toUpperCase();
+          const roleUpper = (u.role || '').toUpperCase().replace(/\s+/g, '_').trim();
           const isPwUser = u.segment === 'PW' || u.isPrabhupadaWorldUser === true;
 
           if (isPwUser) return false;
@@ -136,7 +136,7 @@ export default createEndpoint({
       // Dynamically fetch PW Admins from Users table
       const dbPwAdmins = userRecords
         .filter(u => {
-          const roleUpper = (u.role || '').toUpperCase();
+          const roleUpper = (u.role || '').toUpperCase().replace(/\s+/g, '_').trim();
           const segmentUpper = (u.segment || '').toUpperCase();
           return (roleUpper === 'ADMIN' || u.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || u.isBvSuperAdmin === true) &&
                  (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&

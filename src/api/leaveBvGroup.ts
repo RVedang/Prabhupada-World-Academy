@@ -8,8 +8,38 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     const uid = context.user!.id;
+    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId'] }).catch(() => null);
+    const realProfileId = userRecord?.userId || uid;
+
+    // Delete membership from BvGroupMembers table for both IDs
     const res = await BvGroupMembers.findAll({ filters: { user: uid, group: input.groupId }, limit: 5, fields: ['id'] });
     for (const m of res.records) await BvGroupMembers.delete({ id: m.id });
+
+    if (realProfileId !== uid) {
+      const resAlt = await BvGroupMembers.findAll({ filters: { user: realProfileId, group: input.groupId }, limit: 5, fields: ['id'] });
+      for (const m of resAlt.records) await BvGroupMembers.delete({ id: m.id });
+    }
+
+    // Clear BV group membership/registration fields on both user documents
+    await Users.update({
+      id: uid,
+      record: {
+        bvGroupId: '',
+        bvGroupName: '',
+        bvRegistrationStatus: '',
+      }
+    }).catch(() => {});
+
+    if (realProfileId !== uid) {
+      await Users.update({
+        id: realProfileId,
+        record: {
+          bvGroupId: '',
+          bvGroupName: '',
+          bvRegistrationStatus: '',
+        }
+      }).catch(() => {});
+    }
 
     // Send single notification to RGF, Supervisor, and Admins (deduped)
     try {

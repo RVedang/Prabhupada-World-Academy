@@ -151,10 +151,17 @@ export default function BvCalendarView({ history, userId, onRefresh, quizDates }
             const isSelected = selectedDate === dateStr;
             const isPast = !isFuture && !isToday;
 
+            const showClickToMark = canMarkAttendance && !status;
+            const tooltipTitle = status
+              ? `${dateStr}: ${status === 'P' ? 'Present' : 'Absent'}`
+              : isFuture
+              ? ''
+              : `${dateStr}: Not marked${showClickToMark ? ' — click to mark' : ''}`;
+
             return (
               <div
                 key={dateStr}
-                title={status ? `${dateStr}: ${status === 'P' ? 'Present' : 'Absent'}` : isFuture ? '' : `${dateStr}: Not marked — click to mark`}
+                title={tooltipTitle}
                 onClick={() => handleDayClick(dateStr, isFuture)}
                 className={[
                   'min-h-[44px] rounded-lg flex flex-col items-center justify-center border gap-0.5 transition-all',
@@ -165,11 +172,11 @@ export default function BvCalendarView({ history, userId, onRefresh, quizDates }
                     : status === 'A'
                     ? 'bg-red-50 border-red-300 text-red-500'
                     : isPast || isToday
-                    ? 'bg-muted/40 border-muted text-muted-foreground cursor-pointer hover:bg-muted/70'
+                    ? `bg-muted/40 border-muted text-muted-foreground ${canMarkAttendance ? 'cursor-pointer hover:bg-muted/70' : ''}`
                     : 'bg-muted/30 border-muted text-muted-foreground',
                   isToday ? 'ring-2 ring-primary ring-offset-1' : '',
                   isSelected ? 'ring-2 ring-blue-400 ring-offset-1' : '',
-                  activeUserId && !isFuture ? 'cursor-pointer' : '',
+                  activeUserId && !isFuture && canMarkAttendance ? 'cursor-pointer' : '',
                 ].join(' ')}
               >
                 <span className="text-sm font-bold leading-none">{format(day, 'd')}</span>

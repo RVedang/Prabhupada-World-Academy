@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { getSadhanaFormData, submitSadhana, setTemporaryResidency, getAllResidencies, getCleanlinessForSadhana, requestCleanlinessReview, GetSadhanaFormDataOutputType, GetAllResidenciesOutputType } from '@/lib/endpoints-sdk';
 const SADHANA_SUBMITTED_KEY_PREFIX = 'sadhana_submitted_';
 import { markSubmittedToday, scheduleSadhanaReminder } from '@/utils/sadhanaNotification';
+import { invalidateUserDashboardCache } from '@/utils/cache';
 import { useDebouncedCallback } from 'use-debounce';
 import { format, subDays } from 'date-fns';
 import { fmt } from '@/lib/fmt';
@@ -390,6 +391,7 @@ export default function DailySadhanaForm() {
         existingRowId,
         existingEntryId,
       });
+      invalidateUserDashboardCache(userId);
       navigate(getDashboardUrl(), { replace: true });
     } catch (err: any) {
       // Revert optimistic toast on failure

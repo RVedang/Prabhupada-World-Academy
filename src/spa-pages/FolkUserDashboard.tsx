@@ -101,7 +101,7 @@ export default function FolkUserDashboard() {
   return (
     <DashboardLayout
       title={`Hare Krishna ${profile.fullName}!`}
-      subtitle={`FOLK${profile.guideName ? ` · Guide: ${profile.guideName}` : ''}`}
+      subtitle={`FOLK${profile.guideName ? ` Guide: ${profile.guideName}` : ''}`}
     >
       <PushNotificationBanner />
       <Tabs value={activeTab} onValueChange={handleTabChange}>

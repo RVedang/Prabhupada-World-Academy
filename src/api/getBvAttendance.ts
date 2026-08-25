@@ -54,21 +54,36 @@ export default createEndpoint({
 
     // Leaderboard — get all unique member user IDs
     const memberIds = [...new Set(allAtt.map((a: any) => Array.isArray(a.user) ? a.user[0] : a.user).filter(Boolean))] as string[];
+    const userFields = ['id', 'fullName', 'userId', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'residencyName', 'ashrayLevel'];
     const [userRecordsById, userRecordsByUserId] = await Promise.all([
       memberIds.length > 0
-        ? Users.findAll({ filters: { id: { in: memberIds } }, fields: ['id', 'fullName', 'userId'] })
+        ? Users.findAll({ filters: { id: { in: memberIds } }, fields: userFields })
         : { records: [] },
       memberIds.length > 0
-        ? Users.findAll({ filters: { userId: { in: memberIds } }, fields: ['id', 'fullName', 'userId'] })
+        ? Users.findAll({ filters: { userId: { in: memberIds } }, fields: userFields })
         : { records: [] },
     ]);
 
-    const userNameMap = new Map<string, { name: string; userId: string }>();
+    const userDetailsMap = new Map<string, {
+      name: string;
+      userId: string;
+      isResident: boolean;
+      residencyName: string;
+      ashrayLevel: string;
+    }>();
     const addNameMap = (u: any) => {
-      const details = { name: u.fullName || '', userId: u.userId || u.id };
-      userNameMap.set(u.id, details);
+      const isApprovedResident = !!((u.residencyApproved || u.residencyGuideVerified) && (u.selectedFolkResidency || u.residency || u.residencyName));
+      const resName = u.residencyName || (Array.isArray(u.residency) ? u.residency[0] : u.residency) || '';
+      const details = {
+        name: u.fullName || '',
+        userId: u.userId || u.id,
+        isResident: isApprovedResident,
+        residencyName: resName,
+        ashrayLevel: u.ashrayLevel || 'Jigyasa',
+      };
+      userDetailsMap.set(u.id, details);
       if (u.userId) {
-        userNameMap.set(u.userId, details);
+        userDetailsMap.set(u.userId, details);
       }
     };
     userRecordsById.records.forEach(addNameMap);
@@ -118,13 +133,16 @@ export default createEndpoint({
     const leaderboard = memberIds.map(memberId => {
       const memberAtt = allAtt.filter((a: any) => (Array.isArray(a.user) ? a.user[0] : a.user) === memberId);
       const presentCount = memberAtt.filter((a: any) => a.present).length;
-      const info = userNameMap.get(memberId);
+      const info = userDetailsMap.get(memberId);
       return {
         userId: (info as any)?.userId || memberId,
-        userName: (info as any)?.name || memberId,
+        displayName: (info as any)?.name || memberId,
         presentCount,
-        totalSessions: totalSessionDates,
+        totalCount: totalSessionDates,
         attendanceRate: totalSessionDates > 0 ? Math.round((presentCount / totalSessionDates) * 100) : 0,
+        isResident: (info as any)?.isResident ?? false,
+        residencyName: (info as any)?.residencyName ?? '',
+        ashrayLevel: (info as any)?.ashrayLevel ?? '',
       };
     }).sort((a, b) => b.presentCount - a.presentCount);
 
