@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "query": "NODE_ENV=production npx tsx scratch_query.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

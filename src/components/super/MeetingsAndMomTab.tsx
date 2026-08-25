@@ -46,7 +46,7 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
     const rect = inputRef.current.getBoundingClientRect();
     const viewportPadding = 12;
     const gap = 6;
-    const menuWidth = Math.min(300, Math.max(260, rect.width));
+    const menuWidth = Math.min(320, Math.max(280, rect.width));
     const menuLeft = Math.min(
       Math.max(viewportPadding, rect.left),
       window.innerWidth - menuWidth - viewportPadding
@@ -162,8 +162,8 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
             <div className="grid place-items-center w-6 h-6 rounded-lg bg-primary/10 text-primary shrink-0">
               <UsersIcon className="w-3.5 h-3.5" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">
-              Select participant
+            <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">
+              Search participants
             </span>
           </div>
           <span className="text-[9px] font-semibold text-muted-foreground/80 bg-background/80 border border-border/60 rounded-full px-2 py-0.5 shrink-0">

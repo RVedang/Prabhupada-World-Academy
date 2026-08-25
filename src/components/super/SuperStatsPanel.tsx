@@ -7,11 +7,75 @@ import { Users, Home, BookOpen, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getGuides, getGuideUsers, getAllResidenciesWithStats } from '@/lib/endpoints-sdk';
 import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
-import { Button } from '@/components/ui/button';
-
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type GuideStat = GetGuidesOutputType['guides'][0] & { userCount: number; avgScore: number | null };
+type Guide = GetGuidesOutputType['guides'][0];
+type AssignedUser = {
+  selectedGuideId?: unknown;
+  selectedGuideName?: unknown;
+  guideId?: unknown;
+  guide?: unknown;
+  mentorId?: unknown;
+  mentorName?: unknown;
+  bvReportingAdminId?: unknown;
+  bvReportingAdminName?: unknown;
+};
+
+const ADMIN_IDENTITY_NOISE = new Set([
+  'admin', 'administrator', 'das', 'guide', 'mentor', 'prabhu', 'pw', 'super',
+]);
+
+/**
+ * Admin assignments have historically been stored as document IDs, user IDs,
+ * email addresses, display names, and legacy aliases such as
+ * MENTOR-PW-HIRANYAVARNA. Produce both exact and semantic keys so all of those
+ * formats resolve to the same current admin without relying on stale hierarchy
+ * fields.
+ */
+function getAdminIdentityKeys(...values: unknown[]): string[] {
+  const keys = new Set<string>();
+
+  for (const value of values) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) continue;
+
+    keys.add(normalized);
+    keys.add(normalized.replace(/[^a-z0-9]/g, ''));
+
+    const semantic = normalized
+      .split(/[^a-z0-9]+/)
+      .filter(token => token.length > 0 && !ADMIN_IDENTITY_NOISE.has(token))
+      .join('');
+    if (semantic.length >= 4) keys.add(semantic);
+  }
+
+  return [...keys].filter(Boolean);
+}
+
+function resolveAssignedAdmin(user: AssignedUser, adminsByIdentity: Map<string, Guide>): Guide | undefined {
+  const findMatch = (values: unknown[]) => {
+    for (const key of getAdminIdentityKeys(...values)) {
+      const admin = adminsByIdentity.get(key);
+      if (admin) return admin;
+    }
+    return undefined;
+  };
+
+  // The Admin dropdown writes the user's guide assignment. It is the current,
+  // user-visible source of truth and must win over legacy BV hierarchy fields.
+  return findMatch([
+    user.selectedGuideId,
+    user.selectedGuideName,
+    user.guideId,
+    user.guide,
+    user.mentorId,
+    user.mentorName,
+  ]) || findMatch([
+    user.bvReportingAdminId,
+    user.bvReportingAdminName,
+  ]);
+}
 
 interface SuperStatsPanelProps {
   segment?: 'PW' | 'FOLK';
@@ -40,26 +104,30 @@ export default function SuperStatsPanel({ segment, isActive }: SuperStatsPanelPr
       let stats: GuideStat[];
 
       if (isPw) {
-        // For PW, users are linked via bvReportingAdminId (not the Guides table).
-        // Fetch all active users once and group them by their reporting admin.
+        // Fetch all active users once and group them by the current Admin
+        // dropdown assignment, with the BV reporting hierarchy as a fallback
+        // for older records that do not yet have a guide assignment.
         const allUsersRes = await getGuideUsers({ guideId: 'ALL', statusFilter: 'active' }).catch(() => ({ users: [] }));
         const allUsers: any[] = allUsersRes.users;
 
-        // Build a lookup: adminId / email -> users[]
+        const adminsByIdentity = new Map<string, Guide>();
+        for (const admin of guides) {
+          for (const key of getAdminIdentityKeys(admin.guideId, admin.email, admin.name)) {
+            adminsByIdentity.set(key, admin);
+          }
+        }
+
         const usersByAdmin = new Map<string, any[]>();
         for (const u of allUsers) {
-          const adminId = String(u.bvReportingAdminId || '').toLowerCase();
+          const assignedAdmin = resolveAssignedAdmin(u, adminsByIdentity);
+          const adminId = assignedAdmin?.guideId;
           if (!adminId) continue;
           if (!usersByAdmin.has(adminId)) usersByAdmin.set(adminId, []);
           usersByAdmin.get(adminId)!.push(u);
         }
 
         stats = guides.map((g: any) => {
-          // Match on guideId, fallback to id, then email — covers hardcoded IDs like MENTOR-PW-HIRANYAVARNA
-          const gId = String(g.guideId || '').toLowerCase();
-          const gId2 = String(g.id || '').toLowerCase();
-          const gEmail = String(g.email || '').toLowerCase();
-          const users = usersByAdmin.get(gId) || usersByAdmin.get(gId2) || (gEmail ? usersByAdmin.get(gEmail) : undefined) || [];
+          const users = usersByAdmin.get(g.guideId) || [];
           const scored = users.filter((u: any) => u.latestScore != null);
           const avg = scored.length > 0
             ? Math.round(scored.reduce((s: number, u: any) => s + (u.latestScore || 0), 0) / scored.length)
