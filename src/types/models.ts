@@ -62,6 +62,7 @@ export interface ProfileSummary {
   isBvFacilitator?: boolean;
   /** Reading Group Sub-Facilitator (RGSF) */
   isBvSubFacilitator?: boolean;
+  isBvMember?: boolean;
   /** Cleanliness Manager: can submit daily room inspections */
   isCleanlinessManager?: boolean;
   /** Custom text residency ID (e.g. "RES-001") — used by service endpoints that filter by residencyId field */

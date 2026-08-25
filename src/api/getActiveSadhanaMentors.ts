@@ -11,7 +11,7 @@ export default createEndpoint({
   execute: async ({ input }: any) => {
     const { records } = await Users.findAll({
       filters: { status: 'Active' },
-      fields: ['id', 'userId', 'fullName', 'email', 'isSadhanaMentor', 'role', 'segment'],
+      fields: ['id', 'userId', 'fullName', 'email', 'isSadhanaMentor', 'role', 'segment', 'isPrabhupadaWorldUser'],
       limit: 1000,
     });
 
@@ -24,7 +24,7 @@ export default createEndpoint({
         userId: u.id || u.userId,
         fullName: u.fullName || '',
         email: u.email || '',
-        segment: u.segment || '',
+        segment: u.segment === 'PW' || u.isPrabhupadaWorldUser ? 'PW' : (u.segment || ''),
       }));
 
     if (input.segment && input.segment !== 'ALL') {

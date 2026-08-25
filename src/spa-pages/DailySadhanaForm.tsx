@@ -15,6 +15,7 @@ import { getSadhanaFormData, submitSadhana, setTemporaryResidency, getAllResiden
 const SADHANA_SUBMITTED_KEY_PREFIX = 'sadhana_submitted_';
 import { markSubmittedToday, scheduleSadhanaReminder } from '@/utils/sadhanaNotification';
 import { invalidateUserDashboardCache } from '@/utils/cache';
+import { publishSadhanaEntrySaved } from '@/utils/sadhanaDashboardRefresh';
 import { useDebouncedCallback } from 'use-debounce';
 import { format, subDays } from 'date-fns';
 import { fmt } from '@/lib/fmt';
@@ -392,6 +393,16 @@ export default function DailySadhanaForm() {
         existingEntryId,
       });
       invalidateUserDashboardCache(userId);
+      publishSadhanaEntrySaved({
+        userId,
+        entryDate,
+        totalScore,
+        maxScore,
+        scorePercent: maxScore > 0 ? (scorePercent ?? null) : null,
+        flagSick: isSick,
+        flagOs: isOS,
+        submittedAt: new Date().toISOString(),
+      });
       navigate(getDashboardUrl(), { replace: true });
     } catch (err: any) {
       // Revert optimistic toast on failure

@@ -44,7 +44,7 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
   const hasCache = cachedRegs !== null && cachedGroups !== null;
 
   const [registrations, setRegistrations] = useState<any[]>(cachedRegs || []);
-  const [groups, setGroups] = useState<any[]>(cachedGroups?.groups || []);
+  const [allGroupsState, setAllGroupsState] = useState<any[]>(cachedGroups?.groups || []);
   const [loading, setLoading] = useState(!hasCache);
 
   const [selectedReg, setSelectedReg] = useState<any | null>(null);
@@ -65,11 +65,7 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
         getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
       ]);
       setRegistrations(regs || []);
-      const allGroups = grpRes.groups || [];
-      const filteredGroups = segment
-        ? allGroups.filter((g: any) => g.segment === segment)
-        : allGroups;
-      setGroups(filteredGroups);
+      setAllGroupsState(grpRes.groups || []);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load pending Bhakti Vriksha registrations');
     } finally {
@@ -123,12 +119,20 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
     );
   }
 
-  // Filter groups by devotee preferred time slot
-  const filteredGroups = showAllGroups
-    ? groups
-    : groups.filter(g => isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime));
+  // 1. Base active groups
+  const activeGroups = allGroupsState.filter(g => g.isActive !== false);
 
-  const selectedGroup = groups.find(g => g.id === targetGroupId || g.groupId === targetGroupId);
+  // 2. Filter by segment if provided (unless showing all groups)
+  const segmentGroups = segment && !showAllGroups
+    ? activeGroups.filter(g => g.segment === segment)
+    : activeGroups;
+
+  // 3. Filter by time slot (unless showing all groups)
+  const filteredGroups = showAllGroups
+    ? segmentGroups
+    : segmentGroups.filter(g => isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime));
+
+  const selectedGroup = allGroupsState.find(g => g.id === targetGroupId || g.groupId === targetGroupId);
 
   return (
     <div className="space-y-4">
@@ -189,11 +193,11 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
                       onClick={() => {
                         setSelectedReg(reg);
                         setShowAllGroups(false);
-                        const matched = groups.filter(g => isTimeSlotMatch(reg.timePreference, g.meetingTime));
+                        const matched = segmentGroups.filter(g => isTimeSlotMatch(reg.timePreference, g.meetingTime));
                         if (matched.length > 0) {
                           setTargetGroupId(matched[0].id);
-                        } else if (groups.length > 0) {
-                          setTargetGroupId(groups[0].id);
+                        } else if (segmentGroups.length > 0) {
+                          setTargetGroupId(segmentGroups[0].id);
                         } else {
                           setTargetGroupId('');
                         }
@@ -284,8 +288,8 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
                         onChange={(e) => {
                           setShowAllGroups(e.target.checked);
                           const activeGroups = e.target.checked
-                            ? groups
-                            : groups.filter(g => isTimeSlotMatch(selectedReg.timePreference, g.meetingTime));
+                            ? segmentGroups
+                            : segmentGroups.filter(g => isTimeSlotMatch(selectedReg.timePreference, g.meetingTime));
                           if (activeGroups.length > 0) {
                             setTargetGroupId(activeGroups[0].id);
                           } else {
@@ -306,7 +310,7 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
                       type="button"
                       onClick={() => {
                         setShowAllGroups(true);
-                        if (groups.length > 0) setTargetGroupId(groups[0].id);
+                        if (segmentGroups.length > 0) setTargetGroupId(segmentGroups[0].id);
                       }}
                       className="text-xs text-primary font-semibold underline hover:opacity-90 block"
                     >

@@ -137,11 +137,6 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
   const handleSaveAndApprove = async () => {
     if (!editUser) return;
 
-    if (isPwAdmin && !editedSadhanaMentorId) {
-      toast.error('Please assign a Sadhana Mentor before approving.');
-      return;
-    }
-
     const result = await approveUser({
       userId: editUser.userId,
       guideId: actionGuideId,
@@ -719,19 +714,25 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             )}
             {isPwAdmin && (
               <div className="space-y-1.5">
-                <Label>Assign Sadhana Mentor <span className="text-red-500 font-bold">*</span></Label>
-                <Select value={editedSadhanaMentorId} onValueChange={(v) => setEditedSadhanaMentorId(v || '')}>
+                <Label>Assign Sadhana Mentor</Label>
+                <Select value={editedSadhanaMentorId || '__unassigned__'} onValueChange={(v) => setEditedSadhanaMentorId(v === '__unassigned__' ? '' : v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select Sadhana Mentor">
-                      {sadhanaMentors.find((m: any) => m.userId === editedSadhanaMentorId)?.fullName || editedSadhanaMentorId}
+                    <SelectValue placeholder="Assign later">
+                      {editedSadhanaMentorId
+                        ? (sadhanaMentors.find((m: any) => m.userId === editedSadhanaMentorId)?.fullName || editedSadhanaMentorId)
+                        : 'Assign later'}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__unassigned__">Assign later</SelectItem>
                     {sadhanaMentors.map((m: any) => (
                       <SelectItem key={m.userId} value={m.userId}>{m.fullName} ({m.email || 'No email'})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {sadhanaMentors.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No active PW Sadhana Mentors found. You can approve now and assign one later.</p>
+                )}
               </div>
             )}
             <div className="space-y-1.5">

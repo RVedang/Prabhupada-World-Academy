@@ -22,6 +22,12 @@ import PushNotificationBanner from '@/components/dashboard/PushNotificationBanne
 import CleanlinessCalendarTab from '@/components/cleanliness/CleanlinessCalendarTab';
 import CleanlinessManagerDashboard from '@/components/cleanliness/CleanlinessManagerDashboard';
 import { initReminderVisibilityCheck, scheduleSadhanaReminder, hasSubmittedToday } from '@/utils/sadhanaNotification';
+import {
+  consumePendingSadhanaEntrySaved,
+  mergeSavedSadhanaIntoDashboardData,
+  SADHANA_ENTRY_SAVED_EVENT,
+  type SavedSadhanaEntryPayload,
+} from '@/utils/sadhanaDashboardRefresh';
 
 export default function UserDashboard() {
   const { profile } = useUserProfile();
@@ -80,11 +86,30 @@ export default function UserDashboard() {
     if (tab === 'leaderboard') setLbRequested(true);
   }, []);
 
-  const { data: dashboardData, loading: dashLoading } = useQuery({
+  const { data: dashboardData, loading: dashLoading, refetch: refetchDashboard, setData: setDashboardData } = useQuery({
     key: profile?.userId ? `dashboard:${profile.userId}` : null,
     fetcher: () => getUserDashboardData({ userId: profile!.userId, days: 30 }),
     ttl: 60_000, // 60s — fresh enough, avoids re-fetch on tab switch
   });
+
+  useEffect(() => {
+    if (!profile?.userId) return;
+
+    const applySavedEntry = (payload: SavedSadhanaEntryPayload) => {
+      if (payload.userId !== profile.userId) return;
+      setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
+      refetchDashboard();
+    };
+
+    const pending = consumePendingSadhanaEntrySaved(profile.userId);
+    if (pending) applySavedEntry(pending);
+
+    const onSaved = (event: Event) => {
+      applySavedEntry((event as CustomEvent<SavedSadhanaEntryPayload>).detail);
+    };
+    window.addEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
+  }, [profile?.userId, dashboardData, setDashboardData, refetchDashboard]);
 
   // Leaderboard is heavy — only fetch when user actually clicks the tab
   const { data: leaderboardData } = useQuery({
@@ -151,9 +176,11 @@ export default function UserDashboard() {
             <span className="sm:hidden">BV</span>
             <span className="hidden sm:inline">Bhakti Vriksha</span>
           </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-1.5">
-            <ClipboardCheck className="w-4 h-4" />Attendance
-          </TabsTrigger>
+          {!!profile.isBvMember && (
+            <TabsTrigger value="attendance" className="flex items-center gap-1.5">
+              <ClipboardCheck className="w-4 h-4" />Attendance
+            </TabsTrigger>
+          )}
           {isResident && !!profile.selectedFolkResidency && (
             <TabsTrigger value="cleanliness" className="flex items-center gap-1.5">
               <Sparkles className="w-4 h-4" />Cleanliness
@@ -198,7 +225,7 @@ export default function UserDashboard() {
               </SectionErrorBoundary>
             </div>
           )}
-          {visitedTabs.has('attendance') && (
+          {visitedTabs.has('attendance') && !!profile.isBvMember && (
             <div className={activeTab === 'attendance' ? 'block' : 'hidden'}>
               <SectionErrorBoundary sectionName="Attendance Tab">
                 <AttendanceTab userId={profile.userId} />

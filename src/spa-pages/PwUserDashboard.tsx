@@ -22,6 +22,12 @@ import PushNotificationBanner from '@/components/dashboard/PushNotificationBanne
 import CleanlinessCalendarTab from '@/components/cleanliness/CleanlinessCalendarTab';
 import CleanlinessManagerDashboard from '@/components/cleanliness/CleanlinessManagerDashboard';
 import { initReminderVisibilityCheck, scheduleSadhanaReminder, hasSubmittedToday } from '@/utils/sadhanaNotification';
+import {
+  consumePendingSadhanaEntrySaved,
+  mergeSavedSadhanaIntoDashboardData,
+  SADHANA_ENTRY_SAVED_EVENT,
+  type SavedSadhanaEntryPayload,
+} from '@/utils/sadhanaDashboardRefresh';
 
 export default function PwUserDashboard() {
   const { profile } = useUserProfile();
@@ -54,11 +60,30 @@ export default function PwUserDashboard() {
     if (tab === 'leaderboard') setLbRequested(true);
   }, []);
 
-  const { data: dashboardData, loading: dashLoading } = useQuery({
+  const { data: dashboardData, loading: dashLoading, refetch: refetchDashboard, setData: setDashboardData } = useQuery({
     key: profile?.userId ? `dashboard:${profile.userId}` : null,
     fetcher: () => getUserDashboardData({ userId: profile!.userId, days: 30 }),
     ttl: 60_000,
   });
+
+  useEffect(() => {
+    if (!profile?.userId) return;
+
+    const applySavedEntry = (payload: SavedSadhanaEntryPayload) => {
+      if (payload.userId !== profile.userId) return;
+      setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
+      refetchDashboard();
+    };
+
+    const pending = consumePendingSadhanaEntrySaved(profile.userId);
+    if (pending) applySavedEntry(pending);
+
+    const onSaved = (event: Event) => {
+      applySavedEntry((event as CustomEvent<SavedSadhanaEntryPayload>).detail);
+    };
+    window.addEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
+  }, [profile?.userId, dashboardData, setDashboardData, refetchDashboard]);
 
   const { data: leaderboardData } = useQuery({
     key: lbRequested && profile?.userId ? `lb:${profile.userId}:${format(new Date(), 'yyyy-MM-dd')}` : null,
