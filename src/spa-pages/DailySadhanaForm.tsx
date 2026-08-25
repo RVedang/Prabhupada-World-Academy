@@ -372,7 +372,7 @@ export default function DailySadhanaForm() {
       // Store temp residency ID so guide reports can identify these entries
       if (tempResidencyEnabled && tempResidencyId) enriched._tempResidencyId = tempResidencyId;
 
-      await submitSadhana({
+      const savedEntry = await submitSadhana({
         userId, entryDate, totalScore,
         maxScore: maxScore,
         scorePercent: maxScore > 0 ? (scorePercent ?? undefined) : undefined,
@@ -398,9 +398,10 @@ export default function DailySadhanaForm() {
       publishSadhanaEntrySaved({
         userId,
         entryDate,
-        totalScore,
-        maxScore,
-        scorePercent: maxScore > 0 ? (scorePercent ?? null) : null,
+        entryId: savedEntry.entryId,
+        totalScore: savedEntry.totalScore,
+        maxScore: savedEntry.maxScore,
+        scorePercent: savedEntry.scorePercent,
         flagSick: isSick,
         flagOs: isOS,
         submittedAt: new Date().toISOString(),

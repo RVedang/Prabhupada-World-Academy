@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, Users, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, BvGroups, Users, Guides, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Create a new Bhakti Vriksha Reading Group',
@@ -27,22 +27,45 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Admin access required to create Reading Groups' });
     }
 
-    // Resolve facilitator name and segment
-    let bvslName = 'Unassigned';
-    let segment = 'PW';
-    if (input.bvslId) {
-      const facilitatorUser = await Users.findOne({ id: input.bvslId, fields: ['fullName', 'email', 'segment'] });
-      if (facilitatorUser) {
-        bvslName = facilitatorUser.fullName || facilitatorUser.email || input.bvslId;
-        segment = facilitatorUser.segment || 'PW';
+    // The UI supplies the app's custom userId, while Firestore relations use
+    // the Users document ID. Resolve both forms before creating the group.
+    // Falling back to PW here was what made newly-created FOLK groups vanish
+    // from FOLK group management and from the member-assignment dropdown.
+    let facilitatorUser =
+      await Users.findOne({ id: input.bvslId, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => undefined) ||
+      await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => undefined) ||
+      await Users.findOne({ filters: { email: input.bvslId.toLowerCase() }, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => undefined);
+
+    // getGuides() can supply a Guides-table ID. Resolve it through its email
+    // to the corresponding Users record when available.
+    let facilitatorGuide: any = undefined;
+    if (!facilitatorUser) {
+      facilitatorGuide =
+        await Guides.findOne({ id: input.bvslId, fields: ['id', 'guideId', 'fullName', 'email', 'segment'] }).catch(() => undefined) ||
+        await Guides.findOne({ filters: { guideId: input.bvslId }, fields: ['id', 'guideId', 'fullName', 'email', 'segment'] }).catch(() => undefined);
+      if (facilitatorGuide?.email) {
+        facilitatorUser = await Users.findOne({
+          filters: { email: facilitatorGuide.email },
+          fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'],
+        }).catch(() => undefined);
       }
     }
+
+    if (!facilitatorUser && !facilitatorGuide) {
+      throw new AppError({ code: 'NOT_FOUND', message: 'Selected Reading Group Facilitator was not found' });
+    }
+
+    const bvslName = facilitatorUser?.fullName || facilitatorGuide?.fullName || facilitatorUser?.email || facilitatorGuide?.email || input.bvslId;
+    const segment = facilitatorUser?.segment || facilitatorGuide?.segment ||
+      (facilitatorUser?.isPrabhupadaWorldUser ? 'PW' : (context.user.segment || 'PW'));
 
     const groupId = `BV-GROUP-${Date.now()}`;
     const newGroup = {
       id: groupId,
+      groupId,
       groupName: input.groupName,
-      bvslId: input.bvslId,
+      bvslLeader: facilitatorUser?.id || undefined,
+      bvslId: facilitatorUser?.userId || facilitatorUser?.id || facilitatorGuide.guideId || facilitatorGuide.id,
       bvslName,
       meetingTime: input.meetingTime || '',
       description: input.description || '',

@@ -212,6 +212,9 @@ export default createEndpoint({
     entryId: z.string(),
     message: z.string(),
     isUpdate: z.boolean(),
+    totalScore: z.number(),
+    maxScore: z.number(),
+    scorePercent: z.number(),
   }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
@@ -251,22 +254,21 @@ export default createEndpoint({
     // Never trust a row or user ID supplied by the client.  First locate the
     // authenticated user's entry.  The second lookup makes entries written by
     // the old custom-ID path editable; saving them below migrates their owner.
-    const legacyUserId = userRec?.userId && userRec.userId !== authenticatedUserId
-      ? userRec.userId
-      : null;
-    const [currentEntry, legacyEntry] = await Promise.all([
+    const legacyOwnerIds = [...new Set([userRec?.userId, context.user.uid])]
+      .filter((id): id is string => !!id && id !== authenticatedUserId);
+    const [currentEntry, ...legacyEntries] = await Promise.all([
       SadhanaEntries.findOne({
         filters: { user: authenticatedUserId, entryDate },
         fields: ENTRY_FIND_FIELDS,
       }),
-      legacyUserId
-        ? SadhanaEntries.findOne({
-            filters: { user: legacyUserId, entryDate },
+      ...legacyOwnerIds.map(ownerId =>
+        SadhanaEntries.findOne({
+            filters: { user: ownerId, entryDate },
             fields: ENTRY_FIND_FIELDS,
-          })
-        : Promise.resolve(undefined),
+        })
+      ),
     ]);
-    const existing = currentEntry || legacyEntry;
+    const existing = currentEntry || legacyEntries.find(Boolean);
     const existingId: string | undefined = existing?.id;
     const existingEntryId: string | undefined = existing?.entryId;
 
@@ -374,6 +376,9 @@ export default createEndpoint({
       entryId,
       message: existingId ? 'Sadhana updated successfully' : 'Sadhana submitted successfully',
       isUpdate: !!existingId,
+      totalScore: Number(record.totalScore) || 0,
+      maxScore: Number(record.maxScore) || 0,
+      scorePercent: Number(record.scorePercent) || 0,
     };
   },
 });

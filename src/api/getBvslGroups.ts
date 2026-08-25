@@ -79,8 +79,8 @@ export default createEndpoint({
     const facilitatorMap = new Map<string, any>();
     if (facilitatorUserIds.length > 0) {
       const batches: string[][] = [];
-      for (let i = 0; i < facilitatorUserIds.length; i += 50) {
-        batches.push(facilitatorUserIds.slice(i, i + 50));
+      for (let i = 0; i < facilitatorUserIds.length; i += 30) {
+        batches.push(facilitatorUserIds.slice(i, i + 30));
       }
       const results = await Promise.all(batches.map(async (batch) => {
         const [byUserId, byId] = await Promise.all([
@@ -107,6 +107,46 @@ export default createEndpoint({
             if (u.userId) facilitatorMap.set(u.userId, u);
           }
         }
+      }
+    }
+
+    // Older groups may have stored a Guides-table ID in bvslId. Resolve those
+    // too so their facilitator segment is restored for the FOLK/PW filters.
+    const unresolvedFacilitatorIds = facilitatorUserIds.filter(id => !facilitatorMap.has(id));
+    if (unresolvedFacilitatorIds.length > 0) {
+      const guideBatches: string[][] = [];
+      for (let i = 0; i < unresolvedFacilitatorIds.length; i += 30) {
+        guideBatches.push(unresolvedFacilitatorIds.slice(i, i + 30));
+      }
+      const guideLists = await Promise.all(guideBatches.map(async batch => {
+        const res = await Guides.findAll({
+          filters: { id: { in: batch } } as any,
+          fields: ['id', 'guideId', 'fullName', 'email', 'segment'],
+          limit: 100,
+        }).catch(() => ({ records: [] }));
+        return res.records || [];
+      }));
+      const legacyGuides = guideLists.flat();
+      const guideEmails = [...new Set(legacyGuides.map((g: any) => g.email).filter(Boolean))] as string[];
+      const usersByGuideEmail = new Map<string, any>();
+      for (let i = 0; i < guideEmails.length; i += 30) {
+        const { records } = await Users.findAll({
+          filters: { email: { in: guideEmails.slice(i, i + 30) } } as any,
+          fields: ['id', 'userId', 'segment', 'fullName', 'email'],
+          limit: 100,
+        }).catch(() => ({ records: [] }));
+        for (const user of records) usersByGuideEmail.set(String(user.email || '').toLowerCase(), user);
+      }
+      for (const guide of legacyGuides) {
+        const linkedUser = usersByGuideEmail.get(String(guide.email || '').toLowerCase());
+        const resolved = linkedUser || {
+          id: guide.id,
+          userId: guide.guideId,
+          fullName: guide.fullName,
+          segment: guide.segment,
+        };
+        facilitatorMap.set(guide.id, resolved);
+        if (guide.guideId) facilitatorMap.set(guide.guideId, resolved);
       }
     }
 
@@ -175,7 +215,9 @@ export default createEndpoint({
         bvslName: facilitatorUser?.fullName || g.bvslName || defaultBvslName || null,
         guideName: guideRes?.fullName || null,
         meetingTime: g.meetingTime || g.preferredTimeSlot || null,
-        segment: g.segment || facilitatorUser?.segment || 'PW',
+        // Facilitator ownership is authoritative. This also repairs the
+        // display of groups created before createBvGroup resolved custom IDs.
+        segment: facilitatorUser?.segment || g.segment || 'PW',
         isActive: g.isActive ?? true,
       };
     }));

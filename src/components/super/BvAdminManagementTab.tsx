@@ -139,6 +139,10 @@ export default function BvAdminManagementTab() {
       toast.error('Please enter a group name');
       return;
     }
+    if (!newGroupBvslId) {
+      toast.error('Please select a Reading Group Facilitator');
+      return;
+    }
     setCreatingGroup(true);
     try {
       await createBvGroup({

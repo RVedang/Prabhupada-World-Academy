@@ -48,30 +48,31 @@ export default createEndpoint({
     const streakStart = daysAgo(todayStr, 100);
     const authenticatedUserId = context.user.id;
     const userRecord = await Users.findOne({ id: authenticatedUserId, fields: USER_FIELDS });
-    const legacyUserId = userRecord?.userId && userRecord.userId !== authenticatedUserId
-      ? userRecord.userId
-      : null;
-    const [currentEntriesResult, legacyEntriesResult] = await Promise.all([
+    const legacyOwnerIds = [...new Set([userRecord?.userId, context.user.uid])]
+      .filter((id): id is string => !!id && id !== authenticatedUserId);
+    const [currentEntriesResult, ...legacyEntriesResults] = await Promise.all([
       SadhanaEntries.findAll({
         filters: { user: authenticatedUserId, entryDate: { gte: streakStart, lte: todayStr } } as any,
         fields: ENTRY_FIELDS,
         limit: 110,
       }),
-      legacyUserId
-        ? SadhanaEntries.findAll({
-            filters: { user: legacyUserId, entryDate: { gte: streakStart, lte: todayStr } } as any,
+      ...legacyOwnerIds.map(ownerId =>
+        SadhanaEntries.findAll({
+            filters: { user: ownerId, entryDate: { gte: streakStart, lte: todayStr } } as any,
             fields: ENTRY_FIELDS,
             limit: 110,
-          })
-        : Promise.resolve({ records: [] as any[] }),
+        })
+      ),
     ]);
 
     // Prefer records already owned by the authenticated user if a date appears
     // in both locations.  This makes legacy entries visible without double
     // counting them in the calendar, weekly totals, or streak.
     const entriesByDate = new Map<string, any>();
-    for (const entry of legacyEntriesResult.records) {
-      entriesByDate.set(String(entry.entryDate || '').slice(0, 10), entry);
+    for (const result of legacyEntriesResults) {
+      for (const entry of result.records) {
+        entriesByDate.set(String(entry.entryDate || '').slice(0, 10), entry);
+      }
     }
     for (const entry of currentEntriesResult.records) {
       entriesByDate.set(String(entry.entryDate || '').slice(0, 10), entry);

@@ -4,6 +4,7 @@ const PENDING_KEY = 'pwa_pending_sadhana_entry_saved';
 
 export type SavedSadhanaEntryPayload = {
   userId: string;
+  entryId: string;
   entryDate: string;
   totalScore: number;
   maxScore: number;
@@ -40,8 +41,8 @@ export function mergeSavedSadhanaIntoDashboardData<T>(data: T | undefined, paylo
 
   const dashboard = data as any;
   const entry = {
-    entryId: dashboard.metrics?.todayEntryId || `${payload.userId}-${payload.entryDate}`,
-    rowId: dashboard.metrics?.todayRowId || '',
+    entryId: payload.entryId,
+    rowId: '',
     entryDate: payload.entryDate,
     totalScore: payload.totalScore,
     maxScore: payload.maxScore,
@@ -55,14 +56,20 @@ export function mergeSavedSadhanaIntoDashboardData<T>(data: T | undefined, paylo
     ? dashboard.recentEntries.filter((item: any) => String(item.entryDate || '').slice(0, 10) !== payload.entryDate)
     : [];
 
+  // Only change the dashboard's "today" card when the saved entry is for
+  // today.  Editing a previous date must not temporarily replace today's data.
+  const todayIst = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const next = {
     ...dashboard,
     metrics: {
       ...(dashboard.metrics || {}),
-      todayScore: payload.totalScore,
-      todayPercent: payload.scorePercent,
-      todaySubmitted: true,
-      streakAtRisk: false,
+      ...(payload.entryDate === todayIst ? {
+        todayScore: payload.totalScore,
+        todayPercent: payload.scorePercent,
+        todaySubmitted: true,
+        todayEntryId: payload.entryId,
+        streakAtRisk: false,
+      } : {}),
     },
     recentEntries: [entry, ...recentEntries].sort((a: any, b: any) =>
       String(b.entryDate || '').localeCompare(String(a.entryDate || ''))
