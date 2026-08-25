@@ -704,9 +704,9 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                 <Label>Assign Guide</Label>
                 <Select value={editedGuideId} onValueChange={(v) => setEditedGuideId(v || '')}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select guide">
-                      {allGuides.find((g: any) => g.guideId === editedGuideId)?.name || editedGuideId}
-                    </SelectValue>
+                    <span className="truncate">
+                      {allGuides.find((g: any) => g.guideId === editedGuideId)?.name || editedGuideId || 'Select guide'}
+                    </span>
                   </SelectTrigger>
                   <SelectContent>
                     {allGuides.map((g: any) => (
@@ -721,11 +721,11 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                 <Label>Assign Sadhana Mentor</Label>
                 <Select value={editedSadhanaMentorId || '__unassigned__'} onValueChange={(v) => setEditedSadhanaMentorId(v === '__unassigned__' ? '' : v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Assign later">
+                    <span className="truncate">
                       {editedSadhanaMentorId
                         ? (sadhanaMentors.find((m: any) => m.userId === editedSadhanaMentorId)?.fullName || editedSadhanaMentorId)
                         : 'Assign later'}
-                    </SelectValue>
+                    </span>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__unassigned__">Assign later</SelectItem>
@@ -739,6 +739,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                 )}
               </div>
             )}
+
             <div className="space-y-1.5">
               <Label>Ashraya Level</Label>
               <Select value={editedAshray} onValueChange={(v) => setEditedAshray(v || '')}>

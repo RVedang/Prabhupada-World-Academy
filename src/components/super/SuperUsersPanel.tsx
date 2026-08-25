@@ -762,7 +762,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           return (
                             <Select value={matchedGuide?.guideId || currentGid || ''} onValueChange={gid => gid && handleAssignGuide(u.userId, gid)} disabled={assigningGuide === u.userId || isSelf || (!isSuperAdmin && currentBvRole === 'ADMIN')}>
                               <SelectTrigger className="h-7 text-xs w-44">
-                                <SelectValue>{displayName}</SelectValue>
+                                <span className="truncate">{displayName}</span>
                               </SelectTrigger>
                               <SelectContent>
                                 {guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
@@ -778,16 +778,17 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                               <span className="text-muted-foreground/60 font-normal">NA</span>
                             ) : (
                               <Select 
-                                value={u.sadhanaMentor || ''} 
-                                onValueChange={mentorId => handleAssignSadhanaMentor(u.userId, mentorId)}
+                                value={u.sadhanaMentor || '__unassigned__'} 
+                                onValueChange={mentorId => handleAssignSadhanaMentor(u.userId, mentorId === '__unassigned__' ? '' : mentorId)}
                                 disabled={isSelf}
                               >
                                 <SelectTrigger className="h-7 text-xs w-44">
-                                  <SelectValue placeholder="Select Sadhana Mentor">
+                                  <span className="truncate">
                                     {sadhanaMentors.find(m => m.userId === u.sadhanaMentor)?.fullName || 'Unassigned'}
-                                  </SelectValue>
+                                  </span>
                                 </SelectTrigger>
                                 <SelectContent>
+                                  <SelectItem value="__unassigned__">Unassigned</SelectItem>
                                   {sadhanaMentors.map(m => (
                                     <SelectItem key={m.userId} value={m.userId}>{m.fullName}</SelectItem>
                                   ))}
@@ -795,6 +796,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                               </Select>
                             )}
                           </td>
+
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}

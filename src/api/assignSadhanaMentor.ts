@@ -8,7 +8,7 @@ export default createEndpoint({
   requiredCapabilities: 'sadhana.mentor.assign',
   inputSchema: z.object({
     userId: z.string(),
-    sadhanaMentorId: z.string(),
+    sadhanaMentorId: z.string().optional().nullable(),
   }),
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
@@ -25,16 +25,24 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Admin access required' });
     }
 
-    const mentor = await Users.findOne({ id: input.sadhanaMentorId }).catch(() => null) ??
-                   await Users.findOne({ filters: { userId: input.sadhanaMentorId } }).catch(() => null);
-    if (!mentor) throw new AppError({ code: 'NOT_FOUND', message: 'Sadhana Mentor not found' });
+    if (!input.sadhanaMentorId || input.sadhanaMentorId === '__unassigned__') {
+      await Users.update({
+        id: input.userId,
+        record: { sadhanaMentor: null }
+      });
+    } else {
+      const mentor = await Users.findOne({ id: input.sadhanaMentorId }).catch(() => null) ??
+                     await Users.findOne({ filters: { userId: input.sadhanaMentorId } }).catch(() => null);
+      if (!mentor) throw new AppError({ code: 'NOT_FOUND', message: 'Sadhana Mentor not found' });
 
-    await Users.update({
-      id: input.userId,
-      record: { sadhanaMentor: mentor.id }
-    });
+      await Users.update({
+        id: input.userId,
+        record: { sadhanaMentor: mentor.id }
+      });
+    }
     
     serverCacheInvalidate('user_profile:' + input.userId);
     return { success: true };
   },
 });
+

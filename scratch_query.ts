@@ -1,9 +1,15 @@
-import getBvslGroups from './src/api/getBvslGroups';
-import { adminDb } from './src/lib/backend-sdk';
+import { Users } from '@/lib/backend-sdk';
 
 async function run() {
-  const result = await getBvslGroups.execute({ input: { bvslId: 'ALL' }, context: { user: { id: 'GUIDE-VEDANG' } } as any });
-  console.log(result.groups.map(g => ({ name: g.groupName, segment: g.segment })));
+  const { records } = await Users.findAll({ limit: 100 });
+  const sorted = records.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  console.log(sorted.slice(0, 10).map(u => ({
+    id: u.id,
+    userId: u.userId,
+    fullName: u.fullName,
+    email: u.email,
+    createdAt: u.createdAt,
+  })));
 }
 
 run().catch(console.error);
