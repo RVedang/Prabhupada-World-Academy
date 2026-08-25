@@ -474,6 +474,11 @@ export class Table {
       try {
         await db.collection(this.tableName).doc(id).set(fullRecord);
       } catch (e: any) {
+        // A production write must never silently fall back to process memory:
+        // it is discarded on the next request while the caller sees success.
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error(`Database write failed for ${this.tableName}: ${e?.message || e}`);
+        }
         console.warn(`[Table ${this.tableName}] Firestore create error (${e?.message || e}), saved to local memory store.`);
       }
     }
@@ -499,6 +504,11 @@ export class Table {
       try {
         await db.collection(this.tableName).doc(id).set(data, { merge: true });
       } catch (e: any) {
+        // See create(): production callers need a real failure, not a false
+        // success backed only by temporary server memory.
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error(`Database update failed for ${this.tableName}: ${e?.message || e}`);
+        }
         console.warn(`[Table ${this.tableName}] Firestore update error (${e?.message || e}), updated local memory store.`);
       }
     }

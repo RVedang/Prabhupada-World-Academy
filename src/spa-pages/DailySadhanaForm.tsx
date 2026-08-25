@@ -350,11 +350,9 @@ export default function DailySadhanaForm() {
 
     setSubmitting(true);
 
-    // OPT-6: Show success toast immediately (optimistic UI — feels instant)
-    const scoreLabel = scoreResult.scorePercent != null
-      ? `${scoreResult.scorePercent}%`
-      : `${scoreResult.totalScore} pts`;
-    toast.success(`Sadhana saved! (Score: ${scoreLabel})`, { id: 'sadhana-submit' });
+    // Do not announce success until the server has confirmed that Firestore
+    // accepted the write.  Previously a failed write still looked successful.
+    toast.loading('Saving sadhana…', { id: 'sadhana-submit' });
 
     try {
       // Send base score WITHOUT report_sending — server adds the authoritative value
@@ -374,13 +372,6 @@ export default function DailySadhanaForm() {
       // Store temp residency ID so guide reports can identify these entries
       if (tempResidencyEnabled && tempResidencyId) enriched._tempResidencyId = tempResidencyId;
 
-      localStorage.setItem(SADHANA_SUBMITTED_KEY_PREFIX + entryDate, 'true');
-      // Mark today as submitted and cancel pending reminders
-      if (entryDate === format(new Date(), 'yyyy-MM-dd')) {
-        markSubmittedToday();
-        scheduleSadhanaReminder(true);
-      }
-
       await submitSadhana({
         userId, entryDate, totalScore,
         maxScore: maxScore,
@@ -392,6 +383,17 @@ export default function DailySadhanaForm() {
         existingRowId,
         existingEntryId,
       });
+      const scoreLabel = scoreResult.scorePercent != null
+        ? `${scoreResult.scorePercent}%`
+        : `${scoreResult.totalScore} pts`;
+      toast.success(`Sadhana saved! (Score: ${scoreLabel})`, { id: 'sadhana-submit' });
+      localStorage.setItem(SADHANA_SUBMITTED_KEY_PREFIX + entryDate, 'true');
+      // Mark today as submitted and cancel pending reminders only after the
+      // database write succeeds.
+      if (entryDate === format(new Date(), 'yyyy-MM-dd')) {
+        markSubmittedToday();
+        scheduleSadhanaReminder(true);
+      }
       invalidateUserDashboardCache(userId);
       publishSadhanaEntrySaved({
         userId,
@@ -405,8 +407,7 @@ export default function DailySadhanaForm() {
       });
       navigate(getDashboardUrl(), { replace: true });
     } catch (err: any) {
-      // Revert optimistic toast on failure
-      toast.error('Save failed — check your connection and try again', { id: 'sadhana-submit' });
+      toast.error(err?.message || 'Save failed — check your connection and try again', { id: 'sadhana-submit' });
     }
     finally { setSubmitting(false); }
   };

@@ -225,8 +225,15 @@ export default createEndpoint({
       if (fv.distribution_raw !== undefined) fv.distribution_raw = Math.max(0, Math.min(10000, Number(fv.distribution_raw) || 0));
     }
 
-    // Block inactive users from submitting
-    const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'status'] });
+    // The authenticated database document is the only valid owner for an entry.
+    // `input.userId` comes from the browser and may be the legacy/custom User ID
+    // rather than the Firestore document ID.  Using it for writes made entries
+    // invisible to the form and dashboard, both of which read by context.user.id.
+    const authenticatedUserId = context.user.id;
+
+    // Block inactive users from submitting, and retain the legacy/custom ID only
+    // to locate an entry saved by the earlier, incorrect write path.
+    const userRec = await Users.findOne({ id: authenticatedUserId, fields: ['id', 'userId', 'status'] });
     if (userRec?.status === 'Inactive') {
       throw new Error('Your account has been deactivated. Please contact your guide.');
     }
@@ -241,22 +248,36 @@ export default createEndpoint({
     if (entryDateObj > oneDayAhead) throw new Error('Cannot submit for a future date');
     if (entryDateObj < sevenDaysAgo) throw new Error('Cannot submit for dates older than 7 days');
 
-    // Use existingRowId if provided (avoids extra findOne)
-    let existingId: string | undefined = input.existingRowId ? String(input.existingRowId) : undefined;
-    let existingEntryId: string | undefined = input.existingEntryId;
-
-    if (!existingId) {
-      const existing = await SadhanaEntries.findOne({
-        filters: { user: input.userId || context.user.id, entryDate },
+    // Never trust a row or user ID supplied by the client.  First locate the
+    // authenticated user's entry.  The second lookup makes entries written by
+    // the old custom-ID path editable; saving them below migrates their owner.
+    const legacyUserId = userRec?.userId && userRec.userId !== authenticatedUserId
+      ? userRec.userId
+      : null;
+    const [currentEntry, legacyEntry] = await Promise.all([
+      SadhanaEntries.findOne({
+        filters: { user: authenticatedUserId, entryDate },
         fields: ENTRY_FIND_FIELDS,
-      });
-      existingId = existing?.id;
-      existingEntryId = existingEntryId || existing?.entryId;
-    }
+      }),
+      legacyUserId
+        ? SadhanaEntries.findOne({
+            filters: { user: legacyUserId, entryDate },
+            fields: ENTRY_FIND_FIELDS,
+          })
+        : Promise.resolve(undefined),
+    ]);
+    const existing = currentEntry || legacyEntry;
+    const existingId: string | undefined = existing?.id;
+    const existingEntryId: string | undefined = existing?.entryId;
 
     // Generate entry ID — O(1) via in-memory counter (see lib/entryIdCounter.ts)
     const entryId: string = existingEntryId ?? await nextSadhanaEntryId();
-    const record = buildEntryRecord({ ...input, entryDate }, context, entryId, now);
+    const record = buildEntryRecord(
+      { ...input, userId: authenticatedUserId, entryDate },
+      context,
+      entryId,
+      now,
+    );
 
     // Run main entry save + optional BVSL preaching in parallel where possible
     const bvData = fv._bvsl_preaching;
@@ -273,7 +294,7 @@ export default createEndpoint({
         .reduce((sum, k) => sum + (Number(bvData[k]) || 0), 0);
 
       const existingBv = await BvslPreachingEntries.findOne({
-        filters: { user: input.userId || context.user.id, entryDate },
+        filters: { user: authenticatedUserId, entryDate },
         fields: ['id'],
       });
 
@@ -289,7 +310,7 @@ export default createEndpoint({
 
       const bvRecord: any = {
         entryId: bvEntryId,
-        user: input.userId || context.user.id,
+        user: authenticatedUserId,
         entryDate,
         prCallingTime: Number(bvData.pr_calling_time) || 0,
         prOneOnOneTime: Number(bvData.pr_one_on_one_time) || 0,
@@ -317,7 +338,7 @@ export default createEndpoint({
     const entryDateForStreak = (record.entryDate as string).slice(0, 10);
     const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0];
     if (entryDateForStreak === todayIST) {
-      const userId = input.userId || context.user.id;
+      const userId = authenticatedUserId;
       const streakWindowStart = daysAgo(todayIST, 100);
       SadhanaEntries.findAll({
         filters: { user: userId, entryDate: { gte: streakWindowStart, lte: todayIST } } as any,
@@ -338,12 +359,12 @@ export default createEndpoint({
       Number(fv._pts_bhaktiVriksha) > 0
     );
 
-    BvAttendance.findAll({ filters: { user: input.userId || context.user.id, attendanceDate: entryDateForStreak }, limit: 1 })
+    BvAttendance.findAll({ filters: { user: authenticatedUserId, attendanceDate: entryDateForStreak }, limit: 1 })
       .then(async ({ records }: any) => {
         if (records && records.length > 0) {
           await BvAttendance.update({ id: records[0].id, record: { present: isBvAttended } });
         } else {
-          await BvAttendance.create({ record: { user: input.userId || context.user.id, attendanceDate: entryDateForStreak, present: isBvAttended } });
+          await BvAttendance.create({ record: { user: authenticatedUserId, attendanceDate: entryDateForStreak, present: isBvAttended } });
         }
       })
       .catch(() => {});

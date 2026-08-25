@@ -93,7 +93,7 @@ async function loadFormFields(isResident: boolean): Promise<FormField[]> {
 }
 
 // ── User/entry field selectors ─────────────────────────────────────────────────
-const USER_FIELDS  = ['id', 'residency', 'residencyApproved', 'residencyJoinDate', 'ashrayLevel',
+const USER_FIELDS  = ['id', 'userId', 'residency', 'residencyApproved', 'residencyJoinDate', 'ashrayLevel',
   'role', 'temporaryResidencyEnabled', 'temporaryResidency'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'templateMode', 'ashrayLevelUsed', 'flagSick', 'flagOs', 'submittedAt', 'fieldValuesJson'];
@@ -111,11 +111,21 @@ export default createEndpoint({
     const entryDate = (input.date || input.entryDate || getTodayIST()).split('T')[0];
     const userId    = context.user!.id;
 
-    // Fetch user info + existing entry in parallel (both needed fresh)
-    const [userInfo, existingEntry] = await Promise.all([
-      Users.findOne({ id: userId, fields: USER_FIELDS }),
+    // Fetch the authoritative user record first.  `userId` is the Firestore
+    // document ID, whereas some older records were stored against the custom
+    // `Users.userId` value.  Read that legacy location as a fallback so users
+    // can open previously submitted dates; the next save migrates the entry.
+    const userInfo = await Users.findOne({ id: userId, fields: USER_FIELDS });
+    const legacyUserId = userInfo?.userId && userInfo.userId !== userId
+      ? userInfo.userId
+      : null;
+    const [currentEntry, legacyEntry] = await Promise.all([
       SadhanaEntries.findOne({ filters: { user: userId, entryDate }, fields: ENTRY_FIELDS }),
+      legacyUserId
+        ? SadhanaEntries.findOne({ filters: { user: legacyUserId, entryDate }, fields: ENTRY_FIELDS })
+        : Promise.resolve(undefined),
     ]);
+    const existingEntry = currentEntry || legacyEntry;
 
     const officialResidencyId = Array.isArray(userInfo?.residency)
       ? userInfo!.residency[0] : userInfo?.residency;

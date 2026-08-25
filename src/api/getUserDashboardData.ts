@@ -3,7 +3,7 @@ import { createEndpoint, Users, SadhanaEntries } from '@/lib/backend-sdk';
 import { computeStreak, daysAgo } from '../lib/streakUtils';
 
 // Minimal field sets
-const USER_FIELDS = ['id', 'fullName', 'ashrayLevel', 'residencyApproved'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'ashrayLevel', 'residencyApproved'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt', 'templateMode', 'ashrayLevelUsed',
   'maNaGvPoints', 'quotesTulasiPoints', 'japaVisiblePoints', 'sbPoints',
@@ -46,14 +46,37 @@ export default createEndpoint({
     const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const streakStart = daysAgo(todayStr, 100);
-    const [userRecord, { records: entries }] = await Promise.all([
-      Users.findOne({ id: context.user.id, fields: USER_FIELDS }),
+    const authenticatedUserId = context.user.id;
+    const userRecord = await Users.findOne({ id: authenticatedUserId, fields: USER_FIELDS });
+    const legacyUserId = userRecord?.userId && userRecord.userId !== authenticatedUserId
+      ? userRecord.userId
+      : null;
+    const [currentEntriesResult, legacyEntriesResult] = await Promise.all([
       SadhanaEntries.findAll({
-        filters: { user: context.user.id, entryDate: { gte: streakStart, lte: todayStr } } as any,
+        filters: { user: authenticatedUserId, entryDate: { gte: streakStart, lte: todayStr } } as any,
         fields: ENTRY_FIELDS,
         limit: 110,
       }),
+      legacyUserId
+        ? SadhanaEntries.findAll({
+            filters: { user: legacyUserId, entryDate: { gte: streakStart, lte: todayStr } } as any,
+            fields: ENTRY_FIELDS,
+            limit: 110,
+          })
+        : Promise.resolve({ records: [] as any[] }),
     ]);
+
+    // Prefer records already owned by the authenticated user if a date appears
+    // in both locations.  This makes legacy entries visible without double
+    // counting them in the calendar, weekly totals, or streak.
+    const entriesByDate = new Map<string, any>();
+    for (const entry of legacyEntriesResult.records) {
+      entriesByDate.set(String(entry.entryDate || '').slice(0, 10), entry);
+    }
+    for (const entry of currentEntriesResult.records) {
+      entriesByDate.set(String(entry.entryDate || '').slice(0, 10), entry);
+    }
+    const entries = Array.from(entriesByDate.values());
 
     // For residents: apply scorePercent correction immediately so all downstream calcs use it
     const correctedEntries = entries.map(e => {

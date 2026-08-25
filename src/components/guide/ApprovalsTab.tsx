@@ -137,19 +137,23 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
   const handleSaveAndApprove = async () => {
     if (!editUser) return;
 
-    const result = await approveUser({
-      userId: editUser.userId,
-      guideId: actionGuideId,
-      residencyApproved: makeResident && !!editedResidency,
-      selectedFolkResidency: (makeResident && editedResidency && editedResidency !== 'none') ? editedResidency : undefined,
-      ashrayLevel: editedAshray || undefined,
-      newGuideId: editedGuideId && editedGuideId !== editUser.guideId ? editedGuideId : undefined,
-      sadhanaMentorId: editedSadhanaMentorId || undefined,
-    });
-    toast.success(`✅ ${editUser.fullName} details saved & approved`);
-    showEnrollmentToast(editUser.fullName, result);
-    setEditUser(null);
-    loadAll();
+    try {
+      const result = await approveUser({
+        userId: editUser.userId,
+        guideId: actionGuideId,
+        residencyApproved: makeResident && !!editedResidency,
+        selectedFolkResidency: (makeResident && editedResidency && editedResidency !== 'none') ? editedResidency : undefined,
+        ashrayLevel: editedAshray || undefined,
+        newGuideId: editedGuideId && editedGuideId !== editUser.guideId ? editedGuideId : undefined,
+        sadhanaMentorId: editedSadhanaMentorId || undefined,
+      });
+      toast.success(`✅ ${editUser.fullName} details saved & approved`);
+      showEnrollmentToast(editUser.fullName, result);
+      setEditUser(null);
+      loadAll();
+    } catch (error: any) {
+      toast.error(error?.message || `Could not approve ${editUser.fullName}. Please try again.`);
+    }
   };
 
   const handleReject = async () => {

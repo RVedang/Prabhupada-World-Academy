@@ -26,7 +26,6 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const isSuperGuide = context.user.role === 'Super Guide';
 
     // Fetch user record (needed for both auth check and email notification)
     const userRecord = await Users.findOne({
@@ -35,8 +34,27 @@ export default createEndpoint({
     });
     if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
-    // Authorization: regular guides can only approve users in their center
-    if (!isSuperGuide) {
+    const normalizedRole = String(context.user.normalizedRole || context.user.role || '')
+      .trim()
+      .replace(/[\s-]+/g, '_')
+      .toUpperCase();
+    const isSuperGuide = normalizedRole === 'SUPER_GUIDE';
+    const isPwUser = userRecord.segment === 'PW' || !!userRecord.isPrabhupadaWorldUser;
+    const isPwAdmin = !!(
+      context.user.isBvSuperAdmin ||
+      context.user.isBvAdmin ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'PW_ADMIN'
+    );
+    const canApprovePwUser = isPwUser && (
+      context.user.isBvSuperAdmin ||
+      (isPwAdmin && String(context.user.segment || '').toUpperCase() === 'PW')
+    );
+
+    // PW administrators approve PW registrations directly.  Other approvers
+    // remain limited to their established FOLK guide scope.
+    if (!isSuperGuide && !canApprovePwUser) {
       const scope = await getGuideScope(context.user.email);
       if (!scope) throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
       if (!isUserInGuideScope(scope, userRecord)) {
@@ -96,8 +114,6 @@ export default createEndpoint({
     // TagMango enrollment — NEVER blocks approval, and skip for PW users
     let enrollmentStatus: 'Enrolled' | 'Failed' | 'Skipped' = 'Skipped';
     let enrollmentError: string | undefined;
-
-    const isPwUser = userRecord?.segment === 'PW' || !!userRecord?.isPrabhupadaWorldUser;
 
     if (!isPwUser) {
       try {
