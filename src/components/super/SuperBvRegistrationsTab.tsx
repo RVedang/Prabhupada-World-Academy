@@ -53,6 +53,33 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [showAllGroups, setShowAllGroups] = useState(false);
 
+  // Keep the group picker behaviour identical for PW and FOLK: use the
+  // applicant's time-matched group by default, but expose every active group
+  // in the same department when the administrator asks to see all time slots.
+  const activeGroups = allGroupsState.filter(g => g.isActive !== false);
+  const targetSegment = String(selectedReg?.segment || segment || '').toUpperCase();
+  const segmentGroups = targetSegment
+    ? activeGroups.filter(g => String(g.segment || '').toUpperCase() === targetSegment)
+    : activeGroups;
+  const timeMatchedGroups = segmentGroups.filter(g =>
+    isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime)
+  );
+  const filteredGroups = showAllGroups ? segmentGroups : timeMatchedGroups;
+
+  useEffect(() => {
+    if (!selectedReg) return;
+    // A matching group always wins the initial selection. If none match, the
+    // first group in the visible list is selected once all slots are shown.
+    const preferredGroup = timeMatchedGroups[0] || filteredGroups[0];
+    if (preferredGroup) {
+      setTargetGroupId(preferredGroup.id || preferredGroup.groupId || '');
+    } else {
+      setTargetGroupId('');
+    }
+  // Re-evaluate only as modal data, group data, or the all-slots toggle changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedReg?.id, selectedReg?.timePreference, selectedReg?.segment, segment, showAllGroups, allGroupsState]);
+
   useEffect(() => {
     loadData();
   }, [segment]);
@@ -119,20 +146,6 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
     );
   }
 
-  // 1. Base active groups
-  const activeGroups = allGroupsState.filter(g => g.isActive !== false);
-
-  // 2. Filter by segment if provided (ALWAYS - no mixing of FOLK and PW groups)
-  const targetSegment = selectedReg?.segment || segment;
-  const segmentGroups = targetSegment
-    ? activeGroups.filter(g => g.segment === targetSegment)
-    : activeGroups;
-
-  // 3. Filter by time slot (unless showing all groups)
-  const filteredGroups = showAllGroups
-    ? segmentGroups
-    : segmentGroups.filter(g => isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime));
-
   const selectedGroup = allGroupsState.find(g => g.id === targetGroupId || g.groupId === targetGroupId);
 
   return (
@@ -194,14 +207,7 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
                       onClick={() => {
                         setSelectedReg(reg);
                         setShowAllGroups(false);
-                        const matched = segmentGroups.filter(g => isTimeSlotMatch(reg.timePreference, g.meetingTime));
-                        if (matched.length > 0) {
-                          setTargetGroupId(matched[0].id);
-                        } else if (segmentGroups.length > 0) {
-                          setTargetGroupId(segmentGroups[0].id);
-                        } else {
-                          setTargetGroupId('');
-                        }
+                        setTargetGroupId('');
                       }}
                     >
                       Approve & Assign Group
@@ -286,17 +292,7 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
                       <input
                         type="checkbox"
                         checked={showAllGroups}
-                        onChange={(e) => {
-                          setShowAllGroups(e.target.checked);
-                          const activeGroups = e.target.checked
-                            ? segmentGroups
-                            : segmentGroups.filter(g => isTimeSlotMatch(selectedReg.timePreference, g.meetingTime));
-                          if (activeGroups.length > 0) {
-                            setTargetGroupId(activeGroups[0].id);
-                          } else {
-                            setTargetGroupId('');
-                          }
-                        }}
+                        onChange={(e) => setShowAllGroups(e.target.checked)}
                         className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
                       />
                       <span>Show all time slots</span>
@@ -311,7 +307,6 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
                       type="button"
                       onClick={() => {
                         setShowAllGroups(true);
-                        if (segmentGroups.length > 0) setTargetGroupId(segmentGroups[0].id);
                       }}
                       className="text-xs text-primary font-semibold underline hover:opacity-90 block"
                     >

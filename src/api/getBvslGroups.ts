@@ -217,7 +217,7 @@ export default createEndpoint({
         meetingTime: g.meetingTime || g.preferredTimeSlot || null,
         // Facilitator ownership is authoritative. This also repairs the
         // display of groups created before createBvGroup resolved custom IDs.
-        segment: facilitatorUser?.segment || g.segment || 'PW',
+        segment: String(facilitatorUser?.segment || g.segment || 'PW').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW',
         isActive: g.isActive ?? true,
       };
     }));
