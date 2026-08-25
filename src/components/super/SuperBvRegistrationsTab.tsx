@@ -122,9 +122,10 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
   // 1. Base active groups
   const activeGroups = allGroupsState.filter(g => g.isActive !== false);
 
-  // 2. Filter by segment if provided (unless showing all groups)
-  const segmentGroups = segment && !showAllGroups
-    ? activeGroups.filter(g => g.segment === segment)
+  // 2. Filter by segment if provided (ALWAYS - no mixing of FOLK and PW groups)
+  const targetSegment = selectedReg?.segment || segment;
+  const segmentGroups = targetSegment
+    ? activeGroups.filter(g => g.segment === targetSegment)
     : activeGroups;
 
   // 3. Filter by time slot (unless showing all groups)

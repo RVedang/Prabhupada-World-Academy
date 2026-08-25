@@ -124,7 +124,18 @@ export default createEndpoint({
       return !isPwUser;
     });
 
-    return filteredRecords.sort((a: any, b: any) => 
+    const mappedRecords = filteredRecords.map(r => {
+      const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
+      const isPwUser = !!(u?.isPrabhupadaWorldUser || r.isPrabhupadaWorldUser) || 
+        (u?.segment === 'PW' || r.segment === 'PW');
+      return {
+        ...r,
+        segment: isPwUser ? 'PW' : 'FOLK',
+        isPrabhupadaWorldUser: isPwUser,
+      };
+    });
+
+    return mappedRecords.sort((a: any, b: any) => 
       new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
     );
   },

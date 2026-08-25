@@ -11,7 +11,7 @@ export default createEndpoint({
     const uid = context.user!.id;
     const today = getTodayIST();
 
-    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus'] }).catch(() => null);
+    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => null);
     const altUid = userRecord?.userId || uid;
 
     // Parallel: membership + pending request
@@ -41,7 +41,7 @@ export default createEndpoint({
       const [availGroupsRes, pendingGroup] = await Promise.all([
         (pending || isUserRegPending) ? Promise.resolve({ records: [] }) : BvGroups.findAll({
           filters: { isActive: true }, limit: 50,
-          fields: ['id', 'groupId', 'groupName', 'description', 'bvslLeader', 'bvslId', 'bvslName'],
+          fields: ['id', 'groupId', 'groupName', 'description', 'bvslLeader', 'bvslId', 'bvslName', 'segment'],
         }),
         pendingGroupId ? BvGroups.findOne({ id: pendingGroupId, fields: ['id', 'groupName', 'groupId'] }) : Promise.resolve(null),
       ]);
@@ -71,25 +71,40 @@ export default createEndpoint({
       }
 
       const leaderIds = [...new Set(groups.map((g: any) => Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId)).filter(Boolean))] as string[];
-      const leaderMap: Record<string, string> = {};
+      const leaderMap: Record<string, { fullName: string; segment?: string }> = {};
       if (leaderIds.length > 0) {
-        const leaderRecords = await Users.findAll({ filters: { id: { in: leaderIds } }, fields: ['id', 'fullName'] });
-        leaderRecords.records.forEach((u: any) => { leaderMap[u.id] = u.fullName || ''; });
+        const leaderRecords = await Users.findAll({ filters: { id: { in: leaderIds } }, fields: ['id', 'fullName', 'segment'] });
+        leaderRecords.records.forEach((u: any) => {
+          leaderMap[u.id] = {
+            fullName: u.fullName || '',
+            segment: u.segment || 'PW'
+          };
+        });
       }
 
-      return {
-        myGroup: null,
-        pendingRequest: null,
-        availableGroups: groups.map((g: any) => {
+      const userSegment = userRecord?.segment || (userRecord?.isPrabhupadaWorldUser ? 'PW' : 'FOLK') || 'PW';
+
+      const availableGroupsMapped = groups
+        .filter((g: any) => {
+          const leaderId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId);
+          const groupSegment = g.segment || leaderMap[leaderId || '']?.segment || 'PW';
+          return groupSegment === userSegment;
+        })
+        .map((g: any) => {
           const leaderId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId);
           return {
             groupId: g.groupId || g.id,
             groupName: g.groupName || '',
             description: g.description || '',
-            bvslName: leaderMap[leaderId || ''] || g.bvslName || 'Unassigned',
+            bvslName: leaderMap[leaderId || '']?.fullName || g.bvslName || 'Unassigned',
             memberCount: memberCountMap[g.id] ?? 0,
           };
-        }),
+        });
+
+      return {
+        myGroup: null,
+        pendingRequest: null,
+        availableGroups: availableGroupsMapped,
         todayStatus: null, streak: 0, presentCount: 0, totalSessions: 0,
       };
     }
