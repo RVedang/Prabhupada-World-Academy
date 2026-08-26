@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, SadhanaEntries, BvslPreachingEntries, Users, BvAttendance } from '@/lib/backend-sdk';
+import { createEndpoint, SadhanaEntries, BvslPreachingEntries, Users } from '@/lib/backend-sdk';
 import { nextSadhanaEntryId, nextBvEntryId } from '../lib/entryIdCounter';
 import { getNRMaxScore, fillingSameDayApplies } from '../lib/userUtils';
 import { TEMPLATE_MODES } from '../types/enums';
@@ -351,25 +351,6 @@ export default createEndpoint({
         return Users.update({ id: userId, record: { currentStreak: newStreak, lastStreakUpdatedAt: now } });
       }).catch(() => {});
     }
-
-    // Auto-mark attendance in BvAttendance so Sadhana form submissions reflect in Attendance Calendar
-    const isBvAttended = !!(
-      fv.bhaktiVriksha === true ||
-      fv.bhaktiVriksha === 1 ||
-      fv.bhaktiVriksha === 'true' ||
-      Number(fv.bhaktiVriksha) > 0 ||
-      Number(fv._pts_bhaktiVriksha) > 0
-    );
-
-    BvAttendance.findAll({ filters: { user: authenticatedUserId, attendanceDate: entryDateForStreak }, limit: 1 })
-      .then(async ({ records }: any) => {
-        if (records && records.length > 0) {
-          await BvAttendance.update({ id: records[0].id, record: { present: isBvAttended } });
-        } else {
-          await BvAttendance.create({ record: { user: authenticatedUserId, attendanceDate: entryDateForStreak, present: isBvAttended } });
-        }
-      })
-      .catch(() => {});
 
     return {
       success: true,

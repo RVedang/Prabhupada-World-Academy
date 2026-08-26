@@ -17,19 +17,37 @@ export default createEndpoint({
     })).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }: any) => {
     // Resolve group — try custom groupId first, then DB UUID
     let group = await BvGroups.findOne({
       filters: { groupId: input.groupId },
-      fields: ['id', 'groupId', 'groupName'],
+      fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'rgsfId', 'subFacilitatorId'],
     });
     if (!group) {
       group = await BvGroups.findOne({
         id: input.groupId,
-        fields: ['id', 'groupId', 'groupName'],
+        fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'rgsfId', 'subFacilitatorId'],
       }).catch(() => undefined);
     }
     if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
+
+    // Attendance is authoritative only when saved by this group's assigned
+    // facilitator. Do not allow a member (or another group's facilitator) to
+    // submit attendance for the group through the endpoint directly.
+    const callerIds = new Set([
+      context.user?.id,
+      context.user?.userId,
+      context.user?.email,
+    ].filter(Boolean).map((value: any) => String(value).toLowerCase()));
+    const facilitatorIds = [
+      ...(Array.isArray(group.bvslLeader) ? group.bvslLeader : [group.bvslLeader]),
+      ...(Array.isArray(group.bvslId) ? group.bvslId : [group.bvslId]),
+      ...(Array.isArray((group as any).rgsfId) ? (group as any).rgsfId : [(group as any).rgsfId]),
+      ...(Array.isArray((group as any).subFacilitatorId) ? (group as any).subFacilitatorId : [(group as any).subFacilitatorId]),
+    ].filter(Boolean).map(String);
+    if (!facilitatorIds.some(id => callerIds.has(id.toLowerCase()))) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only this Reading Group\'s facilitator can save attendance' });
+    }
 
     // Find or create the session for this group+date (kept for backward compat)
     let session = await BvSessions.findOne({

@@ -16,12 +16,16 @@ export default createEndpoint({
     // Fetch BvAttendance records for user
     const { records: allBv } = await BvAttendance.findAll({
       limit: 2000,
-      fields: ['id', 'user', 'attendanceDate', 'present'],
+      fields: ['id', 'user', 'group', 'attendanceDate', 'present'],
     }).catch(() => ({ records: [] }));
 
     const bvAtt = allBv.filter((a: any) => {
       const rawU = Array.isArray(a.user) ? a.user[0] : a.user;
-      return userKeys.has(String(rawU || '').toLowerCase());
+      // Official BV attendance is always connected to the reading group by
+      // the facilitator. Ignore old Sadhana-created rows, which had no group
+      // and incorrectly displayed unmarked days as absences.
+      const groupId = Array.isArray(a.group) ? a.group[0] : a.group;
+      return userKeys.has(String(rawU || '').toLowerCase()) && !!groupId;
     });
 
 

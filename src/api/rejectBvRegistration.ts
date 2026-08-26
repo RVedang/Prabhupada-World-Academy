@@ -66,10 +66,14 @@ export default createEndpoint({
 
 
     // 2. Update main User record
-    let targetUser = await Users.findOne({ id: reg.userId }).catch(() => null);
-    if (!targetUser) {
-      targetUser = await Users.findOne({ filters: { userId: reg.userId } }).catch(() => null) ||
-                   await Users.findOne({ filters: { email: reg.email } }).catch(() => null) ||
+    const userSearchId = reg.userId || reg.userDbId;
+    let targetUser = null;
+    if (userSearchId) {
+      targetUser = await Users.findOne({ id: userSearchId }).catch(() => null) ||
+                   await Users.findOne({ filters: { userId: userSearchId } }).catch(() => null);
+    }
+    if (!targetUser && reg.email) {
+      targetUser = await Users.findOne({ filters: { email: reg.email } }).catch(() => null) ||
                    await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } }).catch(() => null);
     }
 
@@ -84,7 +88,9 @@ export default createEndpoint({
       serverCacheInvalidate(profileCacheKey(targetUser.id));
     }
 
-    serverCacheInvalidate(profileCacheKey(reg.userId));
+    if (userSearchId) {
+      serverCacheInvalidate(profileCacheKey(userSearchId));
+    }
 
     return { success: true };
   },

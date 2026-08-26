@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvAttendance, Users, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
+import { createEndpoint, BvGroupMembers, BvAttendance, Users, FolkResidencies } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get BV attendance history and leaderboard for the current user',
@@ -20,15 +20,9 @@ export default createEndpoint({
     if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
     if (context.user?.email) userKeys.add(String(context.user.email).toLowerCase());
 
-    // Query SadhanaEntries for all users — even those not in a BvGroup
-    const { records: sadhanaRecords } = await SadhanaEntries.findAll({
-      filters: { user: uid } as any,
-      limit: 1000,
-    }).catch(() => ({ records: [] }));
-
-    const sadhanaMap = new Map(sadhanaRecords.map((s: any) => [s.entryDate, s]));
-
-    // Query BvAttendance directly by user ID (or other user keys)
+    // Query only facilitator-recorded BV attendance directly by user ID (or
+    // other user keys). Sadhana submissions are deliberately unrelated to
+    // reading-group attendance.
     let allAtt: any[] = [];
     for (const key of userKeys) {
       const { records } = await BvAttendance.findAll({
@@ -43,7 +37,8 @@ export default createEndpoint({
     allAtt = allAtt.filter(a => {
       if (seenAttIds.has(a.id)) return false;
       seenAttIds.add(a.id);
-      return true;
+      const groupId = Array.isArray(a.group) ? a.group[0] : a.group;
+      return !!groupId;
     });
 
     const formattedHistory = allAtt.map(a => ({
@@ -112,26 +107,6 @@ export default createEndpoint({
     const dateMap = new Map<string, boolean>();
     allAtt.forEach((a: any) => {
       if (a.attendanceDate) dateMap.set(a.attendanceDate, a.present || false);
-    });
-
-    sadhanaRecords.forEach((s: any) => {
-      const d = String(s.entryDate || '').slice(0, 10);
-      if (d && !dateMap.has(d)) {
-        let isPresent = false;
-        try {
-          const fv = typeof s.fieldValuesJson === 'string' ? JSON.parse(s.fieldValuesJson) : (s.fieldValuesJson || {});
-          isPresent = !!(
-            fv.bhaktiVriksha === true ||
-            fv.bhaktiVriksha === 1 ||
-            fv.bhaktiVriksha === 'true' ||
-            Number(fv.bhaktiVriksha) > 0 ||
-            Number(fv._pts_bhaktiVriksha) > 0
-          );
-        } catch {
-          isPresent = false;
-        }
-        dateMap.set(d, isPresent);
-      }
     });
 
     const userHistory = Array.from(dateMap.entries()).map(([attendanceDate, present]) => ({

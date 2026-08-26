@@ -144,14 +144,15 @@ export default createEndpoint({
 
     const filteredRecords = records.filter(r => {
       const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
-      // A successful assignment is definitive. Do not show an old duplicate
-      // registration record as pending after the member has joined a group.
+      // A successful assignment or rejection is definitive. Do not show an old duplicate
+      // registration record as pending after the member has joined a group or been rejected.
       const registrationIdentities = [r.userId, r.userDbId, u?.id, u?.userId]
         .filter(Boolean)
         .map(String);
       if (
         u?.isBvMember ||
         u?.bvRegistrationStatus === 'Approved' ||
+        u?.bvRegistrationStatus === 'Rejected' ||
         registrationIdentities.some(identity => memberIdentities.has(identity))
       ) return false;
       const isPwUser = !!(u?.isPrabhupadaWorldUser || r.isPrabhupadaWorldUser) || 

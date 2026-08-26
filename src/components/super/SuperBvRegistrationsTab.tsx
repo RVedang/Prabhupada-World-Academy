@@ -66,7 +66,7 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
   const timeMatchedGroups = segmentGroups.filter(g =>
     isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime)
   );
-  const filteredGroups = showAllGroups ? activeGroups : timeMatchedGroups;
+  const filteredGroups = showAllGroups ? segmentGroups : timeMatchedGroups;
 
   useEffect(() => {
     if (!selectedReg) return;
