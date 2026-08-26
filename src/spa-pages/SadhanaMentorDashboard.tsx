@@ -295,7 +295,7 @@ export default function SadhanaMentorDashboard() {
 
   // Meetings & MoM are a PW-only mentor workflow. Use the resolved segment
   // instead of the broader legacy PW flag so FOLK mentors never see this tab.
-  const isPwMentor = profile.segment === 'PW';
+  const isPwMentor = String(profile.segment || '').trim().toUpperCase() === 'PW';
 
   const tabs: TabConfig[] = [
     { value: 'reports', label: 'Sadhana Report', icon: BarChart3 },
