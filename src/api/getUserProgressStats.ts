@@ -209,26 +209,26 @@ function avgValues(vals: EntryValues[]): Omit<EntryValues, 'label' | 'date'> {
 
 const RESIDENT_FIELD_DEFS = [
   { key: 'rounds', label: 'Rounds', unit: '' },
-  { key: 'spReadingMinutes', label: 'SP Reading', unit: 'min' },
-  { key: 'sbPoints', label: 'SB', unit: 'pts' },
-  { key: 'maNaGvPoints', label: 'MA/NA/GV', unit: 'pts' },
-  { key: 'cleanlinessPoints', label: 'Cleanliness', unit: 'pts' },
-  { key: 'dailyServicePoints', label: 'Daily Service', unit: 'pts' },
+  { key: 'spReadingMinutes', label: 'Book Reading', unit: 'min' },
+  { key: 'sbPoints', label: 'SB Class', unit: 'pts' },
+  { key: 'maNaGvPoints', label: 'DA+NA+GP+Kirtan', unit: 'pts' },
+  { key: 'cleanlinessPoints', label: 'Clean Area', unit: 'pts' },
+  { key: 'dailyServicePoints', label: 'Service', unit: 'pts' },
   { key: 'sleepQualityPoints', label: 'Sleep Quality', unit: 'pts' },
-  { key: 'sleepHours', label: 'Sleep Hours', unit: 'hrs' },
+  { key: 'sleepHours', label: 'Sleep', unit: 'hrs' },
 ];
 
 const RESIDENT_INSIGHT_DEFS = [
-  { key: 'maNaGvPoints',      label: 'Mangal Arti (MA/NA/GV)',   maxPts: 3, tip: 'Attend the full 23 min Mangal Arti for 3 pts' },
+  { key: 'maNaGvPoints',      label: 'DA+NA+GP+Kirtan',          maxPts: 3, tip: 'Attend the full 30 min morning program for 3 pts' },
   { key: 'roundsPoints',      label: 'Chanting Rounds',           maxPts: 4, tip: 'Complete all 16 rounds before 8 AM for 4 pts' },
-  { key: 'spReadingPoints',   label: 'SP Book Reading',           maxPts: 3, tip: 'Read 30+ min of Srila Prabhupada books for 3 pts' },
-  { key: 'japaVisiblePoints', label: 'Japa Visible',              maxPts: 2, tip: 'Do japa in MTH/Balcony (visible) for 2 pts' },
-  { key: 'sbPoints',          label: 'Srimad Bhagavatam',         maxPts: 2, tip: 'Attend 25–30 min in MT Hall for 2 pts' },
-  { key: 'dailyServicePoints',label: 'Daily Assigned Service',    maxPts: 2, tip: 'Complete your assigned service fully for 2 pts' },
-  { key: 'quotesTulasiPoints',label: 'Quotes + Tulasi Pranama',   maxPts: 1, tip: 'Attend quotes reading and Tulasi pranama for 1 pt' },
-  { key: 'cleanlinessPoints', label: 'Cleanliness',               maxPts: 1, tip: 'Clean your room/area before 8 AM for 1 pt' },
+  { key: 'spReadingPoints',   label: 'Book Reading',              maxPts: 3, tip: 'Read 30+ min of Srila Prabhupada books for 3 pts' },
+  { key: 'japaVisiblePoints', label: 'Japa MTH',                  maxPts: 2, tip: 'Do japa in MTH/Balcony (visible) for 2 pts' },
+  { key: 'sbPoints',          label: 'SB Class',                  maxPts: 2, tip: 'Attend 25–30 min in MT Hall for 2 pts' },
+  { key: 'dailyServicePoints',label: 'Service',                   maxPts: 2, tip: 'Complete your assigned service fully for 2 pts' },
+  { key: 'quotesTulasiPoints',label: 'Quotes/Pranam',             maxPts: 1, tip: 'Attend quotes reading and Vaishnava Pranam for 1 pt' },
+  { key: 'cleanlinessPoints', label: 'Clean Area',                maxPts: 1, tip: 'Clean your room/area before 8 AM for 1 pt' },
   { key: 'sleepQualityPoints',label: 'Sleep Quality',             maxPts: 1, tip: 'Sleep before 10:30 PM for 1 pt' },
-  { key: 'reportSendingPoints',label: 'Filling Same Day',         maxPts: 1, tip: 'Submit your sadhana report on the same day for 1 pt' },
+  { key: 'reportSendingPoints',label: 'SameDay Fill',             maxPts: 1, tip: 'Submit your sadhana report on the same day for 1 pt' },
 ];
 
 // Resident sick/OS: only these fields are scored (others are 0 and should be excluded from insights)

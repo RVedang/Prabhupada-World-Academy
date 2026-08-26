@@ -96,44 +96,51 @@ export default createEndpoint({
 
     if (!userRecord?.userId) return { user: null };
 
-    // Treat an existing group-member row as authoritative. This repairs users
-    // approved by older code that added them to a group but updated a legacy
-    // duplicate profile instead of the authenticated profile document.
-    let hasBvMembership = !!(userRecord.isBvMember || userRecord.bvGroupId);
-    if (!hasBvMembership) {
-      const userIdentities = [...new Set([
-        context.user.id,
-        userRecord.id,
-        userRecord.userId,
-      ].filter(Boolean).map(String))];
+    // A real BvGroupMembers record is the sole source of truth for membership.
+    // Profile flags can become stale after a member leaves or is removed, and
+    // must never keep the Attendance tab visible by themselves.
+    const userIdentities = [...new Set([
+      context.user.id,
+      userRecord.id,
+      userRecord.userId,
+    ].filter(Boolean).map(String))];
+    const [byUser, byUserId] = await Promise.all([
+      BvGroupMembers.findAll({
+        filters: { user: { in: userIdentities } },
+        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+        limit: 5,
+      }).catch(() => ({ records: [] })),
+      BvGroupMembers.findAll({
+        filters: { userId: { in: userIdentities } },
+        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+        limit: 5,
+      }).catch(() => ({ records: [] })),
+    ]);
+    const membership = byUser.records[0] || byUserId.records[0];
+    const hasBvMembership = !!membership;
+    const groupId = membership
+      ? (Array.isArray(membership.group) ? membership.group[0] : (membership.group || membership.groupId || ''))
+      : '';
+    const needsMembershipSync = hasBvMembership
+      ? (!userRecord.isBvMember || userRecord.bvRegistrationStatus !== 'Approved' || (groupId && userRecord.bvGroupId !== groupId))
+      : (!!userRecord.isBvMember || !!userRecord.bvGroupId || !!userRecord.bvGroupName || userRecord.bvRegistrationStatus === 'Approved');
 
-      const [byUser, byUserId] = await Promise.all([
-        BvGroupMembers.findAll({
-          filters: { user: { in: userIdentities } },
-          fields: ['id', 'group', 'groupId', 'user', 'userId'],
-          limit: 5,
-        }).catch(() => ({ records: [] })),
-        BvGroupMembers.findAll({
-          filters: { userId: { in: userIdentities } },
-          fields: ['id', 'group', 'groupId', 'user', 'userId'],
-          limit: 5,
-        }).catch(() => ({ records: [] })),
-      ]);
-
-      const membership = byUser.records[0] || byUserId.records[0];
-      if (membership) {
-        hasBvMembership = true;
-        const groupId = Array.isArray(membership.group)
-          ? membership.group[0]
-          : (membership.group || membership.groupId || '');
-        const healedFields = {
-          isBvMember: true,
-          bvRegistrationStatus: 'Approved',
-          ...(groupId && !userRecord.bvGroupId ? { bvGroupId: groupId } : {}),
-        };
-        await Users.update({ id: userRecord.id, record: healedFields });
-        userRecord = { ...userRecord, ...healedFields };
-      }
+    if (needsMembershipSync) {
+      const membershipFields = hasBvMembership
+        ? {
+            isBvMember: true,
+            bvRegistrationStatus: 'Approved',
+            ...(groupId ? { bvGroupId: groupId } : {}),
+          }
+        : {
+            isBvMember: false,
+            bvGroupId: '',
+            bvGroupName: '',
+            ...(userRecord.bvRegistrationStatus === 'Approved' ? { bvRegistrationStatus: '' } : {}),
+            ...(userRecord.pendingBvApprovalNotice ? { pendingBvApprovalNotice: false } : {}),
+          };
+      await Users.update({ id: userRecord.id, record: membershipFields });
+      userRecord = { ...userRecord, ...membershipFields };
     }
 
     const rawGuideId = Array.isArray(userRecord.guide) ? userRecord.guide[0] : userRecord.guide;

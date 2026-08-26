@@ -26,7 +26,7 @@ type BvStatus = GetUserBvStatusOutputType;
 type BvAttendance = GetBvAttendanceOutputType;
 
 export default function BvTab({ userId, segment }: Props) {
-  const { profile } = useUserProfile();
+  const { profile, refreshProfile } = useUserProfile();
   const [status, setStatus] = useState<BvStatus | null>(null);
   const [attendance, setAttendance] = useState<BvAttendance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,6 +59,7 @@ export default function BvTab({ userId, segment }: Props) {
     try {
       await leaveBvGroup({ userId, groupId: status.myGroup.groupId });
       invalidateUserDashboardCache(userId);
+      await refreshProfile();
       toast.success('Left group successfully');
       load();
     } catch {

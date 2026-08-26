@@ -77,6 +77,7 @@ export default function BhaktiVrikshaPage() {
     setLeavingGroup(true);
     try {
       await leaveBvGroup({ userId: profile.userId, groupId: bvStatus.myGroup.groupId });
+      await refreshProfile();
       toast.success('You have left the group');
       load();
     } catch { toast.error('Failed to leave group'); }

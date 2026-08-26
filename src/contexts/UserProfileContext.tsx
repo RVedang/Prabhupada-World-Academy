@@ -255,7 +255,9 @@ export default function UserProfileProvider({ children }: { children: React.Reac
   const refreshProfile = async () => {
     if (!user?.email) return null;
     loadedEmailRef.current = null;
-    return await load(user.email);
+    // An explicit refresh must bypass the short client query cache so role and
+    // BV membership changes are reflected immediately.
+    return await load(user.email, 0, true);
   };
 
   const forceSetProfile = (userData: any) => {

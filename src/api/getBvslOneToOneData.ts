@@ -45,7 +45,7 @@ export default createEndpoint({
     const { records: allUsers } = await Users.findAll({
       filters: { segment: callerSegment, status: 'Active' },
       fields: [
-        'id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
+        'id', 'userId', 'email', 'fullName', 'role', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
         'bvReportingAdminId', 'bvReportingAdminName',
         'bvReportingSupervisorId', 'bvReportingSupervisorName',
         'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'segment'
@@ -57,7 +57,12 @@ export default createEndpoint({
 
     if (scopedUserIds === null) {
       // 5. Super Admin: sees every single member of Prabhupada World Bhakti Vriksha
-      filteredUsers = allUsers.filter((u: any) => u.id !== dbUserId && u.id !== customUserId);
+      filteredUsers = allUsers.filter((u: any) => {
+        if (u.id === dbUserId || u.id === customUserId) return false;
+        const uRole = (u.role || '').toUpperCase().replace(/\s+/g, '_');
+        if (uRole === 'GUIDE' || uRole === 'SUPER_GUIDE') return false;
+        return true;
+      });
     } else if (scopedUserIds.size > 0) {
       // Scoped role (Admin, Supervisor, RGF, RGSF): filter strictly to scoped user IDs (excluding self)
       filteredUsers = allUsers.filter((u: any) => {
@@ -66,6 +71,8 @@ export default createEndpoint({
         const emailStr = String(u.email || '').toLowerCase();
         const isSelf = uId === dbUserId.toLowerCase() || userIdStr === customUserId.toLowerCase();
         if (isSelf) return false;
+        const uRole = (u.role || '').toUpperCase().replace(/\s+/g, '_');
+        if (uRole === 'GUIDE' || uRole === 'SUPER_GUIDE') return false;
         return scopedUserIds.has(uId) || scopedUserIds.has(userIdStr) || scopedUserIds.has(emailStr);
       });
     }
@@ -93,7 +100,13 @@ export default createEndpoint({
             .map((m: any) => String(Array.isArray(m.user) ? m.user[0] : m.user || ''))
             .filter(Boolean)
         );
-        filteredUsers = allUsers.filter((u: any) => memberIds.has(u.id) && u.id !== dbUserId && u.id !== customUserId);
+        filteredUsers = allUsers.filter((u: any) => {
+          if (!memberIds.has(u.id)) return false;
+          if (u.id === dbUserId || u.id === customUserId) return false;
+          const uRole = (u.role || '').toUpperCase().replace(/\s+/g, '_');
+          if (uRole === 'GUIDE' || uRole === 'SUPER_GUIDE') return false;
+          return true;
+        });
       }
     }
 

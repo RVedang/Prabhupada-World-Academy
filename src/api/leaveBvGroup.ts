@@ -9,45 +9,50 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     const uid = context.user!.id;
     const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId'] }).catch(() => null);
-    const realProfileId = userRecord?.userId || uid;
+    const memberIdentities = new Set([uid, userRecord?.id, userRecord?.userId].filter(Boolean).map(String));
+    // The UI exposes a group's public groupId, whereas membership documents
+    // reference its database document ID. Resolve either form before cleanup.
+    const groupRecord = await BvGroups.findOne({
+      id: input.groupId,
+      fields: ['id', 'groupId', 'groupName', 'bvslId', 'guide'],
+    }).catch(() => null) || await BvGroups.findOne({
+      filters: { groupId: input.groupId },
+      fields: ['id', 'groupId', 'groupName', 'bvslId', 'guide'],
+    }).catch(() => null);
+    const groupDocumentId = groupRecord?.id || input.groupId;
 
-    // Delete membership from BvGroupMembers table for both IDs
-    const res = await BvGroupMembers.findAll({ filters: { user: uid, group: input.groupId }, limit: 5, fields: ['id'] });
-    for (const m of res.records) await BvGroupMembers.delete({ id: m.id });
+    // Remove every matching legacy/current membership row in this group. This
+    // prevents a leftover custom userId row from keeping Attendance visible.
+    const { records: groupMembers } = await BvGroupMembers.findAll({
+      filters: { group: groupDocumentId },
+      limit: 1000,
+      fields: ['id', 'user', 'userId'],
+    });
+    await Promise.all(groupMembers
+      .filter(member => memberIdentities.has(String(member.user || '')) || memberIdentities.has(String(member.userId || '')))
+      .map(member => BvGroupMembers.delete({ id: member.id })));
 
-    if (realProfileId !== uid) {
-      const resAlt = await BvGroupMembers.findAll({ filters: { user: realProfileId, group: input.groupId }, limit: 5, fields: ['id'] });
-      for (const m of resAlt.records) await BvGroupMembers.delete({ id: m.id });
-    }
-
-    // Clear BV group membership/registration fields on both user documents
-    await Users.update({
-      id: uid,
-      record: {
-        bvGroupId: '',
-        bvGroupName: '',
-        bvRegistrationStatus: '',
-        isBvMember: false,
-      }
-    }).catch(() => {});
- 
-    if (realProfileId !== uid) {
-      await Users.update({
-        id: realProfileId,
-        record: {
-          bvGroupId: '',
-          bvGroupName: '',
-          bvRegistrationStatus: '',
-          isBvMember: false,
-        }
-      }).catch(() => {});
-    }
+    // Clear the authenticated profile and any resolved email-fallback profile.
+    const profileDocumentIds = [...new Set([uid, userRecord?.id].filter(Boolean).map(String))];
+    const clearedMembership = {
+      bvGroupId: '',
+      bvGroupName: '',
+      bvRegistrationStatus: '',
+      isBvMember: false,
+      pendingBvApprovalNotice: false,
+    };
+    await Promise.all(profileDocumentIds.map(id =>
+      Users.update({ id, record: clearedMembership }).catch(() => {})
+    ));
 
 
     // Send single notification to RGF, Supervisor, and Admins (deduped)
     try {
       const leavingUser = await Users.findOne({ id: uid, fields: ['id', 'fullName', 'email'] });
-      const group = await BvGroups.findOne({ id: input.groupId, fields: ['id', 'groupName', 'bvslId', 'guide'] });
+      const group = groupRecord || await BvGroups.findOne({
+        id: groupDocumentId,
+        fields: ['id', 'groupName', 'bvslId', 'guide'],
+      });
 
       const leaverName = leavingUser?.fullName || leavingUser?.email || 'A member';
       const groupName = group?.groupName || 'Reading Group';

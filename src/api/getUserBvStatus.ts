@@ -14,20 +14,16 @@ export default createEndpoint({
     const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => null);
     const altUid = userRecord?.userId || uid;
 
-    // Parallel: membership + pending request
-    let [membershipRes, pendingRes] = await Promise.all([
-      BvGroupMembers.findAll({ filters: { user: uid }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] }),
+    // A member exists only when a real BvGroupMembers document exists. Query
+    // both identifier fields to support legacy custom user IDs without using a
+    // stale bvGroupId profile field as a synthetic membership.
+    const identityKeys = [...new Set([uid, userRecord?.id, altUid].filter(Boolean).map(String))];
+    const [membershipByUser, membershipByUserId, pendingRes] = await Promise.all([
+      BvGroupMembers.findAll({ filters: { user: { in: identityKeys } }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] }),
+      BvGroupMembers.findAll({ filters: { userId: { in: identityKeys } }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] }),
       BvGroupRequests.findAll({ filters: { user: uid, status: 'Pending' }, limit: 5, fields: ['id', 'group', 'requestedAt'] }),
     ]);
-
-    let membership = membershipRes.records[0];
-    if (!membership && altUid !== uid) {
-      const altMem = await BvGroupMembers.findAll({ filters: { user: altUid }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] });
-      membership = altMem.records[0];
-    }
-    if (!membership && userRecord?.bvGroupId) {
-      membership = { id: `synth-${uid}`, group: userRecord.bvGroupId, role: 'Member', joinedAt: new Date().toISOString() } as any;
-    }
+    const membership = membershipByUser.records[0] || membershipByUserId.records[0];
 
     const pending = pendingRes.records[0];
     const isUserRegPending = userRecord?.bvRegistrationStatus === 'Pending Approval' || userRecord?.bvRegistrationStatus === 'Pending';
