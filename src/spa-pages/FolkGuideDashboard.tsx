@@ -35,11 +35,12 @@ export default function FolkGuideDashboard() {
 
   const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const isForceGuideMode = queryParams.get('mode') === 'guide';
+  const normalizedProfileRole = String(profile?.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
 
   const isSuperAdmin = !isForceGuideMode && !!(
     profile?.isBvSuperAdmin ||
-    profile?.role === 'SUPER_ADMIN' ||
-    profile?.role === 'SUPER_GUIDE'
+    normalizedProfileRole === 'SUPER_ADMIN' ||
+    normalizedProfileRole === 'SUPER_GUIDE'
   );
 
   const dashboardTitle = isSuperAdmin
@@ -48,7 +49,11 @@ export default function FolkGuideDashboard() {
 
   const isFolk = profile?.segment === 'FOLK';
 
-  const isBvAdminUser = isSuperAdmin || isForceGuideMode || !!(profile?.isBvAdmin || (profile?.role as string) === 'ADMIN' || (profile?.role as string) === 'SUPER_ADMIN');
+  const isBvAdminUser = isSuperAdmin || isForceGuideMode || !!(
+    profile?.isBvAdmin ||
+    normalizedProfileRole === 'ADMIN' ||
+    normalizedProfileRole === 'SUPER_ADMIN'
+  );
 
   useEffect(() => {
     if (profile) {

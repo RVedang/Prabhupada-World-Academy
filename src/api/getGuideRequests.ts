@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { createEndpoint, GuideTransferRequests, Users, Guides, AshrayUpgradeRequests, FolkResidencies } from '@/lib/backend-sdk';
 import { ASHRAY_LEVELS } from '../types/enums';
 
@@ -8,12 +9,13 @@ export default createEndpoint({
   inputSchema: z.object({ guideId: z.string().optional() }),
   outputSchema: z.any(),
   execute: async ({ context }: any) => {
-    const userRole = (context.user.role || '').toUpperCase();
+    const userRole = String(context.user.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
     const isSuperGuide =
       userRole === 'SUPER_GUIDE' ||
-      userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
-      !!context.user.isBvSuperAdmin;
+      userRole === 'ADMIN' ||
+      !!context.user.isBvSuperAdmin ||
+      !!context.user.isBvAdmin;
 
     // Find the guide DB record for the current user
     let guideDbId: string | null = null;
@@ -32,11 +34,15 @@ export default createEndpoint({
     }
 
     // Fetch pending guide transfer requests
-    const { records: allRequests } = await GuideTransferRequests.findAll({
-      filters: { status: 'Pending' },
+    const { records: allRequestsRaw } = await GuideTransferRequests.findAll({
       fields: ['id', 'user', 'fromGuide', 'toGuide', 'status', 'requestedAt', 'notes'],
       limit: 200,
     });
+    // Older clients wrote both `Pending` and `PENDING`; normalize at the API
+    // boundary so a casing difference never hides a submitted request.
+    const allRequests = allRequestsRaw.filter((r: any) =>
+      String(r.status || '').trim().toUpperCase() === 'PENDING'
+    );
 
     // Filter: only show requests where toGuide is THIS guide (receiving guide)
     const filtered = isSuperGuide

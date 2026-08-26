@@ -43,11 +43,16 @@ export default createEndpoint({
       if (allowedResidencyIds.length === 0) return [];
     }
 
-    const { records: requests } = await ResidencyTransferRequests.findAll({
-      filters: { status: 'Pending' },
+    const { records: requestRecords } = await ResidencyTransferRequests.findAll({
       fields: ['id', 'user', 'fromResidency', 'toResidency', 'status', 'requestedAt', 'notes'],
       limit: 200,
     });
+    // Requests created by older app versions may use a different status case.
+    // Read the pending set case-insensitively so valid FOLK leave requests are
+    // visible to the super guide regardless of which client submitted them.
+    const requests = requestRecords.filter((r: any) =>
+      String(r.status || '').trim().toUpperCase() === 'PENDING'
+    );
 
     if (requests.length === 0) return [];
 
