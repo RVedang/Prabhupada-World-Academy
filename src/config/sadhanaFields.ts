@@ -1,6 +1,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // SADHANA FIELD DEFINITIONS — Static definitions from the official PDF spec
-// Resident form (17 fields) and Non-Resident form (8 fields)
+// Resident form (16 visible fields plus automatic same-day submission scoring)
+// and Non-Resident form (10 fields)
 //
 // ⚠️  DUAL SOURCE-OF-TRUTH NOTICE (Issue 3.5)
 // There are TWO sources for sadhana field definitions:
@@ -11,13 +12,12 @@
 //      - The submitSadhana backend endpoint
 //      - Score max calculations (src/lib/userUtils.ts → getNRMaxScore)
 //
-//   2. The `SadhanaFields` database table — Used for guide-specific custom fields
-//      configured via GuideFieldSetupPage. These override or augment the static
-//      defaults per guide. Managed by getSadhanaFormData.ts which merges both.
+//   2. The `SadhanaFields` database table — Used only for non-resident custom
+//      fields. The approved resident schema below is authoritative, so older
+//      database rows cannot restore the retired resident form.
 //
-//   ⚠️  When you change scoring criteria here, the DB `SadhanaFields` records
-//   for any guide that customized their form will diverge and produce incorrect
-//   scores. Use the SetupPage.tsx admin panel to sync DB records after updates.
+//   ⚠️  When you change non-resident scoring criteria here, matching database
+//   customisations may need review. Resident criteria always use this schema.
 // ══════════════════════════════════════════════════════════════════════════════
 
 export type ContextTag = 'today_morning' | 'today' | 'tonight' | 'last_night' | null;

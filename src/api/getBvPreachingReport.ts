@@ -3,6 +3,19 @@ import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides } from '@
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 
+function isMemberLevelFacilitator(user: any): boolean {
+  const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
+  return !(
+    user?.isBvAdmin ||
+    user?.isBvSuperAdmin ||
+    role === 'GUIDE' ||
+    role === 'SUPER_GUIDE' ||
+    role === 'SUPER_ADMIN' ||
+    role === 'PW_ADMIN' ||
+    role === 'ADMIN'
+  );
+}
+
 export default createEndpoint({
   description: 'BV preaching report for guide — all BVSLs under guide with preaching entries',
   authenticated: true,
@@ -59,12 +72,12 @@ export default createEndpoint({
       if (allGuideIds.length > 0) {
         const bvslMap = new Map<string, any>();
         const fetches = await Promise.all(allGuideIds.map(gid =>
-          Users.findAll({ filters: { isBvsl: true, status: 'Active', guide: gid }, fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'], limit: 200 })
+          Users.findAll({ filters: { isBvsl: true, status: 'Active', guide: gid }, fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin'], limit: 200 })
         ));
         for (const res of fetches) for (const u of res.records) bvslMap.set(u.id, u);
         // Also get BVSLs from the residencies directly (in case they're not assigned to a specific guide)
-        const resFetches = await Promise.all(residencyIds.map(rid =>
-          Users.findAll({ filters: { isBvsl: true, status: 'Active', residency: rid }, fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'], limit: 200 })
+        const resFetches = await Promise.all(residencyIds.map((rid: string) =>
+          Users.findAll({ filters: { isBvsl: true, status: 'Active', residency: rid }, fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin'], limit: 200 })
         ));
         for (const res of resFetches) for (const u of res.records) bvslMap.set(u.id, u);
         bvslUsers = Array.from(bvslMap.values());
@@ -75,11 +88,13 @@ export default createEndpoint({
 
       const { records } = await Users.findAll({
         filters: userFilter,
-        fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'],
+        fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
         limit: 200,
       });
       bvslUsers = records.filter(u => u.id !== context.user!.id && u.userId !== context.user!.id);
     }
+
+    bvslUsers = bvslUsers.filter(isMemberLevelFacilitator);
 
     if (bvslUsers.length === 0) return { bvsls: [], groups: [] };
 

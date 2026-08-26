@@ -25,6 +25,24 @@ function isoWeekToDateRange(weekNum: number, year: number): { start: string; end
 
 import getGuides from './getGuides';
 
+function isMemberReportUser(user: any): boolean {
+  const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
+  const name = String(user?.fullName || '').toLowerCase();
+  const id = String(user?.id || user?.userId || '').toLowerCase();
+  return !(
+    user?.isBvAdmin ||
+    user?.isBvSuperAdmin ||
+    role === 'GUIDE' ||
+    role === 'SUPER_GUIDE' ||
+    role === 'SUPER_ADMIN' ||
+    role === 'PW_ADMIN' ||
+    role === 'ADMIN' ||
+    name.includes('system admin') ||
+    name.includes('super admin') ||
+    id.includes('superadmin')
+  );
+}
+
 export default createEndpoint({
   description: 'Get BV stats for Super Guide — aggregate across all active groups with weekly filtering',
   authenticated: true,
@@ -119,21 +137,9 @@ export default createEndpoint({
     for (const u of userRecs) {
       const uId = String(u.id || u.userId || '').toLowerCase();
       const uEmail = String(u.email || '').toLowerCase();
-      const uRole = String(u.role || '').toUpperCase();
-      const uName = String(u.fullName || '').toLowerCase();
 
       const isAdmin =
-        u.isBvAdmin ||
-        u.isBvSuperAdmin ||
-        uRole === 'ADMIN' ||
-        uRole === 'SUPER_ADMIN' ||
-        uRole === 'SUPER_GUIDE' ||
-        uRole === 'PW_ADMIN' ||
-        uRole === 'SUPER ADMIN' ||
-        uName.includes('system admin') ||
-        uName.includes('super admin') ||
-        context.user.isBvSuperAdmin ||
-        context.user.role === "SUPER_GUIDE" ||
+        !isMemberReportUser(u) ||
         uEmail === 'admin@prabhupadaworld.org' ||
         (callerId && uId === callerId) ||
         (callerEmail && uEmail === callerEmail);

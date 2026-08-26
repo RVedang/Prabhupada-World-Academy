@@ -26,7 +26,7 @@ import { EmptyState, ConfirmDialog, AsyncButton } from '@/shared';
 import { ASHRAY_LEVELS } from '@/types/enums';
 
 type PendingUser = GetPendingApprovalsOutputType[0];
-type GuideRequest = GetGuideRequestsOutputType['guideTransfers'][0];
+type GuideRequest = any;
 type AshrayRequest = GetGuideRequestsOutputType['ashrayUpgrades'][0];
 type ResidencyTransfer = GetResidencyTransferRequestsOutputType[0];
 
@@ -376,11 +376,12 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                           <CardContent className="pt-4 space-y-3">
                             <div>
                               <p className="font-semibold">{req.userName}</p>
-                              <p className="text-sm text-muted-foreground">{req.userEmail}</p>
+                              <p className="text-sm text-muted-foreground">{req.userPhone || 'No Phone'}</p>
+                              <p className="text-xs font-semibold text-blue-600 mt-0.5">{req.residencyLabel}</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {req.fromGuideName} ➔ {req.toGuideName}
                               </p>
-                              <p className="text-xs text-muted-foreground">{fmt.dateFull(String(req.timestamp ?? ''))}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{fmt.dateFull(String(req.timestamp ?? ''))}</p>
                             </div>
                             <div className="flex gap-2">
                               <AsyncButton size="sm" onClickAsync={() => handleTransferAction(req, 'approve')}>
@@ -401,7 +402,8 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                         <thead className="sticky top-0 z-10">
                           <tr className="border-b">
                             <th className="text-left p-2 font-medium bg-card">Name</th>
-                            <th className="text-left p-2 font-medium bg-card">Email</th>
+                            <th className="text-left p-2 font-medium bg-card">Phone</th>
+                            <th className="text-left p-2 font-medium bg-card">Residency</th>
                             <th className="text-left p-2 font-medium bg-card">Transfer Request</th>
                             <th className="text-left p-2 font-medium bg-card">Requested On</th>
                             <th className="text-right p-2 font-medium bg-card">Actions</th>
@@ -411,7 +413,8 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                           {guideTransfers.map(req => (
                             <tr key={req.logId} className="border-b hover:bg-muted/30">
                               <td className="p-2 font-medium">{req.userName}</td>
-                              <td className="p-2 text-muted-foreground">{req.userEmail}</td>
+                              <td className="p-2 text-muted-foreground">{req.userPhone || '—'}</td>
+                              <td className="p-2 text-blue-600 font-semibold text-xs">{req.residencyLabel}</td>
                               <td className="p-2 text-muted-foreground font-normal">
                                 {req.fromGuideName} ➔ {req.toGuideName}
                               </td>

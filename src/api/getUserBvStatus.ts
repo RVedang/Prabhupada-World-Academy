@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvGroupRequests, BvGroups, BvAttendance, Users } from '@/lib/backend-sdk';
+import { createEndpoint, BvGroupMembers, BvGroupRequests, BvGroups, BvAttendance, Users, Guides } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 
 export default createEndpoint({
@@ -163,7 +163,18 @@ export default createEndpoint({
       if (!leaderRec) {
         leaderRec = await Users.findOne({ filters: { userId: leaderId }, fields: ['id', 'fullName'] });
       }
-      bvslName = (leaderRec as any)?.fullName || (typeof leaderId === 'string' && !leaderId.startsWith('USER-') && !leaderId.startsWith('REC') ? leaderId : '');
+      if (leaderRec) {
+        bvslName = leaderRec.fullName || '';
+      } else {
+        const gRec = await Guides.findOne({ id: leaderId, fields: ['id', 'fullName'] }).catch(() => null) ||
+                     await Guides.findOne({ filters: { guideId: leaderId }, fields: ['id', 'fullName'] }).catch(() => null);
+        if (gRec) {
+          bvslName = gRec.fullName || '';
+        }
+      }
+      if (!bvslName) {
+        bvslName = (typeof leaderId === 'string' && !leaderId.startsWith('USER-') && !leaderId.startsWith('REC') ? leaderId : '');
+      }
     }
 
     const groupName = group?.groupName || userRecord?.bvGroupName || '';

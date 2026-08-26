@@ -1,5 +1,4 @@
-import { z } from 'zod';
-import { createEndpoint, GuideTransferRequests, Users, Guides, AshrayUpgradeRequests } from '@/lib/backend-sdk';
+import { createEndpoint, GuideTransferRequests, Users, Guides, AshrayUpgradeRequests, FolkResidencies } from '@/lib/backend-sdk';
 import { ASHRAY_LEVELS } from '../types/enums';
 
 export default createEndpoint({
@@ -56,27 +55,50 @@ export default createEndpoint({
     let guideTransfers: any[] = [];
     if (filtered.length > 0) {
       const userIds = [...new Set(filtered.map((r: any) => Array.isArray(r.user) ? r.user[0] : r.user).filter(Boolean))] as string[];
-      const usersRes = userIds.length > 0
-        ? await Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'guide'], limit: 200 })
-        : { records: [] };
+      
+      const [usersRes1, usersRes2, usersRes3, usersRes4] = await Promise.all([
+        userIds.length > 0 ? Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+        userIds.length > 0 ? Users.findAll({ filters: { userId: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+        userIds.length > 0 ? Users.findAll({ filters: { fullName: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+        userIds.length > 0 ? Users.findAll({ filters: { email: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+      ]);
 
       const userMap: Record<string, any> = {};
-      usersRes.records.forEach((u: any) => { userMap[u.id] = u; });
+      const allResolvedUsers = [...usersRes1.records, ...usersRes2.records, ...usersRes3.records, ...usersRes4.records];
+      allResolvedUsers.forEach((u: any) => {
+        if (u.id) userMap[String(u.id).toLowerCase()] = u;
+        if (u.userId) userMap[String(u.userId).toLowerCase()] = u;
+        if (u.fullName) userMap[String(u.fullName).toLowerCase()] = u;
+        if (u.email) userMap[String(u.email).toLowerCase()] = u;
+      });
 
       // Fetch all guides to resolve names
-      const { records: guides } = await Guides.findAll({ fields: ['id', 'fullName'], limit: 500 });
-      const guideNameMap = new Map<string, string>(guides.map(g => [g.id, (g as any).fullName || '']));
+      const [guidesRes, residenciesRes] = await Promise.all([
+        Guides.findAll({ fields: ['id', 'fullName'], limit: 500 }),
+        FolkResidencies.findAll({ fields: ['id', 'residencyName'], limit: 500 }).catch(() => ({ records: [] })),
+      ]);
+      const guideNameMap = new Map<string, string>(guidesRes.records.map(g => [g.id, (g as any).fullName || '']));
+      const residencyMap = new Map<string, string>(residenciesRes.records.map(r => [r.id, (r as any).residencyName || '']));
 
       guideTransfers = filtered.map((r: any) => {
         const uid = Array.isArray(r.user) ? r.user[0] : r.user as string;
-        const u = userMap[uid] as any;
+        const u = uid ? userMap[String(uid).toLowerCase()] : null;
+        
         const fromGuideId = (Array.isArray(r.fromGuide) ? r.fromGuide[0] : r.fromGuide) || (Array.isArray(u?.guide) ? u.guide[0] : u?.guide);
         const toGuideId = Array.isArray(r.toGuide) ? r.toGuide[0] : r.toGuide;
+        
+        const residencyId = Array.isArray(u?.residency) ? u.residency[0] : u?.residency;
+        const resName = residencyId ? (residencyMap.get(residencyId) || '') : '';
+        const residencyLabel = u?.residencyApproved
+          ? `Resident (${resName || 'Approved'})`
+          : (u?.residencyClaimed ? `Resident Claim (${resName || 'Pending'})` : 'Non-Resident');
+
         return {
           logId: r.id,
-          userId: u?.userId || uid || '',
-          userName: u?.fullName || '',
-          userEmail: u?.email || '',
+          userId: u?.userId || u?.id || uid || '',
+          userName: u?.fullName || uid || '',
+          userPhone: u?.phone || '',
+          residencyLabel,
           status: r.status || 'Pending',
           timestamp: r.requestedAt || '',
           fromGuideName: fromGuideId ? (guideNameMap.get(fromGuideId) || 'Unknown') : 'None',

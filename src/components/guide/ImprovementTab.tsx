@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TrendingDown, Users, RefreshCw, ChevronRight, Lightbulb, CheckCircle2, CheckCircle, ArrowUpRight } from 'lucide-react';
 import { scoreColor } from '@/lib/scoring';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { NON_RESIDENT_FIELDS, RESIDENT_FIELDS } from '@/config/sadhanaFields';
 
 type ReportUser = GetGuideDetailedReportOutputType['users'][0];
 type FieldDef = GetGuideDetailedReportOutputType['fieldDefs'][0];
@@ -82,8 +83,15 @@ const FIELD_TIP: Record<string, string> = {
   fillingSameDay: 'Ask members to fill the sadhana form on the same day it is due.',
 };
 
+// Keep resident/non-resident practice names in improvement views aligned with
+// the canonical form schema. Virtual, auto-scored fields retain their explicit
+// labels above because they do not appear as form inputs.
+const SCHEMA_FIELD_LABELS = new Map(
+  [...RESIDENT_FIELDS, ...NON_RESIDENT_FIELDS].map(field => [field.fieldKey, field.fieldLabel])
+);
+
 function plainName(key: string, fallback: string): string {
-  return FIELD_PLAIN[key] || fallback;
+  return SCHEMA_FIELD_LABELS.get(key) || FIELD_PLAIN[key] || fallback;
 }
 function guideTip(key: string): string {
   return FIELD_TIP[key] || 'Speak individually with members about this area.';

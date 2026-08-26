@@ -53,19 +53,20 @@ export default function GuideFieldSetupPage() {
               Field Cache Sync
             </CardTitle>
             <CardDescription>
-              Field definitions are cached in memory for 24 hours for fast form loading.
-              After editing fields in the database, press <strong>Sync</strong> to push changes live instantly — no redeployment needed.
+              The approved resident form is maintained in the application schema so it stays aligned with
+              scoring and reports. Non-resident database customisations are cached for fast form loading.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Alert className="bg-muted/50 border-border">
               <Info className="h-4 w-4 text-muted-foreground" />
               <AlertDescription className="text-xs text-muted-foreground">
-                <strong className="text-foreground">How it works:</strong> When you edit a field in the
+                <strong className="text-foreground">How it works:</strong> The resident form always uses the
+                current approved schema. When you edit a non-resident field in the
                 {' '}<code className="font-mono bg-card border border-border rounded px-1 py-0.5 text-xs">SadhanaFields</code>
                 {' '}table (via the App Database tab), the change is stored in the database immediately but won't appear
                 in the user form until the memory cache is refreshed. Clicking <strong>Sync</strong> clears the cache —
-                the very next form load will read fresh definitions from the database and rebuild the cache.
+                the next applicable form load will read fresh definitions from the database.
               </AlertDescription>
             </Alert>
 
@@ -80,7 +81,7 @@ export default function GuideFieldSetupPage() {
                 {syncing ? 'Syncing…' : 'Sync Fields Cache'}
               </Button>
               <span className="text-xs text-muted-foreground">
-                Clears cached resident &amp; non-resident field definitions
+                Clears cached non-resident field definitions
               </span>
             </div>
 

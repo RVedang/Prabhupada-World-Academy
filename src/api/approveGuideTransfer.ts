@@ -23,16 +23,18 @@ export default createEndpoint({
     if (!request) throw new AppError({ code: 'NOT_FOUND', message: 'Transfer request not found' });
     if ((request.status as string) !== 'Pending') throw new AppError({ code: 'CONFLICT', message: 'Request already reviewed' });
 
-    // Authorization: only the receiving guide (toGuide) or Super Guide can approve
-    const isSuperGuide = context.user.role === 'Super Guide';
-    if (!isSuperGuide) {
-      const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] });
-      if (!guideRecord) throw new AppError({ code: 'FORBIDDEN', message: 'You are not a guide' });
+    // Authorization: only Super Guides or Admins are allowed to approve guide transfers
+    const userRole = (context.user.role || '').toUpperCase();
+    const isAuthorized =
+      userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'ADMIN' ||
+      !!context.user.isBvSuperAdmin ||
+      !!context.user.isBvAdmin;
 
-      const toGuideId = Array.isArray(request.toGuide) ? request.toGuide[0] : request.toGuide as string;
-      if (!toGuideId || toGuideId !== guideRecord.id) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'Only the receiving guide can approve this transfer' });
-      }
+    if (!isAuthorized) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only a Super Guide or Admin can approve guide transfer requests' });
     }
 
     await GuideTransferRequests.update({
@@ -44,16 +46,25 @@ export default createEndpoint({
       },
     });
 
-    const userId = Array.isArray(request.user) ? request.user[0] : request.user as string;
+    const rawUserId = Array.isArray(request.user) ? request.user[0] : request.user as string;
+    let targetUser = null;
+    if (rawUserId) {
+      targetUser = await Users.findOne({ id: rawUserId }).catch(() => null) ||
+                   await Users.findOne({ filters: { userId: rawUserId } }).catch(() => null) ||
+                   await Users.findOne({ filters: { fullName: rawUserId } }).catch(() => null) ||
+                   await Users.findOne({ filters: { email: rawUserId } }).catch(() => null) ||
+                   await Users.findOne({ filters: { email: String(rawUserId).toLowerCase() } }).catch(() => null);
+    }
+
     if (input.action === 'approve') {
       const newGuideId = Array.isArray(request.toGuide) ? request.toGuide[0] : request.toGuide as string;
-      if (userId && newGuideId) {
-        await Users.update({ id: userId, record: { guide: newGuideId } });
+      if (targetUser && newGuideId) {
+        await Users.update({ id: targetUser.id, record: { guide: newGuideId } });
       }
     }
 
-    if (userId) {
-      serverCacheInvalidate(`user_profile:${userId}`);
+    if (targetUser) {
+      serverCacheInvalidate(`user_profile:${targetUser.id}`);
     }
 
     return { success: true, message: `Guide transfer request ${input.action === 'approve' ? 'approved' : 'rejected'}` };

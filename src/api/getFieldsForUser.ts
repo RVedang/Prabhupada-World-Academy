@@ -11,7 +11,7 @@ export default createEndpoint({
     forceNonResident: z.boolean().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     let isResident = false;
 
     if (input.forceResident) {
@@ -19,7 +19,11 @@ export default createEndpoint({
     } else if (input.forceNonResident) {
       isResident = false;
     } else {
-      const userRecord = await Users.findOne({ id: context.user!.id });
+      // Guides viewing a member's form must use the selected member's
+      // residency status, not the guide's own status.
+      const requestedUserId = input.userId || context.user!.id;
+      const userRecord = await Users.findOne({ id: requestedUserId })
+        || await Users.findOne({ filters: { userId: requestedUserId } });
       const residencyId = Array.isArray(userRecord?.residency)
         ? userRecord!.residency[0]
         : userRecord?.residency;
@@ -30,6 +34,7 @@ export default createEndpoint({
 
     return {
       isResident,
+      templateMode: isResident ? 'RESIDENT_TEMPLATE' : 'NON_RESIDENT_TEMPLATE',
       fields: staticFields.map(f => toFormField(f)),
     };
   },

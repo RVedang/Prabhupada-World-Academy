@@ -35,9 +35,9 @@ const RESIDENT_CRITERIA = [
     rule: '• Cleaned assigned area before 8:00 AM: 1 mark\n• Cleaned after 8:00 AM or not cleaned: 0 marks'
   },
   {
-    field: 'Report Filling',
+    field: 'Same-Day Report Submission (automatic)',
     max: 1,
-    rule: '• Submitted on the same day (before midnight): 1 mark\n• Submitted backdated/late: 0 marks'
+    rule: '• Calculated automatically from the submission date: 1 mark\n• Backdated/late submission: 0 marks\n• This is not a separate resident form field'
   },
   {
     field: 'Daily Assigned Service',

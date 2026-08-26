@@ -293,10 +293,12 @@ export default function SadhanaMentorDashboard() {
 
   const effectiveGuideId = profile.selectedGuideId || (profile as any).guideId || (profile as any).guide || profile.userId;
 
+  const isPwMentor = profile.segment === 'PW' || !!profile.isPrabhupadaWorldUser;
+
   const tabs: TabConfig[] = [
     { value: 'reports', label: 'Sadhana Report', icon: BarChart3 },
     { value: 'members', label: 'Members List', icon: Users },
-    { value: 'meetings', label: 'Meetings & MoM', icon: Video },
+    ...(isPwMentor ? [{ value: 'meetings', label: 'Meetings & MoM', icon: Video }] : []),
     { value: 'one-to-one', label: 'One-to-One', icon: MessageSquare },
   ];
 
@@ -310,7 +312,7 @@ export default function SadhanaMentorDashboard() {
       {loading ? (
         <LoadingPage rows={2} />
       ) : (
-        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={4}>
+        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={tabs.length}>
           {(activeTab) => (
             <>
               {activeTab === 'reports' && (

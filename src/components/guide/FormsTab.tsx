@@ -68,9 +68,10 @@ export default function FormsTab({ guideId }: FormsTabProps) {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Fields are determined by each user's residency status. Residents see 17 scored fields;
-          non-residents see 8 tracking fields. Field definitions are managed in the
-          <strong> ResidentFields</strong> and <strong>NonResidentFields</strong> sheets.
+          Fields are determined by each user's residency status. Residents see the current approved field set;
+          non-residents see their applicable tracking fields. The resident form uses the
+          <strong> current approved Resident Sadhana schema</strong> consistently across the form,
+          reports, scoring, and improvement views.
         </AlertDescription>
       </Alert>
 

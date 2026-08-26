@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, SadhanaEntries, Users, SadhanaFields } from '@/lib/backend-sdk';
+import { createEndpoint, SadhanaEntries, Users } from '@/lib/backend-sdk';
+import { NON_RESIDENT_FIELDS, RESIDENT_FIELDS } from '../config/sadhanaFields';
 
 // Human-readable labels for common field keys
 const FIELD_LABEL_MAP: Record<string, string> = {
@@ -88,18 +89,6 @@ export default createEndpoint({
     // Build _meta from stored JSON (if present) or from DB columns
     const meta = rawFieldValues._meta || {};
 
-    // Try to fetch sadhana field definitions for labels/maxPoints
-    let fieldDefs: any[] = [];
-    try {
-      const { records } = await SadhanaFields.findAll({
-        fields: ['fieldKey', 'fieldLabel', 'fieldType', 'contributesToScore', 'displayOrder'],
-        limit: 100,
-      });
-      fieldDefs = records.sort((a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-    } catch {
-      // Silently fall back to key map
-    }
-
     // Build the fields array for display
     const fieldKeySet = new Set<string>();
     const fields: Array<{
@@ -110,13 +99,19 @@ export default createEndpoint({
     // Determine if this is a non-resident entry
     const isNREntry = (meta.templateMode || entry.templateMode || '').toUpperCase().includes('NON_RESIDENT') &&
       !(meta.templateMode || entry.templateMode || '').toUpperCase().startsWith('RESIDENT');
+    // Use the same current schema as the form. Legacy database field rows can
+    // still exist for history, but must not relabel a resident's entry using
+    // the retired resident form.
+    const fieldDefs = (isNREntry ? NON_RESIDENT_FIELDS : RESIDENT_FIELDS)
+      .slice()
+      .sort((a, b) => a.displayOrder - b.displayOrder);
     // For NR entries, seva and bhaktiVriksha may be leaderboard-only (no direct pts).
     // Only show maxPoints for these fields if the stored points > 0.
     const NR_LEADERBOARD_RISK_FIELDS = new Set(['seva', 'bhaktiVriksha']);
 
     // First pass: use field definitions (ordered by displayOrder)
     for (const def of fieldDefs) {
-      const key = def.fieldKey as string;
+      const key = def.fieldKey;
       if (!key || key.startsWith('_')) continue;
       const val = rawFieldValues[key];
       if (val === undefined || val === null) continue;

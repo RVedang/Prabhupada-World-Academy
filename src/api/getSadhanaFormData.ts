@@ -24,13 +24,21 @@ const DB_TYPE_MAP: Record<string, FormField['fieldType']> = {
  * Load form fields for a given template.
  *
  * Priority:
- *   1. In-memory cache (24h TTL) — zero DB cost after first load
- *   2. SadhanaFields DB table    — allows admin customisation without redeploying
- *   3. Static TypeScript defs    — fallback if DB table is empty
+ *   1. Resident static schema — the approved resident form is deployment
+ *      controlled and must not be overridden by legacy database rows.
+ *   2. In-memory cache / SadhanaFields DB table for non-resident customisation.
+ *   3. Static TypeScript definitions as the non-resident fallback.
  *
  * To force a refresh, call /api/invalidateSadhanaFieldsCache.
  */
 async function loadFormFields(isResident: boolean): Promise<FormField[]> {
+  // The resident form was revised after older SadhanaFields documents had
+  // already been seeded. Keeping those rows would bring the removed/old form
+  // back. Do not delete them: historical/custom data is preserved, but the
+  // current resident form and scoring rules always come from the canonical
+  // definitions checked into this application.
+  if (isResident) return RESIDENT_FIELDS.map(field => toFormField(field));
+
   const cacheKey = isResident ? FIELD_CACHE_KEY_RESIDENT : FIELD_CACHE_KEY_NR;
 
   return serverCacheGetOrFetch<FormField[]>(
@@ -41,15 +49,13 @@ async function loadFormFields(isResident: boolean): Promise<FormField[]> {
         limit: 200,
       });
 
-      // No custom DB fields → use static definitions (fastest path on first load too)
+      // No custom DB fields → use the approved static non-resident definitions.
       if (records.length === 0) {
-        const staticFields = isResident ? RESIDENT_FIELDS : NON_RESIDENT_FIELDS;
-        return staticFields.map(f => toFormField(f));
+        return NON_RESIDENT_FIELDS.map(f => toFormField(f));
       }
 
       // Build static lookup for fallback values (options, criteria, contextTag)
-      const staticSource = isResident ? RESIDENT_FIELDS : NON_RESIDENT_FIELDS;
-      const staticMap = new Map(staticSource.map(f => [f.fieldKey, f]));
+      const staticMap = new Map(NON_RESIDENT_FIELDS.map(f => [f.fieldKey, f]));
 
       return records
         .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))

@@ -798,8 +798,19 @@ export default createEndpoint({
       // Omit caller if caller is admin/super admin viewing report
       if ((callerId && uId === callerId) || (callerEmail && uEmail === callerEmail)) return false;
 
-      // Omit Super Admins, System Admins, and Admins from member sadhana reports
-      if (u.isBvSuperAdmin || u.isBvAdmin || uRole === 'SUPER_ADMIN' || uRole === 'SUPER_GUIDE' || uRole === 'PW_ADMIN' || uRole === 'ADMIN') return false;
+      // Omit operational/admin accounts from member sadhana reports.
+      // Guides and Super Guides do not fill member Sadhana, so they should not
+      // appear in the FOLK/PW report tables or exports.
+      if (
+        u.isBvSuperAdmin ||
+        u.isBvAdmin ||
+        uRole === 'GUIDE' ||
+        uRole === 'SUPER_GUIDE' ||
+        uRole === 'SUPER ADMIN' ||
+        uRole === 'SUPER_ADMIN' ||
+        uRole === 'PW_ADMIN' ||
+        uRole === 'ADMIN'
+      ) return false;
       if (uName.includes('system admin') || uName.includes('super admin') || uId.includes('superadmin')) return false;
 
       return true;

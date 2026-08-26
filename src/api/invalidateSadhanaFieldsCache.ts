@@ -2,12 +2,11 @@
  * POST /api/invalidateSadhanaFieldsCache
  *
  * Clears the in-memory Sadhana field definitions cache.
- * After calling this, the next form load will re-fetch field definitions
- * from the SadhanaFields database table (and re-populate the cache).
+ * After calling this, the next non-resident form load will re-fetch field
+ * definitions from the SadhanaFields database table (and re-populate the cache).
  *
- * Use this whenever you edit fields in the SadhanaFields DB table via the
- * App Database tab or the GuideFieldSetupPage — changes won't be visible
- * to users until the cache is cleared.
+ * The current resident form is deployment-controlled and is not overridden by
+ * SadhanaFields records. Use this only after editing non-resident DB fields.
  */
 import { z } from 'zod';
 import { createEndpoint, AppError } from '@/lib/backend-sdk';
@@ -17,7 +16,7 @@ import { FIELD_CACHE_KEY_RESIDENT, FIELD_CACHE_KEY_NR } from './getSadhanaFormDa
 const ALLOWED_ROLES = new Set(['Guide', 'Super Guide', 'BVSL', 'Sadhana Mentor']);
 
 export default createEndpoint({
-  description: 'Clear the in-memory Sadhana fields cache so next form load re-fetches from DB',
+  description: 'Clear the non-resident Sadhana field cache so the next form load re-fetches from DB',
   authenticated: true,
   inputSchema: z.object({
     /** Pass "all" to wipe the entire server cache, not just field definitions */
@@ -54,7 +53,7 @@ export default createEndpoint({
 
     return {
       success:       true,
-      message:       'Sadhana field cache cleared. The next form load will fetch fresh field definitions from the database.',
+      message:       'Sadhana field cache cleared. The next non-resident form load will fetch fresh field definitions from the database.',
       keysCleared:   fieldKeys,
       remainingKeys: remaining,
     };
