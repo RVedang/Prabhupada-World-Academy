@@ -3,7 +3,7 @@ import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides } from '@
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 
-function isMemberLevelFacilitator(user: any): boolean {
+function isFolkMemberLevelFacilitator(user: any): boolean {
   const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
   return !(
     user?.isBvAdmin ||
@@ -94,7 +94,10 @@ export default createEndpoint({
       bvslUsers = records.filter(u => u.id !== context.user!.id && u.userId !== context.user!.id);
     }
 
-    bvslUsers = bvslUsers.filter(isMemberLevelFacilitator);
+    const isFolkReport = (context.user as any).segment === 'FOLK' || (residencyIds && residencyIds.length > 0);
+    if (isFolkReport) {
+      bvslUsers = bvslUsers.filter(isFolkMemberLevelFacilitator);
+    }
 
     if (bvslUsers.length === 0) return { bvsls: [], groups: [] };
 

@@ -786,7 +786,9 @@ export default createEndpoint({
       });
     }
 
-    // Exclude Admin, Super Admin, and System Admin accounts from member sadhana reports
+    // FOLK reports should show devotee/member rows only. PW keeps its existing
+    // admin/mentor report behavior.
+    const isFolkReport = input.segment === 'FOLK';
     const callerId = String(context.user?.id || context.user?.userId || '').toLowerCase();
     const callerEmail = String(context.user?.email || '').toLowerCase();
     users = users.filter(u => {
@@ -798,20 +800,20 @@ export default createEndpoint({
       // Omit caller if caller is admin/super admin viewing report
       if ((callerId && uId === callerId) || (callerEmail && uEmail === callerEmail)) return false;
 
-      // Omit operational/admin accounts from member sadhana reports.
-      // Guides and Super Guides do not fill member Sadhana, so they should not
-      // appear in the FOLK/PW report tables or exports.
-      if (
-        u.isBvSuperAdmin ||
-        u.isBvAdmin ||
-        uRole === 'GUIDE' ||
-        uRole === 'SUPER_GUIDE' ||
-        uRole === 'SUPER ADMIN' ||
-        uRole === 'SUPER_ADMIN' ||
-        uRole === 'PW_ADMIN' ||
-        uRole === 'ADMIN'
-      ) return false;
-      if (uName.includes('system admin') || uName.includes('super admin') || uId.includes('superadmin')) return false;
+      if (isFolkReport) {
+        // Guides and Super Guides do not fill member Sadhana in FOLK.
+        if (
+          u.isBvSuperAdmin ||
+          u.isBvAdmin ||
+          uRole === 'GUIDE' ||
+          uRole === 'SUPER_GUIDE' ||
+          uRole === 'SUPER ADMIN' ||
+          uRole === 'SUPER_ADMIN' ||
+          uRole === 'PW_ADMIN' ||
+          uRole === 'ADMIN'
+        ) return false;
+        if (uName.includes('system admin') || uName.includes('super admin') || uId.includes('superadmin')) return false;
+      }
 
       return true;
     });

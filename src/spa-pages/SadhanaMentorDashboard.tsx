@@ -293,7 +293,9 @@ export default function SadhanaMentorDashboard() {
 
   const effectiveGuideId = profile.selectedGuideId || (profile as any).guideId || (profile as any).guide || profile.userId;
 
-  const isPwMentor = profile.segment === 'PW' || !!profile.isPrabhupadaWorldUser;
+  // Meetings & MoM are a PW-only mentor workflow. Use the resolved segment
+  // instead of the broader legacy PW flag so FOLK mentors never see this tab.
+  const isPwMentor = profile.segment === 'PW';
 
   const tabs: TabConfig[] = [
     { value: 'reports', label: 'Sadhana Report', icon: BarChart3 },
@@ -321,7 +323,7 @@ export default function SadhanaMentorDashboard() {
               {activeTab === 'one-to-one' && (
                 <OneToOneTab guideId={effectiveGuideId} />
               )}
-              {activeTab === 'meetings' && (
+              {isPwMentor && activeTab === 'meetings' && (
                 <MeetingsAndMomTab />
               )}
               {activeTab === 'members' && (

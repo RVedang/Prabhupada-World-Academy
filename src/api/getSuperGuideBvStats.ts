@@ -25,7 +25,7 @@ function isoWeekToDateRange(weekNum: number, year: number): { start: string; end
 
 import getGuides from './getGuides';
 
-function isMemberReportUser(user: any): boolean {
+function isFolkMemberReportUser(user: any): boolean {
   const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
   const name = String(user?.fullName || '').toLowerCase();
   const id = String(user?.id || user?.userId || '').toLowerCase();
@@ -130,6 +130,7 @@ export default createEndpoint({
     const callerId = String(context.user?.id || '').toLowerCase();
     const callerUserId = String(context.user?.userId || '').toLowerCase();
     const callerEmail = String(context.user?.email || '').toLowerCase();
+    const isFolkReport = input.segment === 'FOLK';
     if (callerId) adminUserIds.add(callerId);
     if (callerUserId) adminUserIds.add(callerUserId);
     if (callerEmail) adminUserIds.add(callerEmail);
@@ -139,7 +140,7 @@ export default createEndpoint({
       const uEmail = String(u.email || '').toLowerCase();
 
       const isAdmin =
-        !isMemberReportUser(u) ||
+        (isFolkReport && !isFolkMemberReportUser(u)) ||
         uEmail === 'admin@prabhupadaworld.org' ||
         (callerId && uId === callerId) ||
         (callerEmail && uEmail === callerEmail);
