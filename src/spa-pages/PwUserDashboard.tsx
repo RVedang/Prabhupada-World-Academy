@@ -188,7 +188,6 @@ export default function PwUserDashboard() {
               <AttendanceTab userId={profile.userId} />
             </SectionErrorBoundary>
           )}
-
           {activeTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (
             <SectionErrorBoundary sectionName="Cleanliness Tab">
               {(profile as any).isCleanlinessManager ? (

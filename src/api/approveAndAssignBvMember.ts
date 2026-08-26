@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { createEndpoint, BvMemberRegistrations, BvGroupMembers, Users, BvGroups, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
+// Synthetic IDs are generated for registrations that exist only in the Users table
+// (users whose bvRegistrationStatus is Pending Approval but never wrote a BvMemberRegistrations doc).
+const isSyntheticId = (id: string) => id.startsWith('BVREG-');
 import { profileCacheKey } from './getUserProfile';
 
 export default createEndpoint({
@@ -36,32 +39,30 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
+    // Determine if this is a real BvMemberRegistrations doc or a synthetic record
+    // synthesised from the Users table in getPendingBvRegistrations (id starts with 'BVREG-')
+    const synthetic = isSyntheticId(input.registrationId);
+
+    // For real registrations, resolve the BvMemberRegistrations document.
     let reg: any = null;
-    let isSynthetic = false;
-    if (input.registrationId.startsWith('BVREG-')) {
-      isSynthetic = true;
-      const userDocId = input.registrationId.replace(/^BVREG-/, '');
-      const userRecord = await Users.findOne({ id: userDocId });
-      if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User profile not found' });
-      reg = {
-        id: input.registrationId,
-        userId: userRecord.userId || userRecord.id,
-        email: userRecord.email || '',
-        fullName: userRecord.fullName || '',
-        phone: userRecord.phone || '',
-      };
-    } else {
+    if (!synthetic) {
       reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
+      if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
+    } else {
+      // Synthetic id: 'BVREG-<userDbId>' — extract the user DB id from the suffix
+      const userDbId = input.registrationId.replace(/^BVREG-/, '');
+      const userRec = await Users.findOne({ id: userDbId }).catch(() => null);
+      if (!userRec) throw new AppError({ code: 'NOT_FOUND', message: 'User record not found for synthetic registration' });
+      reg = { id: null, userId: userRec.id, email: userRec.email || '' };
     }
-    if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
 
     const group = await BvGroups.findOne({ id: input.groupId });
     if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Selected Reading Group not found' });
 
     const now = new Date().toISOString();
 
-    // 1. Mark registration approved
-    if (!isSynthetic) {
+    // 1. Mark registration approved (only for real BvMemberRegistrations documents)
+    if (!synthetic && reg.id) {
       await BvMemberRegistrations.update({
         id: reg.id,
         record: {
@@ -72,35 +73,21 @@ export default createEndpoint({
           approvedAt: now,
         },
       });
-    } else {
-      await BvMemberRegistrations.create({
-        record: {
-          id: reg.id,
-          userId: reg.userId,
-          email: reg.email,
-          fullName: reg.fullName,
-          phone: reg.phone,
-          status: 'Approved',
-          assignedGroupId: group.id,
-          assignedGroupName: group.groupName || '',
-          approvedBy: context.user.id,
-          approvedAt: now,
-        }
-      }).catch(() => {});
     }
 
-
     // 2. Add member to group
-    const memberRecordId = `BVMEM-${reg.userId}-${group.id}`;
+    // reg.userId may be either a userId or a user DB id; normalise below
+    const memberUserId = reg.userId || input.registrationId.replace(/^BVREG-/, '');
+    const memberRecordId = `BVMEM-${memberUserId}-${group.id}`;
     const existingMember = await BvGroupMembers.findOne({ id: memberRecordId }).catch(() => null);
     if (!existingMember) {
       await BvGroupMembers.create({
         record: {
           id: memberRecordId,
           group: group.id,
-          user: reg.userId,
+          user: memberUserId,
           groupId: group.id,
-          userId: reg.userId,
+          userId: memberUserId,
           role: 'Member',
           joinedAt: now,
         },
@@ -108,11 +95,11 @@ export default createEndpoint({
     }
 
     // 3. Update main User record & establish reporting parent (RGF)
-    let targetUser = await Users.findOne({ id: reg.userId });
+    let targetUser = await Users.findOne({ id: memberUserId }).catch(() => null);
     if (!targetUser) {
-      targetUser = await Users.findOne({ filters: { userId: reg.userId } }) ||
-                   await Users.findOne({ filters: { email: reg.email } }) ||
-                   await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } });
+      targetUser = await Users.findOne({ filters: { userId: memberUserId } }).catch(() => null) ||
+                   await Users.findOne({ filters: { email: reg.email } }).catch(() => null) ||
+                   await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } }).catch(() => null);
     }
 
     if (targetUser) {
@@ -137,7 +124,7 @@ export default createEndpoint({
         id: targetUser.id,
         record: {
           bvRegistrationStatus: 'Approved',
-          isBvMember: true,
+          isBvMember: true,                  // ← enables Attendance tab & removes from pending list
           bvGroupId: group.id,
           bvGroupName: group.groupName || '',
           // Default parent is RGF (Reading Group Facilitator)
@@ -149,44 +136,11 @@ export default createEndpoint({
           bvReportingAdminName: rgfAdminName,
           supervisorName: rgfName, // Legacy fallback
           guide: rgfAdminId || callerRecord.id, // Ensures Admin's member list includes this user
-          pendingBvApprovalNotice: true,
-          sadhanaMentor: null, // Clear sadhana mentor upon BV approval
+          pendingBvApprovalNotice: true,      // ← triggers popup on user's next login
+          sadhanaMentor: null,                // Clear sadhana mentor upon BV approval
         },
       });
-
       serverCacheInvalidate(profileCacheKey(targetUser.id));
-
-      // Older imports can contain more than one registration document for the
-      // same person. Mark every matching pending document approved so it
-      // cannot reappear in the approval queue after a refresh.
-      const identityValues = new Set([
-        reg.userId,
-        reg.userDbId,
-        targetUser.id,
-        targetUser.userId,
-      ].filter(Boolean).map(String));
-      const email = String(reg.email || targetUser.email || '').toLowerCase();
-      const { records: allRegistrations } = await BvMemberRegistrations.findAll({ limit: 500 });
-      await Promise.all(allRegistrations
-        .filter((candidate: any) => {
-          const candidateEmail = String(candidate.email || '').toLowerCase();
-          return candidate.status !== 'Approved' && (
-            identityValues.has(String(candidate.userId || '')) ||
-            identityValues.has(String(candidate.userDbId || '')) ||
-            (!!email && candidateEmail === email)
-          );
-        })
-        .map((candidate: any) => BvMemberRegistrations.update({
-          id: candidate.id,
-          record: {
-            status: 'Approved',
-            assignedGroupId: group.id,
-            assignedGroupName: group.groupName || '',
-            approvedBy: context.user.id,
-            approvedAt: now,
-          },
-        }))
-      );
     }
 
     serverCacheInvalidate(profileCacheKey(reg.userId));

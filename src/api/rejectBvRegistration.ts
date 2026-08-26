@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { createEndpoint, BvMemberRegistrations, Users, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
+// Synthetic IDs are generated for registrations that exist only in the Users table.
+const isSyntheticId = (id: string) => id.startsWith('BVREG-');
 
 export default createEndpoint({
   description: 'Reject a pending Bhakti Vriksha member registration',
@@ -37,27 +39,15 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
-    let reg: any = null;
-    let isSynthetic = false;
-    if (input.registrationId.startsWith('BVREG-')) {
-      isSynthetic = true;
-      const userDocId = input.registrationId.replace(/^BVREG-/, '');
-      const userRecord = await Users.findOne({ id: userDocId });
-      if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User profile not found' });
-      reg = {
-        id: input.registrationId,
-        userId: userRecord.userId || userRecord.id,
-        email: userRecord.email || '',
-      };
-    } else {
-      reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
-    }
-    if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
-
     const now = new Date().toISOString();
+    const synthetic = isSyntheticId(input.registrationId);
 
-    // 1. Mark registration rejected
-    if (!isSynthetic) {
+    let reg: any = null;
+    if (!synthetic) {
+      reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
+      if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
+
+      // 1. Mark registration rejected
       await BvMemberRegistrations.update({
         id: reg.id,
         record: {
@@ -67,24 +57,20 @@ export default createEndpoint({
         },
       });
     } else {
-      await BvMemberRegistrations.create({
-        record: {
-          id: reg.id,
-          userId: reg.userId,
-          email: reg.email,
-          status: 'Rejected',
-          rejectedBy: context.user.id,
-          rejectedAt: now,
-        }
-      }).catch(() => {});
+      // Synthetic registration — no BvMemberRegistrations doc exists; resolve user via id suffix
+      const userDbId = input.registrationId.replace(/^BVREG-/, '');
+      const userRec = await Users.findOne({ id: userDbId }).catch(() => null);
+      if (!userRec) throw new AppError({ code: 'NOT_FOUND', message: 'User record not found for synthetic registration' });
+      reg = { userId: userRec.id, email: userRec.email || '' };
     }
 
+
     // 2. Update main User record
-    let targetUser = await Users.findOne({ id: reg.userId });
+    let targetUser = await Users.findOne({ id: reg.userId }).catch(() => null);
     if (!targetUser) {
-      targetUser = await Users.findOne({ filters: { userId: reg.userId } }) ||
-                   await Users.findOne({ filters: { email: reg.email } }) ||
-                   await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } });
+      targetUser = await Users.findOne({ filters: { userId: reg.userId } }).catch(() => null) ||
+                   await Users.findOne({ filters: { email: reg.email } }).catch(() => null) ||
+                   await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } }).catch(() => null);
     }
 
     if (targetUser) {
@@ -93,7 +79,6 @@ export default createEndpoint({
         record: {
           bvRegistrationStatus: 'Rejected',
           pendingBvRejectionNotice: true,
-          isBvMember: false,
         },
       });
       serverCacheInvalidate(profileCacheKey(targetUser.id));
@@ -102,6 +87,5 @@ export default createEndpoint({
     serverCacheInvalidate(profileCacheKey(reg.userId));
 
     return { success: true };
-
   },
 });

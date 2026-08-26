@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, GuideTransferRequests, ResidencyTransferRequests, AshrayUpgradeRequests } from '@/lib/backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, GuideTransferRequests, ResidencyTransferRequests, AshrayUpgradeRequests, BvGroupMembers } from '@/lib/backend-sdk';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
 
 export const profileCacheKey = (userId: string) => `user_profile:${userId}`;
@@ -96,6 +96,46 @@ export default createEndpoint({
 
     if (!userRecord?.userId) return { user: null };
 
+    // Treat an existing group-member row as authoritative. This repairs users
+    // approved by older code that added them to a group but updated a legacy
+    // duplicate profile instead of the authenticated profile document.
+    let hasBvMembership = !!(userRecord.isBvMember || userRecord.bvGroupId);
+    if (!hasBvMembership) {
+      const userIdentities = [...new Set([
+        context.user.id,
+        userRecord.id,
+        userRecord.userId,
+      ].filter(Boolean).map(String))];
+
+      const [byUser, byUserId] = await Promise.all([
+        BvGroupMembers.findAll({
+          filters: { user: { in: userIdentities } },
+          fields: ['id', 'group', 'groupId', 'user', 'userId'],
+          limit: 5,
+        }).catch(() => ({ records: [] })),
+        BvGroupMembers.findAll({
+          filters: { userId: { in: userIdentities } },
+          fields: ['id', 'group', 'groupId', 'user', 'userId'],
+          limit: 5,
+        }).catch(() => ({ records: [] })),
+      ]);
+
+      const membership = byUser.records[0] || byUserId.records[0];
+      if (membership) {
+        hasBvMembership = true;
+        const groupId = Array.isArray(membership.group)
+          ? membership.group[0]
+          : (membership.group || membership.groupId || '');
+        const healedFields = {
+          isBvMember: true,
+          bvRegistrationStatus: 'Approved',
+          ...(groupId && !userRecord.bvGroupId ? { bvGroupId: groupId } : {}),
+        };
+        await Users.update({ id: userRecord.id, record: healedFields });
+        userRecord = { ...userRecord, ...healedFields };
+      }
+    }
+
     const rawGuideId = Array.isArray(userRecord.guide) ? userRecord.guide[0] : userRecord.guide;
     const residencyId = Array.isArray(userRecord.residency) ? userRecord.residency[0] : userRecord.residency;
 
@@ -187,6 +227,7 @@ export default createEndpoint({
     const result = buildProfileResult({
       userRecord, guideId, residencyId, guideRecord, residencyRecord,
       primaryRole, isBvsl, isSadhanaMentor, isServiceAllocator, isBvMentor, lastLoginAt, userEmail: context.user.email,
+      hasBvMembership,
       normalizeStatus,
       hasPendingGuideTransfer: !!pendingGuideTransfer,
       hasPendingResidencyTransfer: !!pendingResidencyTransfer,
@@ -206,7 +247,7 @@ export default createEndpoint({
 function buildProfileResult({
   userRecord, guideId, residencyId, guideRecord, residencyRecord,
   primaryRole, isBvsl, isSadhanaMentor, isServiceAllocator, isBvMentor,
-  lastLoginAt, userEmail, normalizeStatus, hasPendingGuideTransfer, hasPendingResidencyTransfer,
+  lastLoginAt, userEmail, hasBvMembership, normalizeStatus, hasPendingGuideTransfer, hasPendingResidencyTransfer,
   isPendingResidencyLeave,
   latestGuideTransferStatus, latestResidencyTransferStatus, latestGuideTransferId, latestResidencyTransferId,
   latestAshrayStatus, latestAshrayId, latestAshrayRequestedLevel
@@ -262,7 +303,7 @@ function buildProfileResult({
       bvGroupName: userRecord.bvGroupName || null,
       // Attendance is available only to active BV members. Keep this field in
       // the fresh profile response rather than relying on client-side state.
-      isBvMember: !!userRecord.isBvMember,
+      isBvMember: !!hasBvMembership,
       isPrabhupadaWorldUser: !!(userRecord.isPrabhupadaWorldUser),
       pendingBvRejectionNotice: !!(userRecord.pendingBvRejectionNotice),
       pendingBvApprovalNotice: !!(userRecord.pendingBvApprovalNotice),

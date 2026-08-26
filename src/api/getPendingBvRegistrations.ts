@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvMemberRegistrations, Users, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, BvMemberRegistrations, BvGroupMembers, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get pending Bhakti Vriksha member registrations filtered by Firestore roles and segment',
@@ -106,6 +106,37 @@ export default createEndpoint({
       }
     } catch (e) {}
 
+    // Membership is the definitive approval state. Query only identifiers in
+    // the pending queue (in Firestore-safe batches) instead of reading the
+    // entire group-members collection on every admin dashboard refresh.
+    const memberIdentities = new Set<string>();
+    const pendingIdentities = [...new Set(records.flatMap(r => {
+      const u = userMap[r.userId] || userMap[r.userDbId] || (r.email ? userMap[r.email.toLowerCase()] : null);
+      return [r.userId, r.userDbId, u?.id, u?.userId];
+    }).filter(Boolean).map(String))];
+
+    for (let index = 0; index < pendingIdentities.length; index += 30) {
+      const batch = pendingIdentities.slice(index, index + 30);
+      const [byUser, byUserId] = await Promise.all([
+        BvGroupMembers.findAll({
+          filters: { user: { in: batch } },
+          fields: ['user', 'userId'],
+          limit: 500,
+        }).catch(() => ({ records: [] })),
+        BvGroupMembers.findAll({
+          filters: { userId: { in: batch } },
+          fields: ['user', 'userId'],
+          limit: 500,
+        }).catch(() => ({ records: [] })),
+      ]);
+      [...byUser.records, ...byUserId.records].forEach((member: any) => {
+        const user = Array.isArray(member.user) ? member.user[0] : member.user;
+        const userId = Array.isArray(member.userId) ? member.userId[0] : member.userId;
+        if (user) memberIdentities.add(String(user));
+        if (userId) memberIdentities.add(String(userId));
+      });
+    }
+
     // Filter according to requested segment (PW vs FOLK)
     const targetSegment = input?.segment || (
       context.user.isBvSuperAdmin ? 'PW' : 'FOLK'
@@ -115,7 +146,14 @@ export default createEndpoint({
       const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
       // A successful assignment is definitive. Do not show an old duplicate
       // registration record as pending after the member has joined a group.
-      if (u?.isBvMember || u?.bvRegistrationStatus === 'Approved') return false;
+      const registrationIdentities = [r.userId, r.userDbId, u?.id, u?.userId]
+        .filter(Boolean)
+        .map(String);
+      if (
+        u?.isBvMember ||
+        u?.bvRegistrationStatus === 'Approved' ||
+        registrationIdentities.some(identity => memberIdentities.has(identity))
+      ) return false;
       const isPwUser = !!(u?.isPrabhupadaWorldUser || r.isPrabhupadaWorldUser) || 
         (u?.segment === 'PW' || r.segment === 'PW');
 
