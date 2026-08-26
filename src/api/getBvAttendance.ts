@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvAttendance, Users, SadhanaEntries } from '@/lib/backend-sdk';
+import { createEndpoint, BvGroupMembers, BvAttendance, Users, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get BV attendance history and leaderboard for the current user',
@@ -54,6 +54,13 @@ export default createEndpoint({
 
     // Leaderboard — get all unique member user IDs
     const memberIds = [...new Set(allAtt.map((a: any) => Array.isArray(a.user) ? a.user[0] : a.user).filter(Boolean))] as string[];
+    
+    // Ensure current user is always in the leaderboard list
+    const currentUserIdStr = String(context.user!.id);
+    if (!memberIds.includes(currentUserIdStr)) {
+      memberIds.push(currentUserIdStr);
+    }
+
     const userFields = ['id', 'fullName', 'userId', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'residencyName', 'ashrayLevel'];
     const [userRecordsById, userRecordsByUserId] = await Promise.all([
       memberIds.length > 0
@@ -64,6 +71,18 @@ export default createEndpoint({
         : { records: [] },
     ]);
 
+    // Fetch all residencies to resolve residency IDs to names
+    const { records: allResidencies } = await FolkResidencies.findAll({
+      fields: ['id', 'residencyName'],
+      limit: 1000,
+    }).catch(() => ({ records: [] }));
+    const residencyMap = new Map<string, string>();
+    allResidencies.forEach((r: any) => {
+      if (r.id && r.residencyName) {
+        residencyMap.set(String(r.id).toLowerCase(), r.residencyName);
+      }
+    });
+
     const userDetailsMap = new Map<string, {
       name: string;
       userId: string;
@@ -73,7 +92,8 @@ export default createEndpoint({
     }>();
     const addNameMap = (u: any) => {
       const isApprovedResident = !!((u.residencyApproved || u.residencyGuideVerified) && (u.selectedFolkResidency || u.residency || u.residencyName));
-      const resName = u.residencyName || (Array.isArray(u.residency) ? u.residency[0] : u.residency) || '';
+      const rawRes = u.residencyName || (Array.isArray(u.residency) ? u.residency[0] : u.residency) || '';
+      const resName = residencyMap.get(String(rawRes).toLowerCase()) || rawRes;
       const details = {
         name: u.fullName || '',
         userId: u.userId || u.id,

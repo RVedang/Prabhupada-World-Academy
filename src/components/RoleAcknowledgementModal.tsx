@@ -60,8 +60,11 @@ export default function RoleAcknowledgementModal() {
       activeRoles.push('RGSF (Sub-Facilitator)');
     }
 
-    // Snapshot structure: Roles list + Guide ID + Guide Name
-    const currentSnapshot = activeRoles.sort().join('|') + '##' + (profile.selectedGuideId || '') + '##' + (profile.guideName || '');
+    // This popup is for role changes only. Guide details can be normalized as
+    // part of a login/profile refresh, which is not a guide reassignment and
+    // must never create a false "Guide Changed" notice. Approved guide
+    // transfers already have their own explicit status notification.
+    const currentSnapshot = activeRoles.sort().join('|');
     const storageKey = `seen_role_snapshot_${profile.userId}`;
     const previousSnapshot = localStorage.getItem(storageKey);
 
@@ -78,34 +81,19 @@ export default function RoleAcknowledgementModal() {
       const prevRoles = prevParts[0] ? prevParts[0].split('|').filter(Boolean) : [];
       const currRoles = currParts[0] ? currParts[0].split('|').filter(Boolean) : [];
 
-      const prevGuideId = prevParts[1] || '';
-      const prevGuideName = prevParts[2] || '';
-      const currGuideId = currParts[1] || '';
-      const currGuideName = currParts[2] || '';
-
       const added = currRoles.filter(r => !prevRoles.includes(r));
       const removed = prevRoles.filter(r => !currRoles.includes(r));
-
-      let guideChange: any = undefined;
-      if (prevGuideId !== currGuideId) {
-        if (currGuideId && !prevGuideId) {
-          guideChange = { type: 'assigned', newName: currGuideName };
-        } else if (currGuideId && prevGuideId) {
-          guideChange = { type: 'changed', oldName: prevGuideName, newName: currGuideName };
-        } else if (!currGuideId && prevGuideId) {
-          guideChange = { type: 'removed', oldName: prevGuideName };
-        }
-      }
-
-      if (added.length > 0 || removed.length > 0 || guideChange) {
+      if (added.length > 0 || removed.length > 0) {
         setRoleNotice({
           added,
           removed,
-          guideChange,
           snapshotKey: storageKey,
           newSnapshot: currentSnapshot,
         });
         setModalOpen(true);
+      } else {
+        // Migrate old role-plus-guide snapshots without displaying a notice.
+        localStorage.setItem(storageKey, currentSnapshot);
       }
     }
   }, [profile]);

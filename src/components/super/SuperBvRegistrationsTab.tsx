@@ -53,9 +53,11 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [showAllGroups, setShowAllGroups] = useState(false);
 
-  // Keep the group picker behaviour identical for PW and FOLK: use the
-  // applicant's time-matched group by default, but expose every active group
-  // in the same department when the administrator asks to see all time slots.
+  // Start with the applicant's time-matched group, but the explicit
+  // "Show all time slots" control must expose every active reading group.
+  // Some older Super Guide-created groups do not carry complete segment
+  // metadata, so applying the segment filter after this explicit action can
+  // incorrectly hide otherwise valid groups from the dropdown.
   const activeGroups = allGroupsState.filter(g => g.isActive !== false);
   const targetSegment = String(selectedReg?.segment || segment || '').toUpperCase();
   const segmentGroups = targetSegment
@@ -64,7 +66,7 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
   const timeMatchedGroups = segmentGroups.filter(g =>
     isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime)
   );
-  const filteredGroups = showAllGroups ? segmentGroups : timeMatchedGroups;
+  const filteredGroups = showAllGroups ? activeGroups : timeMatchedGroups;
 
   useEffect(() => {
     if (!selectedReg) return;
