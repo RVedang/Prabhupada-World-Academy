@@ -777,8 +777,11 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                       <Label className="text-sm font-medium whitespace-nowrap">FOLK:</Label>
                       <Select value={folkResidencyId} onValueChange={(v: string | null) => { if (v) setFolkResidencyId(v); }}>
                         <SelectTrigger className="h-8 w-[150px]">
-                          <SelectValue>{folkResidencyId === 'all' ? 'All Residencies' : residencies.find((r: any) => r.residencyId === folkResidencyId)?.residencyName.replace(/^FOLK\s+/i, '') || folkResidencyId}</SelectValue>
+                          <span className="truncate">
+                            {folkResidencyId === 'all' ? 'All Residencies' : residencies.find((r: any) => r.residencyId === folkResidencyId)?.residencyName.replace(/^FOLK\s+/i, '') || folkResidencyId}
+                          </span>
                         </SelectTrigger>
+
                         <SelectContent>
                           <SelectItem value="all">All Residencies</SelectItem>
                           {residencies.filter((r: any) => !r.residencyName?.includes('Prabhupada World') && !r.residencyName?.includes('PW')).map((r: any) => (

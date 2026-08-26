@@ -1,12 +1,13 @@
 import { z } from 'zod';
-import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, SadhanaEntries } from '@/lib/backend-sdk';
+import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get attendance calendar data for the current user',
   authenticated: true,
   inputSchema: z.object({}),
   outputSchema: z.any(),
-  execute: async ({ context }) => {
+  execute: async ({ context }: any) => {
+
     const userKeys = new Set<string>();
     if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
     if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
@@ -23,16 +24,7 @@ export default createEndpoint({
       return userKeys.has(String(rawU || '').toLowerCase());
     });
 
-    // Fetch SadhanaEntries for user
-    const { records: allSadhana } = await SadhanaEntries.findAll({
-      limit: 2000,
-      fields: ['id', 'user', 'entryDate', 'fieldValuesJson'],
-    }).catch(() => ({ records: [] }));
 
-    const sadhanaEntries = allSadhana.filter((s: any) => {
-      const rawU = Array.isArray(s.user) ? s.user[0] : s.user;
-      return userKeys.has(String(rawU || '').toLowerCase());
-    });
 
     // Fetch legacy AttendanceRecords
     const { records: allLegacy } = await AttendanceRecords.findAll({
@@ -94,29 +86,7 @@ export default createEndpoint({
       }
     });
 
-    // Add SadhanaEntries
-    sadhanaEntries.forEach((s: any) => {
-      const d = String(s.entryDate || '').slice(0, 10);
-      if (d && !entryMap.has(d)) {
-        try {
-          const fv = typeof s.fieldValuesJson === 'string' ? JSON.parse(s.fieldValuesJson) : (s.fieldValuesJson || {});
-          const isAttended = !!(
-            fv.bhaktiVriksha === true ||
-            fv.bhaktiVriksha === 1 ||
-            fv.bhaktiVriksha === 'true' ||
-            Number(fv.bhaktiVriksha) > 0 ||
-            Number(fv._pts_bhaktiVriksha) > 0
-          );
-          entryMap.set(d, {
-            date: d,
-            present: isAttended,
-            status: isAttended ? 'P' : 'A',
-            sessionName: 'Bhakti Vriksha (Sadhana Logged)',
-            eventTitle: isAttended ? 'Present' : 'Absent',
-          });
-        } catch {}
-      }
-    });
+
 
     // Add legacy AttendanceRecords
     records.forEach(r => {

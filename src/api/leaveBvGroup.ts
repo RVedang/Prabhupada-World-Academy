@@ -27,9 +27,10 @@ export default createEndpoint({
         bvGroupId: '',
         bvGroupName: '',
         bvRegistrationStatus: '',
+        isBvMember: false,
       }
     }).catch(() => {});
-
+ 
     if (realProfileId !== uid) {
       await Users.update({
         id: realProfileId,
@@ -37,9 +38,11 @@ export default createEndpoint({
           bvGroupId: '',
           bvGroupName: '',
           bvRegistrationStatus: '',
+          isBvMember: false,
         }
       }).catch(() => {});
     }
+
 
     // Send single notification to RGF, Supervisor, and Admins (deduped)
     try {

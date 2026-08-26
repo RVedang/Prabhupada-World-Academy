@@ -10,7 +10,8 @@ export default createEndpoint({
     userId: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input }: any) => {
+
     let membershipDbId = input.membershipId;
 
     if (!membershipDbId && input.groupId && input.userId) {
@@ -31,8 +32,22 @@ export default createEndpoint({
 
     if (!membershipDbId) throw new AppError({ code: 'NOT_FOUND', message: 'Membership not found' });
 
+    const membership = await BvGroupMembers.findOne({ id: membershipDbId }).catch(() => null);
     await BvGroupMembers.delete({ id: membershipDbId });
 
+    if (membership?.user) {
+      await Users.update({
+        id: membership.user,
+        record: {
+          bvGroupId: '',
+          bvGroupName: '',
+          bvRegistrationStatus: '',
+          isBvMember: false,
+        }
+      }).catch(() => {});
+    }
+
     return { success: true, message: 'Member removed from group' };
+
   },
 });

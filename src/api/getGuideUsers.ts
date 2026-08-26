@@ -250,12 +250,13 @@ export default createEndpoint({
         return false;
       }
 
-      // 2. Exclude Super Admins (no one should see any Super Admin in the list)
-      const uRole = (u.role || '').toUpperCase();
-      const uIsSuperAdmin = !!(u.isBvSuperAdmin || uRole === 'SUPER ADMIN' || uRole === 'SUPER_ADMIN');
-      if (uIsSuperAdmin) {
+      // 2. Exclude Super Admins, Guides, and Super Guides (they should not appear in the Members list)
+      const uRole = (u.role || '').toUpperCase().replace(/\s+/g, '_');
+      const uIsSuperAdmin = !!(u.isBvSuperAdmin || uRole === 'SUPER_ADMIN');
+      if (uIsSuperAdmin || uRole === 'GUIDE' || uRole === 'SUPER_GUIDE') {
         return false;
       }
+
 
       // 3. Exclude peers (equal level) or higher level users for Admins / Supervisors / RGFs
       const callerRole = (context.user.role || '').toUpperCase();
@@ -312,11 +313,15 @@ export default createEndpoint({
       users: registeredUsers.map(u => {
         const residencyId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
         const rawGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-        const guideId = rawGuideId ? (guideLookup.get(String(rawGuideId).toLowerCase()) || rawGuideId) : null;
+        const guideIdVal = rawGuideId || null;
+        const guideNameVal = rawGuideId ? (guideLookup.get(String(rawGuideId).toLowerCase()) || rawGuideId) : null;
+
+
 
         const uId = String(u.id || '').toLowerCase();
         const uUserId = String(u.userId || '').toLowerCase();
         const assignedGid = u.bvGroupId || userGroupMap.get(uId) || userGroupMap.get(uUserId);
+
         const groupRgf = assignedGid ? groupRgfMap.get(String(assignedGid)) : null;
 
         const resolvedFacId = u.bvReportingFacilitatorId || groupRgf?.id || null;
@@ -373,8 +378,8 @@ export default createEndpoint({
           bvGroupId: assignedGid || null,
           bvGroupName: u.bvGroupName || null,
           // Fields used in UsersTab table
-          selectedGuideId: guideId || null,
-          selectedGuideName: null,
+          selectedGuideId: guideIdVal,
+          selectedGuideName: guideNameVal,
           latestEntryDate: latestEntry?.entryDate || null,
           latestScore: latestEntry?.scorePercent ?? null,
           bvLatestDate: null,

@@ -3,7 +3,18 @@ import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from '
 import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residentSince'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'role', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residentSince'];
+
+// Guides and Super Guides oversee Sadhana; they are not expected to submit a
+// daily member report. Normalize legacy spacing/casing so the rule applies to
+// both PW and FOLK without relying on names or email addresses.
+function isSadhanaExemptLeadershipRole(role: unknown): boolean {
+  const normalized = String(role || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  return normalized === 'GUIDE' || normalized === 'SUPER_GUIDE' || normalized === 'SUPERGUIDE';
+}
 
 export default createEndpoint({
   description: 'Get missing sadhana report — who did not submit for each date in a range, with late detection',
@@ -91,11 +102,12 @@ export default createEndpoint({
       });
     }
 
-    // Only registered users (have userId + fullName), excluding guides
+    // Only registered members (have userId + fullName). Guides and Super
+    // Guides are report administrators, not Sadhana-report participants.
     const users = allUsers.filter(u =>
       u.userId &&
       (u.fullName || '').trim().length > 0 &&
-      u.role !== 'Guide'
+      !isSadhanaExemptLeadershipRole(u.role)
     );
 
     if (users.length === 0) {

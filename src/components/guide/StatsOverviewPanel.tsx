@@ -180,7 +180,17 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
                 <div className="flex items-center gap-1.5">
                   <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">Residency:</Label>
                   <Select value={residencyFilter} onValueChange={(v) => { if (v) setResidencyFilter(v); }}>
-                    <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                      <span className="truncate">
+                        {residencyFilter === 'all' 
+                          ? 'All' 
+                          : residencyFilter === 'resident' 
+                          ? 'Residents' 
+                          : residencyFilter === 'non_resident' 
+                          ? 'Non-Residents' 
+                          : 'Scholars'}
+                      </span>
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="resident">Residents</SelectItem>
@@ -196,12 +206,18 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
                     <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">FOLK:</Label>
                     <Select value={folkResidencyId} onValueChange={(v) => setFolkResidencyId(v || 'all')}>
                       <SelectTrigger className="h-8 w-[140px]">
-                        {residencyFilter === 'all' ? 'All Members' : residencyFilter === 'resident' ? 'Residents' : residencyFilter === 'non_resident' ? 'Non-Residents' : 'Scholars'}
+                        <span className="truncate">
+                          {folkResidencyId === 'all' 
+                            ? 'All' 
+                            : (residencies.find(r => r.residencyId === folkResidencyId)?.residencyName.replace(/^FOLK\s+/i, '') || folkResidencyId)}
+                        </span>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
                         {residencies.map(r => (
-                          <SelectItem key={r.residencyId} value={r.residencyId}>{r.residencyName}</SelectItem>
+                          <SelectItem key={r.residencyId} value={r.residencyId}>
+                            {r.residencyName.replace(/^FOLK\s+/i, '')}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -209,6 +225,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
                 )}
               </>
             )}
+
 
             {/* Ashray */}
             <div className="flex items-center gap-1.5">

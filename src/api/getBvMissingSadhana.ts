@@ -2,6 +2,14 @@ import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, Users, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 
+function isSadhanaExemptLeadershipRole(role: unknown): boolean {
+  const normalized = String(role || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  return normalized === 'GUIDE' || normalized === 'SUPER_GUIDE' || normalized === 'SUPERGUIDE';
+}
+
 function getDatesInRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
   const cur = new Date(startDate + 'T00:00:00Z');
@@ -90,16 +98,17 @@ export default createEndpoint({
     // ── 5. Fetch member user records (both Active and Inactive) ──────────────
     const { records: memberUsers } = await Users.findAll({
       filters: { id: { in: allMemberUserIds } as any },
-      fields: ['id', 'fullName', 'phone', 'email', 'status'],
+      fields: ['id', 'fullName', 'phone', 'email', 'status', 'role'],
       limit: 2000,
     });
-    const userInfoMap: Record<string, { fullName: string; phone: string; email: string; status: string }> = {};
+    const userInfoMap: Record<string, { fullName: string; phone: string; email: string; status: string; role: string }> = {};
     for (const u of memberUsers) {
       userInfoMap[u.id] = {
         fullName: u.fullName || '',
         phone: u.phone || '',
         email: u.email || '',
         status: (u.status as string) || 'Unknown',
+        role: (u.role as string) || '',
       };
     }
 
@@ -150,7 +159,7 @@ export default createEndpoint({
 
       for (const uid of memberIds) {
         const userInfo = userInfoMap[uid];
-        if (!userInfo) continue;
+        if (!userInfo || isSadhanaExemptLeadershipRole(userInfo.role)) continue;
 
         const userEntries = userEntryMap[uid] || [];
         const filledDates = new Set(
