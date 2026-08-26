@@ -567,7 +567,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                         <CardContent className="pt-4 space-y-3">
                           <div>
                             <p className="font-semibold">{req.userName}</p>
-                            <p className="text-sm text-muted-foreground">{req.userEmail}</p>
+                            <p className="text-sm text-muted-foreground">{req.userPhone || 'No phone number'}</p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               {req.oldResidencyName && <Badge variant="secondary">{req.oldResidencyName}</Badge>}
                               {req.oldResidencyName && <span className="text-xs text-muted-foreground">→</span>}
@@ -588,7 +588,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                       <thead className="sticky top-0 z-10">
                         <tr className="border-b">
                           <th className="text-left p-2 font-medium bg-card">Name</th>
-                          <th className="text-left p-2 font-medium bg-card">Email</th>
+                          <th className="text-left p-2 font-medium bg-card">Phone</th>
                           <th className="text-left p-2 font-medium bg-card">Transfer Request</th>
                           <th className="text-left p-2 font-medium bg-card">Requested On</th>
                           <th className="text-right p-2 font-medium bg-card">Actions</th>
@@ -598,7 +598,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                         {residencyTransfers.map(req => (
                           <tr key={req.userId} className="border-b hover:bg-muted/30">
                             <td className="p-2 font-medium">{req.userName}</td>
-                            <td className="p-2 text-muted-foreground">{req.userEmail}</td>
+                            <td className="p-2 text-muted-foreground">{req.userPhone || '—'}</td>
                             <td className="p-2 text-muted-foreground font-normal">
                               {req.oldResidencyName || 'Non-resident'} ➔ {req.newResidencyName}
                             </td>

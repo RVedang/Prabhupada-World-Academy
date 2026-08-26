@@ -71,7 +71,7 @@ export default createEndpoint({
 
     const userIds = [...new Set(filtered.map((r: any) => Array.isArray(r.user) ? r.user[0] : r.user).filter(Boolean))] as string[];
     const usersRes = userIds.length > 0
-      ? await Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'residency', 'residencyApproved'], limit: 200 })
+      ? await Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved'], limit: 200 })
       : { records: [] };
 
     const userMap: Record<string, any> = {};
@@ -111,6 +111,7 @@ export default createEndpoint({
         userId: u?.userId || uid || '',
         userName: u?.fullName || '',
         userEmail: u?.email || '',
+        userPhone: u?.phone || '',
         fromResidencyName: from?.residencyName || 'Non-resident',
         toResidencyName: to?.residencyName || 'Leave Residency',
         oldResidencyName: from?.residencyName || 'Non-resident',

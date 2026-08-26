@@ -24,10 +24,9 @@ export default createEndpoint({
     if ((request.status as string) !== 'Pending') throw new AppError({ code: 'CONFLICT', message: 'Request already reviewed' });
 
     // Authorization: only Super Guides or Admins are allowed to approve guide transfers
-    const userRole = (context.user.role || '').toUpperCase();
+    const userRole = String(context.user.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
     const isAuthorized =
       userRole === 'SUPER_GUIDE' ||
-      userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'ADMIN' ||
       !!context.user.isBvSuperAdmin ||
@@ -57,9 +56,23 @@ export default createEndpoint({
     }
 
     if (input.action === 'approve') {
-      const newGuideId = Array.isArray(request.toGuide) ? request.toGuide[0] : request.toGuide as string;
-      if (targetUser && newGuideId) {
-        await Users.update({ id: targetUser.id, record: { guide: newGuideId } });
+      const requestedGuideId = Array.isArray(request.toGuide) ? request.toGuide[0] : request.toGuide as string;
+      // Requests may contain a Guides document id, guideId, email, or name
+      // depending on which client created them. Resolve the canonical guide
+      // record before writing the user's profile fields.
+      const targetGuide = requestedGuideId
+        ? await Guides.findOne({ id: requestedGuideId, fields: ['id', 'guideId', 'fullName', 'email'] }).catch(() => null) ||
+          await Guides.findOne({ filters: { guideId: requestedGuideId }, fields: ['id', 'guideId', 'fullName', 'email'] }).catch(() => null) ||
+          await Guides.findOne({ filters: { email: requestedGuideId }, fields: ['id', 'guideId', 'fullName', 'email'] }).catch(() => null) ||
+          await Guides.findOne({ filters: { fullName: requestedGuideId }, fields: ['id', 'guideId', 'fullName', 'email'] }).catch(() => null)
+        : null;
+      const canonicalGuideId = targetGuide?.id || requestedGuideId;
+      if (targetUser && canonicalGuideId) {
+        await Users.update({ id: targetUser.id, record: {
+          guide: canonicalGuideId,
+          selectedGuideId: canonicalGuideId,
+          guideName: targetGuide?.fullName || undefined,
+        } });
       }
     }
 
