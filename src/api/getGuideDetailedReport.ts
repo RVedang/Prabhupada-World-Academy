@@ -795,7 +795,7 @@ export default createEndpoint({
       const uId = String(u.id || u.userId || '').toLowerCase();
       const uEmail = String(u.email || '').toLowerCase();
       const uName = String(u.fullName || '').toLowerCase();
-      const uRole = String(u.role || '').toUpperCase();
+      const uRole = String(u.role || '').toUpperCase().replace(/\s+/g, '_');
 
       // Omit caller if caller is admin/super admin viewing report
       if ((callerId && uId === callerId) || (callerEmail && uEmail === callerEmail)) return false;
@@ -807,7 +807,6 @@ export default createEndpoint({
           u.isBvAdmin ||
           uRole === 'GUIDE' ||
           uRole === 'SUPER_GUIDE' ||
-          uRole === 'SUPER ADMIN' ||
           uRole === 'SUPER_ADMIN' ||
           uRole === 'PW_ADMIN' ||
           uRole === 'ADMIN'

@@ -26,13 +26,13 @@ export default createEndpoint({
     if ((request.status as string) !== 'Pending') throw new AppError({ code: 'CONFLICT', message: 'Request already reviewed' });
 
     // Authorization: Super Admins, Admins, Super Guides, or guides of receiving residency can approve/reject
-    const userRoleStr = (context.user.role || '').toUpperCase();
+    const userRoleStr = String(context.user.role || '').toUpperCase().replace(/\s+/g, '_');
     const isAuthorizedAdmin = !!(
       (context.user as any).isBvSuperAdmin ||
       (context.user as any).isBvAdmin ||
-      userRoleStr.includes('SUPER') ||
-      userRoleStr.includes('ADMIN') ||
-      context.user.role === 'Super Guide'
+      userRoleStr === 'SUPER_GUIDE' ||
+      userRoleStr === 'SUPER_ADMIN' ||
+      userRoleStr === 'ADMIN'
     );
 
     if (!isAuthorizedAdmin) {
@@ -40,10 +40,12 @@ export default createEndpoint({
       if (!guideRecord) throw new AppError({ code: 'FORBIDDEN', message: 'You do not have guide authorization to review transfer requests' });
 
       const guideResidencies = Array.isArray(guideRecord.folkResidencies) ? guideRecord.folkResidencies : guideRecord.folkResidencies ? [guideRecord.folkResidencies] : [];
-      const toResidencyId = Array.isArray(request.toResidency) ? request.toResidency[0] : request.toResidency as string;
+      const toResidencyId = Array.isArray(request.toResidency) ? request.toResidency[0] : request.toResidency as string | null;
+      const fromResidencyId = Array.isArray(request.fromResidency) ? request.fromResidency[0] : request.fromResidency as string | null;
+      const reviewResidencyId = toResidencyId || fromResidencyId;
 
-      if (!toResidencyId || !guideResidencies.includes(toResidencyId)) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'Only guides of the receiving residency can approve this transfer' });
+      if (!reviewResidencyId || !guideResidencies.includes(reviewResidencyId)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Only guides of the relevant residency can approve this request' });
       }
     }
 

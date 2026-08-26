@@ -217,7 +217,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             </TabsTrigger>
           )}
 
-          {!isPwAdmin && !isSuperGuide && guideTransfers.length > 0 && (
+          {!isPwAdmin && (isSuperGuide || guideTransfers.length > 0) && (
             <TabsTrigger value="transfers" className="gap-1 text-xs sm:text-sm">
               <ArrowRightLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Guide Transfers</span>
@@ -357,7 +357,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
         </TabsContent>
 
         {/* ── Guide Transfer Requests ── */}
-        {!isPwAdmin && !isSuperGuide && (
+        {!isPwAdmin && (
           <TabsContent value="transfers">
             <Card>
               <CardHeader>

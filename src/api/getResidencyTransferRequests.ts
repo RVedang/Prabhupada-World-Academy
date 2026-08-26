@@ -11,14 +11,15 @@ export default createEndpoint({
   }),
   outputSchema: z.any(),
   execute: async ({ context }: any) => {
-    const userRole = (context.user.role || '').toUpperCase();
+    const userRole = String(context.user.role || '').toUpperCase().replace(/\s+/g, '_');
     const userEmail = (context.user.email || '').toLowerCase();
     const isSuperGuide =
       userRole === 'SUPER_GUIDE' ||
-      userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
+      userRole === 'ADMIN' ||
       userEmail.includes('superadmin') ||
       context.user.isBvSuperAdmin ||
+      context.user.isBvAdmin ||
       !!context.user.isBvSuperAdmin;
 
     // Determine which residency IDs this guide manages
@@ -50,12 +51,15 @@ export default createEndpoint({
 
     if (requests.length === 0) return [];
 
-    // Filter: only requests where toResidency is in this guide's residencies
+    // Transfers are reviewed by the receiving residency guide. Leave requests
+    // have no target residency, so they belong to the current/source residency.
     const filtered = isSuperGuide
       ? requests
       : requests.filter((r: any) => {
           const toId = Array.isArray(r.toResidency) ? r.toResidency[0] : r.toResidency;
-          return toId && allowedResidencyIds.includes(toId);
+          const fromId = Array.isArray(r.fromResidency) ? r.fromResidency[0] : r.fromResidency;
+          const reviewResidencyId = toId || fromId;
+          return reviewResidencyId && allowedResidencyIds.includes(reviewResidencyId);
         });
 
     if (filtered.length === 0) return [];

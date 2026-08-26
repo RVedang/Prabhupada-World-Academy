@@ -260,7 +260,7 @@ export default function FolkGuideDashboard() {
             )}
             {visitedTabs.has('approvals') && (
               <div className={activeTab === 'approvals' ? 'block' : 'hidden'}>
-                <ApprovalsTab />
+                <ApprovalsTab guideId={isSuperAdmin ? 'ALL' : guideId} isSuperGuide={isSuperAdmin} />
               </div>
             )}
             {(visitedTabs.has('bhakti-vriksha') || visitedTabs.has('bv-registrations') || visitedTabs.has('bv-admins')) && (
