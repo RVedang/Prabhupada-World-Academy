@@ -63,20 +63,18 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
   const [sadhanaMentors, setSadhanaMentors] = useState<any[]>([]);
   const [makeResident, setMakeResident] = useState(false);
 
-  useEffect(() => { loadAll(); }, [guideId]);
-
-  const loadAll = async () => {
-    setLoading(true);
+  const loadAll = async ({ background = false }: { background?: boolean } = {}) => {
+    if (!background) setLoading(true);
     try {
       const residencyFetchId = guideId === 'ALL' ? (reviewerGuideId || guideId) : guideId;
       const [pendingRes, residencyRes, requestsRes, residencyTransferRes, guidesRes, cleanReviews, sadhanaMentorsRes] = await Promise.all([
-        getPendingApprovals({ guideId }),
-        getResidenciesForGuide({ guideId: residencyFetchId }),
-        getGuideRequests({ guideId }),
-        getResidencyTransferRequests({ guideId } as any),
-        getGuides({}),
-        !isPwAdmin ? getCleanlinessReviews({ guideId }).catch(() => []) : Promise.resolve([]),
-        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW' }).catch(() => []) : Promise.resolve([]),
+        getPendingApprovals({ guideId, _nocache: true } as any),
+        getResidenciesForGuide({ guideId: residencyFetchId, _nocache: true } as any),
+        getGuideRequests({ guideId, _nocache: true } as any),
+        getResidencyTransferRequests({ guideId, _nocache: true } as any),
+        getGuides({ _nocache: true } as any),
+        !isPwAdmin ? getCleanlinessReviews({ guideId, _nocache: true } as any).catch(() => []) : Promise.resolve([]),
+        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW', _nocache: true } as any).catch(() => []) : Promise.resolve([]),
       ]);
       setPendingUsers(pendingRes);
       setResidencies(residencyRes);
@@ -88,11 +86,26 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
       setSadhanaMentors(sadhanaMentorsRes || []);
       onCountLoaded?.(pendingRes.length + requestsRes.guideTransfers.length + requestsRes.ashrayUpgrades.length + residencyTransferRes.length + (!isPwAdmin ? (Array.isArray(cleanReviews) ? cleanReviews.length : 0) : 0));
     } catch {
-      toast.error('Failed to load approvals');
+      if (!background) toast.error('Failed to load approvals');
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    void loadAll();
+
+    // Keep the open approval lists in sync with the dashboard badge. The
+    // request can be submitted by a devotee in another session, so no local
+    // mutation is available to trigger a refresh here.
+    const refreshInBackground = () => { void loadAll({ background: true }); };
+    const interval = window.setInterval(refreshInBackground, 10_000);
+    window.addEventListener('focus', refreshInBackground);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshInBackground);
+    };
+  }, [guideId, reviewerGuideId, isPwAdmin]);
 
   const openEdit = (user: PendingUser) => {
     setEditUser(user);
@@ -107,6 +120,8 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
   const showEnrollmentToast = (name: string, result: { enrollmentStatus?: string; enrollmentError?: string }) => {
     if (result.enrollmentStatus === 'Enrolled') {
       toast.success(`🎓 ${name} enrolled on TagMango`);
+    } else if (result.enrollmentStatus === 'Conflict') {
+      toast.warning(`⚠️ ${name} was approved, but their phone number is already linked to another TagMango account. Correct the duplicate before retrying enrollment.`);
     } else if (result.enrollmentStatus === 'Failed') {
       toast.error(`⚠️ TagMango enrollment failed for ${name}: ${result.enrollmentError || 'Unknown error'}. You can retry later.`);
     }
@@ -377,7 +392,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                             <div>
                               <p className="font-semibold">{req.userName}</p>
                               <p className="text-sm text-muted-foreground">{req.userPhone || 'No Phone'}</p>
-                              <p className="text-xs font-semibold text-blue-600 mt-0.5">{req.residencyLabel}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{req.residencyLabel}</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {req.fromGuideName} ➔ {req.toGuideName}
                               </p>
@@ -414,7 +429,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                             <tr key={req.logId} className="border-b hover:bg-muted/30">
                               <td className="p-2 font-medium">{req.userName}</td>
                               <td className="p-2 text-muted-foreground">{req.userPhone || '—'}</td>
-                              <td className="p-2 text-blue-600 font-semibold text-xs">{req.residencyLabel}</td>
+                              <td className="p-2 text-muted-foreground text-xs">{req.residencyLabel}</td>
                               <td className="p-2 text-muted-foreground font-normal">
                                 {req.fromGuideName} ➔ {req.toGuideName}
                               </td>

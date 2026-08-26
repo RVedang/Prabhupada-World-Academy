@@ -1032,6 +1032,8 @@ function TagMangoBadge({ user }: { user: GuideUser }) {
 
   const colorMap: Record<string, string> = {
     Enrolled: 'bg-green-100 text-green-800 border-green-300',
+    'Phone Conflict': 'bg-amber-100 text-amber-800 border-amber-300',
+    'Contact Conflict': 'bg-amber-100 text-amber-800 border-amber-300',
     Failed: 'bg-red-100 text-red-800 border-red-300',
     Processing: 'bg-yellow-100 text-yellow-800 border-yellow-300',
     Pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -1042,7 +1044,7 @@ function TagMangoBadge({ user }: { user: GuideUser }) {
   return (
     <div className="flex items-center gap-1">
       <Badge className={`text-xs ${cls}`}>{status}</Badge>
-      {status === 'Failed' && (
+      {(status === 'Failed' || status === 'Phone Conflict' || status === 'Contact Conflict') && (
         <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={handleRetry} disabled={retrying} title="Retry enrollment">
           <RotateCw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} />
         </Button>

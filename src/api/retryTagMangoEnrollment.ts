@@ -10,7 +10,7 @@ export default createEndpoint({
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    enrollmentStatus: z.enum(['Enrolled', 'Failed', 'Skipped']),
+    enrollmentStatus: z.enum(['Enrolled', 'Conflict', 'Failed', 'Skipped']),
     error: z.string().optional(),
   }),
   execute: async ({ input, context }) => {

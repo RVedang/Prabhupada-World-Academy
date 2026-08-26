@@ -3,7 +3,7 @@ import { Users, Config, FolkResidencies, AppError } from '@/lib/backend-sdk';
 const DEFAULT_TAGMANGO_API_URL = 'https://api-prod-new.tagmango.com/integration/action/migrate-user';
 
 export type EnrollmentResult = {
-  status: 'Enrolled' | 'Failed' | 'Skipped';
+  status: 'Enrolled' | 'Conflict' | 'Failed' | 'Skipped';
   error?: string;
 };
 
@@ -112,16 +112,25 @@ export async function enrollUserOnTagMango(opts: {
     const body = await response.text();
 
     if (!response.ok) {
-      const errMsg = `HTTP ${response.status}: ${body.slice(0, 500)}`;
+      // A 409 means the contact already exists in TagMango. Retrying the same
+      // payload can never succeed, so keep it distinct from a temporary error
+      // and do not expose TagMango's raw response (which includes another
+      // account's masked contact details) to dashboard users.
+      const isPhoneConflict = response.status === 409 && /conflictByPhone|conflict by phone|phone number/i.test(body);
+      const isConflict = response.status === 409;
+      const conflictMessage = isPhoneConflict
+        ? 'This phone number is already linked to another TagMango account. Correct the duplicate phone number before retrying enrollment.'
+        : 'This contact is already linked to another TagMango account. Resolve the duplicate contact before retrying enrollment.';
+      const errMsg = isConflict ? conflictMessage : `HTTP ${response.status}: ${body.slice(0, 500)}`;
       await Users.update({
         id: userId,
         record: {
-          tagMangoEnrollmentStatus: 'Failed',
+          tagMangoEnrollmentStatus: isConflict ? (isPhoneConflict ? 'Phone Conflict' : 'Contact Conflict') : 'Failed',
           tagMangoError: errMsg,
           enrolledLevel: ashrayLevel,
         },
       });
-      return { status: 'Failed', error: errMsg };
+      return { status: isConflict ? 'Conflict' : 'Failed', error: errMsg };
     }
 
     let parsed: any;

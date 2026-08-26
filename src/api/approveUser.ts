@@ -21,7 +21,7 @@ export default createEndpoint({
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    enrollmentStatus: z.enum(['Enrolled', 'Failed', 'Skipped']).optional(),
+    enrollmentStatus: z.enum(['Enrolled', 'Conflict', 'Failed', 'Skipped']).optional(),
     enrollmentError: z.string().optional(),
   }),
   execute: async ({ input, context }: any) => {
@@ -112,7 +112,7 @@ export default createEndpoint({
     }
 
     // TagMango enrollment — NEVER blocks approval, and skip for PW users
-    let enrollmentStatus: 'Enrolled' | 'Failed' | 'Skipped' = 'Skipped';
+    let enrollmentStatus: 'Enrolled' | 'Conflict' | 'Failed' | 'Skipped' = 'Skipped';
     let enrollmentError: string | undefined;
 
     if (!isPwUser) {

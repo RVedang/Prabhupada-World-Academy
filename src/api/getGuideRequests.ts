@@ -95,15 +95,19 @@ export default createEndpoint({
         
         const residencyId = Array.isArray(u?.residency) ? u.residency[0] : u?.residency;
         const resName = residencyId ? (residencyMap.get(residencyId) || '') : '';
-        const residencyLabel = u?.residencyApproved
-          ? `Resident (${resName || 'Approved'})`
-          : (u?.residencyClaimed ? `Resident Claim (${resName || 'Pending'})` : 'Non-Resident');
+        const residencyLabel = resName || 'Non-Resident';
+
+        let rawPhone = u?.phone || '';
+        const cleanPhone = rawPhone.replace(/\D/g, '');
+        if (cleanPhone.length > 10 && !rawPhone.startsWith('+')) {
+          rawPhone = `+${rawPhone}`;
+        }
 
         return {
           logId: r.id,
           userId: u?.userId || u?.id || uid || '',
           userName: u?.fullName || uid || '',
-          userPhone: u?.phone || '',
+          userPhone: rawPhone,
           residencyLabel,
           status: r.status || 'Pending',
           timestamp: r.requestedAt || '',

@@ -105,13 +105,19 @@ export default createEndpoint({
       const toId = Array.isArray(r.toResidency) ? r.toResidency[0] : r.toResidency as string | null;
       const from = fromId ? (residencyMap[fromId] as any) : null;
       const to = toId ? (residencyMap[toId] as any) : null;
+      let rawPhone = u?.phone || '';
+      const cleanPhone = rawPhone.replace(/\D/g, '');
+      if (cleanPhone.length > 10 && !rawPhone.startsWith('+')) {
+        rawPhone = `+${rawPhone}`;
+      }
+
       return {
         requestId: r.id,
         rowId: r.id,
         userId: u?.userId || uid || '',
         userName: u?.fullName || '',
         userEmail: u?.email || '',
-        userPhone: u?.phone || '',
+        userPhone: rawPhone,
         fromResidencyName: from?.residencyName || 'Non-resident',
         toResidencyName: to?.residencyName || 'Leave Residency',
         oldResidencyName: from?.residencyName || 'Non-resident',
