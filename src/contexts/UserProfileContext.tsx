@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/auth-sdk';
 import { getUserProfile, updateLastLogin } from '@/lib/endpoints-sdk';
 import type { ProfileSummary } from '@/types/models';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
 
 // Re-export for backward compatibility — NEW CODE should import from '@/types/models'
 export type ProfileData = ProfileSummary | null;
@@ -103,6 +104,11 @@ function buildProfile(userObj: any): ProfileData {
     segment,
     pendingBvRejectionNotice: !!(userObj.pendingBvRejectionNotice),
     pendingBvApprovalNotice: !!(userObj.pendingBvApprovalNotice),
+    pendingRoleNotice: userObj.pendingRoleNotice ?? null,
+    roleNoticeAcknowledged: !!userObj.roleNoticeAcknowledged,
+    bvRegistrationStatus: userObj.bvRegistrationStatus ?? null,
+    bvGroupId: userObj.bvGroupId ?? null,
+    bvGroupName: userObj.bvGroupName ?? null,
     pendingAshrayNoticeStatus: userObj.pendingAshrayNoticeStatus ?? null,
     pendingAshrayNoticeLevel: userObj.pendingAshrayNoticeLevel ?? null,
     ashrayNoticeAcknowledged: !!(userObj.ashrayNoticeAcknowledged),
@@ -114,13 +120,13 @@ const MAX_RETRIES = 4;
 
 export default function UserProfileProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
+  const location = useLocation();
 
   const [profile, setProfile] = useState<ProfileData>(null);
   const profileRef = useRef<ProfileData>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const loadedEmailRef = useRef<string | null>(null);
-  const lastFetchedAtRef = useRef<number>(0); // Timestamp of last successful profile fetch
 
   const setAndCacheProfile = (p: ProfileData) => {
     profileRef.current = p;
@@ -151,20 +157,36 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     }
   }, [authLoading, user?.email]);
 
-  // Refresh profile when tab becomes visible — but only if > 5 min since last fetch
-  // Prevents a flood of DB calls when the user rapidly switches tabs
-  const FOCUS_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+  // Refresh immediately whenever the user returns to the app. Role changes and
+  // approval decisions are external mutations, so the in-memory profile is no
+  // longer authoritative after a focus/visibility transition.
   useEffect(() => {
     if (!user?.email) return;
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        if (Date.now() - lastFetchedAtRef.current < FOCUS_COOLDOWN_MS) return;
-        load(user.email!, 0, true);
-      }
+    let lastImmediateRefresh = 0;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      // `focus` and `visibilitychange` often fire together. Coalesce that pair
+      // while still ensuring every genuine return performs a fresh API read.
+      if (Date.now() - lastImmediateRefresh < 750) return;
+      lastImmediateRefresh = Date.now();
+      void load(user.email!, 0, true);
     };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener('pageshow', refreshWhenVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener('pageshow', refreshWhenVisible);
+    };
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The provider survives SPA navigation. Treat opening any dashboard/page as
+  // an opportunity to fetch fresh notice state without a browser refresh.
+  useEffect(() => {
+    if (!user?.email || !profileRef.current) return;
+    void load(user.email, 0, true);
+  }, [location.pathname, location.search, location.hash]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time broadcast listener for immediate profile/role refreshes
   useEffect(() => {
@@ -176,9 +198,9 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     return () => window.removeEventListener('pwa_profile_refresh_needed', handleRefreshEvent);
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Safety-net: poll every 30s in background so modals always arrive quickly
+  // Safety-net: poll in the background so approval/rejection modals arrive
   // even if the push-events stream misses a reconnect window.
-  const BACKGROUND_POLL_MS = 30 * 1000;
+  const BACKGROUND_POLL_MS = 10 * 1000;
   useEffect(() => {
     if (!user?.email) return;
     const id = setInterval(() => {
@@ -220,7 +242,9 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     }, timeoutMs);
 
     try {
-      const res = await getUserProfile({ email, _nocache: background ? true : undefined });
+      // Profile state drives authorization and one-time notices. Always bypass
+      // the short client cache so opening a page cannot reuse a stale role.
+      const res = await getUserProfile({ email, _nocache: true });
       if (timedOut) return null;
       clearTimeout(timeoutId);
       let built: ProfileData = null;
@@ -228,7 +252,6 @@ export default function UserProfileProvider({ children }: { children: React.Reac
         built = buildProfile(res.user);
         setAndCacheProfile(built);
         loadedEmailRef.current = email;
-        lastFetchedAtRef.current = Date.now();
       } else {
         setAndCacheProfile(null);
         loadedEmailRef.current = null;
@@ -288,12 +311,10 @@ export default function UserProfileProvider({ children }: { children: React.Reac
         if (lastSeen === 'PENDING_APPROVAL' && profile.status === 'ACTIVE') {
           toast.success('🎉 Your registration has been approved! Welcome to Prabhupada World Academy.', {
             duration: 10000,
-            position: 'top-center',
           });
         } else if (lastSeen === 'PENDING_APPROVAL' && profile.status === 'REJECTED') {
           toast.error('❌ Your registration request was rejected by your Guide.', {
             duration: 10000,
-            position: 'top-center',
           });
         }
       }
@@ -307,13 +328,11 @@ export default function UserProfileProvider({ children }: { children: React.Reac
           if (profile.latestGuideTransferStatus === 'Approved') {
             toast.success(`🎉 Your Guide Transfer request has been approved! Your new guide is ${profile.guideName || 'your selected guide'}.`, {
               duration: 10000,
-              position: 'top-center',
             });
             localStorage.setItem(guideKey, 'true');
           } else if (profile.latestGuideTransferStatus === 'Rejected') {
             toast.error('❌ Your Guide Transfer request was rejected.', {
               duration: 10000,
-              position: 'top-center',
             });
             localStorage.setItem(guideKey, 'true');
           }
@@ -329,19 +348,16 @@ export default function UserProfileProvider({ children }: { children: React.Reac
             if (profile.selectedFolkResidency) {
               toast.success(`🎉 Your request to join ${profile.residencyName || 'the residency'} has been approved!`, {
                 duration: 10000,
-                position: 'top-center',
               });
             } else {
               toast.success('🎉 Your request to leave the residency has been approved.', {
                 duration: 10000,
-                position: 'top-center',
               });
             }
             localStorage.setItem(residencyKey, 'true');
           } else if (profile.latestResidencyTransferStatus === 'Rejected') {
             toast.error('❌ Your Residency Transfer request was rejected.', {
               duration: 10000,
-              position: 'top-center',
             });
             localStorage.setItem(residencyKey, 'true');
           }
@@ -356,13 +372,11 @@ export default function UserProfileProvider({ children }: { children: React.Reac
           if (profile.latestAshrayStatus === 'Passed') {
             toast.success(`🎉 Congratulations! Your request to upgrade to ${profile.latestAshrayRequestedLevel || 'the next level'} has been approved!`, {
               duration: 10000,
-              position: 'top-center',
             });
             localStorage.setItem(ashrayKey, 'true');
           } else if (profile.latestAshrayStatus === 'Failed') {
             toast.error(`❌ Your request to upgrade to ${profile.latestAshrayRequestedLevel || 'the next level'} was not approved.`, {
               duration: 10000,
-              position: 'top-center',
             });
             localStorage.setItem(ashrayKey, 'true');
           }

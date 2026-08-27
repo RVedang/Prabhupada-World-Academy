@@ -26,6 +26,11 @@ export default function RoleAcknowledgementModal() {
     // Super Admins do not receive role update popups
     if (profile.isBvSuperAdmin || profile.role === 'SUPER_ADMIN') return;
 
+    // Explicit database-backed role notices are rendered by the global
+    // RoleAcknowledgementHandler. Let it own the popup to avoid two dialogs
+    // opening for the same admin action.
+    if (profile.pendingRoleNotice && !profile.roleNoticeAcknowledged) return;
+
     // 1. Determine active roles — use independent checks (not else-if)
     const activeRoles: string[] = [];
     const segment = profile.segment || 'PW';
@@ -47,6 +52,14 @@ export default function RoleAcknowledgementModal() {
 
     if ((profile as any).isFolkLead) {
       activeRoles.push('FOLK Lead');
+    }
+
+    if (profile.isServiceAllocator) {
+      activeRoles.push('Service Allocator');
+    }
+
+    if (profile.isCleanlinessManager) {
+      activeRoles.push('Cleanliness Manager');
     }
 
     if (profile.isBvSupervisor || profile.isBvMentor) {

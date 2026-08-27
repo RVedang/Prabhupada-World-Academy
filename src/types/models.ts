@@ -92,6 +92,11 @@ export interface ProfileSummary {
   segment?: 'PW' | 'FOLK';
   pendingBvRejectionNotice?: boolean;
   pendingBvApprovalNotice?: boolean;
+  pendingRoleNotice?: string | null;
+  roleNoticeAcknowledged?: boolean;
+  bvRegistrationStatus?: string | null;
+  bvGroupId?: string | null;
+  bvGroupName?: string | null;
   pendingAshrayNoticeStatus?: string | null;
   pendingAshrayNoticeLevel?: string | null;
   ashrayNoticeAcknowledged?: boolean;

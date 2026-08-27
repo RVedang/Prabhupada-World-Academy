@@ -18,8 +18,6 @@ export default function RoleAcknowledgementHandler() {
   let popupType: 'ashray_notice_approved' | 'ashray_notice_rejected' | 'bv_approval_notice' | 'bv_rejection_notice' | 'bv_role_notice' | null = null;
 
   if (profile) {
-    const dismissed = JSON.parse(localStorage.getItem('role_ack_dismissed') || '{}');
-
     // Show notices regardless of role level
     if ((profile as any).pendingBvApprovalNotice) {
       popupType = 'bv_approval_notice';
@@ -27,9 +25,9 @@ export default function RoleAcknowledgementHandler() {
       popupType = 'bv_rejection_notice';
     } else if ((profile as any).pendingRoleNotice && !(profile as any).roleNoticeAcknowledged) {
       popupType = 'bv_role_notice';
-    } else if (profile.pendingAshrayNoticeStatus === 'approved' && !profile.ashrayNoticeAcknowledged && !dismissed['ashray_notice_approved']) {
+    } else if (profile.pendingAshrayNoticeStatus === 'approved' && !profile.ashrayNoticeAcknowledged) {
       popupType = 'ashray_notice_approved';
-    } else if (profile.pendingAshrayNoticeStatus === 'rejected' && !profile.ashrayNoticeAcknowledged && !dismissed['ashray_notice_rejected']) {
+    } else if (profile.pendingAshrayNoticeStatus === 'rejected' && !profile.ashrayNoticeAcknowledged) {
       popupType = 'ashray_notice_rejected';
     }
   }
@@ -88,10 +86,6 @@ export default function RoleAcknowledgementHandler() {
       } else if (popupType === 'bv_role_notice') {
         await acknowledgeBvRoleNotice({});
       }
-      // Persist dismissal in localStorage so popup doesn't reappear on refresh
-      const dismissed = JSON.parse(localStorage.getItem('role_ack_dismissed') || '{}');
-      dismissed[popupType!] = true;
-      localStorage.setItem('role_ack_dismissed', JSON.stringify(dismissed));
       await refreshProfile();
       setOpen(false);
 
@@ -99,10 +93,8 @@ export default function RoleAcknowledgementHandler() {
         navigate(redirectPath, { replace: true });
       }
     } catch {
-      // Still dismiss locally even if API fails (mock mode)
-      const dismissed = JSON.parse(localStorage.getItem('role_ack_dismissed') || '{}');
-      dismissed[popupType!] = true;
-      localStorage.setItem('role_ack_dismissed', JSON.stringify(dismissed));
+      // Keep the database notice pending if acknowledgement fails so it can be
+      // shown again instead of being permanently hidden on this device.
       setOpen(false);
     } finally {
       setBusy(false);
