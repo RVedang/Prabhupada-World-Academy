@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, CleanlinessReviewRequests, CleanlinessInspections, CleanlinessRooms, Users } from '@/lib/backend-sdk';
+import { createEndpoint, CleanlinessReviewRequests, CleanlinessInspections, CleanlinessRooms, Users, Guides } from '@/lib/backend-sdk';
+import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
 export default createEndpoint({
   description: 'Get pending cleanliness review requests for guide',
@@ -8,7 +9,7 @@ export default createEndpoint({
     guideId: z.string(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }: any) => {
     // Get all pending reviews
     const { records: reviews } = await CleanlinessReviewRequests.findAll({
       filters: { status: 'Pending' },
@@ -18,6 +19,18 @@ export default createEndpoint({
     if (reviews.length === 0) return [];
 
     // Enrich with user, room, and inspection data
+    const callerRole = String(context?.user?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const scopedGuideId = String(input?.guideId || '').trim();
+    const isSuperGuide = (!scopedGuideId || scopedGuideId === 'ALL') && (callerRole === 'SUPER_GUIDE' || callerRole === 'SUPER_ADMIN' || !!context?.user?.isBvSuperAdmin);
+    const scope = !isSuperGuide
+      ? (scopedGuideId && scopedGuideId !== 'ALL'
+          ? await (async () => {
+              const g = await Guides.findOne({ id: scopedGuideId, fields: ['id', 'fullName', 'folkResidencies'] }).catch(() => null);
+              return g ? { guideId: g.id, guideName: g.fullName, residencyIds: Array.isArray(g.folkResidencies) ? g.folkResidencies : (g.folkResidencies ? [g.folkResidencies] : []) } : null;
+            })()
+          : await getGuideScope(context?.user?.email || ''))
+      : null;
+
     const enriched = await Promise.all(reviews.map(async (r) => {
       const [user, room, inspection] = await Promise.all([
         r.user ? Users.findOne({ id: Array.isArray(r.user) ? r.user[0] : r.user }) : null,
@@ -26,15 +39,19 @@ export default createEndpoint({
       ]);
 
       // Filter by guide — only show reviews for users under this guide
-      const userGuide = user?.guide;
-      const guideId = Array.isArray(userGuide) ? userGuide[0] : userGuide;
-      if (input.guideId !== 'ALL' && guideId !== input.guideId) return null;
+      if (!isSuperGuide) {
+        if (!scope || !isUserInGuideScope(scope, user)) return null;
+      } else if (input.guideId !== 'ALL' && input.guideId) {
+        const userGuide = user?.guide;
+        const guideId = Array.isArray(userGuide) ? userGuide[0] : userGuide;
+        if (guideId !== input.guideId) return null;
+      }
 
       return {
         reviewId: r.id,
         date: r.date,
         status: r.status,
-        userName: user?.userId || 'Unknown',
+        userName: user?.fullName || user?.userId || 'Unknown',
         userFullName: user?.fullName || user?.userId || 'Unknown',
         userEmail: user?.email,
         userRecordId: user?.id,

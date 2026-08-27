@@ -75,6 +75,7 @@ const parsePhone = (p?: string) => {
 
 export default function BvRegistrationModal({ open, onOpenChange, onSuccess, segment }: Props) {
   const { profile } = useUserProfile();
+  const activeSegment = segment || profile?.segment || 'PW';
   
   const initialPhoneParts = parsePhone((profile as any)?.phone);
 
@@ -401,11 +402,11 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
           {/* Section 3: Ashraya & Prabhupada World Classes */}
           <div className="space-y-4 border-b pb-4">
             <h4 className="text-sm font-semibold flex items-center gap-1.5 text-primary">
-              <HeartHandshake className="w-4 h-4" /> Ashraya Level & Current Classes
+              <HeartHandshake className="w-4 h-4" /> {activeSegment === 'FOLK' ? 'Ashraya Level' : 'Ashraya Level & Current Classes'}
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className={activeSegment === 'FOLK' ? 'space-y-1.5 col-span-1 md:col-span-2' : 'space-y-1.5'}>
                 <Label>Present Ashraya Level *</Label>
                 <Select value={ashrayLevel} onValueChange={(val) => val && setAshrayLevel(val)}>
                   <SelectTrigger>
@@ -419,19 +420,21 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Prabhupada World Classes Attending *</Label>
-                <Select value={pwClassesAttending} onValueChange={(val: any) => val && setPwClassesAttending(val)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 overflow-y-auto min-w-[280px]">
-                    {PW_CLASSES.map(c => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {activeSegment !== 'FOLK' && (
+                <div className="space-y-1.5">
+                  <Label>Prabhupada World Classes Attending *</Label>
+                  <Select value={pwClassesAttending} onValueChange={(val: any) => val && setPwClassesAttending(val)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto min-w-[280px]">
+                      {PW_CLASSES.map(c => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* Temple Connection Switch */}

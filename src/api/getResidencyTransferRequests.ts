@@ -10,17 +10,18 @@ export default createEndpoint({
     guideId: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ context }: any) => {
+  execute: async ({ input, context }: any) => {
     const userRole = String(context.user.role || '').toUpperCase().replace(/\s+/g, '_');
     const userEmail = (context.user.email || '').toLowerCase();
-    const isSuperGuide =
+    const scopedGuideId = String(input?.guideId || '').trim();
+    const isSuperGuide = (!scopedGuideId || scopedGuideId === 'ALL') && (
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'ADMIN' ||
       userEmail.includes('superadmin') ||
       context.user.isBvSuperAdmin ||
       context.user.isBvAdmin ||
-      !!context.user.isBvSuperAdmin;
+      !!context.user.isBvSuperAdmin);
 
     // Determine which residency IDs this guide manages
     let allowedResidencyIds: string[] = [];
@@ -28,7 +29,7 @@ export default createEndpoint({
     if (!isSuperGuide) {
       // Find the guide record for the current user
       const guideRecord = await Guides.findOne({
-        filters: { email: context.user.email, isActive: true },
+        ...(scopedGuideId && scopedGuideId !== 'ALL' ? { id: scopedGuideId } : { filters: { email: context.user.email, isActive: true } }),
         fields: ['id', 'folkResidencies'],
       });
       if (!guideRecord) return [];

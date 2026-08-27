@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, FolkResidencies, Guides } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
+import { isUserInGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'fullName', 'phone', 'email', 'ashrayLevel', 'residency',
   'residencyClaimed', 'residencyJoinDate', 'createdAt', 'status', 'guide', 'selectedGuideId', 'guideName', 'isPrabhupadaWorldUser', 'segment'];
@@ -12,11 +13,14 @@ export default createEndpoint({
   requiredCapabilities: 'users.approve',
   inputSchema: z.object({ guideId: z.string().optional() }),
   outputSchema: z.any(),
-  execute: async ({ context }: any) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const userRole = (context.user.role || '').toUpperCase();
     const userEmail = (context.user.email || '').toLowerCase();
-    const isSuperGuide = userRole === 'SUPER_GUIDE' || userRole === 'SUPER GUIDE' || userRole === 'SUPER_ADMIN' || !!context.user.isBvSuperAdmin;
+    const scopedGuideId = String(input?.guideId || '').trim();
+    const isSuperGuide = !scopedGuideId || scopedGuideId === 'ALL'
+      ? (userRole === 'SUPER_GUIDE' || userRole === 'SUPER GUIDE' || userRole === 'SUPER_ADMIN' || !!context.user.isBvSuperAdmin)
+      : false;
     const pendingFilter = { status: 'Pending Approval' };
 
     // Fetch residencies and guides early
@@ -88,10 +92,18 @@ export default createEndpoint({
         if (checkIsPwUser(u)) return false;
         if (isFolkSuperAdmin) return true;
         const rawG = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-        const uGuide = String(rawG || '').toLowerCase();
-        if (!rawG) return true;
+        const rawSelectedGuide = Array.isArray(u.selectedGuideId) ? u.selectedGuideId[0] : u.selectedGuideId;
+        const uGuide = String(rawG || rawSelectedGuide || u.guideName || '').toLowerCase();
+        if (scopedGuideId && scopedGuideId !== 'ALL') {
+          const selected = [rawG, rawSelectedGuide, u.guideName].filter(Boolean).map(String).map(v => v.toLowerCase());
+          const canonical = guideLookup.get(scopedGuideId.toLowerCase()) || scopedGuideId.toLowerCase();
+          if (selected.some(value => value === scopedGuideId.toLowerCase() || value === canonical || guideLookup.get(value) === canonical)) return true;
+        }
         if (uGuide === sId || uGuide === sName || uGuide === userEmail || (userId && uGuide === userId.toLowerCase())) return true;
-        return scope ? (scope.residencyIds?.includes(u.residency) || scope.guideId === u.guide) : true;
+        // Registration stores the selected mentor in several legacy fields.
+        // Resolve all of them against the guide's canonical scope.
+        if (scope && isUserInGuideScope(scope, { ...u, guide: rawG || rawSelectedGuide })) return true;
+        return false;
       });
     }
 

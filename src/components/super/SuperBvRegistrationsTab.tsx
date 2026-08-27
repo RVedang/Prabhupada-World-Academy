@@ -235,10 +235,12 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
                     <span className="font-medium mt-0.5 block">{reg.ashrayLevel || 'None'}</span>
                   </div>
 
-                  <div>
-                    <span className="text-muted-foreground block">PW Classes:</span>
-                    <span className="font-medium mt-0.5 block">{reg.pwClassesAttending || 'None'}</span>
-                  </div>
+                  {segment !== 'FOLK' && (
+                    <div>
+                      <span className="text-muted-foreground block">PW Classes:</span>
+                      <span className="font-medium mt-0.5 block">{reg.pwClassesAttending || 'None'}</span>
+                    </div>
+                  )}
                 </div>
 
                 {(reg.occupation || reg.companyName || reg.inTouchWithTemple) && (

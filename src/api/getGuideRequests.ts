@@ -8,14 +8,15 @@ export default createEndpoint({
   requiredCapabilities: 'users.approve',
   inputSchema: z.object({ guideId: z.string().optional() }),
   outputSchema: z.any(),
-  execute: async ({ context }: any) => {
+  execute: async ({ input, context }: any) => {
     const userRole = String(context.user.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
-    const isSuperGuide =
+    const scopedGuideId = String(input?.guideId || '').trim();
+    const isSuperGuide = (!scopedGuideId || scopedGuideId === 'ALL') && (
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'ADMIN' ||
       !!context.user.isBvSuperAdmin ||
-      !!context.user.isBvAdmin;
+      !!context.user.isBvAdmin);
 
     // Find the guide DB record for the current user
     let guideDbId: string | null = null;
@@ -25,11 +26,11 @@ export default createEndpoint({
         fields: ['id'],
       });
       if (guideRecord) {
-        guideDbId = guideRecord.id;
+        guideDbId = (scopedGuideId && scopedGuideId !== 'ALL') ? scopedGuideId : guideRecord.id;
       } else {
         const uRec = await Users.findOne({ id: context.user.id, fields: ['id', 'userId'] }) ||
                      await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId'] });
-        guideDbId = uRec?.userId || uRec?.id || context.user.id;
+      guideDbId = (scopedGuideId && scopedGuideId !== 'ALL') ? scopedGuideId : (uRec?.userId || uRec?.id || context.user.id);
       }
     }
 

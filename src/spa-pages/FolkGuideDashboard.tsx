@@ -109,10 +109,10 @@ export default function FolkGuideDashboard() {
 
       const fetchCounts = () => {
         Promise.all([
-          getPendingApprovals({ guideId: 'ALL', _nocache: true }).catch(() => []),
-          getGuideRequests({ guideId: 'ALL', _nocache: true }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
-          getResidencyTransferRequests({ guideId: 'ALL', _nocache: true } as any).catch(() => []),
-          getCleanlinessReviews({ guideId: 'ALL', _nocache: true }).catch(() => []),
+          getPendingApprovals({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => []),
+          getGuideRequests({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
+          getResidencyTransferRequests({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true } as any).catch(() => []),
+          getCleanlinessReviews({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => []),
           getPendingBvRegistrations({ segment: 'FOLK', _nocache: true }).catch(() => []),
         ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
           const pendingArr = Array.isArray(pending) ? pending : (pending as any).records || [];
@@ -133,7 +133,7 @@ export default function FolkGuideDashboard() {
       const interval = setInterval(fetchCounts, 15000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, guideId, isSuperAdmin]);
 
   const navItems = [
     { id: 'sadhana', label: 'Sadhana Report', icon: BookOpen },
@@ -276,7 +276,7 @@ export default function FolkGuideDashboard() {
                     <h2 className="text-lg font-bold text-foreground">Bhakti Vriksha Groups & Roles</h2>
                     <p className="text-sm text-muted-foreground">Manage Bhakti Vriksha reading groups, assign supervisors, RGFs, RGSFs, and member allocations</p>
                   </div>
-                  <BvAdminManagementTab segment="FOLK" />
+                  <BvAdminManagementTab segment="FOLK" guideId={guideId} isSuperGuide={isSuperAdmin} />
                 </div>
               </div>
             )}

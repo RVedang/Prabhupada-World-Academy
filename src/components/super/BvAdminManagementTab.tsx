@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, Plus, Users, ShieldCheck, UserCheck, Leaf, Clock, BookOpen, ChevronRight } from 'lucide-react';
-import { createBvGroup, assignBvRole, getBvslGroups, getGuides, updateBvGroup, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
+import { createBvGroup, assignBvRole, getBvslGroups, getGuides, getAllBvGroupsAdmin, updateBvGroup, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -22,13 +22,15 @@ const TIME_PREFERENCES = [
 
 interface BvAdminManagementTabProps {
   segment?: 'PW' | 'FOLK';
+  guideId?: string;
+  isSuperGuide?: boolean;
 }
 
-export default function BvAdminManagementTab({ segment: propSegment }: BvAdminManagementTabProps = {}) {
+export default function BvAdminManagementTab({ segment: propSegment, guideId = '', isSuperGuide: isSuperGuideProp }: BvAdminManagementTabProps = {}) {
   const { profile } = useUserProfile();
   const navigate = useNavigate();
   const userEmail = (profile?.userId || '').toLowerCase();
-  const isSuperAdmin = !!(
+  const isSuperAdmin = isSuperGuideProp ?? !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'
@@ -52,23 +54,37 @@ export default function BvAdminManagementTab({ segment: propSegment }: BvAdminMa
   const [timeSelectionMode, setTimeSelectionMode] = useState<'select' | 'custom'>('select');
   const [creatingGroup, setCreatingGroup] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, [guideId, isSuperAdmin, segment]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [grpRes, guideRes] = await Promise.all([
-        getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
-        getGuides({ segment }).catch(() => ({ guides: [] })),
-      ]);
-      const allGroups = grpRes.groups || [];
-      const filteredGroups = segment
-        ? allGroups.filter((g: any) => g.segment === segment)
-        : allGroups;
-      setGroups(filteredGroups);
-      setGuides(guideRes.guides || []);
+      if (!isSuperAdmin && guideId) {
+        // Guide view is server-scoped to this guide. Do not load every FOLK
+        // group and attempt to hide unrelated groups in the browser.
+        const scoped = await getAllBvGroupsAdmin({ guideId });
+        setGroups((scoped.groups || []).map((g: any) => ({
+          ...g,
+          id: g.groupId,
+          groupId: g.groupId,
+          totalSessions: g.totalSessions ?? g.sessionCount ?? 0,
+          bvslName: g.bvslName || g.bvslLeaderName || null,
+        })));
+        setGuides((scoped.bvsls || []).map((u: any) => ({
+          guideId: u.userId,
+          name: u.fullName,
+          email: u.email || '',
+          abbr: (u.fullName || '').slice(0, 3).toUpperCase(),
+        })));
+      } else {
+        const [grpRes, guideRes] = await Promise.all([
+          getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
+          getGuides({ segment }).catch(() => ({ guides: [] })),
+        ]);
+        const allGroups = grpRes.groups || [];
+        setGroups(segment ? allGroups.filter((g: any) => g.segment === segment) : allGroups);
+        setGuides(guideRes.guides || []);
+      }
     } catch {
       toast.error('Failed to load BV management data');
     } finally {

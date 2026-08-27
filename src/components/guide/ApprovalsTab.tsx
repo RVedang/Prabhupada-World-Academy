@@ -223,7 +223,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
     <>
       <Tabs defaultValue={defaultSubTab}>
         <TabsList className="mb-4 w-full sm:w-auto">
-          {(!isPwAdmin && (isSuperGuide || pendingUsers.length > 0)) && (
+          {!isPwAdmin && (
             <TabsTrigger value="registrations" className="gap-1 text-xs sm:text-sm">
               <UserCheck className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Registrations</span>
