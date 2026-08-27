@@ -352,11 +352,18 @@ export default createEndpoint({
     if (entryDateForStreak === todayIST) {
       const userId = authenticatedUserId;
       const streakWindowStart = daysAgo(todayIST, 100);
+      // Keep this query index-free for the same reason as the dashboard read:
+      // `user` plus a range on `entryDate` needs a composite Firestore index.
+      // A missing index must never turn a successful Sadhana save into a zero
+      // streak after deployment.
       SadhanaEntries.findAll({
-        filters: { user: userId, entryDate: { gte: streakWindowStart, lte: todayIST } } as any,
+        filters: { user: userId },
         fields: ['entryDate', 'scorePercent'],
-        limit: 110,
-      }).then(({ records: recentEntries }) => {
+      }).then(({ records }) => {
+        const recentEntries = records.filter((entry: any) => {
+          const date = String(entry.entryDate || '').slice(0, 10);
+          return date >= streakWindowStart && date <= todayIST;
+        });
         const newStreak = computeStreak(recentEntries as any[], todayIST);
         return Users.update({ id: userId, record: { currentStreak: newStreak, lastStreakUpdatedAt: now } });
       }).catch(() => {});

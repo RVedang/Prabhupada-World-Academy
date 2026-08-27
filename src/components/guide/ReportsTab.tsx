@@ -258,6 +258,8 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   }, [isPw]);
 
   const debouncedFetch = useDebouncedCallback(fetchReport, 400);
+  const realValuesForced = residencyFilter === 'non_resident' || residencyFilter === 'all';
+  const effectiveShowRealValues = realValuesForced || showRealValues;
 
   useEffect(() => {
     debouncedFetch({ guideId, date: selectedDate, reportType, computedStart, computedEnd, bvslMode, mentorMode });
@@ -865,11 +867,16 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                 <div className="flex items-center gap-1.5">
                   <Checkbox
                     id="show-real-values"
-                    checked={showRealValues}
+                    checked={effectiveShowRealValues}
                     onCheckedChange={(v) => setShowRealValues(!!v)}
                     className="w-4 h-4"
+                    disabled={realValuesForced}
                   />
-                  <Label htmlFor="show-real-values" className="text-sm font-medium whitespace-nowrap cursor-pointer">
+                  <Label
+                    htmlFor="show-real-values"
+                    className={`text-sm font-medium whitespace-nowrap ${realValuesForced ? 'cursor-not-allowed text-muted-foreground' : 'cursor-pointer'}`}
+                    title={realValuesForced ? 'Raw values are always shown in this grouped view.' : 'Show actual submitted values instead of scored points.'}
+                  >
                     Show Real Values
                   </Label>
                 </div>
@@ -1009,8 +1016,8 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                 senderName={senderName}
                 onUserClick={(userId) => navigate(`/guide/users/${userId}`)}
                 showFolkColumn={showFolkColumn}
-                showRealValues={showRealValues}
-                groupByAshray={residencyFilter === 'non_resident' || residencyFilter === 'all'}
+                showRealValues={effectiveShowRealValues}
+                groupByAshray={realValuesForced}
               />
             ) : (
               <Card>

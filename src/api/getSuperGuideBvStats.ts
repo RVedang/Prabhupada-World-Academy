@@ -51,8 +51,24 @@ function getRecordUserKeys(record: any): string[] {
   const rawValues = [
     Array.isArray(record?.user) ? record.user[0] : record?.user,
     Array.isArray(record?.userId) ? record.userId[0] : record?.userId,
+    Array.isArray(record?.member) ? record.member[0] : record?.member,
+    Array.isArray(record?.memberId) ? record.memberId[0] : record?.memberId,
+    Array.isArray(record?.uid) ? record.uid[0] : record?.uid,
+    Array.isArray(record?.authUid) ? record.authUid[0] : record?.authUid,
+    Array.isArray(record?.firebaseUid) ? record.firebaseUid[0] : record?.firebaseUid,
   ];
   return [...new Set(rawValues.filter(Boolean).map(String))];
+}
+
+function getMemberStoredName(record: any): string {
+  const candidate = [
+    record?.fullName,
+    record?.memberName,
+    record?.userName,
+    record?.memberFullName,
+    record?.name,
+  ].find(value => typeof value === 'string' && value.trim());
+  return typeof candidate === 'string' ? candidate.trim() : '';
 }
 
 function addUserAliases(map: Map<string, any>, user: any) {
@@ -66,6 +82,11 @@ function addUserAliases(map: Map<string, any>, user: any) {
     user?.firebaseUid,
     user?.firebaseUserId,
     user?.firebaseAuthUid,
+    user?.authId,
+    user?.authUserId,
+    user?.firebaseId,
+    user?.firebaseAuthId,
+    user?.firebase_id,
   ];
 
   for (const alias of aliases) {
@@ -76,8 +97,8 @@ function addUserAliases(map: Map<string, any>, user: any) {
 
 async function fetchUsersByKeys(keys: string[]): Promise<any[]> {
   const uniqueKeys = [...new Set(keys.filter(Boolean))];
-  const fields = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
-  const fieldNames = ['id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const fields = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+  const fieldNames = ['id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
   const results = new Map<string, any>();
 
   for (let i = 0; i < uniqueKeys.length; i += 30) {
@@ -176,7 +197,7 @@ export default createEndpoint({
     // Fetch user info for members (display name, ashray, guide, role, flags)
     const [allUsersRes, keyedUserRecs] = await Promise.all([
       Users.findAll({
-        fields: ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'],
+        fields: ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'],
         limit: 2000,
       }),
       fetchUsersByKeys([...memberRawUserKeys, ...weekAttendanceRawUserKeys]),
@@ -219,6 +240,11 @@ export default createEndpoint({
           u.firebaseUid,
           u.firebaseUserId,
           u.firebaseAuthUid,
+          u.authId,
+          u.authUserId,
+          u.firebaseId,
+          u.firebaseAuthId,
+          u.firebase_id,
         ].forEach(alias => {
           const key = normalizeLookupKey(alias);
           if (key) adminUserIds.add(key);
@@ -240,6 +266,7 @@ export default createEndpoint({
     // Build unique user set per group from members (excluding admin users)
     const usersByGroup = new Map<string, Set<string>>();
     const userGroupMap = new Map<string, string>();
+    const memberDisplayNameMap = new Map<string, string>();
     for (const m of membersRes.records) {
       const gid = Array.isArray(m.group) ? m.group[0] : m.group as string;
       const rawUserKeys = getRecordUserKeys(m);
@@ -249,6 +276,13 @@ export default createEndpoint({
       if (!usersByGroup.has(gid)) usersByGroup.set(gid, new Set());
       usersByGroup.get(gid)!.add(uid);
       userGroupMap.set(uid, gid);
+      // Older membership rows may carry a user identifier that was later
+      // renamed on the profile. Preserve any stored human name as a fallback,
+      // but never render the opaque identifier in the UI.
+      const storedName = getMemberStoredName(m);
+      const profileName = userInfoMap.get(normalizeLookupKey(uid))?.fullName;
+      const displayName = String(profileName || storedName || '').trim();
+      if (displayName) memberDisplayNameMap.set(uid, displayName);
     }
 
     // All unique non-admin users across all groups
@@ -372,7 +406,7 @@ export default createEndpoint({
         const guideName = guideId ? (guideNameMap.get(guideId as string) || groupAdminNameMap.get(groupId) || '') : (groupAdminNameMap.get(groupId) || '');
         return {
           userId: uid,
-          displayName: u ? ((u.fullName as string) || uid) : uid,
+          displayName: String(u?.fullName || memberDisplayNameMap.get(uid) || 'Unknown member'),
           guideName,
           ashrayLevel: u ? ((u.ashrayLevel as string) || '') : '',
           totalPoints: totalPts,

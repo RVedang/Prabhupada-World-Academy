@@ -75,11 +75,15 @@ export default createEndpoint({
       ...(requestedBelongsToCurrentUser ? [requestedUserRecord?.id, requestedUserRecord?.userId] : []),
     ].filter(Boolean).map(String))];
 
+    // Do not combine `user` with an entryDate range here. That Firestore query
+    // requires a composite index; when an App Hosting rebuild runs before the
+    // index is available, the SDK deliberately falls back to an empty local
+    // store and the calendar/card appear blank. Query by the owner (a normal
+    // single-field index) and constrain the small per-user result in memory.
     const entryResults = await Promise.all(ownerIds.map(ownerId =>
       SadhanaEntries.findAll({
-        filters: { user: ownerId, entryDate: { gte: streakStart, lte: todayStr } } as any,
+        filters: { user: ownerId },
         fields: ENTRY_FIELDS,
-        limit: 110,
       })
     ));
 
@@ -90,6 +94,7 @@ export default createEndpoint({
     for (const result of entryResults) {
       for (const entry of result.records) {
         const dateKey = String(entry.entryDate || '').slice(0, 10);
+        if (!dateKey || dateKey < streakStart || dateKey > todayStr) continue;
         const existing = entriesByDate.get(dateKey);
         if (!existing || entry.user === authenticatedUserId) {
           entriesByDate.set(dateKey, entry);
