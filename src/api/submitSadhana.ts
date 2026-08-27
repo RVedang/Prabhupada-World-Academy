@@ -254,7 +254,17 @@ export default createEndpoint({
     // Never trust a row or user ID supplied by the client.  First locate the
     // authenticated user's entry.  The second lookup makes entries written by
     // the old custom-ID path editable; saving them below migrates their owner.
-    const legacyOwnerIds = [...new Set([userRec?.userId, context.user.uid])]
+    const inputUserId = typeof input.userId === 'string' ? input.userId : '';
+    const inputUserIdBelongsToCurrentUser = !!inputUserId && (
+      inputUserId === authenticatedUserId ||
+      inputUserId === context.user.uid ||
+      inputUserId === userRec?.userId
+    );
+    const legacyOwnerIds = [...new Set([
+      userRec?.userId,
+      context.user.uid,
+      ...(inputUserIdBelongsToCurrentUser ? [inputUserId] : []),
+    ])]
       .filter((id): id is string => !!id && id !== authenticatedUserId);
     const [currentEntry, ...legacyEntries] = await Promise.all([
       SadhanaEntries.findOne({

@@ -2,6 +2,11 @@ import { z } from 'zod';
 import { createEndpoint, BvGroupMembers, BvGroupRequests, BvGroups, BvAttendance, Users, Guides } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 
+function firstValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return String(value || '');
+}
+
 export default createEndpoint({
   description: 'Get current user BV group status, attendance streak, and available groups',
   authenticated: true,
@@ -11,7 +16,7 @@ export default createEndpoint({
     const uid = context.user!.id;
     const today = getTodayIST();
 
-    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => null);
+    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'isBvMember', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => null);
     const altUid = userRecord?.userId || uid;
 
     // A member exists only when a real BvGroupMembers document exists. Query
@@ -23,7 +28,12 @@ export default createEndpoint({
       BvGroupMembers.findAll({ filters: { userId: { in: identityKeys } }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] }),
       BvGroupRequests.findAll({ filters: { user: uid, status: 'Pending' }, limit: 5, fields: ['id', 'group', 'requestedAt'] }),
     ]);
-    const membership = membershipByUser.records[0] || membershipByUserId.records[0];
+    const rawMembership = membershipByUser.records[0] || membershipByUserId.records[0];
+    const rawGroupId = firstValue(rawMembership?.group || (rawMembership as any)?.groupId);
+    const profileGroupId = firstValue(userRecord?.bvGroupId);
+    const profileAllowsMembership = !!userRecord?.isBvMember &&
+      (!profileGroupId || !rawGroupId || profileGroupId === rawGroupId);
+    const membership = profileAllowsMembership ? rawMembership : null;
 
     const pending = pendingRes.records[0];
     const isUserRegPending = userRecord?.bvRegistrationStatus === 'Pending Approval' || userRecord?.bvRegistrationStatus === 'Pending';

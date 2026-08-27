@@ -3,8 +3,8 @@ import { createEndpoint, Users, SadhanaEntries } from '@/lib/backend-sdk';
 import { computeStreak, daysAgo } from '../lib/streakUtils';
 
 // Minimal field sets
-const USER_FIELDS = ['id', 'userId', 'fullName', 'ashrayLevel', 'residencyApproved'];
-const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
+const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'ashrayLevel', 'residencyApproved'];
+const ENTRY_FIELDS = ['id', 'entryId', 'user', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt', 'templateMode', 'ashrayLevelUsed',
   'maNaGvPoints', 'quotesTulasiPoints', 'japaVisiblePoints', 'sbPoints',
   'cleanlinessPoints', 'reportSendingPoints', 'dailyServicePoints',
@@ -47,35 +47,54 @@ export default createEndpoint({
 
     const streakStart = daysAgo(todayStr, 100);
     const authenticatedUserId = context.user.id;
+    const requestedUserId = typeof input.userId === 'string' ? input.userId : '';
     const userRecord = await Users.findOne({ id: authenticatedUserId, fields: USER_FIELDS });
-    const legacyOwnerIds = [...new Set([userRecord?.userId, context.user.uid])]
-      .filter((id): id is string => !!id && id !== authenticatedUserId);
-    const [currentEntriesResult, ...legacyEntriesResults] = await Promise.all([
+    const requestedUserRecord = requestedUserId
+      ? await Users.findOne({ id: requestedUserId, fields: USER_FIELDS }).catch(() => null)
+        || await Users.findOne({ filters: { userId: requestedUserId }, fields: USER_FIELDS }).catch(() => null)
+        || await Users.findOne({ filters: { email: requestedUserId }, fields: USER_FIELDS }).catch(() => null)
+      : null;
+    const contextEmail = String(context.user.email || '').toLowerCase();
+    const requestedBelongsToCurrentUser = !!requestedUserRecord && (
+      requestedUserRecord.id === authenticatedUserId ||
+      requestedUserRecord.userId === userRecord?.userId ||
+      String(requestedUserRecord.email || '').toLowerCase() === contextEmail
+    );
+    const requestIdBelongsToCurrentUser = !!requestedUserId && (
+      requestedUserId === authenticatedUserId ||
+      requestedUserId === context.user.uid ||
+      requestedUserId === userRecord?.userId ||
+      requestedBelongsToCurrentUser
+    );
+    const ownerIds = [...new Set([
+      authenticatedUserId,
+      context.user.uid,
+      userRecord?.id,
+      userRecord?.userId,
+      ...(requestIdBelongsToCurrentUser ? [requestedUserId] : []),
+      ...(requestedBelongsToCurrentUser ? [requestedUserRecord?.id, requestedUserRecord?.userId] : []),
+    ].filter(Boolean).map(String))];
+
+    const entryResults = await Promise.all(ownerIds.map(ownerId =>
       SadhanaEntries.findAll({
-        filters: { user: authenticatedUserId, entryDate: { gte: streakStart, lte: todayStr } } as any,
+        filters: { user: ownerId, entryDate: { gte: streakStart, lte: todayStr } } as any,
         fields: ENTRY_FIELDS,
         limit: 110,
-      }),
-      ...legacyOwnerIds.map(ownerId =>
-        SadhanaEntries.findAll({
-            filters: { user: ownerId, entryDate: { gte: streakStart, lte: todayStr } } as any,
-            fields: ENTRY_FIELDS,
-            limit: 110,
-        })
-      ),
-    ]);
+      })
+    ));
 
     // Prefer records already owned by the authenticated user if a date appears
     // in both locations.  This makes legacy entries visible without double
     // counting them in the calendar, weekly totals, or streak.
     const entriesByDate = new Map<string, any>();
-    for (const result of legacyEntriesResults) {
+    for (const result of entryResults) {
       for (const entry of result.records) {
-        entriesByDate.set(String(entry.entryDate || '').slice(0, 10), entry);
+        const dateKey = String(entry.entryDate || '').slice(0, 10);
+        const existing = entriesByDate.get(dateKey);
+        if (!existing || entry.user === authenticatedUserId) {
+          entriesByDate.set(dateKey, entry);
+        }
       }
-    }
-    for (const entry of currentEntriesResult.records) {
-      entriesByDate.set(String(entry.entryDate || '').slice(0, 10), entry);
     }
     const entries = Array.from(entriesByDate.values());
 

@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, AppError } from '@/lib/backend-sdk';
 
+function firstValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return String(value || '');
+}
+
 export default createEndpoint({
   description: 'Get attendance matrix for a BV group — dates x members grid (queries attendance directly by group+date)',
   authenticated: true,
@@ -23,20 +28,20 @@ export default createEndpoint({
     // Get group members
     const membersRes = await BvGroupMembers.findAll({
       filters: { group: group.id },
-      fields: ['id', 'user'],
+      fields: ['id', 'user', 'userId'],
       limit: 200,
     });
 
     const memberUserIds = membersRes.records
-      .map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user)
+      .flatMap((m: any) => [firstValue(m.user), firstValue(m.userId)])
       .filter(Boolean) as string[];
 
     const [userRecordsById, userRecordsByUserId] = await Promise.all([
       memberUserIds.length > 0
-        ? Users.findAll({ filters: { id: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'ashrayLevel'], limit: 500 })
+        ? Users.findAll({ filters: { id: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'status', 'isBvMember', 'bvGroupId'], limit: 500 })
         : { records: [] },
       memberUserIds.length > 0
-        ? Users.findAll({ filters: { userId: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'ashrayLevel'], limit: 500 })
+        ? Users.findAll({ filters: { userId: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'status', 'isBvMember', 'bvGroupId'], limit: 500 })
         : { records: [] },
     ]);
 
@@ -49,6 +54,17 @@ export default createEndpoint({
     };
     userRecordsById.records.forEach(addRecord);
     userRecordsByUserId.records.forEach(addRecord);
+
+    const groupAliases = new Set([group.id, group.groupId].filter(Boolean).map(value => String(value).toLowerCase()));
+    const activeMembers = membersRes.records.filter((m: any) => {
+      const uid = firstValue(m.user);
+      const altUid = firstValue(m.userId);
+      const u = userMap[uid] || userMap[uid.toLowerCase()] || userMap[altUid] || userMap[altUid.toLowerCase()];
+      const profileGroupId = firstValue(u?.bvGroupId).toLowerCase();
+      const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : !!u?.isBvMember;
+      const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
+      return !!u && !!u.isBvMember && isCurrentGroup && isActiveUser;
+    });
 
     // Build date range filter
     const dateFilter: any = {};
@@ -89,9 +105,10 @@ export default createEndpoint({
       userDateMap[uid][date] = a.present ? 1 : 0;
     }
 
-    const rows = membersRes.records.map((m: any) => {
-      const uid = Array.isArray(m.user) ? m.user[0] : m.user as string;
-      const u = userMap[uid] as any;
+    const rows = activeMembers.map((m: any) => {
+      const uid = firstValue(m.user);
+      const altUid = firstValue(m.userId);
+      const u = (userMap[uid] || userMap[uid.toLowerCase()] || userMap[altUid] || userMap[altUid.toLowerCase()]) as any;
       const attendance: Record<string, number> = {};
       dates.forEach(d => { attendance[d] = userDateMap[uid]?.[d] ?? 0; });
       const weekTotal = Object.values(attendance).reduce((s, v) => s + v, 0);
@@ -106,10 +123,11 @@ export default createEndpoint({
 
     return {
       sessions: dates.map(d => ({ sessionId: d, sessionDate: d, topic: '' })),
-      members: membersRes.records.map((m: any) => {
-        const uid = Array.isArray(m.user) ? m.user[0] : m.user as string;
-        const u = userMap[uid] as any;
-        return { membershipId: m.id, userId: uid, fullName: u?.fullName || '' };
+      members: activeMembers.map((m: any) => {
+        const uid = firstValue(m.user);
+        const altUid = firstValue(m.userId);
+        const u = (userMap[uid] || userMap[uid.toLowerCase()] || userMap[altUid] || userMap[altUid.toLowerCase()]) as any;
+        return { membershipId: m.id, userId: u?.userId || u?.id || uid, fullName: u?.fullName || '' };
       }),
       matrix: userDateMap,
       rows,

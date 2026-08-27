@@ -122,7 +122,17 @@ export default createEndpoint({
     // `Users.userId` value.  Read that legacy location as a fallback so users
     // can open previously submitted dates; the next save migrates the entry.
     const userInfo = await Users.findOne({ id: userId, fields: USER_FIELDS });
-    const legacyOwnerIds = [...new Set([userInfo?.userId, context.user?.uid])]
+    const inputUserId = typeof input.userId === 'string' ? input.userId : '';
+    const inputUserIdBelongsToCurrentUser = !!inputUserId && (
+      inputUserId === userId ||
+      inputUserId === context.user?.uid ||
+      inputUserId === userInfo?.userId
+    );
+    const legacyOwnerIds = [...new Set([
+      userInfo?.userId,
+      context.user?.uid,
+      ...(inputUserIdBelongsToCurrentUser ? [inputUserId] : []),
+    ])]
       .filter((id): id is string => !!id && id !== userId);
     const [currentEntry, ...legacyEntries] = await Promise.all([
       SadhanaEntries.findOne({ filters: { user: userId, entryDate }, fields: ENTRY_FIELDS }),
