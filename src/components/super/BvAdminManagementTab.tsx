@@ -20,7 +20,11 @@ const TIME_PREFERENCES = [
   '11:00 AM – 12:00 PM (Saturday & Sunday only)',
 ];
 
-export default function BvAdminManagementTab() {
+interface BvAdminManagementTabProps {
+  segment?: 'PW' | 'FOLK';
+}
+
+export default function BvAdminManagementTab({ segment: propSegment }: BvAdminManagementTabProps = {}) {
   const { profile } = useUserProfile();
   const navigate = useNavigate();
   const userEmail = (profile?.userId || '').toLowerCase();
@@ -30,7 +34,7 @@ export default function BvAdminManagementTab() {
     profile?.role === 'SUPER_GUIDE'
   );
 
-  const segment = profile?.segment ?? 'PW';
+  const segment = propSegment || profile?.segment || 'PW';
 
   const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
   const cachedGuides = getClientCachedQuery('getGuides', { segment });

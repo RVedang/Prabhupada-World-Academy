@@ -177,12 +177,71 @@ export default createEndpoint({
     const { records: allMembers } = await BvGroupMembers.findAll({
       filters: { group: { in: groupIdList } } as any,
       limit: 5000,
-      fields: ['id', 'group'],
+      fields: ['id', 'group', 'user', 'userId'],
     });
+
+    const firstValue = (value: unknown): string => {
+      if (Array.isArray(value)) return String(value[0] || '');
+      return String(value || '');
+    };
+
+    const memberUserIds = [...new Set(allMembers.flatMap((m: any) => [
+      firstValue(m.user),
+      firstValue(m.userId)
+    ]).filter(Boolean))];
+
+    const userMap: Record<string, any> = {};
+    if (memberUserIds.length > 0) {
+      const batches: string[][] = [];
+      for (let i = 0; i < memberUserIds.length; i += 30) {
+        batches.push(memberUserIds.slice(i, i + 30));
+      }
+      const results = await Promise.all(batches.map(async (batch) => {
+        const [byUserId, byId] = await Promise.all([
+          Users.findAll({
+            filters: { userId: { in: batch } } as any,
+            fields: ['id', 'userId', 'status', 'isBvMember', 'bvGroupId'],
+            limit: 100,
+          }).catch(() => ({ records: [] })),
+          Users.findAll({
+            filters: { id: { in: batch } } as any,
+            fields: ['id', 'userId', 'status', 'isBvMember', 'bvGroupId'],
+            limit: 100,
+          }).catch(() => ({ records: [] })),
+        ]);
+        return [...(byUserId?.records || []), ...(byId?.records || [])];
+      }));
+
+      for (const list of results) {
+        for (const u of list) {
+          userMap[u.id] = u;
+          if (u.userId) userMap[u.userId] = u;
+        }
+      }
+    }
+
     const memberCounts: Record<string, number> = {};
     for (const m of allMembers) {
       const gid = Array.isArray(m.group) ? m.group[0] : m.group;
-      if (gid) memberCounts[gid] = (memberCounts[gid] || 0) + 1;
+      if (!gid) continue;
+
+      const groupAliases = new Set([gid].map(value => String(value).toLowerCase()));
+      const groupRec = groupRecords.find(gr => gr.id === gid);
+      if (groupRec && groupRec.groupId) {
+        groupAliases.add(String(groupRec.groupId).toLowerCase());
+      }
+
+      const uid = firstValue(m.user);
+      const altUid = firstValue((m as any).userId);
+      const u = userMap[uid] || userMap[uid.toLowerCase()] || userMap[altUid] || userMap[altUid.toLowerCase()];
+
+      const profileGroupId = firstValue(u?.bvGroupId).toLowerCase();
+      const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : !!u?.isBvMember;
+      const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
+
+      if (u && u.isBvMember && isCurrentGroup && isActiveUser) {
+        memberCounts[gid] = (memberCounts[gid] || 0) + 1;
+      }
     }
 
     const groups = await Promise.all(groupRecords.map(async (g) => {

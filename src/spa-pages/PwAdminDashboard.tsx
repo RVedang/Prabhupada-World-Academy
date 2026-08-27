@@ -290,7 +290,7 @@ export default function PwAdminDashboard() {
                   <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') ? 'space-y-6 block' : 'hidden'}>
                     <SuperBvRegistrationsTab segment="PW" />
                     <hr className="my-6 border-t" />
-                    <BvAdminManagementTab />
+                    <BvAdminManagementTab segment="PW" />
                   </div>
                 )}
 

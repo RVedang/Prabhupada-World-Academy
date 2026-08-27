@@ -276,7 +276,7 @@ export default function FolkGuideDashboard() {
                     <h2 className="text-lg font-bold text-foreground">Bhakti Vriksha Groups & Roles</h2>
                     <p className="text-sm text-muted-foreground">Manage Bhakti Vriksha reading groups, assign supervisors, RGFs, RGSFs, and member allocations</p>
                   </div>
-                  <BvAdminManagementTab />
+                  <BvAdminManagementTab segment="FOLK" />
                 </div>
               </div>
             )}
