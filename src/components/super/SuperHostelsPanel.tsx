@@ -27,7 +27,7 @@ function getGuideEntries(r: Residency): GuideEntry[] {
 function getGuideLabel(r: Residency): string {
   const guides = getGuideEntries(r);
   if (guides.length > 0) {
-    return guides.map(g => g.abbreviation || g.guideName).filter(Boolean).join(', ');
+    return guides.map(g => g.guideName || g.abbreviation).filter(Boolean).join(', ');
   }
 
   return (r as any).guideName || 'Unassigned';

@@ -1,6 +1,56 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvSessions, BvAttendance, BvQuizzes, Users, AppError } from '@/lib/backend-sdk';
 
+function normalizeKey(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getRecordUserKeys(record: any): string[] {
+  const rawValues = [
+    Array.isArray(record?.user) ? record.user[0] : record?.user,
+    Array.isArray(record?.userId) ? record.userId[0] : record?.userId,
+  ];
+  return [...new Set(rawValues.filter(Boolean).map(String))];
+}
+
+function addUserToMap(userMap: Record<string, any>, user: any) {
+  [
+    user?.id,
+    user?.userId,
+    user?.email,
+    user?.phone,
+    user?.uid,
+    user?.authUid,
+    user?.firebaseUid,
+    user?.firebaseUserId,
+    user?.firebaseAuthUid,
+  ].forEach(alias => {
+    const key = normalizeKey(alias);
+    if (key) userMap[key] = user;
+  });
+}
+
+async function findUsersForKeys(keys: string[]): Promise<any[]> {
+  const uniqueKeys = [...new Set(keys.filter(Boolean))];
+  const fields = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const lookupFields = ['id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const results = new Map<string, any>();
+
+  for (let i = 0; i < uniqueKeys.length; i += 30) {
+    const chunk = uniqueKeys.slice(i, i + 30);
+    await Promise.all(lookupFields.map(async field => {
+      const { records } = await Users.findAll({
+        filters: { [field]: { in: chunk } } as any,
+        fields,
+        limit: 500,
+      }).catch(() => ({ records: [] }));
+      records.forEach((u: any) => results.set(u.id || u.userId || u.email, u));
+    }));
+  }
+
+  return [...results.values()];
+}
+
 export default createEndpoint({
   description: 'Get full BV group detail — group info, active members, recent sessions',
   authenticated: true,
@@ -23,43 +73,68 @@ export default createEndpoint({
     if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
 
     const [membersRes, sessionsRes, quizzesRes] = await Promise.all([
-      BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'role', 'joinedAt'], limit: 200 }),
+      BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'userId', 'role', 'joinedAt'], limit: 200 }),
       BvSessions.findAll({ filters: { group: group.id }, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }),
       BvQuizzes.findAll({ filters: { group: group.id }, fields: ['id', 'groupId', 'title', 'createdAt'], limit: 50 }),
     ]);
 
-    const memberUserIds = membersRes.records
-      .map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user)
-      .filter(Boolean) as string[];
+    const memberUserIds = membersRes.records.flatMap(getRecordUserKeys);
 
-    const [userRecordsById, userRecordsByUserId] = await Promise.all([
-      memberUserIds.length > 0
-        ? Users.findAll({ filters: { id: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel'], limit: 500 })
-        : { records: [] },
-      memberUserIds.length > 0
-        ? Users.findAll({ filters: { userId: { in: memberUserIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel'], limit: 500 })
-        : { records: [] },
+    const [userRecords, attendanceRes] = await Promise.all([
+      memberUserIds.length > 0 ? findUsersForKeys(memberUserIds) : Promise.resolve([]),
+      BvAttendance.findAll({
+        filters: { group: group.id },
+        fields: ['id', 'user', 'userId', 'present', 'attendanceDate'],
+        limit: 2000,
+      }).catch(() => ({ records: [] })),
     ]);
 
     const userMap: Record<string, any> = {};
-    const addRecord = (u: any) => {
-      userMap[u.id] = u;
-      if (u.userId) {
-        userMap[u.userId] = u;
-      }
+    userRecords.forEach((u: any) => addUserToMap(userMap, u));
+
+    const resolveMember = (record: any) => {
+      const rawKeys = getRecordUserKeys(record);
+      const matchedKey = rawKeys.find(key => userMap[normalizeKey(key)]);
+      const user = matchedKey ? userMap[normalizeKey(matchedKey)] : null;
+      const canonicalId = String(user?.id || user?.userId || rawKeys[0] || '');
+      return { rawKeys, user, canonicalId };
     };
-    userRecordsById.records.forEach(addRecord);
-    userRecordsByUserId.records.forEach(addRecord);
+
+    const memberKeyToCanonical = new Map<string, string>();
+    for (const m of membersRes.records) {
+      const resolved = resolveMember(m);
+      for (const key of resolved.rawKeys) memberKeyToCanonical.set(normalizeKey(key), resolved.canonicalId);
+    }
+
+    const attendanceStats = new Map<string, { presentCount: number; totalCount: number; lastPresent: string }>();
+    for (const a of attendanceRes.records || []) {
+      const rawKeys = getRecordUserKeys(a);
+      const rawMatch = rawKeys.find(key => memberKeyToCanonical.has(normalizeKey(key)));
+      if (!rawMatch) continue;
+      const canonicalId = memberKeyToCanonical.get(normalizeKey(rawMatch)) || rawMatch;
+      const stats = attendanceStats.get(canonicalId) || { presentCount: 0, totalCount: 0, lastPresent: '' };
+      stats.totalCount += 1;
+      if (a.present) {
+        stats.presentCount += 1;
+        const attendanceDate = String(a.attendanceDate || '').slice(0, 10);
+        if (attendanceDate && attendanceDate > stats.lastPresent) stats.lastPresent = attendanceDate;
+      }
+      attendanceStats.set(canonicalId, stats);
+    }
 
     const members = membersRes.records.map((m: any) => {
-      const uid = Array.isArray(m.user) ? m.user[0] : m.user;
-      const u = userMap[uid || ''] as any;
+      const { user: u, canonicalId, rawKeys } = resolveMember(m);
+      const stats = attendanceStats.get(canonicalId) || { presentCount: 0, totalCount: 0, lastPresent: '' };
       return {
         membershipId: m.id,
-        userId: u?.userId || uid || '',
-        fullName: u?.fullName || '',
+        userId: u?.userId || u?.id || canonicalId,
+        fullName: u?.fullName || rawKeys[0] || 'Unknown member',
         phone: u?.phone || '',
         ashrayLevel: u?.ashrayLevel || null,
+        presentCount: stats.presentCount,
+        totalCount: stats.totalCount,
+        attendanceRate: stats.totalCount > 0 ? Math.round((stats.presentCount / stats.totalCount) * 100) : 0,
+        lastPresent: stats.lastPresent || null,
         role: (m.role as string) || 'Member',
         joinedAt: (m.joinedAt as string) || '',
       };

@@ -3,7 +3,7 @@ import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from '
 import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'role', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residentSince'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'role', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
 
 // Guides and Super Guides oversee Sadhana; they are not expected to submit a
 // daily member report. Normalize legacy spacing/casing so the rule applies to
@@ -248,7 +248,7 @@ export default createEndpoint({
         let residencyType: string;
         if (u.isScholar) {
           residencyType = 'Scholar';
-        } else if (u.residencyClaimed && u.residencyApproved && resId) {
+        } else if ((u.residencyApproved || u.residencyGuideVerified) && resId) {
           residencyType = 'Resident';
         } else {
           residencyType = 'Non-Resident';

@@ -77,7 +77,16 @@ export default function PersonalInfoCard({ email, fullName, phone, ashrayLevel, 
           <Label className="text-xs text-muted-foreground">Phone</Label>
           {editing
             ? <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="mt-1" placeholder="Phone number" />
-            : <p className="font-medium mt-0.5">{phone || '—'}</p>}
+            : <p className="font-medium mt-0.5">
+                {(() => {
+                  if (!phone) return '—';
+                  const cleanPhone = phone.replace(/\D/g, '');
+                  if (cleanPhone.length > 10 && !phone.startsWith('+')) {
+                    return `+${phone}`;
+                  }
+                  return phone;
+                })()}
+              </p>}
         </div>
         <div>
           <Label className="text-xs text-muted-foreground">Email (read-only)</Label>

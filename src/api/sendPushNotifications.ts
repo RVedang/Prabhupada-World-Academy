@@ -19,6 +19,54 @@ function getUserIdStr(userField: any): string | null {
   return String(userField);
 }
 
+function normalizeKey(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getSubscriptionUserKeys(sub: any): string[] {
+  return [...new Set([
+    getUserIdStr(sub?.user),
+    sub?.userId,
+    sub?.email,
+    sub?.phone,
+  ].filter(Boolean).map(String))];
+}
+
+function getUserAliasKeys(user: any): string[] {
+  return [...new Set([
+    user?.id,
+    user?.userId,
+    user?.email,
+    user?.phone,
+    user?.uid,
+    user?.authUid,
+    user?.firebaseUid,
+    user?.firebaseUserId,
+    user?.firebaseAuthUid,
+  ].filter(Boolean).map(String))];
+}
+
+async function fetchUsersByKeys(keys: string[]): Promise<any[]> {
+  const uniqueKeys = [...new Set(keys.filter(Boolean))];
+  const lookupFields = ['id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const results = new Map<string, any>();
+
+  for (let i = 0; i < uniqueKeys.length; i += 30) {
+    const chunk = uniqueKeys.slice(i, i + 30);
+    await Promise.all(lookupFields.map(async field => {
+      const { records } = await Users.findAll({
+        filters: { [field]: { in: chunk } } as any,
+        limit: 2000,
+      }).catch(() => ({ records: [] }));
+      for (const u of records) {
+        if (u?.id || u?.userId || u?.email) results.set(u.id || u.userId || u.email, u);
+      }
+    }));
+  }
+
+  return [...results.values()];
+}
+
 // ── VAPID + Web Push helpers (pure Web Crypto — no npm packages) ──
 
 function base64UrlEncode(buf: ArrayBuffer | ArrayBufferLike): string {
@@ -286,15 +334,24 @@ export default createEndpoint({
 
     if (subs.length === 0) return { sent: 0, failed: 0, skipped: 0 };
 
-    // Get unique user IDs from subscriptions — use getUserIdStr to handle Firestore DocumentReferences
-    const subsByUser = new Map<string, typeof subs[0]>();
-    for (const sub of subs) {
-      const uid = getUserIdStr(sub.user);
-      if (uid) subsByUser.set(uid, sub);
+    const allSubscriptionUserKeys = subs.flatMap(getSubscriptionUserKeys);
+    const userRecords = await fetchUsersByKeys(allSubscriptionUserKeys);
+    const userByAlias = new Map<string, any>();
+    for (const user of userRecords) {
+      for (const key of getUserAliasKeys(user)) {
+        userByAlias.set(normalizeKey(key), user);
+      }
     }
 
+    const resolveSubscriptionUser = (sub: any): any | null => {
+      for (const key of getSubscriptionUserKeys(sub)) {
+        const user = userByAlias.get(normalizeKey(key));
+        if (user) return user;
+      }
+      return null;
+    };
+
     // Check who submitted sadhana for checkDate
-    const userIds = [...subsByUser.keys()];
     const { records: entries } = await SadhanaEntries.findAll({
       filters: { entryDate: checkDate },
       fields: ['user'],
@@ -303,22 +360,11 @@ export default createEndpoint({
 
     // Use getUserIdStr to extract plain string IDs from sadhana entry references
     const submittedUserIds = new Set(
-      entries.map(e => getUserIdStr(e.user)).filter(Boolean) as string[]
+      entries.map(e => normalizeKey(getUserIdStr(e.user))).filter(Boolean) as string[]
     );
 
-    // Get active users who have push subscriptions.
-    const userRecordsList = await Promise.all(
-      userIds.map(uid =>
-        Users.findOne({ id: uid })
-          .catch(() => null)
-          .then(u => u || null)
-      )
-    );
-    const activeUsers = userRecordsList.filter(
-      (u): u is NonNullable<typeof u> => !!u && (u as any).status === 'Active'
-    );
-
-    const targetUsers = activeUsers.filter((u: any) => {
+    const isTargetUser = (u: any): boolean => {
+      if (!u || u.status !== 'Active') return false;
       const isSender = (senderId && u.id === senderId) ||
                        (senderEmail && (u.email || '').toLowerCase() === senderEmail);
       if (isSender) return false;
@@ -354,9 +400,11 @@ export default createEndpoint({
         if (uSegment === 'PW') return false;
         return true;
       }
-    });
+    };
 
-    const activeUserIds = new Set(targetUsers.map(u => u.id));
+    const hasSubmitted = (user: any): boolean => {
+      return getUserAliasKeys(user).some(key => submittedUserIds.has(normalizeKey(key)));
+    };
 
     const payloadStr = JSON.stringify({
       id: broadcastId,
@@ -388,10 +436,15 @@ export default createEndpoint({
       });
     }
 
-    // Send in parallel batches of 10
-    const toSend = [...subsByUser.entries()].filter(([uid]) => {
-      if (!input.forceSend && submittedUserIds.has(uid)) { skipped++; return false; }
-      if (!activeUserIds.has(uid)) { skipped++; return false; }
+    const seenEndpoints = new Set<string>();
+    const toSend = subs.filter((sub: any) => {
+      const endpoint = String(sub.endpoint || '').trim();
+      if (!endpoint || seenEndpoints.has(endpoint)) { skipped++; return false; }
+      seenEndpoints.add(endpoint);
+
+      const user = resolveSubscriptionUser(sub);
+      if (!isTargetUser(user)) { skipped++; return false; }
+      if (!input.forceSend && hasSubmitted(user)) { skipped++; return false; }
       return true;
     });
 
@@ -399,7 +452,7 @@ export default createEndpoint({
     for (let i = 0; i < toSend.length; i += batchSize) {
       const batch = toSend.slice(i, i + batchSize);
       const results = await Promise.allSettled(
-        batch.map(async ([, sub]) => {
+        batch.map(async (sub) => {
           const ok = await sendPush(
             { endpoint: sub.endpoint || '', p256dh: sub.p256DhKey || '', auth: sub.authKey || '' },
             payloadStr,

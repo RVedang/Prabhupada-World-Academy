@@ -128,19 +128,25 @@ export default function SuperGuideBvSection() {
             <CardHeader className="pb-3"><div className="flex items-center gap-2"><Trophy className="w-5 h-5 text-yellow-500" /><CardTitle className="text-base">Global BV Leaderboard</CardTitle></div><p className="text-xs text-muted-foreground">All-time total points (attendance + service)</p></CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
-                {data.leaderboard.map((entry, idx) => (
+                {data.leaderboard.map((entry, idx) => {
+                  const details = [
+                    entry.guideName ? `Guide: ${entry.guideName}` : '',
+                    entry.ashrayLevel || '',
+                  ].filter(Boolean).join(' · ');
+                  return (
                   <div key={entry.userId} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border shrink-0 ${idx < 3 ? RANK_STYLES[idx] : 'bg-muted text-muted-foreground border-border'}`}>{idx + 1}</div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{entry.displayName}</div>
-                      <div className="text-xs text-muted-foreground truncate">Guide: {entry.guideName} · {entry.ashrayLevel}</div>
+                      {details && <div className="text-xs text-muted-foreground truncate">{details}</div>}
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-sm font-bold text-green-600">{entry.totalPoints} pts</div>
                       <div className="text-[10px] text-muted-foreground">{entry.attendanceRate}% attend</div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

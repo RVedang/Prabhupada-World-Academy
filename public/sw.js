@@ -13,6 +13,10 @@ const notifiedSlots = new Set();
 // Track processed broadcast IDs to avoid duplicates from push events and polling fallback
 const processedBroadcastIds = new Set();
 
+function notificationTag(slot, id) {
+  return 'sadhana-' + (slot || 'reminder') + '-' + (id || Date.now());
+}
+
 // ── Reminder times (IST hours/minutes fallbacks) ──
 let swReminderTimes = [
   { hour: 21, minute: 20, slot: 'night-1' },
@@ -122,9 +126,9 @@ function handleSwPushReceived(data) {
         body: body,
         icon: ICON_URL,
         badge: BADGE_URL,
-        tag: 'sadhana-poll-' + slot + '-' + (data.id || Date.now()),
+        tag: notificationTag(slot, data.id),
         data: { url: url, slot: slot },
-        renotify: true,
+        renotify: false,
         requireInteraction: true,
       });
     }
@@ -203,9 +207,9 @@ self.addEventListener('push', (event) => {
             body: bodyToUse,
             icon: ICON_URL,
             badge: BADGE_URL,
-            tag: `sadhana-push-${slot}-${data.id || Date.now()}`,
+            tag: notificationTag(slot, data.id),
             data: { url: urlToUse, slot, inviteeIds: data.inviteeIds || [] },
-            renotify: true,
+            renotify: false,
             requireInteraction: true,
           });
         }
@@ -216,9 +220,9 @@ self.addEventListener('push', (event) => {
           body: bodyToUse,
           icon: ICON_URL,
           badge: BADGE_URL,
-          tag: `sadhana-push-${slot}-${data.id || Date.now()}`,
+          tag: notificationTag(slot, data.id),
           data: { url: urlToUse, slot },
-          renotify: true,
+          renotify: false,
         });
       })
   );

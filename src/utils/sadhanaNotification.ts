@@ -167,6 +167,7 @@ export function triggerInAppOrNativeNotification(data: {
   slot?: string;
   senderEmail?: string;
   url?: string;
+  suppressNative?: boolean;
 }): void {
   if (!data) return;
 
@@ -260,7 +261,7 @@ export function triggerInAppOrNativeNotification(data: {
         duration: 10000,
       }
     );
-  } else {
+  } else if (!data.suppressNative) {
     // ── 2. BACKGROUND: Display native OS system notification ──
     const uniqueTag = `sadhana-${data.slot || 'reminder'}-${data.id || Date.now()}`;
     if (_swRegistration) {
@@ -292,7 +293,10 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         submittedToday: hasSubmittedToday(),
       });
     } else if (event.data?.type === 'PUSH_RECEIVED') {
-      triggerInAppOrNativeNotification(event.data);
+      triggerInAppOrNativeNotification({
+        ...event.data,
+        suppressNative: typeof document !== 'undefined' && document.visibilityState !== 'visible',
+      });
     }
   });
 }
@@ -400,7 +404,10 @@ export function connectToNotificationStream(): void {
         lastId = data.id;
       }
       if (data?.type === 'PUSH_RECEIVED') {
-        triggerInAppOrNativeNotification(data);
+        triggerInAppOrNativeNotification({
+          ...data,
+          suppressNative: typeof document !== 'undefined' && document.visibilityState !== 'visible',
+        });
         if (data.slot === 'role_changed' || data.slot === 'guide_changed') {
           window.dispatchEvent(new CustomEvent('pwa_profile_refresh_needed'));
         }

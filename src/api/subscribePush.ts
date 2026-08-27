@@ -16,6 +16,7 @@ export default createEndpoint({
   execute: async ({ input, context }: { input: any; context: any }) => {
     const userId = context.user.id;
     const email = context.user.email || '';
+    const now = new Date().toISOString();
 
     // Check if this exact endpoint already exists for this user
     const existing = await PushSubscriptions.findOne({
@@ -26,9 +27,19 @@ export default createEndpoint({
       // Update keys on existing record
       await PushSubscriptions.update({
         id: existing.id,
-        record: { p256DhKey: input.p256dh, authKey: input.auth, email },
+        record: { p256DhKey: input.p256dh, authKey: input.auth, email, updatedAt: now },
       });
       return { success: true, action: 'updated' as const };
+    }
+
+    // Same browser endpoint may have been saved earlier under another user
+    // key. Remove those stale rows so one Chrome profile receives one push.
+    const existingEndpointRows = await PushSubscriptions.findAll({
+      filters: { endpoint: input.endpoint },
+      limit: 100,
+    });
+    for (const sub of existingEndpointRows.records) {
+      await PushSubscriptions.delete({ id: sub.id });
     }
 
     // New endpoint — delete ALL existing subscriptions for this user first (one-sub-per-user policy)
@@ -48,6 +59,8 @@ export default createEndpoint({
         email,
         p256DhKey: input.p256dh,
         authKey: input.auth,
+        createdAt: now,
+        updatedAt: now,
       },
     });
 

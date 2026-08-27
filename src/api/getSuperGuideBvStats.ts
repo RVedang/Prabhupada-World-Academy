@@ -43,6 +43,58 @@ function isFolkMemberReportUser(user: any): boolean {
   );
 }
 
+function normalizeLookupKey(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getRecordUserKeys(record: any): string[] {
+  const rawValues = [
+    Array.isArray(record?.user) ? record.user[0] : record?.user,
+    Array.isArray(record?.userId) ? record.userId[0] : record?.userId,
+  ];
+  return [...new Set(rawValues.filter(Boolean).map(String))];
+}
+
+function addUserAliases(map: Map<string, any>, user: any) {
+  const aliases = [
+    user?.id,
+    user?.userId,
+    user?.email,
+    user?.phone,
+    user?.uid,
+    user?.authUid,
+    user?.firebaseUid,
+    user?.firebaseUserId,
+    user?.firebaseAuthUid,
+  ];
+
+  for (const alias of aliases) {
+    const key = normalizeLookupKey(alias);
+    if (key) map.set(key, user);
+  }
+}
+
+async function fetchUsersByKeys(keys: string[]): Promise<any[]> {
+  const uniqueKeys = [...new Set(keys.filter(Boolean))];
+  const fields = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const fieldNames = ['id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const results = new Map<string, any>();
+
+  for (let i = 0; i < uniqueKeys.length; i += 30) {
+    const chunk = uniqueKeys.slice(i, i + 30);
+    await Promise.all(fieldNames.map(async field => {
+      const { records } = await Users.findAll({
+        filters: { [field]: { in: chunk } } as any,
+        fields,
+        limit: 2000,
+      }).catch(() => ({ records: [] }));
+      for (const u of records) results.set(u.id || u.userId || u.email || Math.random().toString(36), u);
+    }));
+  }
+
+  return [...results.values()];
+}
+
 export default createEndpoint({
   description: 'Get BV stats for Super Guide — aggregate across all active groups with weekly filtering',
   authenticated: true,
@@ -68,7 +120,7 @@ export default createEndpoint({
     // Fetch all active BV groups
     const { records: allGroups } = await BvGroups.findAll({
       filters: { isActive: true } as any,
-      fields: ['id', 'groupId', 'groupName', 'guide'],
+      fields: ['id', 'groupId', 'groupName', 'guide', 'bvReportingAdminName', 'bvslName', 'guideName'],
       limit: 500,
     });
 
@@ -108,21 +160,32 @@ export default createEndpoint({
     const [membersRes, weekAttRes] = await Promise.all([
       BvGroupMembers.findAll({
         filters: { group: { in: groupIds } } as any,
-        fields: ['id', 'group', 'user'],
+        fields: ['id', 'group', 'user', 'userId'],
         limit: 2000,
       }),
       BvAttendance.findAll({
         filters: { group: { in: groupIds }, attendanceDate: { gte: weekStart, lte: weekEnd } } as any,
-        fields: ['id', 'group', 'user', 'present'],
+        fields: ['id', 'group', 'user', 'userId', 'present'],
         limit: 2000,
       }),
     ]);
 
+    const memberRawUserKeys = membersRes.records.flatMap(getRecordUserKeys);
+    const weekAttendanceRawUserKeys = weekAttRes.records.flatMap(getRecordUserKeys);
+
     // Fetch user info for members (display name, ashray, guide, role, flags)
-    const { records: userRecs } = await Users.findAll({
-      fields: ['id', 'userId', 'fullName', 'email', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
+    const [allUsersRes, keyedUserRecs] = await Promise.all([
+      Users.findAll({
+        fields: ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'guide', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'],
+        limit: 2000,
+      }),
+      fetchUsersByKeys([...memberRawUserKeys, ...weekAttendanceRawUserKeys]),
+    ]);
+
+    const { records: userRecs } = {
+      records: [...allUsersRes.records, ...keyedUserRecs],
       limit: 2000,
-    });
+    };
 
     const userInfoMap = new Map<string, any>();
     const adminUserIds = new Set<string>();
@@ -146,24 +209,46 @@ export default createEndpoint({
         (callerEmail && uEmail === callerEmail);
 
       if (isAdmin) {
-        if (u.id) adminUserIds.add(String(u.id).toLowerCase());
-        if (u.userId) adminUserIds.add(String(u.userId).toLowerCase());
-        if (u.email) adminUserIds.add(String(u.email).toLowerCase());
+        [
+          u.id,
+          u.userId,
+          u.email,
+          u.phone,
+          u.uid,
+          u.authUid,
+          u.firebaseUid,
+          u.firebaseUserId,
+          u.firebaseAuthUid,
+        ].forEach(alias => {
+          const key = normalizeLookupKey(alias);
+          if (key) adminUserIds.add(key);
+        });
       } else {
-        userInfoMap.set(u.id, u);
-        if (u.userId) userInfoMap.set(u.userId, u);
+        addUserAliases(userInfoMap, u);
       }
     }
 
+    const resolveUserKey = (rawKeys: string[]): string => {
+      const matchedKey = rawKeys.find(key => userInfoMap.has(normalizeLookupKey(key)));
+      if (matchedKey) {
+        const user = userInfoMap.get(normalizeLookupKey(matchedKey));
+        return String(user?.id || user?.userId || matchedKey);
+      }
+      return rawKeys[0] || '';
+    };
+
     // Build unique user set per group from members (excluding admin users)
     const usersByGroup = new Map<string, Set<string>>();
+    const userGroupMap = new Map<string, string>();
     for (const m of membersRes.records) {
       const gid = Array.isArray(m.group) ? m.group[0] : m.group as string;
-      const uid = Array.isArray(m.user) ? m.user[0] : m.user as string;
+      const rawUserKeys = getRecordUserKeys(m);
+      const uid = resolveUserKey(rawUserKeys);
       if (!gid || !uid) continue;
-      if (adminUserIds.has(String(uid).toLowerCase())) continue;
+      if (rawUserKeys.some(key => adminUserIds.has(normalizeLookupKey(key))) || adminUserIds.has(normalizeLookupKey(uid))) continue;
       if (!usersByGroup.has(gid)) usersByGroup.set(gid, new Set());
       usersByGroup.get(gid)!.add(uid);
+      userGroupMap.set(uid, gid);
     }
 
     // All unique non-admin users across all groups
@@ -173,9 +258,10 @@ export default createEndpoint({
     // Weekly attendance: userId → { present, groupId } (excluding admin users)
     const attendanceByUser = new Map<string, { present: boolean; groupId: string }>();
     for (const a of weekAttRes.records) {
-      const uid = Array.isArray(a.user) ? a.user[0] : a.user as string;
+      const rawUserKeys = getRecordUserKeys(a);
+      const uid = resolveUserKey(rawUserKeys);
       const gid = Array.isArray(a.group) ? a.group[0] : a.group as string;
-      if (!uid || adminUserIds.has(String(uid).toLowerCase())) continue;
+      if (!uid || rawUserKeys.some(key => adminUserIds.has(normalizeLookupKey(key))) || adminUserIds.has(normalizeLookupKey(uid))) continue;
       attendanceByUser.set(uid, { present: !!(a.present), groupId: gid });
     }
 
@@ -186,13 +272,14 @@ export default createEndpoint({
       while (true) {
         const { records, hasMore } = await BvAttendance.findAll({
           filters: { group: { in: groupIds } } as any,
-          fields: ['id', 'user', 'present'],
+          fields: ['id', 'user', 'userId', 'present'],
           limit: 2000,
           offset,
         });
         const nonAdminRecs = records.filter((a: any) => {
-          const uid = Array.isArray(a.user) ? a.user[0] : a.user as string;
-          return uid && !adminUserIds.has(String(uid).toLowerCase());
+          const rawUserKeys = getRecordUserKeys(a);
+          const uid = resolveUserKey(rawUserKeys);
+          return uid && !rawUserKeys.some(key => adminUserIds.has(normalizeLookupKey(key))) && !adminUserIds.has(normalizeLookupKey(uid));
         });
         allTimeAttendance = allTimeAttendance.concat(nonAdminRecs);
         if (!hasMore) break;
@@ -204,8 +291,9 @@ export default createEndpoint({
     const userTotalPoints = new Map<string, number>(); // attended (present)
     const userTotalSessions = new Map<string, number>(); // any attendance record
     for (const a of allTimeAttendance) {
-      const uid = Array.isArray(a.user) ? a.user[0] : a.user as string;
-      if (!uid || adminUserIds.has(String(uid).toLowerCase())) continue;
+      const rawUserKeys = getRecordUserKeys(a);
+      const uid = resolveUserKey(rawUserKeys);
+      if (!uid || rawUserKeys.some(key => adminUserIds.has(normalizeLookupKey(key))) || adminUserIds.has(normalizeLookupKey(uid))) continue;
       userTotalSessions.set(uid, (userTotalSessions.get(uid) || 0) + 1);
       if (a.present) userTotalPoints.set(uid, (userTotalPoints.get(uid) || 0) + 1);
     }
@@ -276,14 +364,16 @@ export default createEndpoint({
     // ── Leaderboard (sorted by all-time points) ──
     const leaderboard = [...allUserIds]
       .map(uid => {
-        const u = userInfoMap.get(uid);
+        const u = userInfoMap.get(normalizeLookupKey(uid));
         const totalPts = userTotalPoints.get(uid) || 0;
         const totalAtt = userTotalSessions.get(uid) || 0;
-        const guideId = u ? getRefId(u.guide) : null;
+        const groupId = userGroupMap.get(uid) || '';
+        const guideId = u ? (getRefId(u.guide) || groupGuideMap.get(groupId) || null) : (groupGuideMap.get(groupId) || null);
+        const guideName = guideId ? (guideNameMap.get(guideId as string) || groupAdminNameMap.get(groupId) || '') : (groupAdminNameMap.get(groupId) || '');
         return {
           userId: uid,
           displayName: u ? ((u.fullName as string) || uid) : uid,
-          guideName: guideId ? (guideNameMap.get(guideId as string) || '') : '',
+          guideName,
           ashrayLevel: u ? ((u.ashrayLevel as string) || '') : '',
           totalPoints: totalPts,
           attendanceRate: totalAtt > 0 ? Math.round((totalPts / totalAtt) * 100) : 0,
