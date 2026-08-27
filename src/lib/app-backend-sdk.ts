@@ -1,5 +1,5 @@
 import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
 
@@ -109,36 +109,38 @@ function applyFilters(ref: any, filters: any) {
     const val = filters[col];
     if (val === undefined) continue;
 
+    const dbField = col === 'id' ? FieldPath.documentId() : col;
+
     if (val === null) {
-      q = q.where(col, '==', null);
+      q = q.where(dbField, '==', null);
     } else if (typeof val === 'object' && !Array.isArray(val)) {
       const keys = Object.keys(val);
       for (const op of keys) {
         const opVal = val[op];
         if (op === 'in') {
           if (Array.isArray(opVal) && opVal.length > 0) {
-            q = q.where(col, 'in', opVal.slice(0, 30));
+            q = q.where(dbField, 'in', opVal.slice(0, 30));
           } else {
-            q = q.where(col, '==', '__EMPTY_QUERY_RESULT__');
+            q = q.where(dbField, '==', '__EMPTY_QUERY_RESULT__');
           }
         } else if (op === 'notIn' || op === 'not_in') {
           if (Array.isArray(opVal) && opVal.length > 0) {
-            q = q.where(col, 'not-in', opVal.slice(0, 30));
+            q = q.where(dbField, 'not-in', opVal.slice(0, 30));
           }
         } else if (op === 'gte') {
-          q = q.where(col, '>=', opVal);
+          q = q.where(dbField, '>=', opVal);
         } else if (op === 'lte') {
-          q = q.where(col, '<=', opVal);
+          q = q.where(dbField, '<=', opVal);
         } else if (op === 'gt') {
-          q = q.where(col, '>', opVal);
+          q = q.where(dbField, '>', opVal);
         } else if (op === 'lt') {
-          q = q.where(col, '<', opVal);
+          q = q.where(dbField, '<', opVal);
         } else if (op === 'neq' || op === 'ne') {
-          q = q.where(col, '!=', opVal);
+          q = q.where(dbField, '!=', opVal);
         }
       }
     } else {
-      q = q.where(col, '==', val);
+      q = q.where(dbField, '==', val);
     }
   }
   return q;
@@ -410,7 +412,7 @@ export class Table {
           let q = db.collection(this.tableName);
 
           if (query.id) {
-            q = q.where('id', '==', query.id);
+            q = q.where(FieldPath.documentId(), '==', query.id);
           } else if (query.filters) {
             q = applyFilters(q, query.filters);
           }

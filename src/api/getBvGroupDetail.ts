@@ -13,6 +13,11 @@ function getRecordUserKeys(record: any): string[] {
   return [...new Set(rawValues.filter(Boolean).map(String))];
 }
 
+function firstValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return String(value || '');
+}
+
 function addUserToMap(userMap: Record<string, any>, user: any) {
   [
     user?.id,
@@ -32,7 +37,11 @@ function addUserToMap(userMap: Record<string, any>, user: any) {
 
 async function findUsersForKeys(keys: string[]): Promise<any[]> {
   const uniqueKeys = [...new Set(keys.filter(Boolean))];
-  const fields = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const fields = [
+    'id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'status',
+    'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'isBvMember',
+    'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid',
+  ];
   const lookupFields = ['id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
   const results = new Map<string, any>();
 
@@ -100,9 +109,20 @@ export default createEndpoint({
       return { rawKeys, user, canonicalId };
     };
 
+    const groupAliases = new Set([group.id, group.groupId].filter(Boolean).map(value => normalizeKey(value)));
+    const activeMemberships = membersRes.records
+      .map((m: any) => {
+        const resolved = resolveMember(m);
+        const profileGroupId = normalizeKey(firstValue(resolved.user?.bvGroupId));
+        const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : !!resolved.user?.isBvMember;
+        const isActiveUser = !resolved.user?.status || String(resolved.user.status).toLowerCase() === 'active';
+        const isActiveMember = !!resolved.user && isActiveUser && !!resolved.user?.isBvMember && isCurrentGroup;
+        return { record: m, resolved, isActiveMember };
+      })
+      .filter(item => item.isActiveMember);
+
     const memberKeyToCanonical = new Map<string, string>();
-    for (const m of membersRes.records) {
-      const resolved = resolveMember(m);
+    for (const { resolved } of activeMemberships) {
       for (const key of resolved.rawKeys) memberKeyToCanonical.set(normalizeKey(key), resolved.canonicalId);
     }
 
@@ -122,13 +142,13 @@ export default createEndpoint({
       attendanceStats.set(canonicalId, stats);
     }
 
-    const members = membersRes.records.map((m: any) => {
-      const { user: u, canonicalId, rawKeys } = resolveMember(m);
+    const members = activeMemberships.map(({ record: m, resolved }) => {
+      const { user: u, canonicalId } = resolved;
       const stats = attendanceStats.get(canonicalId) || { presentCount: 0, totalCount: 0, lastPresent: '' };
       return {
         membershipId: m.id,
         userId: u?.userId || u?.id || canonicalId,
-        fullName: u?.fullName || rawKeys[0] || 'Unknown member',
+        fullName: u?.fullName || 'Unknown member',
         phone: u?.phone || '',
         ashrayLevel: u?.ashrayLevel || null,
         presentCount: stats.presentCount,

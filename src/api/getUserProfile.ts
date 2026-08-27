@@ -96,9 +96,9 @@ export default createEndpoint({
 
     if (!userRecord?.userId) return { user: null };
 
-    // A real BvGroupMembers record is the sole source of truth for membership.
-    // Profile flags can become stale after a member leaves or is removed, and
-    // must never keep the Attendance tab visible by themselves.
+    // Current membership requires both a real BvGroupMembers row and a profile
+    // that still agrees the user belongs to that group. This prevents stale
+    // legacy membership rows from re-enabling Attendance after removal.
     const userIdentities = [...new Set([
       context.user.id,
       userRecord.id,
@@ -116,7 +116,14 @@ export default createEndpoint({
         limit: 5,
       }).catch(() => ({ records: [] })),
     ]);
-    const membership = byUser.records[0] || byUserId.records[0];
+    const rawMembership = byUser.records[0] || byUserId.records[0];
+    const rawGroupId = rawMembership
+      ? (Array.isArray(rawMembership.group) ? rawMembership.group[0] : (rawMembership.group || rawMembership.groupId || ''))
+      : '';
+    const profileGroupId = Array.isArray(userRecord.bvGroupId) ? userRecord.bvGroupId[0] : userRecord.bvGroupId;
+    const profileAllowsMembership = !!userRecord.isBvMember &&
+      (!profileGroupId || !rawGroupId || profileGroupId === rawGroupId);
+    const membership = profileAllowsMembership ? rawMembership : null;
     const hasBvMembership = !!membership;
     const groupId = membership
       ? (Array.isArray(membership.group) ? membership.group[0] : (membership.group || membership.groupId || ''))

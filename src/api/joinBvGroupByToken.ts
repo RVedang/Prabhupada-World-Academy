@@ -89,10 +89,16 @@ export default createEndpoint({
       },
     });
 
-    // Clear sadhana mentor
+    // Keep the profile in sync with the real membership row.
     await Users.update({
       id: context.user.id,
-      record: { sadhanaMentor: null },
+      record: {
+        bvGroupId: group.id,
+        bvGroupName: group.groupName || '',
+        bvRegistrationStatus: 'Approved',
+        isBvMember: true,
+        sadhanaMentor: null,
+      },
     });
 
     return { success: true, alreadyMember: false, groupName: group.groupName || null, error: null };

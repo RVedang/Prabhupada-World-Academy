@@ -15,6 +15,17 @@ const ASHRAY_RANK: Record<string, number> = {
   'Sadhaka': 4, 'Sevak': 5, 'Shraddhavan': 6, 'Jigyasa': 7,
 };
 
+function firstValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return String(value || '');
+}
+
+function getResidentState(user: any) {
+  const residencyId = firstValue(user?.residency);
+  const isResident = !!((user?.residencyApproved || user?.residencyGuideVerified) && residencyId);
+  return { residencyId, isResident };
+}
+
 export default createEndpoint({
   description: 'Get sadhana leaderboard — submitted users only, ranked by weighted score, guide roles excluded',
   authenticated: true,
@@ -31,6 +42,8 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
+    const sessionUserId = String(input.userId || context.user.userId || context.user.id || '');
+    const sessionEmail = String(context.user.email || '').toLowerCase();
     const todayStr = getTodayIST();
     const startStr = (input.startDate || input.date || todayStr).split('T')[0];
     const endStr   = (input.endDate   || input.date || todayStr).split('T')[0];
@@ -60,14 +73,12 @@ export default createEndpoint({
     }
 
     if (allEntries.length === 0) {
-      const currentUserResidencyId = Array.isArray(context.user.residency)
-        ? context.user.residency[0] : context.user.residency;
-      const currentUserIsResident = !!(context.user.residencyApproved && currentUserResidencyId);
+      const { residencyId: currentUserResidencyId, isResident: currentUserIsResident } = getResidentState(context.user);
       return {
         leaderboard: [], total: 0, totalDays,
         currentUserAshrayLevel: context.user.ashrayLevel || '',
         currentUserResidency: '', currentUserIsResident,
-        currentUserGuideId: Array.isArray(context.user.guide) ? (context.user.guide[0] || '') : (context.user.guide || ''),
+        currentUserGuideId: firstValue(context.user.guide),
       };
     }
 
@@ -182,6 +193,24 @@ export default createEndpoint({
     }
 
     const userMap = new Map(allUsers.map(u => [u.id, u]));
+    const currentUserRecord =
+      allUsers.find((u: any) =>
+        u.id === sessionUserId ||
+        u.userId === sessionUserId ||
+        String(u.email || '').toLowerCase() === sessionEmail
+      ) ||
+      (sessionUserId
+        ? await Users.findOne({
+            filters: { userId: sessionUserId } as any,
+            fields: [...USER_FIELDS, 'email', 'residencyGuideVerified'],
+          }).catch(() => null)
+        : null) ||
+      (sessionEmail
+        ? await Users.findOne({
+            filters: { email: sessionEmail } as any,
+            fields: [...USER_FIELDS, 'email', 'residencyGuideVerified'],
+          }).catch(() => null)
+        : null);
 
     // ── Build leaderboard entries ─────────────────────────────────────────
     const leaderboard = allUsers
@@ -284,20 +313,18 @@ export default createEndpoint({
       folkTotals[resName] = (folkTotals[resName] || 0) + 1;
     }
 
-    const currentUserResidencyId = Array.isArray(context.user.residency)
-      ? context.user.residency[0] : context.user.residency;
-    const currentUserIsResident = !!(context.user.residencyApproved && currentUserResidencyId);
+    const currentUserSource = currentUserRecord || context.user;
+    const { residencyId: currentUserResidencyId, isResident: currentUserIsResident } = getResidentState(currentUserSource);
     const currentUserResidency  = currentUserIsResident && currentUserResidencyId
       ? (residencyNameMap[currentUserResidencyId] || currentUserResidencyId) : '';
-    const currentUserGuideId    = Array.isArray(context.user.guide)
-      ? (context.user.guide[0] || '') : (context.user.guide || '');
+    const currentUserGuideId    = firstValue(currentUserSource.guide);
 
     return {
       leaderboard,
       total: leaderboard.length,
       totalDays,
       folkTotals,
-      currentUserAshrayLevel: context.user.ashrayLevel || '',
+      currentUserAshrayLevel: currentUserSource.ashrayLevel || context.user.ashrayLevel || '',
       currentUserResidency,
       currentUserIsResident,
       currentUserGuideId,
