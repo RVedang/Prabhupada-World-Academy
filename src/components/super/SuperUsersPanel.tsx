@@ -819,8 +819,19 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                       <td className="px-3 py-2 text-xs text-muted-foreground">{fmt.date(u.latestEntryDate)}</td>
                       {!isPwAdmin && (
                         <>
-                          <td className="px-3 py-2 text-center">
-                            {isResident ? <Home className="w-4 h-4 text-primary inline" /> : <span className="text-muted-foreground text-xs">—</span>}
+                          <td className="px-3 py-2">
+                            {isResident ? (
+                              <span className="inline-flex max-w-[160px] items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
+                                <Home className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">
+                                  {u.residencyName
+                                    ? String(u.residencyName).replace(/^FOLK\s+/i, '')
+                                    : 'Resident'}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Non-Resident</span>
+                            )}
                           </td>
                           {/* 1. Sadhana Mentor */}
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>

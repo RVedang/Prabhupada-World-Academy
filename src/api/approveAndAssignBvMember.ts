@@ -7,12 +7,15 @@ const isSyntheticId = (id: string) => id.startsWith('BVREG-');
 import { profileCacheKey } from './getUserProfile';
 
 export default createEndpoint({
-  description: 'Approve pending Bhakti Vriksha member registration and assign them to a Reading Group — Admin or Supervisor access',
+  description: 'Approve a Bhakti Vriksha registration, optionally assigning a Reading Group — Admin or Supervisor access',
   authenticated: true,
   requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     registrationId: z.string(),
-    groupId: z.string(),
+    // Group assignment is intentionally optional.  Approval and BV membership
+    // are separate steps so the first RGF/group can be created after users are
+    // approved (breaking the guide -> RGF -> group -> approval deadlock).
+    groupId: z.string().optional(),
   }),
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }: any) => {
@@ -56,8 +59,10 @@ export default createEndpoint({
       reg = { id: null, userId: userRec.id, email: userRec.email || '' };
     }
 
-    const group = await BvGroups.findOne({ id: input.groupId });
-    if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Selected Reading Group not found' });
+    const group = input.groupId
+      ? await BvGroups.findOne({ id: input.groupId })
+      : null;
+    if (input.groupId && !group) throw new AppError({ code: 'NOT_FOUND', message: 'Selected Reading Group not found' });
 
     const now = new Date().toISOString();
 
@@ -67,34 +72,22 @@ export default createEndpoint({
         id: reg.id,
         record: {
           status: 'Approved',
-          assignedGroupId: group.id,
-          assignedGroupName: group.groupName || '',
+          ...(group ? {
+            assignedGroupId: group.id,
+            assignedGroupName: group.groupName || '',
+          } : {
+            assignedGroupId: null,
+            assignedGroupName: '',
+          }),
           approvedBy: context.user.id,
           approvedAt: now,
         },
       });
     }
 
-    // 2. Add member to group
-    // reg.userId may be either a userId or a user DB id; normalise below
+    // Resolve the applicant once. reg.userId may be either a userId or a user
+    // DB id. This is also used for approval-only (unassigned) registrations.
     const memberUserId = reg.userId || input.registrationId.replace(/^BVREG-/, '');
-    const memberRecordId = `BVMEM-${memberUserId}-${group.id}`;
-    const existingMember = await BvGroupMembers.findOne({ id: memberRecordId }).catch(() => null);
-    if (!existingMember) {
-      await BvGroupMembers.create({
-        record: {
-          id: memberRecordId,
-          group: group.id,
-          user: memberUserId,
-          groupId: group.id,
-          userId: memberUserId,
-          role: 'Member',
-          joinedAt: now,
-        },
-      });
-    }
-
-    // 3. Update main User record & establish reporting parent (RGF)
     let targetUser = await Users.findOne({ id: memberUserId }).catch(() => null);
     if (!targetUser) {
       targetUser = await Users.findOne({ filters: { userId: memberUserId } }).catch(() => null) ||
@@ -102,7 +95,25 @@ export default createEndpoint({
                    await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } }).catch(() => null);
     }
 
-    if (targetUser) {
+    if (targetUser && group) {
+      // 2. Add member to group
+      const memberRecordId = `BVMEM-${memberUserId}-${group.id}`;
+      const existingMember = await BvGroupMembers.findOne({ id: memberRecordId }).catch(() => null);
+      if (!existingMember) {
+        await BvGroupMembers.create({
+          record: {
+            id: memberRecordId,
+            group: group.id,
+            user: memberUserId,
+            groupId: group.id,
+            userId: memberUserId,
+            role: 'Member',
+            joinedAt: now,
+          },
+        });
+      }
+
+      // 3. Update main User record & establish reporting parent (RGF)
       // Find Reading Group Facilitator (RGF) for the group
       const rawRgfId = Array.isArray(group.bvslLeader) ? group.bvslLeader[0] : (group.bvslLeader || group.bvslId || group.guide);
       let rgfUser: any = null;
@@ -138,6 +149,21 @@ export default createEndpoint({
           guide: rgfAdminId || callerRecord.id, // Ensures Admin's member list includes this user
           pendingBvApprovalNotice: true,      // ← triggers popup on user's next login
           sadhanaMentor: null,                // Clear sadhana mentor upon BV approval
+        },
+      });
+      serverCacheInvalidate(profileCacheKey(targetUser.id));
+    } else if (targetUser) {
+      // Approval without a group deliberately does not make the user a BV
+      // member. Attendance and group reports remain hidden until assignment.
+      await Users.update({
+        id: targetUser.id,
+        record: {
+          bvRegistrationStatus: 'Approved',
+          isBvMember: false,
+          bvGroupId: '',
+          bvGroupName: '',
+          // Do not show the “joined group” notice until a group is assigned.
+          pendingBvApprovalNotice: false,
         },
       });
       serverCacheInvalidate(profileCacheKey(targetUser.id));

@@ -148,6 +148,23 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
     }
   };
 
+  const handleApproveWithoutGroup = async () => {
+    if (!selectedReg) return;
+    setAssigning(true);
+    try {
+      await approveAndAssignBvMember({ registrationId: selectedReg.id });
+      toast.success(`Approved ${selectedReg.fullName}. Group assignment can be completed later.`);
+      setSelectedReg(null);
+      setTargetGroupId('');
+      setShowAllGroups(false);
+      loadData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to approve registration');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-12 text-center space-y-3">
@@ -299,7 +316,7 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
 
               <div className="space-y-1.5 min-w-0">
                 <div className="flex flex-wrap justify-between items-center gap-2">
-                  <label className="text-sm font-semibold">Select Reading Group *</label>
+                  <label className="text-sm font-semibold">Select Reading Group <span className="text-muted-foreground font-normal">(optional)</span></label>
                   {selectedReg.timePreference && selectedReg.timePreference !== 'Flexible' && (
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
                       <input
@@ -367,6 +384,15 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
               <Button onClick={handleApprove} disabled={assigning || !targetGroupId} className="whitespace-nowrap">
                 {assigning && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
                 Confirm Approval & Assign
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleApproveWithoutGroup}
+                disabled={assigning}
+                className="whitespace-nowrap"
+              >
+                {assigning && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+                Approve Without Group
               </Button>
             </DialogFooter>
           </DialogContent>
