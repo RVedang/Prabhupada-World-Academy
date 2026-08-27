@@ -270,7 +270,7 @@ export default function FolkGuideDashboard() {
             )}
             {(visitedTabs.has('bhakti-vriksha') || visitedTabs.has('bv-registrations') || visitedTabs.has('bv-admins')) && (
               <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations' || activeTab === 'bv-admins') ? 'space-y-8 block' : 'hidden'}>
-                <SuperBvRegistrationsTab segment="FOLK" />
+                <SuperBvRegistrationsTab segment="FOLK" guideId={guideId} isSuperGuide={isSuperAdmin} />
                 <div className="pt-6 border-t border-border">
                   <div className="mb-4">
                     <h2 className="text-lg font-bold text-foreground">Bhakti Vriksha Groups & Roles</h2>

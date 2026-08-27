@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { createEndpoint, BvMemberRegistrations, BvGroupMembers, Users, AppError } from '@/lib/backend-sdk';
 
+const formatPhone = (phone?: string) => {
+  if (!phone) return '';
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length > 10 && !phone.startsWith('+')) {
+    return `+${phone}`;
+  }
+  return phone;
+};
+
 export default createEndpoint({
   description: 'Get pending Bhakti Vriksha member registrations filtered by Firestore roles and segment',
   authenticated: true,
@@ -90,7 +99,7 @@ export default createEndpoint({
           userDbId: u.id,
           email: u.email || '',
           fullName: u.fullName || u.email || 'Devotee',
-          phone: u.phone || '',
+          phone: formatPhone(u.phone),
           ashrayLevel: u.ashrayLevel || 'None',
           pwClassesAttending: u.pwClassesAttending || 'None',
           timePreference: u.timePreference || '7:45 PM – 8:15 PM (Everyday)',

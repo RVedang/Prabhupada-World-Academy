@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, Users, CheckCircle2, Clock, Leaf, Phone, HeartHandshake, BookOpen, Calendar, Building } from 'lucide-react';
-import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, rejectBvRegistration, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
+import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, getAllBvGroupsAdmin, rejectBvRegistration, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
 const normalizeTimeSlot = (str: string) => {
   if (!str) return '';
@@ -38,13 +38,13 @@ const isTimeSlotMatch = (pref: string, groupTime: string) => {
   return false;
 };
 
-export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 'FOLK' }) {
+export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuperGuide = false }: { segment?: 'PW' | 'FOLK'; guideId?: string; isSuperGuide?: boolean }) {
   const cachedRegs = getClientCachedQuery('getPendingBvRegistrations', { segment });
   const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
-  const hasCache = cachedRegs !== null && cachedGroups !== null;
+  const hasCache = cachedRegs !== null && (isSuperGuide ? cachedGroups !== null : false);
 
   const [registrations, setRegistrations] = useState<any[]>(cachedRegs || []);
-  const [allGroupsState, setAllGroupsState] = useState<any[]>(cachedGroups?.groups || []);
+  const [allGroupsState, setAllGroupsState] = useState<any[]>(isSuperGuide ? (cachedGroups?.groups || []) : []);
   const [loading, setLoading] = useState(!hasCache);
 
   const [selectedReg, setSelectedReg] = useState<any | null>(null);
@@ -82,16 +82,25 @@ export default function SuperBvRegistrationsTab({ segment }: { segment?: 'PW' | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedReg?.id, selectedReg?.timePreference, selectedReg?.segment, segment, showAllGroups, allGroupsState]);
 
-  useEffect(() => {
-    loadData();
-  }, [segment]);
+  useEffect(() => { loadData(); }, [segment, guideId, isSuperGuide]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [regs, grpRes] = await Promise.all([
         getPendingBvRegistrations({ segment }),
-        getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
+        !isSuperGuide && guideId
+          ? getAllBvGroupsAdmin({ guideId }).then((result: any) => ({
+              groups: (result.groups || []).map((g: any) => ({
+                ...g,
+                id: g.groupDbId || g.groupId,
+                groupId: g.groupId,
+                bvslName: g.bvslName || g.bvslLeaderName || null,
+                totalSessions: g.totalSessions ?? g.sessionCount ?? 0,
+              })),
+            }))
+          : (isSuperGuide ? getBvslGroups({ bvslId: 'ALL' }) : Promise.resolve({ groups: [] }))
+              .catch(() => ({ groups: [] })),
       ]);
       setRegistrations(regs || []);
       setAllGroupsState(grpRes.groups || []);

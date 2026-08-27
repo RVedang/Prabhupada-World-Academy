@@ -19,6 +19,15 @@ const ENTRY_TODAY_FIELDS = ['id', 'user', 'entryDate'];
 // Minimal fields for residency
 const RESIDENCY_FIELDS = ['id', 'residencyId', 'residencyName'];
 
+const formatPhone = (phone?: string) => {
+  if (!phone) return '';
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length > 10 && !phone.startsWith('+')) {
+    return `+${phone}`;
+  }
+  return phone;
+};
+
 export default createEndpoint({
   description: 'Get all users for a guide — optimized with parallel queries and field selection',
   authenticated: true,
@@ -293,7 +302,7 @@ export default createEndpoint({
           userId: u.id,
           userDbId: u.userId || u.id,
           fullName: u.fullName || '',
-          phone: u.phone || '',
+          phone: formatPhone(u.phone),
           email: u.email || '',
           role: normalizeRole(u.role || 'User'),
           status: normalizeStatus(u.status || 'Pending Approval'),
@@ -338,7 +347,7 @@ export default createEndpoint({
           userId: u.id,
           userDbId: u.userId || u.id,
           fullName: u.fullName || '',
-          phone: u.phone || '',
+          phone: formatPhone(u.phone),
           email: u.email || '',
           role: normalizeRole(u.role || 'User'),
           status: normalizeStatus(u.status || 'Pending Approval'),

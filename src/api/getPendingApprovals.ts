@@ -117,11 +117,20 @@ export default createEndpoint({
       const rawGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
       const uGuideId = rawGuideId ? (guideLookup.get(String(rawGuideId).toLowerCase()) || rawGuideId) : null;
 
+      const rawPhone = u.phone || '';
+      let formattedPhone = rawPhone;
+      if (rawPhone) {
+        const cleanPhone = rawPhone.replace(/\D/g, '');
+        if (cleanPhone.length > 10 && !rawPhone.startsWith('+')) {
+          formattedPhone = `+${rawPhone}`;
+        }
+      }
+
       return {
         userId: u.id,
         rowId: u.id,
         fullName: u.fullName || '',
-        phone: u.phone || '',
+        phone: formattedPhone,
         email: u.email || '',
         ashrayLevel: u.ashrayLevel || null,
         residencyUserClaim: u.residencyClaimed || false,

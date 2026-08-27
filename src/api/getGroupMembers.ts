@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, Users, AppError } from '@/lib/backend-sdk';
 
+const formatPhone = (phone?: string) => {
+  if (!phone) return '';
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length > 10 && !phone.startsWith('+')) {
+    return `+${phone}`;
+  }
+  return phone;
+};
+
 function firstValue(value: unknown): string {
   if (Array.isArray(value)) return String(value[0] || '');
   return String(value || '');
@@ -95,7 +104,7 @@ export default createEndpoint({
           membershipId: m.id,
           userId: u.userId || u.id || uid,
           fullName: u.fullName || '',
-          phone: u.phone || '',
+          phone: formatPhone(u.phone),
           ashrayLevel: u.ashrayLevel || null,
           currentStreak: u.currentStreak ?? 0,
           role: m.role || 'Member',

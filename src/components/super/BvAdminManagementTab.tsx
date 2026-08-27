@@ -42,8 +42,8 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const cachedGuides = getClientCachedQuery('getGuides', { segment });
   const hasCache = cachedGroups !== null && cachedGuides !== null;
 
-  const [groups, setGroups] = useState<any[]>(cachedGroups?.groups || []);
-  const [guides, setGuides] = useState<any[]>(cachedGuides?.guides || []);
+  const [groups, setGroups] = useState<any[]>(isSuperAdmin ? (cachedGroups?.groups || []) : []);
+  const [guides, setGuides] = useState<any[]>(isSuperAdmin ? (cachedGuides?.guides || []) : []);
   const [loading, setLoading] = useState(!hasCache);
 
   // Group creation modal state
@@ -59,13 +59,20 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const loadData = async () => {
     setLoading(true);
     try {
-      if (!isSuperAdmin && guideId) {
+      if (!isSuperAdmin) {
+        if (!guideId) {
+          // Never fall back to the super-guide list while the current guide
+          // identity is still resolving.
+          setGroups([]);
+          setGuides([]);
+          return;
+        }
         // Guide view is server-scoped to this guide. Do not load every FOLK
         // group and attempt to hide unrelated groups in the browser.
         const scoped = await getAllBvGroupsAdmin({ guideId });
         setGroups((scoped.groups || []).map((g: any) => ({
           ...g,
-          id: g.groupId,
+          id: g.groupDbId || g.groupId,
           groupId: g.groupId,
           totalSessions: g.totalSessions ?? g.sessionCount ?? 0,
           bvslName: g.bvslName || g.bvslLeaderName || null,

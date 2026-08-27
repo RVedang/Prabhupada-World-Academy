@@ -17,6 +17,7 @@ export default createEndpoint({
     })),
     groups: z.array(z.object({
       groupId: z.string(),
+      groupDbId: z.string().optional(),
       groupName: z.string(),
       description: z.string(),
       isActive: z.boolean(),
@@ -40,35 +41,65 @@ export default createEndpoint({
     let guideDbId: string | null = null;
 
     // Step 1: Try direct Guides-table lookup by UUID
-    const directGuideRec = await Guides.findOne({ id: input.guideId, fields: ['id'] }).catch(() => undefined);
+    const directGuideRec = await Guides.findOne({ id: input.guideId, fields: ['id', 'fullName', 'email', 'guideId'] }).catch(() => undefined);
     if (directGuideRec) {
       guideDbId = directGuideRec.id;
     } else {
       // Step 2: Try as a Users-table UUID — look up their email, then find the Guides record
       const guideUser = await Users.findOne({ id: input.guideId, fields: ['id', 'email'] }).catch(() => undefined);
       if (guideUser?.email) {
-        const guideByEmail = await Guides.findOne({ filters: { email: guideUser.email }, fields: ['id'] });
+        const guideByEmail = await Guides.findOne({ filters: { email: guideUser.email }, fields: ['id', 'fullName', 'email', 'guideId'] });
         if (guideByEmail) guideDbId = guideByEmail.id;
       }
 
       // Step 3: Fallback — try legacy custom guideId string field
       if (!guideDbId) {
-        const guideByCustomId = await Guides.findOne({ filters: { guideId: input.guideId }, fields: ['id'] });
+        const guideByCustomId = await Guides.findOne({ filters: { guideId: input.guideId }, fields: ['id', 'fullName', 'email', 'guideId'] });
         if (guideByCustomId) guideDbId = guideByCustomId.id;
       }
     }
 
     if (!guideDbId) return { bvsls: [], groups: [], error: null };
 
-    const { records: groupRecords } = await BvGroups.findAll({
-      filters: { guide: guideDbId, isActive: true },
+    const resolvedGuide = await Guides.findOne({
+      id: guideDbId,
+      fields: ['id', 'fullName', 'email', 'guideId'],
+    }).catch(() => undefined);
+
+    const { records: allGroupRecords } = await BvGroups.findAll({
+      // Fetch active groups with a single filter and apply the guide/RGF
+      // relationship in memory to avoid a deployment-time composite-index
+      // failure.
+      filters: { isActive: true },
       limit: 500,
     });
 
-    const { records: bvslUserRecords } = await Users.findAll({
-      filters: { guide: guideDbId, isBvsl: true },
-      limit: 200,
-      fields: ['id', 'userId', 'fullName'],
+    // Resolve active RGFs from the Users table, then match every legacy guide
+    // representation (Guide ID, custom ID, name, or email).
+    const guideAliases = new Set([
+      guideDbId,
+      (resolvedGuide as any)?.fullName,
+      (resolvedGuide as any)?.email,
+      (resolvedGuide as any)?.guideId,
+      input.guideId,
+    ].filter(Boolean).map(value => String(value).trim().toLowerCase()));
+    const { records: allBvslUsers } = await Users.findAll({
+      // Keep this a single-field query; filtering both status and isBvsl can
+      // require a composite index that may not exist immediately after deploy.
+      filters: { status: 'Active' },
+      limit: 1000,
+      fields: ['id', 'userId', 'fullName', 'guide', 'selectedGuideId', 'guideName', 'role', 'isBvsl', 'isBvFacilitator'],
+    });
+    const bvslUserRecords = allBvslUsers.filter((u: any) => {
+      if (u.isBvsl !== true && String(u.role || '').toUpperCase() !== 'BVSL' && u.isBvFacilitator !== true) return false;
+      const values = [u.guide, u.selectedGuideId, u.guideName].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean);
+      return values.some(value => guideAliases.has(String(value).trim().toLowerCase()));
+    });
+    const rgfAliases = new Set(bvslUserRecords.flatMap((u: any) => [u.id, u.userId]).filter(Boolean).map((v: any) => String(v).toLowerCase()));
+    const groupRecords = allGroupRecords.filter((g: any) => {
+      const groupGuide = Array.isArray(g.guide) ? g.guide[0] : g.guide;
+      const facilitator = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId);
+      return guideAliases.has(String(groupGuide || '').toLowerCase()) || rgfAliases.has(String(facilitator || '').toLowerCase());
     });
 
     const groups = await Promise.all(groupRecords.map(async (g) => {
@@ -103,6 +134,7 @@ export default createEndpoint({
 
       return {
         groupId: g.groupId || g.id,
+        groupDbId: g.id,
         groupName: g.groupName || '',
         description: g.description || '',
         isActive: g.isActive ?? true,

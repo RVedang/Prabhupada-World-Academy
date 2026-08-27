@@ -23,6 +23,15 @@ function computeWeeks(s: string, e: string) {
   return weeks;
 }
 
+const formatPhone = (phone?: string) => {
+  if (!phone) return '';
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length > 10 && !phone.startsWith('+')) {
+    return `+${phone}`;
+  }
+  return phone;
+};
+
 async function fetchAll<T>(fn: (off: number) => Promise<{ records: T[]; hasMore: boolean }>): Promise<T[]> {
   const all: T[] = []; let off = 0;
   while (true) { const { records, hasMore } = await fn(off); all.push(...records); if (!hasMore || !records.length) break; off += records.length; }
@@ -32,7 +41,7 @@ async function fetchAll<T>(fn: (off: number) => Promise<{ records: T[]; hasMore:
 type UserResult = { userId: string; fullName: string; phone: string; email: string; detail?: string };
 type AnyUser = { id: string; fullName?: string; phone?: string; email?: string; isB?: boolean; isBvsl?: boolean; residencyApproved?: boolean; isOtherCenter?: boolean };
 function toUser(u: AnyUser, detail?: string): UserResult {
-  return { userId: u.id, fullName: u.fullName || '', phone: u.phone || '', email: u.email || '', ...(detail != null ? { detail } : {}) };
+  return { userId: u.id, fullName: u.fullName || '', phone: formatPhone(u.phone), email: u.email || '', ...(detail != null ? { detail } : {}) };
 }
 
 export default createEndpoint({

@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { createEndpoint, Users, Guides, BvGroups, BvGroupMembers, FolkResidencies } from '@/lib/backend-sdk';
 
+const formatPhone = (phone?: string) => {
+  if (!phone) return '';
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length > 10 && !phone.startsWith('+')) {
+    return `+${phone}`;
+  }
+  return phone;
+};
+
 export default createEndpoint({
   description: 'Get members for BVSL groups',
   authenticated: true,
@@ -120,7 +129,7 @@ export default createEndpoint({
           return {
             userId: u.userId || uid || '',
             fullName: (u.fullName as string) || '',
-            phone: u.phone || '',
+            phone: formatPhone(u.phone),
             ashrayLevel: (u.ashrayLevel as string) || null,
             email: (u.email as string) || '',
             groupName: groupMap[gid] || '',
@@ -174,7 +183,7 @@ export default createEndpoint({
       return {
         userId: (u.userId as string) || u.id,
         fullName: (u.fullName as string) || '',
-        phone: u.phone || '',
+        phone: formatPhone(u.phone),
         ashrayLevel: (u.ashrayLevel as string) || null,
         email: (u.email as string) || '',
         groupName: '',
