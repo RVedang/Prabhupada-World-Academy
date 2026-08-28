@@ -15,7 +15,6 @@ import { format } from 'date-fns';
 import { invalidateUserDashboardCache } from '@/utils/cache';
 import type { GetUserBvStatusOutputType, GetBvAttendanceOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import BvCalendarView from '@/components/bv/BvCalendarView';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvQuizSection from '@/components/bv/BvQuizSection';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
@@ -31,7 +30,6 @@ export default function BvTab({ userId, segment }: Props) {
   const [attendance, setAttendance] = useState<BvAttendance | null>(null);
   const [loading, setLoading] = useState(true);
   const [leavingGroup, setLeavingGroup] = useState(false);
-  const [quizDates, setQuizDates] = useState<{ date: string; percentage: number }[]>([]);
   const [regModalOpen, setRegModalOpen] = useState(false);
 
   useEffect(() => { if (userId) load(); }, [userId]);
@@ -173,10 +171,7 @@ export default function BvTab({ userId, segment }: Props) {
 
       {/* Group quizzes — visible to active members of their reading group */}
       {status?.myGroup && (
-        <BvQuizSection
-          userId={userId}
-          onQuizDatesChange={setQuizDates}
-        />
+        <BvQuizSection userId={userId} />
       )}
 
       {/* Attendance Stats (only if in a group) */}
@@ -216,11 +211,6 @@ export default function BvTab({ userId, segment }: Props) {
             </CardContent>
           </Card>
         </div>
-      )}
-
-      {/* Calendar (only if in a group) */}
-      {status?.myGroup && attendance && (
-        <BvCalendarView history={attendance.userHistory} quizDates={quizDates} />
       )}
 
       {/* Leaderboard (only if in a group) */}

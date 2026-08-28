@@ -3,27 +3,39 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Flame, Calendar, ClipboardCheck, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { Flame, Calendar, ClipboardCheck, ChevronLeft, ChevronRight, CalendarDays, BookOpenCheck } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isBefore, startOfDay } from 'date-fns';
-import { getUserAttendanceCalendar } from '@/lib/endpoints-sdk';
+import { getMyBvQuizSubmissions, getUserAttendanceCalendar } from '@/lib/endpoints-sdk';
 import { fmt } from '@/lib/fmt';
 
 interface Props { userId: string; }
 
 export default function AttendanceTab({ userId }: Props) {
   const [data, setData] = useState<any>(null);
+  const [quizDates, setQuizDates] = useState<{ date: string; percentage: number; quizTitle?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const fetchAttendance = () => {
-    getUserAttendanceCalendar({}).then(setData).catch(() => {}).finally(() => setLoading(false));
+  const fetchAttendance = async () => {
+    try {
+      const [attendance, quizzes] = await Promise.all([
+        getUserAttendanceCalendar({}),
+        getMyBvQuizSubmissions({}),
+      ]);
+      setData(attendance);
+      setQuizDates((quizzes.quizDates || []) as { date: string; percentage: number; quizTitle?: string }[]);
+    } catch {
+      // Keep the attendance tab usable even if no quizzes have been assigned.
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchAttendance();
     window.addEventListener('attendanceUpdated', fetchAttendance);
     return () => window.removeEventListener('attendanceUpdated', fetchAttendance);
-  }, []);
+  }, [userId]);
 
   if (loading) {
     return (
@@ -75,6 +87,7 @@ export default function AttendanceTab({ userId }: Props) {
       {/* Calendar heatmap */}
       <AttendanceCalendar
         attendanceMap={attendanceMap}
+        quizDates={quizDates}
         currentMonth={currentMonth}
         onMonthChange={setCurrentMonth}
       />
@@ -116,8 +129,9 @@ export default function AttendanceTab({ userId }: Props) {
   );
 }
 
-function AttendanceCalendar({ attendanceMap, currentMonth, onMonthChange }: {
+function AttendanceCalendar({ attendanceMap, quizDates, currentMonth, onMonthChange }: {
   attendanceMap: Map<string, boolean>;
+  quizDates: { date: string; percentage: number; quizTitle?: string }[];
   currentMonth: Date;
   onMonthChange: (d: Date) => void;
 }) {
@@ -129,6 +143,7 @@ function AttendanceCalendar({ attendanceMap, currentMonth, onMonthChange }: {
   const today = format(new Date(), 'yyyy-MM-dd');
 
   const monthAttendedCount = calendarDays.filter(d => attendanceMap.get(format(d, 'yyyy-MM-dd')) === true).length;
+  const quizMap = new Map(quizDates.filter(quiz => quiz.date).map(quiz => [quiz.date, quiz]));
 
   return (
     <Card>
@@ -167,12 +182,19 @@ function AttendanceCalendar({ attendanceMap, currentMonth, onMonthChange }: {
             const hasRecord = attendanceMap.has(dateStr);
             const isPresent = attendanceMap.get(dateStr) === true;
             const isAbsent = hasRecord && !isPresent;
+            const quiz = quizMap.get(dateStr);
             const isToday = dateStr === today;
             const isFuture = isBefore(startOfDay(new Date()), startOfDay(day)) && !isToday;
+
+            const title = [
+              isPresent ? `${dateStr}: Attended` : isAbsent ? `${dateStr}: Not attended` : `${dateStr}: Not marked`,
+              quiz ? `Quiz completed: ${quiz.percentage}%${quiz.quizTitle ? ` — ${quiz.quizTitle}` : ''}` : '',
+            ].filter(Boolean).join('\n');
 
             return (
               <div
                 key={dateStr}
+                title={title}
                 className={[
                   'min-h-[44px] rounded-lg flex flex-col items-center justify-center border transition-all font-semibold',
                   isFuture
@@ -188,6 +210,11 @@ function AttendanceCalendar({ attendanceMap, currentMonth, onMonthChange }: {
                 <span className="text-sm leading-none">{format(day, 'd')}</span>
                 {isPresent && <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 leading-none mt-0.5">✓</span>}
                 {isAbsent && <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 leading-none mt-0.5">✗</span>}
+                {quiz && (
+                  <span className="text-[9px] leading-none font-bold text-violet-700 dark:text-violet-300">
+                    Q {quiz.percentage}%
+                  </span>
+                )}
               </div>
             );
           })}
@@ -199,6 +226,11 @@ function AttendanceCalendar({ attendanceMap, currentMonth, onMonthChange }: {
           <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-700 dark:text-rose-300">
             <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /> Not Attended (✗)
           </span>
+          {quizDates.length > 0 && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-500/15 border border-violet-500/40 text-violet-700 dark:text-violet-300">
+              <BookOpenCheck className="w-3.5 h-3.5" /> Quiz completed (Q)
+            </span>
+          )}
         </div>
       </CardContent>
     </Card>

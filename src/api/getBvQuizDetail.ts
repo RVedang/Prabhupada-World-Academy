@@ -24,7 +24,6 @@ export default createEndpoint({
         text: q.text,
         type: q.type,
         options: q.options,
-        correctAnswers: q.correctAnswers,
         explanation: q.explanation || '',
       })),
     };

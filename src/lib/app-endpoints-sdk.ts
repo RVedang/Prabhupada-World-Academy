@@ -951,6 +951,13 @@ export const getMyBvQuizSubmissions = (input: getMyBvQuizSubmissions_Input): Pro
 export type GetMyBvQuizSubmissionsOutputType = getMyBvQuizSubmissions_Output;
 export type GetMyBvQuizSubmissionsInputType = getMyBvQuizSubmissions_Input;
 
+import type getMyBvQuizSubmissionReview_Type from '../api/getMyBvQuizSubmissionReview';
+type getMyBvQuizSubmissionReview_Input = Parameters<typeof getMyBvQuizSubmissionReview_Type.execute>[0]['input'];
+type getMyBvQuizSubmissionReview_Output = ReturnType<typeof getMyBvQuizSubmissionReview_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof getMyBvQuizSubmissionReview_Type.execute>;
+export const getMyBvQuizSubmissionReview = (input: getMyBvQuizSubmissionReview_Input): Promise<getMyBvQuizSubmissionReview_Output> => invokeEndpoint('getMyBvQuizSubmissionReview', input);
+export type GetMyBvQuizSubmissionReviewOutputType = getMyBvQuizSubmissionReview_Output;
+export type GetMyBvQuizSubmissionReviewInputType = getMyBvQuizSubmissionReview_Input;
+
 import type getMyGuideOneToOne_Type from '../api/getMyGuideOneToOne';
 type getMyGuideOneToOne_Input = Parameters<typeof getMyGuideOneToOne_Type.execute>[0]['input'];
 type getMyGuideOneToOne_Output = ReturnType<typeof getMyGuideOneToOne_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof getMyGuideOneToOne_Type.execute>;

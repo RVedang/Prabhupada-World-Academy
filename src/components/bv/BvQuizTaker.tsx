@@ -8,7 +8,7 @@ import {
   Trophy, ArrowLeft, Loader2, BookOpen, Circle, CheckSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvQuizDetail, submitBvQuiz } from '@/lib/endpoints-sdk';
+import { getBvQuizDetail, getMyBvQuizSubmissionReview, submitBvQuiz } from '@/lib/endpoints-sdk';
 import type { GetBvQuizDetailOutputType } from '@/lib/endpoints-sdk';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -30,11 +30,12 @@ interface SubmitResult {
 
 interface Props {
   quizId: string;
+  submissionId?: string;
   onBack: () => void;
   onSubmitted?: () => void;
 }
 
-export default function BvQuizTaker({ quizId, onBack, onSubmitted }: Props) {
+export default function BvQuizTaker({ quizId, submissionId, onBack, onSubmitted }: Props) {
   const [quiz, setQuiz] = useState<QuizDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -44,11 +45,26 @@ export default function BvQuizTaker({ quizId, onBack, onSubmitted }: Props) {
   const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
-    getBvQuizDetail({ quizId })
-      .then(setQuiz)
+    setLoading(true);
+    setResult(null);
+    setShowReview(false);
+    const request = submissionId
+      ? getMyBvQuizSubmissionReview({ submissionId })
+      : getBvQuizDetail({ quizId });
+
+    request
+      .then((response: any) => {
+        if (submissionId) {
+          setQuiz(response.quiz);
+          setResult(response.result);
+          setShowReview(true);
+          return;
+        }
+        setQuiz(response);
+      })
       .catch(() => toast.error('Failed to load quiz'))
       .finally(() => setLoading(false));
-  }, [quizId]);
+  }, [quizId, submissionId]);
 
   const currentQ = quiz?.questions[currentIndex];
   const selected = currentQ ? (answers.get(currentQ.id) || []) : [];
@@ -118,10 +134,18 @@ export default function BvQuizTaker({ quizId, onBack, onSubmitted }: Props) {
   if (result && showReview) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => setShowReview(false)}>
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back to Result
-        </Button>
-        <h2 className="font-semibold text-base px-1">Answer Review</h2>
+        <div className="flex items-center justify-between gap-3">
+          <Button variant="ghost" size="sm" onClick={() => setShowReview(false)}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Result
+          </Button>
+          <Badge variant="outline" className="shrink-0 text-sm font-semibold">
+            {result.score}/{result.total} · {result.percentage}%
+          </Badge>
+        </div>
+        <div className="px-1">
+          <h2 className="font-semibold text-base">Answer Review</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">See your selected answers, the correct answers, and each explanation.</p>
+        </div>
         {quiz.questions.map((q, qi) => {
           const res = result.results.find(r => r.questionId === q.id);
           return (

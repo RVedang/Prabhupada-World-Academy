@@ -12,23 +12,23 @@ import { format } from 'date-fns';
 
 interface Props {
   userId: string;
-  onQuizDatesChange?: (dates: { date: string; percentage: number }[]) => void;
 }
 
 type QuizData = GetMyBvQuizSubmissionsOutputType;
 
-export default function BvQuizSection({ userId, onQuizDatesChange }: Props) {
+export default function BvQuizSection({ userId }: Props) {
   const [data, setData] = useState<QuizData | null>(null);
   const [loading, setLoading] = useState(true);
   const [takingQuizId, setTakingQuizId] = useState<string | null>(null);
   const [takingQuizTitle, setTakingQuizTitle] = useState('');
+  const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
+  const [reviewQuizTitle, setReviewQuizTitle] = useState('');
 
   const load = async () => {
     setLoading(true);
     try {
       const r = await getMyBvQuizSubmissions({});
       setData(r as QuizData);
-      onQuizDatesChange?.(r.quizDates as { date: string; percentage: number }[]);
     } catch { toast.error('Failed to load quizzes'); }
     finally { setLoading(false); }
   };
@@ -41,8 +41,12 @@ export default function BvQuizSection({ userId, onQuizDatesChange }: Props) {
     </CardContent></Card>
   );
 
-  // Return null when no pending quizzes — section disappears entirely
-  if (!data || data.pendingQuizzes.length === 0) return null;
+  if (!data || (data.pendingQuizzes.length === 0 && data.submissions.length === 0)) return null;
+
+  const closeDialog = () => {
+    setTakingQuizId(null);
+    setReviewSubmissionId(null);
+  };
 
   return (
     <div className="space-y-3">
@@ -58,8 +62,9 @@ export default function BvQuizSection({ userId, onQuizDatesChange }: Props) {
         )}
       </div>
 
-      {/* Pending quizzes */}
-      <div className="space-y-2">
+      {data.pendingQuizzes.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ready to take</p>
         {data.pendingQuizzes.map((q: any) => (
           <Card
             key={q.id}
@@ -83,19 +88,51 @@ export default function BvQuizSection({ userId, onQuizDatesChange }: Props) {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
+
+      {data.submissions.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Completed quizzes</p>
+          {data.submissions.map((submission: any) => (
+            <Card
+              key={submission.id}
+              className="border-l-4 border-l-emerald-500 cursor-pointer hover:shadow-sm transition-shadow"
+              onClick={() => { setReviewQuizTitle(submission.quizTitle); setReviewSubmissionId(submission.id); }}
+            >
+              <CardContent className="py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate">{submission.quizTitle}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Submitted {submission.submittedAt ? format(new Date(submission.submittedAt), 'd MMM yyyy') : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">
+                    {submission.percentage}%
+                  </Badge>
+                  <Button size="sm" variant="outline" className="text-xs h-8 gap-1">
+                    Review <ChevronRight className="w-3 h-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Quiz Dialog popup */}
-      <Dialog open={!!takingQuizId} onOpenChange={open => { if (!open) setTakingQuizId(null); }}>
+      <Dialog open={!!takingQuizId || !!reviewSubmissionId} onOpenChange={open => { if (!open) closeDialog(); }}>
         <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl max-h-[92vh] overflow-hidden p-0">
           <div className="min-w-0 max-h-[92vh] overflow-y-auto overflow-x-hidden p-5 sm:p-8">
             <DialogHeader className="border-b pb-4 mb-5">
-              <DialogTitle className="min-w-0 break-words text-lg sm:text-xl leading-snug pr-8">{takingQuizTitle}</DialogTitle>
+              <DialogTitle className="min-w-0 break-words text-lg sm:text-xl leading-snug pr-8">{takingQuizTitle || reviewQuizTitle}</DialogTitle>
             </DialogHeader>
-            {takingQuizId && (
+            {(takingQuizId || reviewSubmissionId) && (
               <BvQuizTaker
-                quizId={takingQuizId}
-                onBack={() => setTakingQuizId(null)}
+                quizId={takingQuizId || ''}
+                submissionId={reviewSubmissionId || undefined}
+                onBack={closeDialog}
                 onSubmitted={() => { load(); }}
               />
             )}
