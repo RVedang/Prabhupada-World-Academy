@@ -42,16 +42,20 @@ export default createEndpoint({
       // Find the guide record for the current user
       const guideRecord = await Guides.findOne({
         ...(scopedGuideId && scopedGuideId !== 'ALL' ? { id: scopedGuideId } : { filters: { email: context.user.email, isActive: true } }),
-        fields: ['id', 'folkResidencies'],
+        fields: ['id', 'folkResidencies', 'activeResidencyView'],
       });
       if (!guideRecord) return [];
 
       // Get residencies linked to this guide
-      allowedResidencyIds = normalizeIds(
+      const linkedResidencyIds = normalizeIds(
         Array.isArray(guideRecord.folkResidencies)
           ? guideRecord.folkResidencies
           : [guideRecord.folkResidencies]
       );
+      const activeResidencyViewId = firstRef((guideRecord as any).activeResidencyView).trim();
+      allowedResidencyIds = activeResidencyViewId && linkedResidencyIds.includes(activeResidencyViewId)
+        ? [activeResidencyViewId]
+        : linkedResidencyIds;
 
       // If guide has no residencies, they shouldn't see any residency transfers
       if (allowedResidencyIds.length === 0) return [];

@@ -104,7 +104,12 @@ export default function FolkGuideDashboard() {
     if (user?.email) {
       getCurrentGuide({ email: user.email }).then(r => {
         if (r.guide?.fullName) setAdminName(r.guide.fullName);
-        if (r.guide?.id) setGuideId(r.guide.id);
+        // getCurrentGuide exposes the resolved identity as `guideId`. Older
+        // responses used `id`, so accept both while always preferring the
+        // documented field. Reading only `id` left guide mode with an empty
+        // guideId and consequently an empty RGF/group list.
+        const resolvedGuideId = r.guide?.guideId || r.guide?.id || '';
+        if (resolvedGuideId) setGuideId(resolvedGuideId);
       }).catch(() => {});
 
       const fetchCounts = () => {

@@ -33,13 +33,14 @@ export default createEndpoint({
     })),
     error: z.string().nullable(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input }: { input: { guideId: string } }) => {
     if (!input.guideId) return { bvsls: [], groups: [], error: null };
 
     // Robustly resolve guideId to a Guides-table UUID.
     // bvMentorGuideId may be a Users-table UUID (when a Guide tagged the BV Mentor),
     // a Guides-table UUID (when a Super Guide tagged them), or a custom guideId string.
     let guideDbId: string | null = null;
+    let linkedGuideUser: any = undefined;
 
     // Step 1: Try direct Guides-table lookup by UUID
     const directGuideRec = await Guides.findOne({ id: input.guideId, fields: ['id', 'fullName', 'email', 'guideId'] }).catch(() => undefined);
@@ -47,7 +48,10 @@ export default createEndpoint({
       guideDbId = directGuideRec.id;
     } else {
       // Step 2: Try as a Users-table UUID — look up their email, then find the Guides record
-      const guideUser = await Users.findOne({ id: input.guideId, fields: ['id', 'email'] }).catch(() => undefined);
+      const guideUser =
+        await Users.findOne({ id: input.guideId, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: input.guideId }, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined);
+      linkedGuideUser = guideUser;
       if (guideUser?.email) {
         const guideByEmail = await Guides.findOne({ filters: { email: guideUser.email }, fields: ['id', 'fullName', 'email', 'guideId'] });
         if (guideByEmail) guideDbId = guideByEmail.id;
@@ -60,30 +64,38 @@ export default createEndpoint({
       }
     }
 
-    if (!guideDbId) return { bvsls: [], groups: [], error: null };
+    // A Guides record is optional: several legitimate FOLK guides live only
+    // in Users. We can still scope RGFs safely using that user's database ID,
+    // custom userId, email, and reporting hierarchy fields.
+    if (!guideDbId && !linkedGuideUser) return { bvsls: [], groups: [], error: null };
 
-    const resolvedGuide = await Guides.findOne({
-      id: guideDbId,
-      fields: ['id', 'fullName', 'email', 'guideId', 'folkResidencies'],
-    }).catch(() => undefined);
+    const resolvedGuide = guideDbId
+      ? await Guides.findOne({
+        id: guideDbId,
+        fields: ['id', 'fullName', 'email', 'guideId', 'folkResidencies'],
+      }).catch(() => undefined)
+      : undefined;
     // Role assignment stores hierarchy parents on the Users record, while
     // older guide records use a Guides-table id. Resolve both representations
     // so an RGF assigned to this guide is always discoverable.
-    let linkedGuideUser = (resolvedGuide as any)?.email
+    linkedGuideUser = linkedGuideUser || ((resolvedGuide as any)?.email
       ? await Users.findOne({
         filters: { email: (resolvedGuide as any).email },
-        fields: ['id', 'userId', 'fullName', 'email'],
+        fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'],
       }).catch(() => undefined)
-      : undefined;
+      : undefined);
     if (!linkedGuideUser) {
-      linkedGuideUser = await Users.findOne({ id: input.guideId, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined);
+      linkedGuideUser = await Users.findOne({ id: input.guideId, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined);
     }
     if (!linkedGuideUser) {
-      linkedGuideUser = await Users.findOne({ filters: { userId: input.guideId }, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined);
+      linkedGuideUser = await Users.findOne({ filters: { userId: input.guideId }, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined);
     }
-    const guideResidencies = Array.isArray((resolvedGuide as any)?.folkResidencies)
-      ? (resolvedGuide as any).folkResidencies
-      : ((resolvedGuide as any)?.folkResidencies ? [(resolvedGuide as any).folkResidencies] : []);
+    const rawGuideResidencies = (resolvedGuide as any)?.folkResidencies ||
+      (linkedGuideUser as any)?.folkResidencies ||
+      (linkedGuideUser as any)?.residency || [];
+    const guideResidencies = Array.isArray(rawGuideResidencies)
+      ? rawGuideResidencies
+      : [rawGuideResidencies];
     const guideResidencyAliases = new Set(
       guideResidencies
         .flatMap((value: any) => Array.isArray(value) ? value : [value])

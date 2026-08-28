@@ -2,19 +2,19 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Flame, TrendingUp, Leaf, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
   getUserProfile, getUserMetrics, getGuides, getAshrayUpgradePath, getAllResidencies,
-  getBvAttendance, getAshrayChecklist, getUserCrmData,
+  getBvAttendance, getAshrayChecklist, getUserCrmData, getCurrentGuide, saveGuideResidencyView,
 } from '@/lib/endpoints-sdk';
 import type {
   GetUserProfileOutputType, GetGuidesOutputType,
   GetAshrayUpgradePathOutputType, GetUserMetricsOutputType, GetAllResidenciesOutputType,
-  GetUserCrmDataOutputType,
+  GetUserCrmDataOutputType, GetCurrentGuideOutputType,
 } from '@/lib/endpoints-sdk';
 import AshrayJourneyCard from '@/components/crm/AshrayJourneyCard';
 import TripsDuesCard from '@/components/crm/TripsDuesCard';
@@ -26,6 +26,7 @@ import AccountCard from '@/components/profile/AccountCard';
 import ProfileHero from '@/components/profile/ProfileHero';
 import AshrayCriteriaGrid from '@/components/profile/AshrayCriteriaGrid';
 import NotificationCard from '@/components/profile/NotificationCard';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type ProfileType = NonNullable<GetUserProfileOutputType['user']>;
 
@@ -123,6 +124,7 @@ export default function ProfilePage() {
   const showGuideResidencyCard = !isPwUser && !isBvAdminUser;
   const isFolk = profile.segment === 'FOLK';
   const adminDashboardPath = isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
+  const showGuideResidencyViewCard = isFolk && isBvAdminUser && !isPwUser;
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,6 +150,9 @@ export default function ProfilePage() {
             phone={String(profile.phone || '')} ashrayLevel={isSuperAdmin ? null : profile.ashrayLevel}
             isSuperAdmin={isSuperAdmin}
             onUpdated={() => handleProfileChanged()} />
+          {showGuideResidencyViewCard && user?.email && (
+            <GuideResidencyViewCard email={user.email} />
+          )}
           {showGuideResidencyCard && (
             <GuideResidencyCard email={user?.email || ''} fullName={profile.fullName}
               phone={String(profile.phone || '')} guideName={guideName}
@@ -236,6 +241,95 @@ export default function ProfilePage() {
         )}
       </main>
     </div>
+  );
+}
+
+type GuideResidencyViewData = GetCurrentGuideOutputType extends { residencies: infer R; activeResidencyViewId?: infer A }
+  ? { residencies: R extends any[] ? R : any[]; activeResidencyViewId: A extends string | null ? A : string | null }
+  : { residencies: any[]; activeResidencyViewId: string | null };
+
+function GuideResidencyViewCard({ email }: { email: string }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [data, setData] = useState<GuideResidencyViewData>({ residencies: [], activeResidencyViewId: null });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getCurrentGuide({ email, _nocache: true } as any)
+      .then((res: any) => {
+        if (cancelled) return;
+        setData({
+          residencies: Array.isArray(res?.residencies) ? res.residencies : [],
+          activeResidencyViewId: res?.activeResidencyViewId || null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData({ residencies: [], activeResidencyViewId: null });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [email]);
+
+  const residencies = data.residencies || [];
+  if (!loading && residencies.length === 0) return null;
+
+  const currentValue = data.activeResidencyViewId || 'all';
+
+  const handleChange = async (value: string | null) => {
+    if (!value) return;
+    const nextResidencyId = value === 'all' ? null : value;
+    setData(prev => ({ ...prev, activeResidencyViewId: nextResidencyId }));
+    setSaving(true);
+    try {
+      await saveGuideResidencyView({ residencyId: nextResidencyId } as any);
+      toast.success(nextResidencyId ? 'Guide residency view updated' : 'Showing all linked residencies');
+    } catch (error: any) {
+      setData(prev => ({ ...prev, activeResidencyViewId: currentValue === 'all' ? null : currentValue }));
+      toast.error(error?.message || 'Failed to update guide residency view');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Guide Residency View</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          Choose which FOLK residency you want to review in guide transfer and FOLK transfer approvals.
+        </p>
+        {loading ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <Select value={currentValue} onValueChange={handleChange} disabled={saving}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select residency view" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All linked residencies</SelectItem>
+              {residencies.map((residency: any) => (
+                <SelectItem key={residency.id} value={residency.id}>
+                  {residency.residencyName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <p className="text-xs text-muted-foreground">
+          This changes only your current dashboard view. It does not reassign the residency itself.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

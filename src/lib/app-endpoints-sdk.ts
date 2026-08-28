@@ -790,6 +790,13 @@ export const getExistingEntry = (input: getExistingEntry_Input): Promise<getExis
 export type GetExistingEntryOutputType = getExistingEntry_Output;
 export type GetExistingEntryInputType = getExistingEntry_Input;
 
+import type saveGuideResidencyView_Type from '../api/saveGuideResidencyView';
+type saveGuideResidencyView_Input = Parameters<typeof saveGuideResidencyView_Type.execute>[0]['input'];
+type saveGuideResidencyView_Output = ReturnType<typeof saveGuideResidencyView_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof saveGuideResidencyView_Type.execute>;
+export const saveGuideResidencyView = (input: saveGuideResidencyView_Input): Promise<saveGuideResidencyView_Output> => invokeEndpoint('saveGuideResidencyView', input);
+export type SaveGuideResidencyViewOutputType = saveGuideResidencyView_Output;
+export type SaveGuideResidencyViewInputType = saveGuideResidencyView_Input;
+
 import type getFieldsForUser_Type from '../api/getFieldsForUser';
 type getFieldsForUser_Input = Parameters<typeof getFieldsForUser_Type.execute>[0]['input'];
 type getFieldsForUser_Output = ReturnType<typeof getFieldsForUser_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof getFieldsForUser_Type.execute>;

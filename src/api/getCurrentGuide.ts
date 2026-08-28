@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { createEndpoint, Guides, Users, SadhanaEntries, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
 
-const GUIDE_FIELDS = ['id', 'email', 'isActive', 'fullName', 'phone', 'abbreviation', 'folkResidencies'];
+const GUIDE_FIELDS = ['id', 'email', 'isActive', 'fullName', 'phone', 'abbreviation', 'folkResidencies', 'activeResidencyView'];
+const CURRENT_USER_GUIDE_FIELDS = ['id', 'userId', 'email', 'fullName', 'phone', 'folkResidencies', 'activeResidencyView'];
 const USER_FIELDS = ['id', 'status', 'residencyApproved', 'guide'];
 const ENTRY_FIELDS = ['id', 'user', 'entryDate'];
 const RESIDENCY_FIELDS = ['id', 'residencyName'];
@@ -25,24 +26,38 @@ export default createEndpoint({
       guideRecord = allGuides.find((g: any) => (g.email || '').toLowerCase() === userEmail);
     }
 
-    if (!guideRecord && (context.user?.role === 'SUPER_GUIDE' || context.user?.role === 'Super Guide' || userEmail.includes('superguide') || userEmail.includes('admin'))) {
-      guideRecord = {
-        id: 'GUIDE-ADMIN-001',
-        fullName: context.user?.fullName || 'Super Guide Admin',
-        email: context.user?.email || 'superguide@gmail.com',
-        abbreviation: 'SGA',
-        isActive: true,
-      };
-    }
+    // Some valid FOLK guides are represented only in Users (there is no
+    // duplicate Guides document). Resolve their real database identity rather
+    // than manufacturing a hard-coded guide ID, otherwise guide-scoped APIs
+    // receive an ID that cannot match their assigned RGFs.
+    if (!guideRecord) {
+      const normalizedRole = String(context.user?.role || '')
+        .trim()
+        .replace(/[\s-]+/g, '_')
+        .toUpperCase();
+      const hasGuideAccess =
+        normalizedRole === 'GUIDE' ||
+        normalizedRole === 'SUPER_GUIDE' ||
+        normalizedRole === 'ADMIN' ||
+        normalizedRole === 'SUPER_ADMIN' ||
+        context.user?.isBvAdmin === true ||
+        context.user?.isBvSuperAdmin === true;
 
-    if (!guideRecord && userEmail === 'guide@gmail.com') {
-      guideRecord = {
-        id: 'GUIDE-001',
-        fullName: 'Spiritual Guide',
-        email: 'guide@gmail.com',
-        abbreviation: 'SPI',
-        isActive: true,
-      };
+      if (hasGuideAccess) {
+        const currentGuideUser =
+          await Users.findOne({ id: context.user?.id, fields: CURRENT_USER_GUIDE_FIELDS }).catch(() => undefined) ||
+          await Users.findOne({ filters: { userId: context.user?.userId }, fields: CURRENT_USER_GUIDE_FIELDS }).catch(() => undefined) ||
+          await Users.findOne({ filters: { email: context.user?.email }, fields: CURRENT_USER_GUIDE_FIELDS }).catch(() => undefined);
+
+        if (currentGuideUser) {
+          guideRecord = {
+            ...currentGuideUser,
+            // Hierarchy fields use the app userId when present.
+            id: (currentGuideUser as any).userId || currentGuideUser.id,
+            isActive: true,
+          };
+        }
+      }
     }
 
     if (!guideRecord) {
@@ -53,6 +68,9 @@ export default createEndpoint({
     const residencyIds: string[] = Array.isArray(guideRecord.folkResidencies)
       ? guideRecord.folkResidencies
       : guideRecord.folkResidencies ? [guideRecord.folkResidencies] : [];
+    const savedActiveResidencyId = Array.isArray((guideRecord as any).activeResidencyView)
+      ? (guideRecord as any).activeResidencyView[0]
+      : (guideRecord as any).activeResidencyView || null;
 
     // Fetch guide-assigned users + center residency users + today's entries — all in parallel
     const [directUsersRes, todayEntriesRes, ...residencyUsersArr] = await Promise.all([
@@ -105,6 +123,9 @@ export default createEndpoint({
           ? Math.round((todaySubmitted / activeUsers.length) * 100)
           : 0,
       },
+      activeResidencyViewId: savedActiveResidencyId && residencyIds.includes(savedActiveResidencyId)
+        ? savedActiveResidencyId
+        : null,
       residencies: filteredResidencies,
     };
   },
