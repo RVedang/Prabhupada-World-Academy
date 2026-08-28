@@ -138,7 +138,7 @@ export default function BvQuizTaker({ quizId, onBack, onSubmitted }: Props) {
   const allAnswered = quiz.questions.every(q => (answers.get(q.id) || []).length > 0);
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
@@ -161,7 +161,7 @@ export default function BvQuizTaker({ quizId, onBack, onSubmitted }: Props) {
           transition={{ duration: 0.18 }}
         >
           {currentQ && (
-            <Card>
+            <Card className="overflow-hidden shadow-sm">
               <CardContent className="pt-5 pb-5 space-y-4">
                 <div className="flex items-start gap-2">
                   <Badge variant="outline" className="text-xs shrink-0 mt-0.5">Q{currentIndex + 1}</Badge>

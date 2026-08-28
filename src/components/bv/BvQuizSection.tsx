@@ -87,17 +87,19 @@ export default function BvQuizSection({ userId, onQuizDatesChange }: Props) {
 
       {/* Quiz Dialog popup */}
       <Dialog open={!!takingQuizId} onOpenChange={open => { if (!open) setTakingQuizId(null); }}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-3xl max-h-[92vh] overflow-y-auto p-5 sm:p-7">
-          <DialogHeader>
-            <DialogTitle className="text-base">{takingQuizTitle}</DialogTitle>
-          </DialogHeader>
-          {takingQuizId && (
-            <BvQuizTaker
-              quizId={takingQuizId}
-              onBack={() => setTakingQuizId(null)}
-              onSubmitted={() => { load(); }}
-            />
-          )}
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl max-h-[92vh] overflow-hidden p-0">
+          <div className="min-w-0 max-h-[92vh] overflow-y-auto overflow-x-hidden p-5 sm:p-8">
+            <DialogHeader className="border-b pb-4 mb-5">
+              <DialogTitle className="min-w-0 break-words text-lg sm:text-xl leading-snug pr-8">{takingQuizTitle}</DialogTitle>
+            </DialogHeader>
+            {takingQuizId && (
+              <BvQuizTaker
+                quizId={takingQuizId}
+                onBack={() => setTakingQuizId(null)}
+                onSubmitted={() => { load(); }}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
