@@ -42,21 +42,18 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Supervisor access required' });
     }
 
-    // Determine if this is a real BvMemberRegistrations doc or a synthetic record
-    // synthesised from the Users table in getPendingBvRegistrations (id starts with 'BVREG-')
-    const synthetic = isSyntheticId(input.registrationId);
-
-    // For real registrations, resolve the BvMemberRegistrations document.
-    let reg: any = null;
-    if (!synthetic) {
-      reg = await BvMemberRegistrations.findOne({ id: input.registrationId });
-      if (!reg) throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
-    } else {
-      // Synthetic id: 'BVREG-<userDbId>' — extract the user DB id from the suffix
+    // Real registration documents are also named BVREG-<userId>. Treat the id
+    // as synthetic only when no BvMemberRegistrations document exists.
+    let reg: any = await BvMemberRegistrations.findOne({ id: input.registrationId }).catch(() => null);
+    const synthetic = !reg;
+    if (synthetic) {
+      if (!isSyntheticId(input.registrationId)) {
+        throw new AppError({ code: 'NOT_FOUND', message: 'Registration request not found' });
+      }
       const userDbId = input.registrationId.replace(/^BVREG-/, '');
       const userRec = await Users.findOne({ id: userDbId }).catch(() => null);
       if (!userRec) throw new AppError({ code: 'NOT_FOUND', message: 'User record not found for synthetic registration' });
-      reg = { id: null, userId: userRec.id, email: userRec.email || '' };
+      reg = { id: null, userId: userRec.id, userDbId: userRec.id, email: userRec.email || '' };
     }
 
     const group = input.groupId
@@ -87,7 +84,7 @@ export default createEndpoint({
 
     // Resolve the applicant once. reg.userId may be either a userId or a user
     // DB id. This is also used for approval-only (unassigned) registrations.
-    const memberUserId = reg.userId || input.registrationId.replace(/^BVREG-/, '');
+    const memberUserId = reg.userDbId || reg.userId || input.registrationId.replace(/^BVREG-/, '');
     let targetUser = await Users.findOne({ id: memberUserId }).catch(() => null);
     if (!targetUser) {
       targetUser = await Users.findOne({ filters: { userId: memberUserId } }).catch(() => null) ||
@@ -95,18 +92,49 @@ export default createEndpoint({
                    await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } }).catch(() => null);
     }
 
+    if (targetUser) {
+      const relatedRegistrationIds = [
+        input.registrationId,
+        `BVREG-${targetUser.id}`,
+        targetUser.userId ? `BVREG-${targetUser.userId}` : '',
+      ].filter(Boolean);
+
+      for (const registrationId of [...new Set(relatedRegistrationIds)]) {
+        const relatedReg = await BvMemberRegistrations.findOne({ id: registrationId }).catch(() => null);
+        if (!relatedReg) continue;
+        await BvMemberRegistrations.update({
+          id: relatedReg.id,
+          record: {
+            status: 'Approved',
+            ...(group ? {
+              assignedGroupId: group.id,
+              assignedGroupName: group.groupName || '',
+            } : {
+              assignedGroupId: null,
+              assignedGroupName: '',
+            }),
+            approvedBy: context.user.id,
+            approvedAt: now,
+          },
+        });
+      }
+    }
+
     if (targetUser && group) {
+      const targetUserDbId = targetUser.id;
+      const targetUserLegacyId = targetUser.userId || targetUser.id;
+
       // 2. Add member to group
-      const memberRecordId = `BVMEM-${memberUserId}-${group.id}`;
+      const memberRecordId = `BVMEM-${targetUserDbId}-${group.id}`;
       const existingMember = await BvGroupMembers.findOne({ id: memberRecordId }).catch(() => null);
       if (!existingMember) {
         await BvGroupMembers.create({
           record: {
             id: memberRecordId,
             group: group.id,
-            user: memberUserId,
+            user: targetUserDbId,
             groupId: group.id,
-            userId: memberUserId,
+            userId: targetUserLegacyId,
             role: 'Member',
             joinedAt: now,
           },

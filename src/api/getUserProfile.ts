@@ -130,7 +130,7 @@ export default createEndpoint({
       : '';
     const needsMembershipSync = hasBvMembership
       ? (!userRecord.isBvMember || userRecord.bvRegistrationStatus !== 'Approved' || (groupId && userRecord.bvGroupId !== groupId))
-      : (!!userRecord.isBvMember || !!userRecord.bvGroupId || !!userRecord.bvGroupName || userRecord.bvRegistrationStatus === 'Approved');
+      : (!!userRecord.isBvMember || !!userRecord.bvGroupId || !!userRecord.bvGroupName);
 
     if (needsMembershipSync) {
       const membershipFields = hasBvMembership
@@ -143,7 +143,6 @@ export default createEndpoint({
             isBvMember: false,
             bvGroupId: '',
             bvGroupName: '',
-            ...(userRecord.bvRegistrationStatus === 'Approved' ? { bvRegistrationStatus: '' } : {}),
             ...(userRecord.pendingBvApprovalNotice ? { pendingBvApprovalNotice: false } : {}),
           };
       await Users.update({ id: userRecord.id, record: membershipFields });

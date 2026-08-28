@@ -27,10 +27,25 @@ type User = GetGuideUsersOutputType['users'][0] & { _guideId: string; _guideName
 type GuideEntry = GetGuidesOutputType['guides'][0];
 type SortKey = 'fullName' | 'guideName' | 'ashrayLevel' | 'latestScore' | 'latestEntryDate' | 'isResident';
 type SortDir = 'asc' | 'desc';
+type ResidentLikeUser = Partial<User> & {
+  isResident?: boolean | null;
+  residencyApproved?: boolean | null;
+  residencyGuideVerified?: boolean | null;
+  residencyId?: string | null;
+  residency?: string | string[] | null;
+};
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
   if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40 inline" />;
   return sortDir === 'asc' ? <ArrowUp className="w-3 h-3 ml-1 inline" /> : <ArrowDown className="w-3 h-3 ml-1 inline" />;
+}
+
+function isFolkResidentUser(user: ResidentLikeUser): boolean {
+  const residencyId = user?.residencyId || (Array.isArray(user?.residency) ? user.residency[0] : user?.residency);
+  return !!(
+    user?.isResident ||
+    ((user?.residencyApproved || user?.residencyGuideVerified) && residencyId)
+  );
 }
 
 interface SuperUsersPanelProps {
@@ -479,8 +494,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     if (guideFilter !== 'all') r = r.filter(u => u._guideId === guideFilter);
     if (ashrayFilter !== 'all') r = r.filter(u => u.ashrayLevel === ashrayFilter);
     if (!isPwAdmin) {
-      if (residentFilter === 'residents') r = r.filter(u => u.residencyUserClaim && u.residencyGuideVerified);
-      else if (residentFilter === 'non_residents') r = r.filter(u => !u.residencyUserClaim || !u.residencyGuideVerified);
+      if (residentFilter === 'residents') r = r.filter(isFolkResidentUser);
+      else if (residentFilter === 'non_residents') r = r.filter(u => !isFolkResidentUser(u));
     }
 
     if (search) {
@@ -499,7 +514,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       else if (sortKey === 'ashrayLevel') { av = a.ashrayLevel || ''; bv = b.ashrayLevel || ''; }
       else if (sortKey === 'latestScore') { av = a.latestScore ?? -1; bv = b.latestScore ?? -1; }
       else if (sortKey === 'latestEntryDate') { av = a.latestEntryDate || ''; bv = b.latestEntryDate || ''; }
-      else if (sortKey === 'isResident') { av = (a.residencyUserClaim && a.residencyGuideVerified) ? 1 : 0; bv = (b.residencyUserClaim && b.residencyGuideVerified) ? 1 : 0; }
+      else if (sortKey === 'isResident') { av = isFolkResidentUser(a) ? 1 : 0; bv = isFolkResidentUser(b) ? 1 : 0; }
       else { av = ''; bv = ''; }
       if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
       return sortDir === 'asc' ? av - bv : bv - av;
@@ -618,11 +633,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                       <EmptyState icon={Users} title="No users found" description="Try adjusting your filters." />
                     </td></tr>
                 ) : filtered.map(u => {
-                  const isResident = !!(
-                    (u.residencyUserClaim && u.residencyGuideVerified) ||
-                    (u.residencyClaimed && u.residencyApproved) ||
-                    u.isResident
-                  );
+                  const isResident = isFolkResidentUser(u);
                   const myId = ((profile as any)?.id || profile?.userId || '').toLowerCase();
                   const myEmail = ((profile as any)?.email || profile?.userId || userEmail || '').toLowerCase();
                   const myName = (profile?.fullName || '').toLowerCase();
@@ -640,6 +651,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   );
                   const isBvUser = !!(
                     (u as any).isBvMember ||
+                    (u as any).bvRegistrationStatus === 'Approved' ||
                     (u as any).isBvAdmin ||
                     (u as any).isBvSupervisor ||
                     (u as any).isBvMentor ||

@@ -8,11 +8,11 @@ import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 const GUIDE_FIELDS = ['id', 'email', 'isActive', 'role', 'folkResidencies'];
 // Minimal fields for user listing — avoids fetching large linked-record arrays
 const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'status', 'segment',
-  'ashrayLevel', 'residency', 'residencyApproved', 'residencyClaimed',
+  'ashrayLevel', 'residency', 'residencyApproved', 'residencyClaimed', 'residencyGuideVerified',
   'guide', 'isBvsl', 'isBvMember', 'isSadhanaMentor', 'isServiceAllocator', 'isBvMentor',
   'isFolkLead', 'isTripCoordinator', 'isOtherCenter', 'isCleanlinessManager', 'createdAt',
   'temporaryResidencyEnabled', 'temporaryResidency', 'isBvSupervisor', 'isBvFacilitator', 'isBvSubFacilitator', 'isBvAdmin',
-  'bvReportingAdminId', 'bvReportingAdminName', 'bvReportingSupervisorId', 'bvReportingSupervisorName',
+  'bvRegistrationStatus', 'bvReportingAdminId', 'bvReportingAdminName', 'bvReportingSupervisorId', 'bvReportingSupervisorName',
   'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'supervisorName', 'bvGroupId', 'bvGroupName', 'sadhanaMentor'];
 // Minimal fields for today's entries
 const ENTRY_TODAY_FIELDS = ['id', 'user', 'entryDate'];
@@ -308,6 +308,7 @@ export default createEndpoint({
           status: normalizeStatus(u.status || 'Pending Approval'),
           segment: u.segment || null,
           isBvsl: u.isBvsl || false,
+          bvRegistrationStatus: u.bvRegistrationStatus || null,
           isBvSupervisor: u.isBvSupervisor || false,
           isBvFacilitator: u.isBvFacilitator || false,
           isBvSubFacilitator: u.isBvSubFacilitator || false,
@@ -321,6 +322,7 @@ export default createEndpoint({
     return {
       users: registeredUsers.map(u => {
         const residencyId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
+        const isResident = !!((u.residencyApproved || u.residencyGuideVerified) && residencyId);
         const rawGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
         const guideIdVal = rawGuideId || null;
         const guideNameVal = rawGuideId ? (guideLookup.get(String(rawGuideId).toLowerCase()) || rawGuideId) : null;
@@ -355,10 +357,14 @@ export default createEndpoint({
           ashrayLevel: u.ashrayLevel || null,
           residencyApproved: u.residencyApproved || false,
           residencyClaimed: u.residencyClaimed || false,
+          residencyGuideVerified: u.residencyGuideVerified || false,
+          residencyUserClaim: u.residencyClaimed || false,
           residencyId: residencyId || null,
           residencyName: residencyId ? (residencyMap.get(residencyId) || residencyMap.get(String(residencyId).toLowerCase()) || '') : '',
+          isResident,
           submittedToday: submittedToday.has(u.id),
           isBvsl: u.isBvsl || false,
+          bvRegistrationStatus: u.bvRegistrationStatus || null,
           isB: u.isB || false,
           isOtherCenter: (u as any).isOtherCenter || false,
           isSadhanaMentor: u.isSadhanaMentor || false,
