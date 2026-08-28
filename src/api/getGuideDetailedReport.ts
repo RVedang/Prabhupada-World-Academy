@@ -861,7 +861,7 @@ export default createEndpoint({
 
       const { records: allBvslGroups } = await BvGroups.findAll({
         filters: { isActive: true } as any,
-        fields: ['id', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
+        fields: ['id', 'groupId', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
         limit: 500,
       });
       const bvslGroups = allBvslGroups.filter((group: any) =>
@@ -870,14 +870,22 @@ export default createEndpoint({
       );
 
       if (bvslGroups.length > 0) {
-        const groupIds = bvslGroups.map((g: any) => g.id).filter(Boolean);
+        // Legacy group-membership rows may point at either the Firestore row
+        // id or the public groupId. Query both forms so valid members are not
+        // dropped from the RGF report.
+        const groupRefs = [...new Set(bvslGroups.flatMap((g: any) => [g.id, g.groupId].filter(Boolean)))];
+        const targetGroupRefs = new Set(groupRefs.map(normalizeRef));
         const { records: memberships } = await BvGroupMembers.findAll({
-          filters: { group: { in: groupIds } } as any,
-          fields: ['id', 'user', 'userId'],
+          filters: { group: { in: groupRefs } } as any,
+          fields: ['id', 'user', 'userId', 'group'],
           limit: 2000,
         });
+        const scopedMemberships = memberships.filter((membership: any) => {
+          const refs = groupRefValues(membership.group);
+          return refs.length === 0 || refs.some(ref => targetGroupRefs.has(ref));
+        });
         const memberAliases = new Set<string>();
-        for (const membership of memberships) {
+        for (const membership of scopedMemberships) {
           for (const field of ['user', 'userId']) {
             for (const ref of groupRefValues(membership[field])) memberAliases.add(ref);
           }

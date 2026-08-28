@@ -52,10 +52,12 @@ export default createEndpoint({
       })
       .map(r => String(r.id));
     const allIds = new Set(residencies.map(r => r.id));
-    const isSuperGuide = role === 'SUPER_GUIDE' || role === 'SUPER_ADMIN' || context.user.isBvSuperAdmin === true;
-    const effectiveIds = isSuperGuide
-      ? residencies.map(r => r.id)
-      : [...new Set([...canonicalAssignedIds, ...assignedFromResidencyRecords])].filter(id => allIds.has(id));
+    // A person can have both Super Guide and Guide access. This profile card
+    // must always represent only the residencies assigned to them as a guide;
+    // Super Guide permissions elsewhere in the dashboard must not broaden it
+    // to every active FOLK residency.
+    const effectiveIds = [...new Set([...canonicalAssignedIds, ...assignedFromResidencyRecords])]
+      .filter(id => allIds.has(id));
 
     const requesterIds = [user?.id, user?.userId, context.user.id, context.user.userId, email].filter(Boolean).map(String);
     let pendingRequest: any = null;
@@ -77,7 +79,7 @@ export default createEndpoint({
       assignedResidencies: effectiveIds.map(id => ({ id, residencyName: names.get(id) || id })),
       allResidencies: residencies,
       pendingRequest: formatRequest,
-      departmentWide: isSuperGuide,
+      departmentWide: false,
     };
   },
 });
