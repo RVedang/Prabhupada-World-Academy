@@ -3,7 +3,7 @@ import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroup
 import { getGuideScope } from '../lib/guideScope';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'templateMode',
   'roundsCount', 'spReadingMinutes', 'preachingMinutes', 'booksDistributed',
@@ -14,6 +14,16 @@ const ENTRY_FIELDS = [
 function parseFieldValues(json: string | null | undefined): Record<string, any> {
   if (!json) return {};
   try { return JSON.parse(json); } catch { return {}; }
+}
+
+const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+
+function userIdentityAliases(user: any): string[] {
+  return [...new Set(USER_IDENTITY_FIELDS
+    .map(field => user?.[field])
+    .filter(Boolean)
+    .map(value => String(value).trim())
+    .filter(Boolean))];
 }
 
 interface DayAgg {
@@ -107,7 +117,7 @@ export default createEndpoint({
           filters: { group: { in: groupIds } } as any, fields: ['id', 'user'], limit: 2000,
         });
         const memberIds = new Set(memberships.map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user).filter(Boolean));
-        users = users.filter(u => memberIds.has(u.id));
+        users = users.filter(user => userIdentityAliases(user).some(alias => memberIds.has(alias)));
       } else { users = []; }
     }
 
@@ -149,7 +159,13 @@ export default createEndpoint({
       }
     }
 
-    const userDbIdSet = new Set(users.map(u => u.id));
+    // Entries are written with the authenticated Firebase identity. Keep a
+    // mapping from every historical/custom user identifier back to the member
+    // record so RGF statistics remain correct after identity migrations.
+    const userAliasToPrimaryId = new Map<string, string>();
+    users.forEach(user => {
+      userIdentityAliases(user).forEach(alias => userAliasToPrimaryId.set(alias, user.id));
+    });
 
     // Paginate until all entries in the date range are fetched (avoids 4000-record silent truncation)
     let allEntries: any[] = [];
@@ -165,8 +181,8 @@ export default createEndpoint({
     }
 
     const filteredEntries = allEntries.filter(e => {
-      const uid = Array.isArray(e.user) ? e.user[0] : e.user;
-      return !!(uid && userDbIdSet.has(uid as string));
+      const owner = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim();
+      return !!owner && userAliasToPrimaryId.has(owner);
     });
 
     // Daily trend with per-field aggregation
@@ -291,10 +307,11 @@ export default createEndpoint({
     // Per-user summaries
     const entriesByUser = new Map<string, any[]>();
     for (const e of filteredEntries) {
-      const uid = (Array.isArray(e.user) ? e.user[0] : e.user) as string;
-      if (!uid) continue;
-      if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
-      entriesByUser.get(uid)!.push(e);
+      const owner = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim();
+      const primaryUserId = userAliasToPrimaryId.get(owner);
+      if (!primaryUserId) continue;
+      if (!entriesByUser.has(primaryUserId)) entriesByUser.set(primaryUserId, []);
+      entriesByUser.get(primaryUserId)!.push(e);
     }
     const totalDays = Math.max(1, dailyTrend.length);
     const midDate = dailyTrend[Math.floor(totalDays / 2)]?.date || startDate;
@@ -319,7 +336,7 @@ export default createEndpoint({
       const isResident = isOfficialResident || isScholar;
       const residencyName = isOfficialResident && rawResidencyId ? (residencyNameMap.get(rawResidencyId as string) || null) : (isScholar ? 'Scholar' : null);
       return {
-        userId: u.userId || u.id, fullName: u.fullName || '',
+        userId: u.userId || u.id, fullName: u.fullName || u.displayName || u.name || u.userId || u.id,
         ashrayLevel: u.ashrayLevel || null,
         isResident, residencyName,
         submittedCount: submitted, totalDays, avgScorePercent: avgScore, trend,

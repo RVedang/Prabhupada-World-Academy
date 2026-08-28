@@ -122,7 +122,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
     if (!selectedUserId) { setUserStats(null); return; }
     setUserLoading(true);
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 31;
-    getUserProgressStats({ userId: selectedUserId, days, period: 'daily' })
+    getUserProgressStats({ userId: selectedUserId, days, period: 'daily', includeToday: true })
       .then(data => setUserStats(data))
       .catch(() => {})
       .finally(() => setUserLoading(false));
@@ -282,9 +282,12 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-sm font-semibold">Individual User Stats</CardTitle>
+            {(() => {
+              const selectedUser = userList.find((user: any) => String(user.userId) === selectedUserId);
+              return (
             <Select value={selectedUserId} onValueChange={(v) => setSelectedUserId(v || '')}>
               <SelectTrigger className="h-8 w-[220px]">
-                <SelectValue placeholder="Select a user…" />
+                <span className="truncate text-left">{selectedUser?.fullName || 'Select a user…'}</span>
               </SelectTrigger>
               <SelectContent className="max-h-72">
                 {userList.map((u: any) => (
@@ -297,6 +300,8 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
                 ))}
               </SelectContent>
             </Select>
+              );
+            })()}
           </div>
 
           {/* Summary chips */}

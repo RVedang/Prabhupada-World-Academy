@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { createEndpoint, Users, SadhanaEntries } from '@/lib/backend-sdk';
 
+const USER_FIELDS = ['id', 'userId', 'email', 'residencyApproved', 'residency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'roundsCount', 'spReadingMinutes',
   'preachingMinutes', 'booksDistributed', 'sleepMinutes',
@@ -12,6 +14,22 @@ const ENTRY_FIELDS = [
 function parseFieldValues(json: string | null | undefined): Record<string, any> {
   if (!json) return {};
   try { return JSON.parse(json); } catch { return {}; }
+}
+
+function userIdentityAliases(user: any): string[] {
+  return [...new Set(USER_IDENTITY_FIELDS
+    .map(field => user?.[field])
+    .filter(Boolean)
+    .map(value => String(value).trim())
+    .filter(Boolean))];
+}
+
+function dedupeEntries(entryResults: { records: any[] }[]): any[] {
+  const byId = new Map<string, any>();
+  entryResults.flatMap(result => result.records).forEach(entry => {
+    byId.set(String(entry.id), entry);
+  });
+  return [...byId.values()];
 }
 
 function getISOWeekLabel(dateStr: string): string {
@@ -259,6 +277,7 @@ export default createEndpoint({
     userId: z.string(),
     days: z.number().optional(),
     period: z.enum(['daily', 'weekly', 'monthly']).optional(),
+    includeToday: z.boolean().optional(),
     // When true: use entry-count based insights instead of date-range
     // daily = yesterday's entry, weekly = last 7 entries, monthly = last 30 entries
     insightMode: z.boolean().optional(),
@@ -268,9 +287,10 @@ export default createEndpoint({
     if (!context.user) throw new Error('Unauthorized');
     const { userId: targetUserId } = input;
     const period = input.period ?? 'daily';
+    const includeToday = input.includeToday ?? false;
     const insightMode = input.insightMode ?? false;
 
-    let dbUserId: string = context.user.id;
+    let targetUser: any = context.user;
     let isResident = !!(context.user.residencyApproved && (context.user.residency));
 
     // Detect scholar: NR user temporarily visiting a FOLK residency
@@ -280,12 +300,10 @@ export default createEndpoint({
     let isScholar = !isResident && !!(context.user.temporaryResidencyEnabled && tempRes);
 
     if (targetUserId && targetUserId !== context.user.userId && targetUserId !== context.user.id) {
-      const found = await Users.findOne({
-        filters: { userId: targetUserId } as any,
-        fields: ['id', 'residencyApproved', 'residency', 'temporaryResidencyEnabled', 'temporaryResidency'],
-      });
+      const found = await Users.findOne({ id: targetUserId, fields: USER_FIELDS })
+        || await Users.findOne({ filters: { userId: targetUserId } as any, fields: USER_FIELDS });
       if (found) {
-        dbUserId = found.id;
+        targetUser = found;
         const rid = Array.isArray(found.residency) ? found.residency[0] : found.residency;
         const foundTempRes = Array.isArray((found as any).temporaryResidency)
           ? (found as any).temporaryResidency[0]
@@ -294,10 +312,19 @@ export default createEndpoint({
         const foundIsScholar = !foundIsResident && !!((found as any).temporaryResidencyEnabled && foundTempRes);
         isResident = foundIsResident;
         isScholar = foundIsScholar;
-      } else {
-        dbUserId = targetUserId;
-      }
+      } else targetUser = { id: targetUserId };
     }
+
+    const entryOwnerIds = userIdentityAliases(targetUser);
+    if (entryOwnerIds.length === 0 && targetUserId) entryOwnerIds.push(targetUserId);
+    const loadEntries = async (filters: Record<string, unknown>, limit = 500) => {
+      const results = await Promise.all(entryOwnerIds.map(user => SadhanaEntries.findAll({
+        filters: { ...filters, user } as any,
+        fields: ENTRY_FIELDS,
+        limit,
+      })));
+      return dedupeEntries(results);
+    };
 
     // Scholars use resident scoring template
     const effectiveIsResident = isResident || isScholar;
@@ -305,7 +332,7 @@ export default createEndpoint({
     // ─── Trend chart: date-range based (unchanged) ───
     const today = new Date();
     const endD = new Date(today);
-    if (period === 'daily') {
+    if (period === 'daily' && !includeToday) {
       endD.setDate(endD.getDate() - 1);
     }
     const endDate = endD.toISOString().split('T')[0];
@@ -315,10 +342,7 @@ export default createEndpoint({
     startD.setDate(startD.getDate() - (days - 1));
     const startDate = startD.toISOString().split('T')[0];
 
-    const { records: trendEntries } = await SadhanaEntries.findAll({
-      filters: { user: dbUserId, entryDate: { gte: startDate, lte: endDate } } as any,
-      fields: ENTRY_FIELDS, limit: 500,
-    });
+    const trendEntries = await loadEntries({ entryDate: { gte: startDate, lte: endDate } });
 
     const trendSorted = [...trendEntries].sort((a, b) =>
       (a.entryDate as string).localeCompare(b.entryDate as string)
@@ -400,10 +424,7 @@ export default createEndpoint({
 
       if (period === 'daily') {
         // Yesterday's entry specifically
-        const { records: yEntries } = await SadhanaEntries.findAll({
-          filters: { user: dbUserId, entryDate: yesterdayStr } as any,
-          fields: ENTRY_FIELDS, limit: 1,
-        });
+        const yEntries = await loadEntries({ entryDate: yesterdayStr }, 1);
         insightEntries = yEntries;
         noEntry = yEntries.length === 0;
         insightPeriodLabel = 'yesterday';
@@ -412,11 +433,7 @@ export default createEndpoint({
         // Last N entries by count (not date range)
         const n = period === 'weekly' ? 7 : 30;
         insightPeriodLabel = period === 'weekly' ? 'your last 7 entries' : 'your last 30 entries';
-        const { records: recentEntries } = await SadhanaEntries.findAll({
-          filters: { user: dbUserId } as any,
-          fields: ENTRY_FIELDS,
-          limit: 200, // fetch enough to find the most recent N entries for active users
-        });
+        const recentEntries = await loadEntries({}, 200);
         // Sort desc by entryDate, take top N
         insightEntries = [...recentEntries]
           .sort((a, b) => (b.entryDate as string).localeCompare(a.entryDate as string))
