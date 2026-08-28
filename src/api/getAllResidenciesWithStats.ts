@@ -15,6 +15,7 @@ export default createEndpoint({
     const [
       { records: residencies },
       { records: guides },
+      { records: userGuideRows },
       { records: residents },
     ] = await Promise.all([
       FolkResidencies.findAll({
@@ -26,12 +27,34 @@ export default createEndpoint({
         fields: ['id', 'guideId', 'fullName', 'abbreviation', 'email', 'folkResidencies', 'segment'],
         limit: 100,
       }),
+      // Some seeded/legacy guides exist only in Users. Include those records
+      // when resolving hostel assignments so a guide selected in the UI is
+      // still displayed even when there is no matching Guides row.
+      Users.findAll({
+        filters: { status: 'Active' },
+        fields: ['id', 'userId', 'fullName', 'email', 'role', 'segment', 'isPrabhupadaWorldUser', 'isBvAdmin', 'isBvSuperAdmin', 'folkResidencies'],
+        limit: 2000,
+      }),
       Users.findAll({
         filters: { residencyApproved: true, status: 'Active' } as any,
         fields: ['id', 'residency', 'guide'],
         limit: 2000,
       }),
     ]);
+
+    const normalizeRole = (value: unknown) => String(value || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
+    const userGuideRecords = (userGuideRows as any[]).filter((u: any) => {
+      const role = normalizeRole(u.role);
+      const isPw = String(u.segment || '').trim().toUpperCase() === 'PW' || u.isPrabhupadaWorldUser === true;
+      const isGuide = ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'SUPER_ADMIN'].includes(role) || u.isBvAdmin === true || u.isBvSuperAdmin === true;
+      return !isPw && isGuide;
+    }).map((u: any) => ({
+      ...u,
+      id: u.id || u.userId,
+      guideId: u.userId || u.id,
+      abbreviation: u.abbreviation || String(u.fullName || '').slice(0, 3).toUpperCase(),
+    }));
+    const allGuideRecords = [...(guides as any[]), ...userGuideRecords];
 
     const residencyByRef = new Map<string, any>();
     for (const residency of residencies as any[]) {
@@ -41,7 +64,7 @@ export default createEndpoint({
     }
 
     const guideByRef = new Map<string, any>();
-    for (const guide of guides as any[]) {
+    for (const guide of allGuideRecords as any[]) {
       for (const ref of [guide.id, guide.guideId, guide.fullName, guide.email, guide.abbreviation]) {
         if (ref) guideByRef.set(String(ref).trim().toLowerCase(), guide);
       }
@@ -56,20 +79,24 @@ export default createEndpoint({
       if (!residencyId || !guide?.id) return;
       if (!map.has(residencyId)) map.set(residencyId, []);
       const list = map.get(residencyId)!;
-      if (list.some((entry: any) => entry.recordId === guide.id)) return;
+      const guideEmail = String(guide.email || '').trim().toLowerCase();
+      if (list.some((entry: any) => entry.recordId === guide.id ||
+        entry.guideId === guide.id ||
+        (guideEmail && String(entry.email || '').trim().toLowerCase() === guideEmail))) return;
       list.push({
         guideId: guide.id,
         guideName: guide.fullName || '',
         abbreviation: guide.abbreviation || '',
         recordId: guide.id,
+        email: guide.email || '',
       });
     };
 
     // Build residency → guides array map. New records use guideIds; legacy
     // imports use a comma-separated guides field or guide folkResidencies.
     // Each entry includes recordId (Guides table UUID) for matching against User.guide
-    const residencyGuideMap = new Map<string, Array<{ guideId: string; guideName: string; abbreviation: string; recordId: string }>>();
-    for (const g of guides) {
+    const residencyGuideMap = new Map<string, Array<{ guideId: string; guideName: string; abbreviation: string; recordId: string; email?: string }>>();
+    for (const g of allGuideRecords as any[]) {
       for (const value of (Array.isArray(g.folkResidencies) ? g.folkResidencies : g.folkResidencies ? [g.folkResidencies] : [])) {
         const rid = resolveResidencyId(value);
         if (rid) addGuide(residencyGuideMap, rid, g);

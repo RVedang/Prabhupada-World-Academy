@@ -3,9 +3,9 @@ import { createEndpoint, Users, FolkResidencies, Guides } from '@/lib/backend-sd
 import { getGuideScope } from '../lib/guideScope';
 import { isUserInGuideScope } from '../lib/guideScope';
 
-const USER_FIELDS = ['id', 'fullName', 'phone', 'email', 'ashrayLevel', 'residency',
+const USER_FIELDS = ['id', 'fullName', 'phone', 'email', 'ashrayLevel', 'residency', 'selectedFolkResidency',
   'residencyClaimed', 'residencyJoinDate', 'createdAt', 'status', 'guide', 'selectedGuideId', 'guideName', 'isPrabhupadaWorldUser', 'segment'];
-const RESIDENCY_FIELDS = ['id', 'residencyName'];
+const RESIDENCY_FIELDS = ['id', 'residencyId', 'residencyName'];
 
 export default createEndpoint({
   description: 'Get users pending approval — includes all users in the guide\'s centers, not just direct folk',
@@ -102,18 +102,28 @@ export default createEndpoint({
         if (uGuide === sId || uGuide === sName || uGuide === userEmail || (userId && uGuide === userId.toLowerCase())) return true;
         // Registration stores the selected mentor in several legacy fields.
         // Resolve all of them against the guide's canonical scope.
-        if (scope && isUserInGuideScope(scope, { ...u, guide: rawG || rawSelectedGuide })) return true;
+        if (scope && isUserInGuideScope(scope, {
+          ...u,
+          guide: rawG || rawSelectedGuide,
+          residency: u.residency || (u as any).selectedFolkResidency,
+        })) return true;
         return false;
       });
     }
 
-    const residencyMap = new Map(residenciesRes.records.map(r => [r.id, (r as any).residencyName || '']));
+    const residencyMap = new Map<string, string>();
+    residenciesRes.records.forEach((r: any) => {
+      const name = r.residencyName || '';
+      for (const ref of [r.id, r.residencyId, r.residencyName]) {
+        if (ref) residencyMap.set(String(ref).trim().toLowerCase(), name);
+      }
+    });
 
     // Only show users who completed registration (fullName set)
     const completeUsers = allUsers.filter(u => (u.fullName || '').trim().length > 0);
 
     return completeUsers.map(u => {
-      const residencyId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
+      const residencyId = Array.isArray(u.residency) ? u.residency[0] : (u.residency || (u as any).selectedFolkResidency);
       const rawGuideId = Array.isArray(u.guide) ? u.guide[0] : u.guide;
       const uGuideId = rawGuideId ? (guideLookup.get(String(rawGuideId).toLowerCase()) || rawGuideId) : null;
 
@@ -135,7 +145,7 @@ export default createEndpoint({
         ashrayLevel: u.ashrayLevel || null,
         residencyUserClaim: u.residencyClaimed || false,
         selectedFolkResidency: residencyId || null,
-        residencyName: residencyId ? (residencyMap.get(residencyId) || '') : '',
+        residencyName: residencyId ? (residencyMap.get(String(residencyId).trim().toLowerCase()) || '') : '',
         residencyJoinDate: u.residencyJoinDate || null,
         createdAt: u.createdAt || '',
         guideId: uGuideId || null,

@@ -35,7 +35,7 @@ export default createEndpoint({
     if (!context.user) throw new Error('Unauthorized');
     const callerRole = normalizeRole(context.user.role);
     const canAssign = callerRole === 'SUPER_GUIDE' || callerRole === 'SUPER_ADMIN' ||
-      context.user.isBvSuperAdmin === true || context.user.isBvAdmin === true;
+      context.user.isBvSuperAdmin === true;
     if (!canAssign) throw new AppError({ code: 'FORBIDDEN', message: 'Only a FOLK Super Guide can assign hostel guides' });
 
     const residency = await FolkResidencies.findOne({ id: input.residencyId });

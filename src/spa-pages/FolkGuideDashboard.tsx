@@ -51,6 +51,7 @@ export default function FolkGuideDashboard() {
 
   const isBvAdminUser = isSuperAdmin || isForceGuideMode || !!(
     profile?.isBvAdmin ||
+    normalizedProfileRole === 'GUIDE' ||
     normalizedProfileRole === 'ADMIN' ||
     normalizedProfileRole === 'SUPER_ADMIN'
   );

@@ -173,6 +173,11 @@ export function isUserInGuideScope(
     if ((scope.residencyNames || []).some(name => String(name).trim().toLowerCase() === residencyKey)) return true;
   }
   // Direct assignment: user is directly under this guide (by ID or by Name)
-  if (userGuideId && (userGuideId === scope.guideId || (scope.guideName && userGuideId === scope.guideName))) return true;
+  if (userGuideId) {
+    const guideKey = String(userGuideId).trim().toLowerCase();
+    const scopeGuideId = String(scope.guideId || '').trim().toLowerCase();
+    const scopeGuideName = String(scope.guideName || '').trim().toLowerCase();
+    if (guideKey && (guideKey === scopeGuideId || (!!scopeGuideName && guideKey === scopeGuideName))) return true;
+  }
   return false;
 }

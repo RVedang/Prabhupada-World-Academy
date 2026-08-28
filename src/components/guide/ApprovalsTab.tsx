@@ -634,7 +634,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
         </TabsContent>
 
         {/* ── Cleanliness Review Requests ── */}
-        {!isPwAdmin && cleanlinessReviews.length > 0 && (
+        {!isPwAdmin && (
           <TabsContent value="cleanliness">
             <Card>
               <CardHeader>
@@ -642,7 +642,9 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
                 <CardDescription>Users disputing a cleanliness score of 0</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {cleanlinessReviews.map((rev: any) => (
+                {cleanlinessReviews.length === 0 ? (
+                  <EmptyState icon={Sparkles} title="No pending cleanliness reviews" />
+                ) : cleanlinessReviews.map((rev: any) => (
                   <Card key={rev.reviewId} className="border">
                     <CardContent className="pt-4 space-y-3">
                       <div className="flex items-center justify-between">
