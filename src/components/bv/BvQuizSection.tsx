@@ -24,13 +24,13 @@ export default function BvQuizSection({ userId }: Props) {
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
   const [reviewQuizTitle, setReviewQuizTitle] = useState('');
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const r = await getMyBvQuizSubmissions({});
       setData(r as QuizData);
     } catch { toast.error('Failed to load quizzes'); }
-    finally { setLoading(false); }
+    finally { if (showLoading) setLoading(false); }
   };
 
   useEffect(() => { load(); }, [userId]);
@@ -133,7 +133,10 @@ export default function BvQuizSection({ userId }: Props) {
                 quizId={takingQuizId || ''}
                 submissionId={reviewSubmissionId || undefined}
                 onBack={closeDialog}
-                onSubmitted={() => { load(); }}
+                // Do not replace this dialog with the section skeleton while
+                // the result screen is being shown. Refresh the quiz list in
+                // the background so the user sees their score immediately.
+                onSubmitted={() => { void load(false); }}
               />
             )}
           </div>
