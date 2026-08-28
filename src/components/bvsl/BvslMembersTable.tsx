@@ -23,6 +23,16 @@ export default function BvslMembersTable({ bvslId }: Props) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const isFolk = profile?.segment === 'FOLK';
+  const canManageGroups = !!(
+    (profile?.role as string) === 'SUPER_GUIDE' ||
+    (profile?.role as string) === 'GUIDE' ||
+    (profile?.role as string) === 'SUPER_ADMIN' ||
+    (profile?.role as string) === 'ADMIN' ||
+    (profile as any)?.isPwAdmin ||
+    profile?.isBvAdmin ||
+    profile?.isBvSuperAdmin ||
+    ((profile as any)?.email || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com'
+  );
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -176,7 +186,7 @@ export default function BvslMembersTable({ bvslId }: Props) {
                               </Button>
                             </>
                           )}
-                          {(m as any).groupId && (
+                          {canManageGroups && (m as any).groupId && (
                             <Button size="sm" variant="outline" className="h-7 px-2 text-xs border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                               onClick={() => setRemoveTarget(m)}>
                               <UserMinus className="w-3.5 h-3.5" />
@@ -199,7 +209,7 @@ export default function BvslMembersTable({ bvslId }: Props) {
                       <th className="text-left p-2 font-medium bg-card">Ashray Level</th>
                       <th className="text-left p-2 font-medium bg-card">Type</th>
                       <th className="text-left p-2 font-medium bg-card">Contact</th>
-                      <th className="text-left p-2 font-medium bg-card">Actions</th>
+                      {canManageGroups && <th className="text-left p-2 font-medium bg-card">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -248,18 +258,20 @@ export default function BvslMembersTable({ bvslId }: Props) {
                             </Button>
                           </div>
                         </td>
-                        <td className="p-2" onClick={e => e.stopPropagation()}>
-                          {(m as any).groupId && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                              onClick={() => setRemoveTarget(m)}
-                            >
-                              <UserMinus className="w-3.5 h-3.5 mr-1" />Remove
-                            </Button>
-                          )}
-                        </td>
+                        {canManageGroups && (
+                          <td className="p-2" onClick={e => e.stopPropagation()}>
+                            {(m as any).groupId && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => setRemoveTarget(m)}
+                              >
+                                <UserMinus className="w-3.5 h-3.5 mr-1" />Remove
+                              </Button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

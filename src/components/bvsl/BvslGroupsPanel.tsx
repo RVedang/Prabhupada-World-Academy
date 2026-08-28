@@ -12,6 +12,7 @@ import { Users, Plus, Calendar, ChevronRight, Pencil, Trash2, MessageCircle } fr
 import { toast } from 'sonner';
 import { createBvGroup, updateBvGroup, deleteBvGroup } from '@/lib/endpoints-sdk';
 import type { GetBvslGroupsOutputType } from '@/lib/endpoints-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type Group = GetBvslGroupsOutputType['groups'][0];
 
@@ -111,10 +112,22 @@ function DeleteGroupButton({ group, onDeleted }: { group: Group; onDeleted: () =
 }
 
 export default function BvslGroupsPanel({ bvslId, groups, onGroupSelect, onRefresh }: Props) {
+  const { profile } = useUserProfile();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [creating, setCreating] = useState(false);
+
+  const canManageGroups = !!(
+    (profile?.role as string) === 'SUPER_GUIDE' ||
+    (profile?.role as string) === 'GUIDE' ||
+    (profile?.role as string) === 'SUPER_ADMIN' ||
+    (profile?.role as string) === 'ADMIN' ||
+    (profile as any)?.isPwAdmin ||
+    profile?.isBvAdmin ||
+    profile?.isBvSuperAdmin ||
+    ((profile as any)?.email || '').toLowerCase() === 'srilaprabhupadaworld@gmail.com'
+  );
 
   const handleCreate = async () => {
     if (!name.trim()) { toast.error('Group name is required'); return; }
@@ -132,33 +145,35 @@ export default function BvslGroupsPanel({ bvslId, groups, onGroupSelect, onRefre
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">My BV Groups</h3>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="w-4 h-4 mr-1" />New Group</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Create BV Group</DialogTitle></DialogHeader>
-            <div className="space-y-3 pt-2">
-              <div>
-                <label className="text-sm font-medium">Group Name *</label>
-                <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Monday Morning Group" className="mt-1" />
+        {canManageGroups && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Plus className="w-4 h-4 mr-1" />New Group</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Create BV Group</DialogTitle></DialogHeader>
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="text-sm font-medium">Group Name *</label>
+                  <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Monday Morning Group" className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Description</label>
+                  <Input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional description" className="mt-1" />
+                </div>
+                <Button onClick={handleCreate} disabled={creating} className="w-full">
+                  {creating ? 'Creating...' : 'Create Group'}
+                </Button>
               </div>
-              <div>
-                <label className="text-sm font-medium">Description</label>
-                <Input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional description" className="mt-1" />
-              </div>
-              <Button onClick={handleCreate} disabled={creating} className="w-full">
-                {creating ? 'Creating...' : 'Create Group'}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {groups.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">
           <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
-          <p>No groups yet. Create your first BV group.</p>
+          <p>{canManageGroups ? 'No groups yet. Create your first BV group.' : 'No groups assigned yet.'}</p>
         </CardContent></Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -191,8 +206,12 @@ export default function BvslGroupsPanel({ bvslId, groups, onGroupSelect, onRefre
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                      <EditGroupDialog group={g} onSave={onRefresh} />
-                      <DeleteGroupButton group={g} onDeleted={onRefresh} />
+                      {canManageGroups && (
+                        <>
+                          <EditGroupDialog group={g} onSave={onRefresh} />
+                          <DeleteGroupButton group={g} onDeleted={onRefresh} />
+                        </>
+                      )}
                       <div className="p-1 rounded-lg hover:bg-muted text-muted-foreground group-hover:text-primary transition-colors">
                         <ChevronRight className="w-4 h-4" />
                       </div>

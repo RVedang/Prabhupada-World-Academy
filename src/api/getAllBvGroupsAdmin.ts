@@ -66,6 +66,21 @@ export default createEndpoint({
       id: guideDbId,
       fields: ['id', 'fullName', 'email', 'guideId', 'folkResidencies'],
     }).catch(() => undefined);
+    // Role assignment stores hierarchy parents on the Users record, while
+    // older guide records use a Guides-table id. Resolve both representations
+    // so an RGF assigned to this guide is always discoverable.
+    let linkedGuideUser = (resolvedGuide as any)?.email
+      ? await Users.findOne({
+        filters: { email: (resolvedGuide as any).email },
+        fields: ['id', 'userId', 'fullName', 'email'],
+      }).catch(() => undefined)
+      : undefined;
+    if (!linkedGuideUser) {
+      linkedGuideUser = await Users.findOne({ id: input.guideId, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined);
+    }
+    if (!linkedGuideUser) {
+      linkedGuideUser = await Users.findOne({ filters: { userId: input.guideId }, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined);
+    }
     const guideResidencies = Array.isArray((resolvedGuide as any)?.folkResidencies)
       ? (resolvedGuide as any).folkResidencies
       : ((resolvedGuide as any)?.folkResidencies ? [(resolvedGuide as any).folkResidencies] : []);
@@ -92,17 +107,23 @@ export default createEndpoint({
       (resolvedGuide as any)?.email,
       (resolvedGuide as any)?.guideId,
       input.guideId,
+      (linkedGuideUser as any)?.id,
+      (linkedGuideUser as any)?.userId,
     ].filter(Boolean).map(value => String(value).trim().toLowerCase()));
     const { records: allBvslUsers } = await Users.findAll({
       // Keep this a single-field query; filtering both status and isBvsl can
       // require a composite index that may not exist immediately after deploy.
       filters: { status: 'Active' },
       limit: 1000,
-      fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'role', 'isBvsl', 'isBvFacilitator'],
+      fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'role', 'isBvsl', 'isBvFacilitator', 'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingAdminName', 'bvReportingSupervisorName'],
     });
     const bvslUserRecords = allBvslUsers.filter((u: any) => {
       if (u.isBvsl !== true && String(u.role || '').toUpperCase() !== 'BVSL' && u.isBvFacilitator !== true) return false;
-      const guideValues = [u.guide, u.selectedGuideId, u.guideName].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean);
+      const guideValues = [
+        u.guide, u.selectedGuideId, u.guideName,
+        u.bvReportingAdminId, u.bvReportingSupervisorId,
+        u.bvReportingAdminName, u.bvReportingSupervisorName,
+      ].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean);
       const residencyValues = [u.residency].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean);
       const matchesGuide = guideValues.some(value => guideAliases.has(String(value).trim().toLowerCase()));
       const matchesResidency = residencyValues.some(value => guideResidencyAliases.has(String(value).trim().toLowerCase()));

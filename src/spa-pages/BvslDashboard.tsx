@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Users, CheckSquare, BarChart3, BookOpen, FileText, Brain, GraduationCap, CalendarClock, ClipboardList, Clock, Video } from 'lucide-react';
+import { Users, CheckSquare, BarChart3, BookOpen, FileText, Brain, GraduationCap, CalendarClock, ClipboardList, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { getBvslGroups, getPendingBvRegistrations, getCurrentGuide } from '@/lib/endpoints-sdk';
+import { getBvslGroups, getCurrentGuide } from '@/lib/endpoints-sdk';
 import { useNavigate } from 'react-router-dom';
 import type { GetBvslGroupsOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -29,7 +29,6 @@ export default function BvslDashboard() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<GetBvslGroupsOutputType['groups']>([]);
   const [loading, setLoading] = useState(true);
-  const [bvRegCount, setBvRegCount] = useState(0);
   const [displayName, setDisplayName] = useState('');
 
   const isFolk = profile?.segment === 'FOLK';
@@ -50,12 +49,8 @@ export default function BvslDashboard() {
     if (!bvslId) return;
     setLoading(true);
     try {
-      const [res, bvRegs] = await Promise.all([
-        getBvslGroups({ bvslId }),
-        getPendingBvRegistrations({}).catch(() => []),
-      ]);
+      const res = await getBvslGroups({ bvslId });
       setGroups(res.groups);
-      setBvRegCount(Array.isArray(bvRegs) ? bvRegs.length : 0);
     } catch { toast.error('Failed to load groups'); }
     finally { setLoading(false); }
   }, [profile?.userId]);
@@ -78,7 +73,6 @@ export default function BvslDashboard() {
     { value: 'weekplan',  label: 'Weekly Plan', icon: ClipboardList },
     { value: 'groups',    label: 'Groups',      icon: Users },
     { value: 'session',   label: 'Attendance',  icon: CheckSquare },
-    { value: 'pending',   label: `Pending Applicants${bvRegCount > 0 ? ` (${bvRegCount})` : ''}`, icon: Clock },
     { value: 'quizzes',   label: 'Quizzes',     icon: Brain },
     { value: 'bvreport',  label: 'BV Report',   icon: BarChart3 },
     { value: 'report',    label: 'Sadhana',     icon: FileText },
@@ -87,7 +81,7 @@ export default function BvslDashboard() {
     { value: 'meetings',  label: 'Meetings & MoM', icon: Video },
   ];
 
-  // Super Admins always display the institutional name; regular facilitators show their own guide name
+  const defaultName = isFolk ? 'FOLK' : 'Prabhupada World';
   const headerName = isSuperAdmin ? defaultName : (displayName || defaultName);
   const roleTitle = isSubFacilitatorOnly ? 'Reading Group Sub-Facilitator Dashboard' : 'Reading Group Facilitator Dashboard';
   const subtitle = [
@@ -107,7 +101,7 @@ export default function BvslDashboard() {
     >
       <Toaster />
       {loading ? <LoadingPage rows={2} /> : (
-        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={canView1on1 ? 10 : 9}>
+        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={canView1on1 ? 9 : 8}>
           {(activeTab) => (
             <>
               {activeTab === 'weekplan' && <BvslWeeklyPlanTab userEmail={authUser?.email || ''} />}
@@ -117,7 +111,6 @@ export default function BvslDashboard() {
                   onRefresh={loadGroups} />
               )}
               {activeTab === 'session' && <BvslSessionPanel bvslId={bvslId} groups={groups} />}
-              {activeTab === 'pending' && <SuperBvRegistrationsTab />}
               {activeTab === 'members' && <BvslMembersTable bvslId={bvslId} />}
               {activeTab === 'bvreport' && <BvSection guideId={bvslId} bvslMode />}
               {activeTab === 'report' && <BvslSadhanaReportPanel bvslId={bvslId} />}

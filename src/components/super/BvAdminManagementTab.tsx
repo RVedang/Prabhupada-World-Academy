@@ -89,7 +89,10 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
           bvslName: g.bvslName || g.bvslLeaderName || null,
         })));
         setGuides((scoped.bvsls || []).map((u: any) => ({
-          guideId: u.userId,
+          // getAllBvGroupsAdmin returns the facilitator's Users row id in
+          // `userId` (and may also expose a custom userId in future). Keep a
+          // stable, non-empty value for Radix SelectItem values.
+          guideId: u.userId || u.id,
           name: u.fullName,
           email: u.email || '',
           abbr: (u.fullName || '').slice(0, 3).toUpperCase(),
@@ -241,7 +244,13 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => setCreateGroupOpen(true)}>
+            <Button size="sm" onClick={() => {
+              setCreateGroupOpen(true);
+              // Role assignments can happen in the Members panel while this
+              // dashboard remains mounted. Refresh the facilitator list when
+              // the modal opens so newly assigned RGFs are immediately usable.
+              void loadData();
+            }}>
               <Plus className="w-4 h-4 mr-1.5" /> Create Group
             </Button>
           </div>
