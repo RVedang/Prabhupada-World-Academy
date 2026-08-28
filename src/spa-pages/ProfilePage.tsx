@@ -4,17 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Flame, TrendingUp, Leaf, Star } from 'lucide-react';
+import { ArrowLeft, Flame, TrendingUp, Leaf, Star, MapPin, Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
   getUserProfile, getUserMetrics, getGuides, getAshrayUpgradePath, getAllResidencies,
-  getBvAttendance, getAshrayChecklist, getUserCrmData, getCurrentGuide, saveGuideResidencyView,
+  getBvAttendance, getAshrayChecklist, getUserCrmData, getGuideResidencyAssignments, requestGuideResidencyAssignment,
 } from '@/lib/endpoints-sdk';
 import type {
   GetUserProfileOutputType, GetGuidesOutputType,
   GetAshrayUpgradePathOutputType, GetUserMetricsOutputType, GetAllResidenciesOutputType,
-  GetUserCrmDataOutputType, GetCurrentGuideOutputType,
+  GetUserCrmDataOutputType,
 } from '@/lib/endpoints-sdk';
 import AshrayJourneyCard from '@/components/crm/AshrayJourneyCard';
 import TripsDuesCard from '@/components/crm/TripsDuesCard';
@@ -26,7 +26,6 @@ import AccountCard from '@/components/profile/AccountCard';
 import ProfileHero from '@/components/profile/ProfileHero';
 import AshrayCriteriaGrid from '@/components/profile/AshrayCriteriaGrid';
 import NotificationCard from '@/components/profile/NotificationCard';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type ProfileType = NonNullable<GetUserProfileOutputType['user']>;
 
@@ -124,7 +123,7 @@ export default function ProfilePage() {
   const showGuideResidencyCard = !isPwUser && !isBvAdminUser;
   const isFolk = profile.segment === 'FOLK';
   const adminDashboardPath = isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
-  const showGuideResidencyViewCard = isFolk && isBvAdminUser && !isPwUser;
+  const showGuideResidencyAssignmentCard = isFolk && isBvAdminUser && !isPwUser;
 
   return (
     <div className="min-h-screen bg-background">
@@ -150,8 +149,8 @@ export default function ProfilePage() {
             phone={String(profile.phone || '')} ashrayLevel={isSuperAdmin ? null : profile.ashrayLevel}
             isSuperAdmin={isSuperAdmin}
             onUpdated={() => handleProfileChanged()} />
-          {showGuideResidencyViewCard && user?.email && (
-            <GuideResidencyViewCard email={user.email} />
+          {showGuideResidencyAssignmentCard && (
+            <GuideResidencyAssignmentCard isSuperGuide={isSuperAdmin} />
           )}
           {showGuideResidencyCard && (
             <GuideResidencyCard email={user?.email || ''} fullName={profile.fullName}
@@ -244,30 +243,29 @@ export default function ProfilePage() {
   );
 }
 
-type GuideResidencyViewData = GetCurrentGuideOutputType extends { residencies: infer R; activeResidencyViewId?: infer A }
-  ? { residencies: R extends any[] ? R : any[]; activeResidencyViewId: A extends string | null ? A : string | null; isDepartmentWideResidencyView: boolean }
-  : { residencies: any[]; activeResidencyViewId: string | null; isDepartmentWideResidencyView: boolean };
-
-function GuideResidencyViewCard({ email }: { email: string }) {
+function GuideResidencyAssignmentCard({ isSuperGuide }: { isSuperGuide: boolean }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [data, setData] = useState<GuideResidencyViewData>({ residencies: [], activeResidencyViewId: null, isDepartmentWideResidencyView: false });
+  const [assigned, setAssigned] = useState<any[]>([]);
+  const [allResidencies, setAllResidencies] = useState<any[]>([]);
+  const [pendingRequest, setPendingRequest] = useState<any | null>(null);
+  const [requestedIds, setRequestedIds] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
 
-    getCurrentGuide({ email, _nocache: true } as any)
+    getGuideResidencyAssignments({} as any)
       .then((res: any) => {
         if (cancelled) return;
-        setData({
-          residencies: Array.isArray(res?.residencies) ? res.residencies : [],
-          activeResidencyViewId: res?.activeResidencyViewId || null,
-          isDepartmentWideResidencyView: res?.isDepartmentWideResidencyView === true,
-        });
+        const nextAssigned = Array.isArray(res?.assignedResidencies) ? res.assignedResidencies : [];
+        setAssigned(nextAssigned);
+        setAllResidencies(Array.isArray(res?.allResidencies) ? res.allResidencies : []);
+        setPendingRequest(res?.pendingRequest || null);
+        setRequestedIds(Array.isArray(res?.pendingRequest?.requestedResidencyIds) ? res.pendingRequest.requestedResidencyIds : nextAssigned.map((r: any) => r.id));
       })
       .catch(() => {
         if (!cancelled) {
-          setData({ residencies: [], activeResidencyViewId: null, isDepartmentWideResidencyView: false });
+          setAssigned([]); setAllResidencies([]); setPendingRequest(null); setRequestedIds([]);
         }
       })
       .finally(() => {
@@ -277,26 +275,20 @@ function GuideResidencyViewCard({ email }: { email: string }) {
     return () => {
       cancelled = true;
     };
-  }, [email]);
+  }, []);
 
-  const residencies = data.residencies || [];
-  if (!loading && residencies.length === 0) return null;
-
-  const currentValue = data.activeResidencyViewId || 'all';
-
-  const handleChange = async (value: string | null) => {
-    if (!value) return;
-    const nextResidencyId = value === 'all' ? null : value;
-    setData(prev => ({ ...prev, activeResidencyViewId: nextResidencyId }));
+  const handleSubmit = async () => {
+    if (requestedIds.length === 0) {
+      toast.error('Select at least one residency');
+      return;
+    }
     setSaving(true);
     try {
-      await saveGuideResidencyView({ residencyId: nextResidencyId } as any);
-      toast.success(nextResidencyId
-        ? 'Guide residency view updated'
-        : (data.isDepartmentWideResidencyView ? 'Showing all FOLK residencies' : 'Showing all linked residencies'));
+      await requestGuideResidencyAssignment({ residencyIds: requestedIds } as any);
+      setPendingRequest({ requestedResidencyIds: requestedIds, status: 'Pending' });
+      toast.success('Residency assignment request sent for Super Guide approval');
     } catch (error: any) {
-      setData(prev => ({ ...prev, activeResidencyViewId: currentValue === 'all' ? null : currentValue }));
-      toast.error(error?.message || 'Failed to update guide residency view');
+      toast.error(error?.message || 'Failed to submit residency assignment request');
     } finally {
       setSaving(false);
     }
@@ -305,34 +297,32 @@ function GuideResidencyViewCard({ email }: { email: string }) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Guide Residency View</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> Assigned FOLK Residencies</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          Choose which FOLK residency you want to review in guide transfer and FOLK transfer approvals.
-        </p>
         {loading ? (
           <Skeleton className="h-10 w-full" />
         ) : (
-          <Select value={currentValue} onValueChange={handleChange} disabled={saving}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select residency view" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                {data.isDepartmentWideResidencyView ? 'All FOLK residencies' : 'All linked residencies'}
-              </SelectItem>
-              {residencies.map((residency: any) => (
-                <SelectItem key={residency.id} value={residency.id}>
-                  {residency.residencyName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <>
+            <div className="flex flex-wrap gap-2">
+              {assigned.length > 0 ? assigned.map((r: any) => <span key={r.id} className="rounded-full bg-primary/10 px-3 py-1 text-primary font-medium">{r.residencyName}</span>) : <span className="text-muted-foreground">No residency assigned yet.</span>}
+            </div>
+            {isSuperGuide ? (
+              <p className="text-xs text-muted-foreground">Super Guide access includes all active FOLK residencies.</p>
+            ) : (
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-xs text-muted-foreground">Residency changes require Super Guide approval.</p>
+                <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto">
+                  {allResidencies.map((r: any) => <label key={r.id} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted/50"><input type="checkbox" checked={requestedIds.includes(r.id)} onChange={e => setRequestedIds(prev => e.target.checked ? [...new Set([...prev, r.id])] : prev.filter(id => id !== r.id))} disabled={saving || !!pendingRequest} />{r.residencyName}</label>)}
+                </div>
+                <Button size="sm" onClick={handleSubmit} disabled={saving || !!pendingRequest || allResidencies.length === 0}>
+                  {saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Send className="w-3 h-3 mr-1" />} Request change
+                </Button>
+                {pendingRequest && <p className="text-xs text-amber-700">A residency change request is pending Super Guide approval.</p>}
+              </div>
+            )}
+          </>
         )}
-        <p className="text-xs text-muted-foreground">
-          This changes only your current dashboard view. It does not reassign the residency itself.
-        </p>
       </CardContent>
     </Card>
   );

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvMemberRegistrations, BvGroupMembers, Users, AppError } from '@/lib/backend-sdk';
+import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
 const formatPhone = (phone?: string) => {
   if (!phone) return '';
@@ -16,6 +17,7 @@ export default createEndpoint({
   requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     segment: z.enum(['PW', 'FOLK']).optional(),
+    guideId: z.string().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
@@ -150,6 +152,10 @@ export default createEndpoint({
     const targetSegment = input?.segment || (
       context.user.isBvSuperAdmin ? 'PW' : 'FOLK'
     );
+    const isFolkSuper = role === 'SUPER_GUIDE' || role === 'SUPER_ADMIN' || context.user.isBvSuperAdmin || context.user.isBvAdmin;
+    const guideScope = targetSegment === 'FOLK' && !isFolkSuper
+      ? await getGuideScope(context.user.email || '').catch(() => null)
+      : null;
 
     const filteredRecords = records.filter(r => {
       const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
@@ -172,7 +178,12 @@ export default createEndpoint({
       }
       
       // FOLK Admin / Super Admin sees ONLY FOLK registrations
-      return !isPwUser;
+      if (isPwUser) return false;
+      if (guideScope) {
+        const guideUser = u || { guide: r.guide || r.selectedGuideId };
+        if (!isUserInGuideScope(guideScope, guideUser)) return false;
+      }
+      return true;
     });
 
     const mappedRecords = filteredRecords.map(r => {

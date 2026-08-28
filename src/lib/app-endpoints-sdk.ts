@@ -769,6 +769,34 @@ export const getCurrentGuide = (input: getCurrentGuide_Input): Promise<getCurren
 export type GetCurrentGuideOutputType = getCurrentGuide_Output;
 export type GetCurrentGuideInputType = getCurrentGuide_Input;
 
+import type getGuideResidencyAssignments_Type from '../api/getGuideResidencyAssignments';
+type getGuideResidencyAssignments_Input = Parameters<typeof getGuideResidencyAssignments_Type.execute>[0]['input'];
+type getGuideResidencyAssignments_Output = ReturnType<typeof getGuideResidencyAssignments_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof getGuideResidencyAssignments_Type.execute>;
+export const getGuideResidencyAssignments = (input: getGuideResidencyAssignments_Input): Promise<getGuideResidencyAssignments_Output> => invokeEndpoint('getGuideResidencyAssignments', input);
+export type GetGuideResidencyAssignmentsOutputType = getGuideResidencyAssignments_Output;
+export type GetGuideResidencyAssignmentsInputType = getGuideResidencyAssignments_Input;
+
+import type getGuideResidencyAssignmentRequests_Type from '../api/getGuideResidencyAssignmentRequests';
+type getGuideResidencyAssignmentRequests_Input = Parameters<typeof getGuideResidencyAssignmentRequests_Type.execute>[0]['input'];
+type getGuideResidencyAssignmentRequests_Output = ReturnType<typeof getGuideResidencyAssignmentRequests_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof getGuideResidencyAssignmentRequests_Type.execute>;
+export const getGuideResidencyAssignmentRequests = (input: getGuideResidencyAssignmentRequests_Input): Promise<getGuideResidencyAssignmentRequests_Output> => invokeEndpoint('getGuideResidencyAssignmentRequests', input);
+export type GetGuideResidencyAssignmentRequestsOutputType = getGuideResidencyAssignmentRequests_Output;
+export type GetGuideResidencyAssignmentRequestsInputType = getGuideResidencyAssignmentRequests_Input;
+
+import type requestGuideResidencyAssignment_Type from '../api/requestGuideResidencyAssignment';
+type requestGuideResidencyAssignment_Input = Parameters<typeof requestGuideResidencyAssignment_Type.execute>[0]['input'];
+type requestGuideResidencyAssignment_Output = ReturnType<typeof requestGuideResidencyAssignment_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof requestGuideResidencyAssignment_Type.execute>;
+export const requestGuideResidencyAssignment = (input: requestGuideResidencyAssignment_Input): Promise<requestGuideResidencyAssignment_Output> => invokeEndpoint('requestGuideResidencyAssignment', input);
+export type RequestGuideResidencyAssignmentOutputType = requestGuideResidencyAssignment_Output;
+export type RequestGuideResidencyAssignmentInputType = requestGuideResidencyAssignment_Input;
+
+import type reviewGuideResidencyAssignment_Type from '../api/reviewGuideResidencyAssignment';
+type reviewGuideResidencyAssignment_Input = Parameters<typeof reviewGuideResidencyAssignment_Type.execute>[0]['input'];
+type reviewGuideResidencyAssignment_Output = ReturnType<typeof reviewGuideResidencyAssignment_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof reviewGuideResidencyAssignment_Type.execute>;
+export const reviewGuideResidencyAssignment = (input: reviewGuideResidencyAssignment_Input): Promise<reviewGuideResidencyAssignment_Output> => invokeEndpoint('reviewGuideResidencyAssignment', input);
+export type ReviewGuideResidencyAssignmentOutputType = reviewGuideResidencyAssignment_Output;
+export type ReviewGuideResidencyAssignmentInputType = reviewGuideResidencyAssignment_Input;
+
 import type getEligibleMembersForBvGroup_Type from '../api/getEligibleMembersForBvGroup';
 type getEligibleMembersForBvGroup_Input = Parameters<typeof getEligibleMembersForBvGroup_Type.execute>[0]['input'];
 type getEligibleMembersForBvGroup_Output = ReturnType<typeof getEligibleMembersForBvGroup_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof getEligibleMembersForBvGroup_Type.execute>;

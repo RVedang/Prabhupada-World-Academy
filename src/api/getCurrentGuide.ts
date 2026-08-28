@@ -70,6 +70,11 @@ export default createEndpoint({
       }
     }
 
+    if (guideRecord && (!guideRecord.folkResidencies || (Array.isArray(guideRecord.folkResidencies) && guideRecord.folkResidencies.length === 0))) {
+      const linkedUser = await Users.findOne({ filters: { email: context.user?.email }, fields: CURRENT_USER_GUIDE_FIELDS }).catch(() => undefined);
+      if (linkedUser?.folkResidencies) guideRecord = { ...guideRecord, folkResidencies: linkedUser.folkResidencies };
+    }
+
     if (!guideRecord) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Guide access required' });
     }

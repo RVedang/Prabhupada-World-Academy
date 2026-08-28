@@ -37,36 +37,30 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
     guide = allGuides.find((g: any) => (g.email || '').toLowerCase() === emailLower);
   }
 
-  if (!guide && emailLower === 'guide@gmail.com') {
-    guide = {
-      id: 'GUIDE-001',
-      fullName: 'Spiritual Guide',
-      email: 'guide@gmail.com',
-      folkResidencies: [],
-    };
-  }
-
   if (!guide) {
     const user = await Users.findOne({ filters: { email } }) || 
                  await Users.findOne({ filters: { email: emailLower } });
+    const normalizedRole = String(user?.role || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
     if (user && (
-      user.isBvSuperAdmin || 
-      user.isBvAdmin || 
-      user.role === 'Super Admin' || 
-      user.role === 'SUPER_ADMIN' || 
-      user.role === 'Super Guide' || 
-      user.role === 'SUPER_GUIDE' || 
-      user.role === 'Admin' || 
-      user.role === 'ADMIN'
+      ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'SUPER_ADMIN'].includes(normalizedRole) ||
+      user.isBvSuperAdmin || user.isBvAdmin
     )) {
       guide = {
-        id: user.userId || user.id || 'GUIDE-ADMIN-001',
-        fullName: user.fullName || 'Super Guide Admin',
+        id: user.userId || user.id,
+        fullName: user.fullName || user.email || '',
         email: email,
-        folkResidencies: [],
-        isSuperAdminScope: true,
+        folkResidencies: user.folkResidencies || [],
+        isSuperAdminScope: ['SUPER_GUIDE', 'SUPER_ADMIN'].includes(normalizedRole) || !!user.isBvSuperAdmin,
       };
     }
+  }
+
+  // Newer role assignments are persisted on Users as well as Guides. If a
+  // legacy Guides row has no residency links, merge the authenticated user's
+  // assignment so every scoped report uses the current database state.
+  if (guide && (!guide.folkResidencies || (Array.isArray(guide.folkResidencies) && guide.folkResidencies.length === 0))) {
+    const linkedUser = await Users.findOne({ filters: { email }, fields: ['folkResidencies'] }).catch(() => undefined);
+    if (linkedUser?.folkResidencies) guide = { ...guide, folkResidencies: linkedUser.folkResidencies };
   }
 
   if (!guide) return null;
@@ -119,7 +113,7 @@ export function isUserInGuideScope(
   userRecord: { residency?: string | string[] | null; guide?: string | string[] | null },
 ): boolean {
   if (!scope) return false;
-  if ((scope as any).isSuperAdminScope || scope.guideId === 'GUIDE-ADMIN-001') return true;
+  if ((scope as any).isSuperAdminScope) return true;
   const userResidencyId = Array.isArray(userRecord.residency)
     ? userRecord.residency[0]
     : userRecord.residency;

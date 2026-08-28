@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, Users, FolkResidencies, SadhanaEntries, Guides } from '@/lib/backend-sdk';
+import { createEndpoint, Users, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
+import { getGuideScope } from '../lib/guideScope';
 
 function parseFieldValues(json: string | null | undefined): Record<string, any> {
   if (!json) return {};
@@ -96,18 +97,12 @@ export default createEndpoint({
       !!context.user.isBvAdmin;
 
     let guideRecord: any = null;
+    let guideRids: string[] = [];
     if (!isSuperGuide) {
-      guideRecord = await Guides.findOne({
-        filters: { email: context.user.email, isActive: true },
-        fields: ['id', 'folkResidencies'],
-      }).catch(() => null);
+      const scope = await getGuideScope(context.user.email || '');
+      guideRecord = scope ? { id: scope.guideId } : null;
+      guideRids = scope?.residencyIds || [];
     }
-
-    const guideRids: string[] = guideRecord
-      ? (Array.isArray(guideRecord.folkResidencies)
-          ? guideRecord.folkResidencies
-          : (guideRecord.folkResidencies ? [guideRecord.folkResidencies] : []))
-      : [];
 
     const residents = allUsers.filter(u => {
       const resId = Array.isArray(u.residency) ? u.residency[0] : u.residency;

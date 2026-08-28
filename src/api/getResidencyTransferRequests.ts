@@ -49,17 +49,17 @@ export default createEndpoint({
       // Find the guide record for the current user
       let guideRecord: any = await Guides.findOne({
         ...(scopedGuideId && scopedGuideId !== 'ALL' ? { id: scopedGuideId } : { filters: { email: context.user.email, isActive: true } }),
-        fields: ['id', 'folkResidencies', 'activeResidencyView'],
+        fields: ['id', 'folkResidencies'],
       }).catch(() => undefined);
       // Dual-role guide/super-guide profiles may exist only in Users. Prefer
       // the authenticated record so its saved residency view is used even if
       // legacy duplicate Users rows share the same custom userId.
       if (!guideRecord) {
         guideRecord =
-          await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined) ||
-          await Users.findOne({ id: scopedGuideId, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined) ||
-          await Users.findOne({ filters: { userId: scopedGuideId }, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined) ||
-          await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined);
+          await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined) ||
+          await Users.findOne({ id: scopedGuideId, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { userId: scopedGuideId }, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined);
       }
       if (!guideRecord) return [];
 
@@ -69,8 +69,6 @@ export default createEndpoint({
           ? guideRecord.folkResidencies
           : [guideRecord.folkResidencies]
       );
-      const activeResidencyViewId = firstRef((guideRecord as any).activeResidencyView).trim();
-
       if (hasDepartmentWideResidencyAccess) {
         const { records: allResidencies } = await FolkResidencies.findAll({
           fields: ['id', 'residencyName', 'isActive'],
@@ -84,13 +82,9 @@ export default createEndpoint({
           })
           .map((residency: any) => String(residency.id || '').trim())
           .filter(Boolean);
-        allowedResidencyIds = activeResidencyViewId && allFolkResidencyIds.includes(activeResidencyViewId)
-          ? [activeResidencyViewId]
-          : allFolkResidencyIds;
+        allowedResidencyIds = allFolkResidencyIds;
       } else {
-        allowedResidencyIds = activeResidencyViewId && linkedResidencyIds.includes(activeResidencyViewId)
-          ? [activeResidencyViewId]
-          : linkedResidencyIds;
+        allowedResidencyIds = linkedResidencyIds;
       }
 
       // If guide has no residencies, they shouldn't see any residency transfers

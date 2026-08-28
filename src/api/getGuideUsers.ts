@@ -3,6 +3,7 @@ import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroup
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
+import { getGuideScope } from '../lib/guideScope';
 
 // Minimal fields for guide lookup
 const GUIDE_FIELDS = ['id', 'email', 'isActive', 'role', 'folkResidencies'];
@@ -77,7 +78,7 @@ export default createEndpoint({
     const [guideRecord, sadhanaRes, groupsRes, membersRes] = await Promise.all([
       (isSuperGuide || isBvMentor)
         ? Promise.resolve(null)
-        : Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: GUIDE_FIELDS }).catch(() => null),
+        : getGuideScope(context.user.email || '').then(scope => scope ? { id: scope.guideId, folkResidencies: scope.residencyIds } : null),
       SadhanaEntries.findAll({
         filters: { entryDate: todayStr },
         fields: ENTRY_TODAY_FIELDS,

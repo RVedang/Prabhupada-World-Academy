@@ -613,6 +613,7 @@ export const CleanlinessRooms = new Table('CleanlinessRooms');
 export const Config = new Table('Config');
 export const FolkResidencies = new Table('FolkResidencies');
 export const GuideTransferRequests = new Table('GuideTransferRequests');
+export const GuideResidencyAssignmentRequests = new Table('GuideResidencyAssignmentRequests');
 export const Guides = new Table('Guides');
 export const JigyasaProcessedFiles = new Table('JigyasaProcessedFiles');
 export const JigyasaRegistrations = new Table('JigyasaRegistrations');

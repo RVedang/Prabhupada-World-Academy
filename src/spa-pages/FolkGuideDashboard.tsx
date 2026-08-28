@@ -118,7 +118,7 @@ export default function FolkGuideDashboard() {
           getGuideRequests({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
           getResidencyTransferRequests({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true } as any).catch(() => []),
           getCleanlinessReviews({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => []),
-          getPendingBvRegistrations({ segment: 'FOLK', _nocache: true }).catch(() => []),
+          getPendingBvRegistrations({ segment: 'FOLK', ...(!isSuperAdmin && guideId ? { guideId } : {}), _nocache: true }).catch(() => []),
         ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
           const pendingArr = Array.isArray(pending) ? pending : (pending as any).records || [];
           const guideTransfers = Array.isArray(requests?.guideTransfers) ? requests.guideTransfers : [];

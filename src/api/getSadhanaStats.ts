@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
+import { getGuideScope } from '../lib/guideScope';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince'];
@@ -36,7 +37,7 @@ export default createEndpoint({
     segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     // Authorization: only Guide, Super Guide, BVSL, or Sadhana Mentor may access stats
     requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor: (context.user as any).isBvMentor });
@@ -53,10 +54,15 @@ export default createEndpoint({
 
     let guideResidencyIds: string[] = [];
     if (guideDbId) {
-      const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] });
-      guideResidencyIds = Array.isArray(guide?.folkResidencies)
-        ? guide!.folkResidencies as string[]
-        : (guide?.folkResidencies ? [guide!.folkResidencies as string] : []);
+      const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined);
+      if (guide) {
+        guideResidencyIds = Array.isArray(guide.folkResidencies)
+          ? guide.folkResidencies as string[]
+          : (guide.folkResidencies ? [guide.folkResidencies as string] : []);
+      } else {
+        const scope = await getGuideScope(context.user.email || '');
+        guideResidencyIds = scope?.residencyIds || [];
+      }
     }
 
     let users: any[] = [];

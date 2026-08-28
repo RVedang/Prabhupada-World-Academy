@@ -60,8 +60,16 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
   // incorrectly hide otherwise valid groups from the dropdown.
   const activeGroups = allGroupsState.filter(g => g.isActive !== false);
   const targetSegment = String(selectedReg?.segment || segment || '').toUpperCase();
+  // Guide-scoped group endpoints historically do not include a `segment`
+  // field.  Those groups are already scoped to this dashboard by the server,
+  // so an undefined segment must remain eligible instead of making the
+  // "show all" list appear empty.  When a segment is present, still honour it
+  // to avoid mixing PW and FOLK groups in a department-wide view.
   const segmentGroups = targetSegment
-    ? activeGroups.filter(g => String(g.segment || '').toUpperCase() === targetSegment)
+    ? activeGroups.filter(g => {
+        const groupSegment = String(g.segment || '').toUpperCase();
+        return !groupSegment || groupSegment === targetSegment;
+      })
     : activeGroups;
   const timeMatchedGroups = segmentGroups.filter(g =>
     isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime)

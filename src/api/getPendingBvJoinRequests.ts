@@ -9,7 +9,7 @@ export default createEndpoint({
     bvslId: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input }: any) => {
     const filter: any = { status: 'Pending' };
 
     if (input.groupId) {

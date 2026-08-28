@@ -4,6 +4,7 @@ import { requireGuideRole, normalizeAshrayLevel } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 import { NON_RESIDENT_FIELDS } from '../config/sadhanaFields';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
+import { getGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'role', 'isBvSuperAdmin', 'isBvAdmin'];
 const ENTRY_FIELDS = [
@@ -714,22 +715,20 @@ export default createEndpoint({
       !!context.user.isBvAdmin;
 
     if (!isSuperGuide && !bvslMode && !mentorMode) {
-      const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] }).catch(() => null);
-      if (guideRecord) {
-        guideDbId = (guideRecord as any).id;
-      } else {
-        guideDbId = context.user.id;
-      }
+      const scope = await getGuideScope(context.user.email || '');
+      guideDbId = scope?.guideId || context.user.id;
     }
 
     // Get residencies for this guide
     let availableResidencies: { residencyId: string; residencyName: string }[] = [];
     let guideResidencyIds: string[] = [];
     if (guideDbId) {
-      const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] });
+      const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined) ||
+        await Users.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: guideDbId }, fields: ['id', 'folkResidencies'] }).catch(() => undefined);
       guideResidencyIds = Array.isArray(guide?.folkResidencies)
-        ? guide!.folkResidencies as string[]
-        : (guide?.folkResidencies ? [guide!.folkResidencies as string] : []);
+        ? guide.folkResidencies as string[]
+        : (guide?.folkResidencies ? [guide.folkResidencies as string] : []);
       if (guideResidencyIds.length > 0) {
         const recs = await Promise.all(guideResidencyIds.map(id => FolkResidencies.findOne({ id, fields: ['id', 'residencyName'] })));
         availableResidencies = recs.filter(Boolean).map(r => ({

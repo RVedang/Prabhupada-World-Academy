@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
+import { getGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'role', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
 
@@ -45,11 +46,11 @@ export default createEndpoint({
 
     // 1. Find guide record for scoping (regular guide only)
     let guideRecord: any = null;
+    let guideRids: string[] = [];
     if (!isSuperGuide) {
-      guideRecord = await Guides.findOne({
-        filters: { email: context.user.email, isActive: true },
-        fields: ['id', 'folkResidencies'],
-      }).catch(() => null);
+      const scope = await getGuideScope(context.user.email || '');
+      guideRecord = scope ? { id: scope.guideId } : null;
+      guideRids = scope?.residencyIds || [];
     }
 
     // 2. Build user query filters
@@ -73,10 +74,6 @@ export default createEndpoint({
 
     // Include residency-based users for regular guides (same logic as getGuideUsers)
     if (!isSuperGuide && guideRecord && !input.residencyId) {
-      const guideRids: string[] = Array.isArray(guideRecord.folkResidencies)
-        ? (guideRecord.folkResidencies as string[])
-        : (guideRecord.folkResidencies ? [guideRecord.folkResidencies as string] : []);
-
       if (guideRids.length > 0) {
         const resFetches = await Promise.all(
           guideRids.map(rid =>

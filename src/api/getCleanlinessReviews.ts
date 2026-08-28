@@ -26,7 +26,10 @@ export default createEndpoint({
       ? (scopedGuideId && scopedGuideId !== 'ALL'
           ? await (async () => {
               const g = await Guides.findOne({ id: scopedGuideId, fields: ['id', 'fullName', 'folkResidencies'] }).catch(() => null);
-              return g ? { guideId: g.id, guideName: g.fullName, residencyIds: Array.isArray(g.folkResidencies) ? g.folkResidencies : (g.folkResidencies ? [g.folkResidencies] : []) } : null;
+              if (g) return { guideId: g.id, guideName: g.fullName, residencyIds: Array.isArray(g.folkResidencies) ? g.folkResidencies : (g.folkResidencies ? [g.folkResidencies] : []) };
+              const u = await Users.findOne({ id: scopedGuideId, fields: ['id', 'userId', 'fullName', 'folkResidencies'] }).catch(() => null) ||
+                await Users.findOne({ filters: { userId: scopedGuideId }, fields: ['id', 'userId', 'fullName', 'folkResidencies'] }).catch(() => null);
+              return u ? { guideId: u.userId || u.id, guideName: u.fullName, residencyIds: Array.isArray(u.folkResidencies) ? u.folkResidencies : (u.folkResidencies ? [u.folkResidencies] : []) } : null;
             })()
           : await getGuideScope(context?.user?.email || ''))
       : null;
