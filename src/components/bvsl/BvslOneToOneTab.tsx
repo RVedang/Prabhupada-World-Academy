@@ -260,12 +260,12 @@ export default function BvslOneToOneTab() {
             <div>
               <Select value={adminFilter} onValueChange={(val: string | null) => setAdminFilter(val || 'ALL')}>
                 <SelectTrigger className="h-9 text-xs font-medium">
-                  <SelectValue placeholder="All Admins">
-                    {adminFilter === 'ALL' || adminFilter === 'all' ? 'All Admins' : adminFilter}
+                  <SelectValue placeholder="All Guides">
+                    {adminFilter === 'ALL' || adminFilter === 'all' ? 'All Guides' : adminFilter}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All Admins ({availableAdmins.length})</SelectItem>
+                  <SelectItem value="ALL">All Guides ({availableAdmins.length})</SelectItem>
                   {availableAdmins.map(admin => (
                     <SelectItem key={admin} value={admin}>{admin}</SelectItem>
                   ))}
