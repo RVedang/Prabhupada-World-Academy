@@ -14,6 +14,11 @@ function normalizeIds(values: unknown[]): string[] {
     .filter(Boolean);
 }
 
+function refsOf(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : value == null ? [] : [value];
+  return values.flatMap(v => String(v || '').split(',')).map(v => v.trim()).filter(Boolean);
+}
+
 export default createEndpoint({
   description: 'Get pending residency transfer requests — only for residencies the current guide manages',
   authenticated: true,
@@ -27,10 +32,6 @@ export default createEndpoint({
     const userRole = String(context.user.role || '').toUpperCase().replace(/\s+/g, '_');
     const userEmail = (context.user.email || '').toLowerCase();
     const scopedGuideId = String(input?.guideId || '').trim();
-    const hasDepartmentWideResidencyAccess =
-      userRole === 'SUPER_GUIDE' ||
-      userRole === 'SUPER_ADMIN' ||
-      context.user.isBvSuperAdmin === true;
     const hasSuperGuideAccess = (
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
@@ -47,17 +48,17 @@ export default createEndpoint({
       // Find the guide record for the current user
       let guideRecord: any = await Guides.findOne({
         ...(scopedGuideId && scopedGuideId !== 'ALL' ? { id: scopedGuideId } : { filters: { email: context.user.email, isActive: true } }),
-        fields: ['id', 'folkResidencies'],
+        fields: ['id', 'userId', 'email', 'fullName', 'folkResidencies'],
       }).catch(() => undefined);
       // Dual-role guide/super-guide profiles may exist only in Users. Prefer
       // the authenticated record so its saved residency view is used even if
       // legacy duplicate Users rows share the same custom userId.
       if (!guideRecord) {
         guideRecord =
-          await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined) ||
-          await Users.findOne({ id: scopedGuideId, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined) ||
-          await Users.findOne({ filters: { userId: scopedGuideId }, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined) ||
-          await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'folkResidencies'] }).catch(() => undefined);
+          await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'fullName', 'folkResidencies'] }).catch(() => undefined) ||
+          await Users.findOne({ id: scopedGuideId, fields: ['id', 'userId', 'email', 'fullName', 'folkResidencies'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { userId: scopedGuideId }, fields: ['id', 'userId', 'email', 'fullName', 'folkResidencies'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email', 'fullName', 'folkResidencies'] }).catch(() => undefined);
       }
       if (!guideRecord) return [];
 
@@ -70,23 +71,30 @@ export default createEndpoint({
       );
       const scope = await getGuideScope(context.user.email).catch(() => null);
       linkedResidencyNames = scope?.residencyNames || [];
-      if (hasDepartmentWideResidencyAccess) {
-        const { records: allResidencies } = await FolkResidencies.findAll({
-          fields: ['id', 'residencyName', 'isActive'],
-          limit: 500,
-        });
-        const allFolkResidencyIds = allResidencies
-          .filter((residency: any) => {
-            const name = String(residency?.residencyName || '').trim().toLowerCase();
-            const isActive = residency?.isActive !== false && residency?.isActive !== 'false';
-            return isActive && !name.includes('prabhupada world') && !name.startsWith('pw ');
-          })
-          .map((residency: any) => String(residency.id || '').trim())
-          .filter(Boolean);
-        allowedResidencyIds = allFolkResidencyIds;
-      } else {
-        allowedResidencyIds = [...new Set([...linkedResidencyIds, ...(scope?.residencyIds || [])])];
-      }
+      // Even when the account also has Super Guide access, an explicit guide
+      // view must be limited to that guide's assigned residencies. The
+      // department-wide path is reserved for an unscoped Super Guide request.
+      const { records: residencyRecords } = await FolkResidencies.findAll({
+        fields: ['id', 'guides', 'guideIds'],
+        limit: 500,
+      }).catch(() => ({ records: [] }));
+      const guideRefs = new Set([
+        guideRecord.id,
+        guideRecord.userId,
+        guideRecord.email,
+        guideRecord.fullName,
+        context.user.id,
+        context.user.userId,
+        context.user.email,
+      ].filter(Boolean).map((value: any) => String(value).trim().toLowerCase()));
+      const assignedFromResidencyRecords = (residencyRecords as any[])
+        .filter((residency: any) => [...refsOf(residency.guides), ...refsOf(residency.guideIds)]
+          .some(ref => guideRefs.has(ref.toLowerCase())))
+        .map((residency: any) => String(residency.id || '').trim())
+        .filter(Boolean);
+      allowedResidencyIds = assignedFromResidencyRecords.length > 0
+        ? [...new Set(assignedFromResidencyRecords)]
+        : [...new Set([...linkedResidencyIds, ...(scope?.residencyIds || [])])];
 
       // If guide has no residencies, they shouldn't see any residency transfers
       if (allowedResidencyIds.length === 0) return [];
