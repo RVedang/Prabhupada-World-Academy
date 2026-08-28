@@ -48,6 +48,26 @@ function isFolkResidentUser(user: ResidentLikeUser): boolean {
   );
 }
 
+// BV roles are independent flags, so a member may legitimately have several
+// of them at once. Keep all selected roles available for the table renderer.
+const getBvRoleLabels = (user: any): Array<{ key: string; label: string; className: string }> => {
+  const role = String(user?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+  const roles: Array<{ key: string; label: string; className: string }> = [];
+  if (user?.isBvAdmin === true || user?.isBvSuperAdmin === true || role === 'BV_ADMIN') {
+    roles.push({ key: 'admin', label: 'Admin', className: 'bg-red-100 text-red-700' });
+  }
+  if (user?.isBvSupervisor === true || user?.isBvMentor === true || role === 'SUPERVISOR' || role === 'BV_SUPERVISOR') {
+    roles.push({ key: 'supervisor', label: 'Supervisor', className: 'bg-amber-100 text-amber-700' });
+  }
+  if (user?.isBvFacilitator === true || user?.isBvsl === true || role === 'FACILITATOR' || role === 'RGF' || role === 'BVSL') {
+    roles.push({ key: 'facilitator', label: 'RGF', className: 'bg-purple-100 text-purple-700' });
+  }
+  if (user?.isBvSubFacilitator === true || role === 'SUB_FACILITATOR' || role === 'RGSF') {
+    roles.push({ key: 'sub-facilitator', label: 'RGSF', className: 'bg-blue-100 text-blue-700' });
+  }
+  return roles;
+};
+
 interface SuperUsersPanelProps {
   isPwAdmin?: boolean;
   segment?: 'PW' | 'FOLK';
@@ -663,6 +683,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                     (u as any).bvReportingSupervisorId ||
                     (u as any).bvReportingAdminId
                   );
+                  const bvRoleLabels = getBvRoleLabels(u);
                   const currentBvRole = ((u as any).isBvAdmin || (u as any).isBvSuperAdmin) ? 'ADMIN' :
                     (u as any).isBvSupervisor ? 'SUPERVISOR' :
                     ((u as any).isBvFacilitator || (u as any).isBvsl) ? 'FACILITATOR' :
@@ -692,11 +713,12 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                             title="Click to assign or edit Bhakti Vriksha roles and parent reporting hierarchy"
                           >
                             <div className="flex items-center gap-1 flex-wrap max-w-[220px]">
-                              {currentBvRole === 'ADMIN' && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 font-semibold rounded shrink-0">Admin</span>}
-                              {currentBvRole === 'SUPERVISOR' && <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 font-semibold rounded shrink-0">Supervisor</span>}
-                              {currentBvRole === 'FACILITATOR' && <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 font-semibold rounded shrink-0">RGF</span>}
-                              {currentBvRole === 'SUB_FACILITATOR' && <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 font-semibold rounded shrink-0">RGSF</span>}
-                              {currentBvRole === 'MEMBER' && (
+                              {bvRoleLabels.map(({ key, label, className }) => (
+                                <span key={key} className={`text-[10px] px-1.5 py-0.5 ${className} font-semibold rounded shrink-0`}>
+                                  {label}
+                                </span>
+                              ))}
+                              {bvRoleLabels.length === 0 && currentBvRole === 'MEMBER' && (
                                 <span className="text-muted-foreground text-xs font-normal">Member</span>
                               )}
                             </div>
