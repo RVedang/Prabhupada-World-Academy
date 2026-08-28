@@ -6,7 +6,7 @@ import { NON_RESIDENT_FIELDS } from '../config/sadhanaFields';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'role', 'isBvSuperAdmin', 'isBvAdmin'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'role', 'isBvSuperAdmin', 'isBvAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt', 'templateMode',
@@ -931,11 +931,21 @@ export default createEndpoint({
         .map(r => ({ guideId: r!.id, guideName: (r as any).fullName || r!.id }));
     }
 
+    // Sadhana entries are owned by the authenticated Firebase identity. A
+    // member record can also carry a Firestore ID and a legacy/custom userId,
+    // so match every supported alias before grouping entries for a report.
     const userDbIdSet = new Set<string>();
     const userIdToPrimaryId = new Map<string, string>();
+    const identityFields = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
     users.forEach(u => {
-      if (u.id) { userDbIdSet.add(String(u.id)); userIdToPrimaryId.set(String(u.id), u.id); }
-      if (u.userId) { userDbIdSet.add(String(u.userId)); userIdToPrimaryId.set(String(u.userId), u.id); }
+      for (const field of identityFields) {
+        const value = u[field];
+        if (!value) continue;
+        const alias = String(value).trim();
+        if (!alias) continue;
+        userDbIdSet.add(alias);
+        userIdToPrimaryId.set(alias, u.id);
+      }
     });
 
     // Fetch entries in date range (paginated if needed)
@@ -975,8 +985,9 @@ export default createEndpoint({
         });
         for (const e of sRecs) {
           const rawUid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
-          if (!rawUid || !userDbIdSet.has(String(rawUid))) continue;
-          const uid = userIdToPrimaryId.get(String(rawUid)) || String(rawUid);
+          const entryOwner = String(rawUid || '').trim();
+          if (!entryOwner || !userDbIdSet.has(entryOwner)) continue;
+          const uid = userIdToPrimaryId.get(entryOwner) || entryOwner;
           if (!streakEntriesByUser.has(uid)) streakEntriesByUser.set(uid, []);
           streakEntriesByUser.get(uid)!.push({
             entryDate: (e.entryDate as string) || '',
@@ -992,8 +1003,9 @@ export default createEndpoint({
     const entriesByUser = new Map<string, any[]>();
     for (const e of allEntries) {
       const rawUid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
-      if (!rawUid || !userDbIdSet.has(String(rawUid))) continue;
-      const uid = userIdToPrimaryId.get(String(rawUid)) || String(rawUid);
+      const entryOwner = String(rawUid || '').trim();
+      if (!entryOwner || !userDbIdSet.has(entryOwner)) continue;
+      const uid = userIdToPrimaryId.get(entryOwner) || entryOwner;
       if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
       entriesByUser.get(uid)!.push(e);
     }

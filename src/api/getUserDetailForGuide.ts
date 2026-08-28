@@ -6,7 +6,8 @@ import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'ashrayLevel', 'status',
   'residency', 'residencyApproved', 'createdAt', 'lastLoginAt', 'isBvsl', 'isSadhanaMentor',
-  'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor'];
+  'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor',
+  'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt'];
 
@@ -106,19 +107,36 @@ export default createEndpoint({
     const todayStr = getTodayIST();
     const streakStart = daysAgo(todayStr, 100);
 
-    const [entriesRes, membershipRes, residencyRecord] = await Promise.all([
-      SadhanaEntries.findAll({
-        filters: { user: userRecord.id, entryDate: { gte: streakStart, lte: todayStr } } as any,
+    const entryOwnerIds = [...new Set([
+      userRecord.id,
+      userRecord.userId,
+      userRecord.email,
+      userRecord.uid,
+      userRecord.authUid,
+      userRecord.firebaseUid,
+      userRecord.firebaseUserId,
+      userRecord.firebaseAuthUid,
+      userRecord.authId,
+      userRecord.authUserId,
+      userRecord.firebaseId,
+      userRecord.firebaseAuthId,
+      userRecord.firebase_id,
+    ].filter(Boolean).map((value: any) => String(value).trim()))];
+    const [entryResults, membershipRes, residencyRecord] = await Promise.all([
+      Promise.all(entryOwnerIds.map(ownerId => SadhanaEntries.findAll({
+        filters: { user: ownerId, entryDate: { gte: streakStart, lte: todayStr } } as any,
         fields: ENTRY_FIELDS,
         limit: 110,
-      }),
+      }))),
       BvGroupMembers.findAll({ filters: { user: userRecord.id }, fields: ['id', 'group'], limit: 3 }),
       residencyId
         ? FolkResidencies.findOne({ id: residencyId as string, fields: ['id', 'residencyName'] })
         : Promise.resolve(null),
     ]);
 
-    const sortedEntries = [...entriesRes.records].sort((a: any, b: any) =>
+    const entryById = new Map<string, any>();
+    entryResults.flatMap(result => result.records).forEach((entry: any) => entryById.set(String(entry.id), entry));
+    const sortedEntries = [...entryById.values()].sort((a: any, b: any) =>
       ((b.entryDate as string) || '').localeCompare((a.entryDate as string) || '')
     );
 
