@@ -165,7 +165,7 @@ export default function BvQuizTaker({ quizId, onBack, onSubmitted }: Props) {
               <CardContent className="pt-5 pb-5 space-y-4">
                 <div className="flex items-start gap-2">
                   <Badge variant="outline" className="text-xs shrink-0 mt-0.5">Q{currentIndex + 1}</Badge>
-                  <p className="font-medium text-base leading-snug">{currentQ.text}</p>
+                  <p className="min-w-0 break-words font-medium text-base leading-snug">{currentQ.text}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {currentQ.type === 'single' ? 'Choose one answer' : 'Choose all that apply'}
@@ -189,7 +189,7 @@ export default function BvQuizTaker({ quizId, onBack, onSubmitted }: Props) {
                             : (isSelected ? <CheckSquare className="w-5 h-5" /> : <Circle className="w-5 h-5" />)
                           }
                         </span>
-                        <span className="text-sm flex-1">{opt}</span>
+                        <span className="min-w-0 flex-1 break-words text-sm">{opt}</span>
                       </button>
                     );
                   })}

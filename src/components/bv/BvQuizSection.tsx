@@ -87,7 +87,7 @@ export default function BvQuizSection({ userId, onQuizDatesChange }: Props) {
 
       {/* Quiz Dialog popup */}
       <Dialog open={!!takingQuizId} onOpenChange={open => { if (!open) setTakingQuizId(null); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-3xl max-h-[92vh] overflow-y-auto p-5 sm:p-7">
           <DialogHeader>
             <DialogTitle className="text-base">{takingQuizTitle}</DialogTitle>
           </DialogHeader>

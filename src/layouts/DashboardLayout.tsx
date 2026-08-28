@@ -137,7 +137,9 @@ export default function DashboardLayout({
       const isRgsfActive = currentPath.startsWith('/rgsf') || (currentPath.startsWith('/bvsl') && window.location.search.includes('mode=rgsf'));
       tabItems.push({
         label: 'RGSF',
-        path: '/bvsl/dashboard?mode=rgsf',
+        // Use the dedicated RGSF route.  The BVSL route is the RGF dashboard
+        // and does not switch dashboards based on a query-string mode.
+        path: '/rgsf/dashboard',
         active: isRgsfActive,
         icon: <Users className="w-4 h-4 mr-1 md:mr-1.5" />,
       });
