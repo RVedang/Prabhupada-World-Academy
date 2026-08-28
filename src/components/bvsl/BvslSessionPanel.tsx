@@ -28,6 +28,7 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
   const [members, setMembers] = useState<AttendanceMember[]>([]);
   const [presentIds, setPresentIds] = useState<Set<string>>(new Set());
   const [attendedMinutesMap, setAttendedMinutesMap] = useState<Record<string, number>>({});
+  const [localMinutesMap, setLocalMinutesMap] = useState<Record<string, string>>({});
   const [sessionExists, setSessionExists] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,6 +49,8 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
         }
       });
       setAttendedMinutesMap(minutesMap);
+      // Sync local display map too
+      setLocalMinutesMap(Object.fromEntries(Object.entries(minutesMap).map(([k, v]) => [k, String(v)])));
 
       // Pre-populate: if session exists, use saved values; otherwise mark all present
       if (res.sessionExists) {
@@ -73,9 +76,11 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
       if (next.has(userDbId)) {
         next.delete(userDbId);
         setAttendedMinutesMap(m => ({ ...m, [userDbId]: 0 }));
+        setLocalMinutesMap(m => ({ ...m, [userDbId]: '0' }));
       } else {
         next.add(userDbId);
         setAttendedMinutesMap(m => ({ ...m, [userDbId]: totalMeetingMinutes }));
+        setLocalMinutesMap(m => ({ ...m, [userDbId]: String(totalMeetingMinutes) }));
       }
       return next;
     });
@@ -93,6 +98,14 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
         return next;
       });
     }
+  };
+
+  const commitMinutes = (userDbId: string, raw: string) => {
+    const parsed = parseInt(raw, 10);
+    const val = isNaN(parsed) ? 0 : parsed;
+    const clamped = Math.max(0, Math.min(totalMeetingMinutes, val));
+    setLocalMinutesMap(m => ({ ...m, [userDbId]: String(clamped) }));
+    handleAttendedMinutesChange(userDbId, clamped);
   };
 
   const handleSave = async () => {
@@ -248,8 +261,14 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
                               type="number"
                               min={0}
                               max={totalMeetingMinutes}
-                              value={attMinutes}
-                              onChange={e => handleAttendedMinutesChange(m.userDbId, parseInt(e.target.value) || 0)}
+                              value={localMinutesMap[m.userDbId] ?? String(attMinutes)}
+                              onChange={e => {
+                                // Allow free typing by keeping local string state
+                                setLocalMinutesMap(prev => ({ ...prev, [m.userDbId]: e.target.value }));
+                              }}
+                              onBlur={e => commitMinutes(m.userDbId, e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') commitMinutes(m.userDbId, (e.target as HTMLInputElement).value); }}
+                              onClick={e => e.stopPropagation()}
                               className="w-12 h-6 text-center text-xs font-bold bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded"
                             />
                             <span className="text-[11px] text-muted-foreground">/ {totalMeetingMinutes} mins</span>

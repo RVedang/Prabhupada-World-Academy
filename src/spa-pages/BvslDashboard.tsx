@@ -78,7 +78,7 @@ export default function BvslDashboard() {
     { value: 'report',    label: 'Sadhana',     icon: FileText },
     { value: 'members',   label: 'Members',     icon: BarChart3 },
     ...(canView1on1 ? [{ value: 'onetone', label: '1:1 Call Reports', icon: CalendarClock }] : []),
-    { value: 'meetings',  label: 'Meetings & MoM', icon: Video },
+    ...(!isFolk ? [{ value: 'meetings',  label: 'Meetings & MoM', icon: Video }] : []),
   ];
 
   const defaultName = isFolk ? 'FOLK' : 'Prabhupada World';

@@ -84,7 +84,7 @@ export default createEndpoint({
     const [membersRes, sessionsRes, quizzesRes] = await Promise.all([
       BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'userId', 'role', 'joinedAt'], limit: 200 }),
       BvSessions.findAll({ filters: { group: group.id }, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }),
-      BvQuizzes.findAll({ filters: { group: group.id }, fields: ['id', 'groupId', 'title', 'createdAt'], limit: 50 }),
+      BvQuizzes.findAll({ filters: { group: group.id }, fields: ['id', 'groupId', 'quizTitle', 'createdAt'], limit: 50 }),
     ]);
 
     const memberUserIds = membersRes.records.flatMap(getRecordUserKeys);
@@ -169,7 +169,7 @@ export default createEndpoint({
 
     const quizzes = quizzesRes.records.map((q: any) => ({
       quizId: q.id,
-      title: (q.title as string) || 'Untitled Quiz',
+      title: (q.quizTitle as string) || (q.title as string) || 'Untitled Quiz',
       createdAt: (q.createdAt as string) || '',
     }));
 

@@ -53,6 +53,8 @@ export default function RgsfDashboard() {
       : profile.guideName ? `Guide: ${profile.guideName}` : null,
   ].filter(Boolean).join(' · ');
 
+  const isFolk = profile?.segment === 'FOLK';
+
   // RGSF Assistant Tabs (No 1:1 confidential reports or registration queues)
   const tabs: TabConfig[] = [
     { value: 'weekplan', label: 'Weekly Plan', icon: ClipboardList },
@@ -62,7 +64,7 @@ export default function RgsfDashboard() {
     { value: 'report', label: 'Sadhana', icon: FileText },
     { value: 'quizzes', label: 'Quizzes', icon: Brain },
     { value: 'onetone', label: '1:1 Calls', icon: CalendarClock },
-    { value: 'meetings', label: 'Meetings & MoM', icon: Video },
+    ...(!isFolk ? [{ value: 'meetings', label: 'Meetings & MoM', icon: Video }] : []),
   ];
 
   return (

@@ -56,6 +56,8 @@ export default function RgfDashboard() {
     profile.residencyName ? `FOLK: ${profile.residencyName}` : null,
   ].filter(Boolean).join(' · ');
 
+  const isFolk = profile?.segment === 'FOLK';
+
   const tabs: TabConfig[] = [
     { value: 'weekplan',  label: 'Weekly Plan', icon: ClipboardList },
     { value: 'groups',    label: 'Groups',      icon: Users },
@@ -65,7 +67,7 @@ export default function RgfDashboard() {
     { value: 'report',    label: 'Sadhana',     icon: FileText },
     { value: 'members',   label: 'Members',     icon: Users },
     { value: 'onetone',   label: '1:1 Call Reports', icon: CalendarClock },
-    { value: 'meetings',  label: 'Meetings & MoM', icon: Video },
+    ...(!isFolk ? [{ value: 'meetings',  label: 'Meetings & MoM', icon: Video }] : []),
   ];
 
   return (
