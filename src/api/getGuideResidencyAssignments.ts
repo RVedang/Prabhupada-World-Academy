@@ -56,7 +56,12 @@ export default createEndpoint({
     // must always represent only the residencies assigned to them as a guide;
     // Super Guide permissions elsewhere in the dashboard must not broaden it
     // to every active FOLK residency.
-    const effectiveIds = [...new Set([...canonicalAssignedIds, ...assignedFromResidencyRecords])]
+    // Residency records are the authoritative source for which hostels this
+    // person manages as a guide. This matters when the same account also has
+    // Super Guide access and its profile contains a department-wide list.
+    const effectiveIds = [...new Set(
+      assignedFromResidencyRecords.length > 0 ? assignedFromResidencyRecords : canonicalAssignedIds
+    )]
       .filter(id => allIds.has(id));
 
     const requesterIds = [user?.id, user?.userId, context.user.id, context.user.userId, email].filter(Boolean).map(String);
