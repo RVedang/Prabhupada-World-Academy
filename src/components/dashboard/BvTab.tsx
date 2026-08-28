@@ -171,6 +171,14 @@ export default function BvTab({ userId, segment }: Props) {
         </Card>
       )}
 
+      {/* Group quizzes — visible to active members of their reading group */}
+      {status?.myGroup && (
+        <BvQuizSection
+          userId={userId}
+          onQuizDatesChange={setQuizDates}
+        />
+      )}
+
       {/* Attendance Stats (only if in a group) */}
       {status?.myGroup && (
         <div className="grid grid-cols-3 gap-3">
