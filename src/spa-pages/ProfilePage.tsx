@@ -123,10 +123,11 @@ export default function ProfilePage() {
   const showGuideResidencyCard = !isPwUser && !isBvAdminUser;
   const isFolk = profile.segment === 'FOLK';
   const adminDashboardPath = isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
-  // Residency assignment is managed from a regular FOLK guide's profile.
-  // Super Guides and admins have broader access and should not see this guide
-  // assignment card in their own profile.
-  const showGuideResidencyAssignmentCard = isFolk && String(profile.role || '').toUpperCase() === 'GUIDE';
+  // A profile may have both guide and super-guide access. In that case the
+  // residency card still represents only the residencies assigned to them as
+  // a guide; it must not expand to every FOLK residency.
+  const folkRole = String(profile.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+  const showGuideResidencyAssignmentCard = isFolk && (folkRole === 'GUIDE' || folkRole === 'SUPER_GUIDE');
 
   return (
     <div className="min-h-screen bg-background">
@@ -310,9 +311,7 @@ function GuideResidencyAssignmentCard({ isSuperGuide }: { isSuperGuide: boolean 
             <div className="flex flex-wrap gap-2">
               {assigned.length > 0 ? assigned.map((r: any) => <span key={r.id} className="rounded-full bg-primary/10 px-3 py-1 text-primary font-medium">{r.residencyName}</span>) : <span className="text-muted-foreground">No residency assigned yet.</span>}
             </div>
-            {isSuperGuide ? (
-              <p className="text-xs text-muted-foreground">Super Guide access includes all active FOLK residencies.</p>
-            ) : (
+            {!isSuperGuide ? (
               <div className="space-y-2 border-t pt-3">
                 <p className="text-xs text-muted-foreground">Residency changes require Super Guide approval.</p>
                 <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto">
@@ -323,7 +322,7 @@ function GuideResidencyAssignmentCard({ isSuperGuide }: { isSuperGuide: boolean 
                 </Button>
                 {pendingRequest && <p className="text-xs text-amber-700">A residency change request is pending Super Guide approval.</p>}
               </div>
-            )}
+            ) : <p className="text-xs text-muted-foreground">Showing only residencies assigned to this profile as a guide.</p>}
           </>
         )}
       </CardContent>
