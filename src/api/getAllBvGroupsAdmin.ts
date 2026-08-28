@@ -12,6 +12,7 @@ export default createEndpoint({
     bvsls: z.array(z.object({
       userId: z.string(),
       fullName: z.string(),
+      email: z.string().optional(),
       groupCount: z.number(),
       totalMembers: z.number(),
     })),
@@ -63,8 +64,17 @@ export default createEndpoint({
 
     const resolvedGuide = await Guides.findOne({
       id: guideDbId,
-      fields: ['id', 'fullName', 'email', 'guideId'],
+      fields: ['id', 'fullName', 'email', 'guideId', 'folkResidencies'],
     }).catch(() => undefined);
+    const guideResidencies = Array.isArray((resolvedGuide as any)?.folkResidencies)
+      ? (resolvedGuide as any).folkResidencies
+      : ((resolvedGuide as any)?.folkResidencies ? [(resolvedGuide as any).folkResidencies] : []);
+    const guideResidencyAliases = new Set(
+      guideResidencies
+        .flatMap((value: any) => Array.isArray(value) ? value : [value])
+        .filter(Boolean)
+        .map((value: any) => String(value).trim().toLowerCase())
+    );
 
     const { records: allGroupRecords } = await BvGroups.findAll({
       // Fetch active groups with a single filter and apply the guide/RGF
@@ -88,12 +98,15 @@ export default createEndpoint({
       // require a composite index that may not exist immediately after deploy.
       filters: { status: 'Active' },
       limit: 1000,
-      fields: ['id', 'userId', 'fullName', 'guide', 'selectedGuideId', 'guideName', 'role', 'isBvsl', 'isBvFacilitator'],
+      fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'role', 'isBvsl', 'isBvFacilitator'],
     });
     const bvslUserRecords = allBvslUsers.filter((u: any) => {
       if (u.isBvsl !== true && String(u.role || '').toUpperCase() !== 'BVSL' && u.isBvFacilitator !== true) return false;
-      const values = [u.guide, u.selectedGuideId, u.guideName].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean);
-      return values.some(value => guideAliases.has(String(value).trim().toLowerCase()));
+      const guideValues = [u.guide, u.selectedGuideId, u.guideName].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean);
+      const residencyValues = [u.residency].flatMap(v => Array.isArray(v) ? v : [v]).filter(Boolean);
+      const matchesGuide = guideValues.some(value => guideAliases.has(String(value).trim().toLowerCase()));
+      const matchesResidency = residencyValues.some(value => guideResidencyAliases.has(String(value).trim().toLowerCase()));
+      return matchesGuide || matchesResidency;
     });
     const rgfAliases = new Set(bvslUserRecords.flatMap((u: any) => [u.id, u.userId]).filter(Boolean).map((v: any) => String(v).toLowerCase()));
     const groupRecords = allGroupRecords.filter((g: any) => {
@@ -154,6 +167,7 @@ export default createEndpoint({
       return {
         userId: u.id, // Always use DB UUID for consistent ID comparison
         fullName: u.fullName || '',
+        email: u.email || '',
         groupCount: userGroups.length,
         totalMembers: userGroups.reduce((sum, g) => sum + g.memberCount, 0),
       };

@@ -1,9 +1,21 @@
 import { z } from 'zod';
-import { createEndpoint, ResidencyTransferRequests, Users, Guides, FolkResidencies, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, ResidencyTransferRequests, Users, Guides, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
 
+function firstRef(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return String(value || '');
+}
+
+function normalizeIds(values: unknown[]): string[] {
+  return values
+    .map(firstRef)
+    .map(id => id.trim())
+    .filter(Boolean);
+}
+
 export default createEndpoint({
-  description: 'Approve or reject a residency transfer request — only receiving residency guides can act',
+  description: 'Approve or reject a residency transfer request — source or destination residency guides can act',
   authenticated: true,
   inputSchema: z.object({
     requestId: z.string().optional(),
@@ -39,12 +51,14 @@ export default createEndpoint({
       const guideRecord = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id', 'folkResidencies'] });
       if (!guideRecord) throw new AppError({ code: 'FORBIDDEN', message: 'You do not have guide authorization to review transfer requests' });
 
-      const guideResidencies = Array.isArray(guideRecord.folkResidencies) ? guideRecord.folkResidencies : guideRecord.folkResidencies ? [guideRecord.folkResidencies] : [];
-      const toResidencyId = Array.isArray(request.toResidency) ? request.toResidency[0] : request.toResidency as string | null;
-      const fromResidencyId = Array.isArray(request.fromResidency) ? request.fromResidency[0] : request.fromResidency as string | null;
-      const reviewResidencyId = toResidencyId || fromResidencyId;
+      const guideResidencies = normalizeIds(
+        Array.isArray(guideRecord.folkResidencies)
+          ? guideRecord.folkResidencies
+          : [guideRecord.folkResidencies]
+      );
+      const requestResidencyIds = normalizeIds([request.fromResidency, request.toResidency]);
 
-      if (!reviewResidencyId || !guideResidencies.includes(reviewResidencyId)) {
+      if (!requestResidencyIds.some(id => guideResidencies.includes(id))) {
         throw new AppError({ code: 'FORBIDDEN', message: 'Only guides of the relevant residency can approve this request' });
       }
     }

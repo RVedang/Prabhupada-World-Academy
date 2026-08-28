@@ -1,6 +1,18 @@
 import { z } from 'zod';
 import { createEndpoint, ResidencyTransferRequests, Users, FolkResidencies, Guides } from '@/lib/backend-sdk';
 
+function firstRef(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return String(value || '');
+}
+
+function normalizeIds(values: unknown[]): string[] {
+  return values
+    .map(firstRef)
+    .map(id => id.trim())
+    .filter(Boolean);
+}
+
 export default createEndpoint({
   description: 'Get pending residency transfer requests — only for residencies the current guide manages',
   authenticated: true,
@@ -35,10 +47,11 @@ export default createEndpoint({
       if (!guideRecord) return [];
 
       // Get residencies linked to this guide
-      const guideResidencies = guideRecord.folkResidencies;
-      if (guideResidencies) {
-        allowedResidencyIds = Array.isArray(guideResidencies) ? guideResidencies : [guideResidencies];
-      }
+      allowedResidencyIds = normalizeIds(
+        Array.isArray(guideRecord.folkResidencies)
+          ? guideRecord.folkResidencies
+          : [guideRecord.folkResidencies]
+      );
 
       // If guide has no residencies, they shouldn't see any residency transfers
       if (allowedResidencyIds.length === 0) return [];
@@ -57,15 +70,14 @@ export default createEndpoint({
 
     if (requests.length === 0) return [];
 
-    // Transfers are reviewed by the receiving residency guide. Leave requests
-    // have no target residency, so they belong to the current/source residency.
+    // Regular guides see requests where their residency is either the source
+    // or destination. For A -> B, guide A gets the leave side and guide B gets
+    // the incoming transfer side. Super Guides see everything.
     const filtered = isSuperGuide
       ? requests
       : requests.filter((r: any) => {
-          const toId = Array.isArray(r.toResidency) ? r.toResidency[0] : r.toResidency;
-          const fromId = Array.isArray(r.fromResidency) ? r.fromResidency[0] : r.fromResidency;
-          const reviewResidencyId = toId || fromId;
-          return reviewResidencyId && allowedResidencyIds.includes(reviewResidencyId);
+          const transferResidencyIds = normalizeIds([r.fromResidency, r.toResidency]);
+          return transferResidencyIds.some(id => allowedResidencyIds.includes(id));
         });
 
     if (filtered.length === 0) return [];

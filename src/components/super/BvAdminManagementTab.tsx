@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Loader2, Plus, Users, ShieldCheck, UserCheck, Leaf, Clock, BookOpen, ChevronRight } from 'lucide-react';
-import { createBvGroup, assignBvRole, getBvslGroups, getGuides, getAllBvGroupsAdmin, updateBvGroup, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
+import { Loader2, Plus, Users, ShieldCheck, Clock, BookOpen, ChevronRight } from 'lucide-react';
+import { createBvGroup, getBvslGroups, getAllBvGroupsAdmin, getGuideUsers, updateBvGroup, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -19,6 +19,11 @@ const TIME_PREFERENCES = [
   '8:30 PM – 9:00 PM (Monday to Friday)',
   '11:00 AM – 12:00 PM (Saturday & Sunday only)',
 ];
+
+const isRgfUser = (user: any) => {
+  const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
+  return user?.isBvFacilitator === true || user?.isBvsl === true || role === 'BVSL' || role === 'FACILITATOR' || role === 'RGF';
+};
 
 interface BvAdminManagementTabProps {
   segment?: 'PW' | 'FOLK';
@@ -39,11 +44,19 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const segment = propSegment || profile?.segment || 'PW';
 
   const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
-  const cachedGuides = getClientCachedQuery('getGuides', { segment });
-  const hasCache = cachedGroups !== null && cachedGuides !== null;
+  const cachedRgfUsers = getClientCachedQuery('getGuideUsers', { guideId: 'ALL', statusFilter: 'active' });
+  const hasCache = cachedGroups !== null && cachedRgfUsers !== null;
 
   const [groups, setGroups] = useState<any[]>(isSuperAdmin ? (cachedGroups?.groups || []) : []);
-  const [guides, setGuides] = useState<any[]>(isSuperAdmin ? (cachedGuides?.guides || []) : []);
+  const [guides, setGuides] = useState<any[]>(isSuperAdmin ? ((cachedRgfUsers?.users || [])
+    .filter((u: any) => isRgfUser(u))
+    .filter((u: any) => !segment || u.segment === segment)
+    .map((u: any) => ({
+      guideId: u.userId || u.id,
+      name: u.fullName || u.email || 'Unnamed RGF',
+      email: u.email || '',
+      abbr: (u.fullName || u.email || 'RGF').slice(0, 3).toUpperCase(),
+    }))) : []);
   const [loading, setLoading] = useState(!hasCache);
 
   // Group creation modal state
@@ -54,9 +67,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const [timeSelectionMode, setTimeSelectionMode] = useState<'select' | 'custom'>('select');
   const [creatingGroup, setCreatingGroup] = useState(false);
 
-  useEffect(() => { loadData(); }, [guideId, isSuperAdmin, segment]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       if (!isSuperAdmin) {
@@ -84,20 +95,36 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
           abbr: (u.fullName || '').slice(0, 3).toUpperCase(),
         })));
       } else {
-        const [grpRes, guideRes] = await Promise.all([
+        const [grpRes, rgfUsersRes] = await Promise.all([
           getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
-          getGuides({ segment }).catch(() => ({ guides: [] })),
+          getGuideUsers({ guideId: 'ALL', statusFilter: 'active', _nocache: true } as any).catch(() => ({ users: [] })),
         ]);
         const allGroups = grpRes.groups || [];
         setGroups(segment ? allGroups.filter((g: any) => g.segment === segment) : allGroups);
-        setGuides(guideRes.guides || []);
+        setGuides((rgfUsersRes.users || [])
+          .filter((u: any) => isRgfUser(u))
+          .filter((u: any) => !segment || u.segment === segment)
+          .map((u: any) => ({
+            guideId: u.userId || u.id,
+            name: u.fullName || u.email || 'Unnamed RGF',
+            email: u.email || '',
+            abbr: (u.fullName || u.email || 'RGF').slice(0, 3).toUpperCase(),
+          })));
       }
     } catch {
       toast.error('Failed to load BV management data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [guideId, isSuperAdmin, segment, setGroups, setGuides, setLoading]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void loadData();
+    });
+    return () => { cancelled = true; };
+  }, [loadData]);
 
   // Super Admin sees ALL groups; Admin sees only groups under facilitators assigned to them
   const visibleGroups = (function () {
