@@ -264,7 +264,9 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
               <Sparkles className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Cleanliness</span>
               <span className="sm:hidden">Clean.</span>
-              <Badge className="ml-1 text-xs px-1.5">{cleanlinessReviews.length}</Badge>
+              {cleanlinessReviews.length > 0 && (
+                <Badge className="ml-1 text-xs px-1.5">{cleanlinessReviews.length}</Badge>
+              )}
             </TabsTrigger>
           )}
         </TabsList>

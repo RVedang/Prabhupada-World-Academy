@@ -877,11 +877,19 @@ export default createEndpoint({
         const targetGroupRefs = new Set(groupRefs.map(normalizeRef));
         const { records: memberships } = await BvGroupMembers.findAll({
           filters: { group: { in: groupRefs } } as any,
-          fields: ['id', 'user', 'userId', 'group'],
+          fields: ['id', 'user', 'userId', 'group', 'groupId'],
           limit: 2000,
         });
-        const scopedMemberships = memberships.filter((membership: any) => {
-          const refs = groupRefValues(membership.group);
+        // Also fetch memberships linked by the custom groupId string (some records use groupId instead of group)
+        const { records: membershipsByGroupId } = await BvGroupMembers.findAll({
+          filters: { groupId: { in: groupRefs } } as any,
+          fields: ['id', 'user', 'userId', 'group', 'groupId'],
+          limit: 2000,
+        }).catch(() => ({ records: [] }));
+        const allMemberships = [...memberships, ...membershipsByGroupId];
+        const scopedMemberships = allMemberships.filter((membership: any) => {
+          const groupRef = Array.isArray(membership.group) ? membership.group[0] : membership.group;
+          const refs = groupRefValues(groupRef || membership.groupId);
           return refs.length === 0 || refs.some(ref => targetGroupRefs.has(ref));
         });
         const memberAliases = new Set<string>();

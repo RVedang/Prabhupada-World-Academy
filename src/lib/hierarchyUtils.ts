@@ -166,14 +166,23 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
   });
 
   if (scopedGroupIds.size > 0) {
-    const { records: groupMembers } = await BvGroupMembers.findAll({ limit: 2000 });
+    const { records: groupMembers } = await BvGroupMembers.findAll({
+      limit: 2000,
+      fields: ['id', 'user', 'userId', 'memberId', 'group', 'groupId'],
+    });
     groupMembers.forEach((m: any) => {
-      const gId = String(m.groupId || m.group || '');
-      if (gId && scopedGroupIds.has(gId)) {
-        if (m.userId) scopedUserIds.add(String(m.userId).toLowerCase());
-        if (m.id) scopedUserIds.add(String(m.id).toLowerCase());
-        if (m.memberId) scopedUserIds.add(String(m.memberId).toLowerCase());
-      }
+      // Match group by both the Firestore document ID (m.group) and the app-level groupId (m.groupId)
+      const gRef = Array.isArray(m.group) ? m.group[0] : m.group;
+      const gId = String(gRef || m.groupId || '');
+      if (!gId || !scopedGroupIds.has(gId)) return;
+
+      // Collect all possible user aliases from the membership record
+      // m.user is the primary foreign-key reference to the Users table
+      const userRef = Array.isArray(m.user) ? m.user[0] : m.user;
+      if (userRef) scopedUserIds.add(String(userRef).toLowerCase());
+      if (m.userId) scopedUserIds.add(String(m.userId).toLowerCase());
+      if (m.id) scopedUserIds.add(String(m.id).toLowerCase());
+      if (m.memberId) scopedUserIds.add(String(m.memberId).toLowerCase());
     });
   }
 
