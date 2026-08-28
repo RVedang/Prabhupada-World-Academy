@@ -8,9 +8,18 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     // Resolve both database document id and custom userId to check pending upgrades reliably
-    const userRec = input.userId
-      ? await Users.findOne({ filters: { userId: input.userId }, fields: ['id', 'userId'] })
-      : await Users.findOne({ id: context.user!.id, fields: ['id', 'userId'] });
+    let userRec = null;
+    if (input.userId) {
+      if (/^USER-\d+$/i.test(input.userId)) {
+        const { records } = await Users.findAll({ filters: { userId: input.userId }, fields: ['id', 'userId'] });
+        userRec = records.find(r => r.id !== r.userId) || records[0];
+      }
+      if (!userRec) {
+        userRec = await Users.findOne({ filters: { userId: input.userId }, fields: ['id', 'userId'] });
+      }
+    } else {
+      userRec = await Users.findOne({ id: context.user!.id, fields: ['id', 'userId'] });
+    }
 
     let targetDbId = context.user!.id;
     let targetUserId = '';

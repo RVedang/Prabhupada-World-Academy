@@ -17,7 +17,6 @@ import { format } from 'date-fns';
 import { fmt } from '@/lib/fmt';
 import { normalizePhoneForLinks } from '@/lib/userUtils';
 import AshrayCriteriaGrid from '@/components/profile/AshrayCriteriaGrid';
-import AshrayLevelDropdown from '@/components/guide/AshrayLevelDropdown';
 import MiniCalendar from '@/components/dashboard/MiniCalendar';
 import EntryDetailModal from '@/components/dashboard/EntryDetailModal';
 import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS } from '@/components/stats/FieldTrendChart';
@@ -198,9 +197,9 @@ export default function GuideUserDetailPage() {
               ) : (
                 <Badge variant="outline">🌐 Non-Resident</Badge>
               )}
-              <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-1.5">
                 <span className="text-sm text-muted-foreground">📿 Ashray:</span>
-                <AshrayLevelDropdown userId={data.user.userId} currentLevel={data.user.ashrayLevel || 'Jigyasa'} onUpdated={loadUserDetail} />
+                <Badge variant="outline" className="text-sm font-semibold">{data.user.ashrayLevel || 'Jigyasa'}</Badge>
               </div>
               {data.user.guideName && (
                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">

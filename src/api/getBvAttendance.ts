@@ -28,10 +28,28 @@ export default createEndpoint({
     // When a guide opens a member detail page, `input.userId` is often a
     // legacy/custom ID. Attendance may instead be saved with Firebase Auth
     // UID, so resolve the member and query every exact stored identity.
-    const requestedUser = input.userId
-      ? await Users.findOne({ id: input.userId, fields: USER_FIELDS })
-        || await Users.findOne({ filters: { userId: input.userId }, fields: USER_FIELDS })
-      : null;
+    let requestedUser = null;
+    if (input.userId) {
+      if (/^USER-\d+$/i.test(input.userId)) {
+        const { records } = await Users.findAll({ filters: { userId: input.userId }, fields: USER_FIELDS });
+        requestedUser = records.find(r => r.id !== r.userId) || records[0];
+      }
+      if (!requestedUser) {
+        const byId = await Users.findOne({ id: input.userId, fields: USER_FIELDS }).catch(() => undefined);
+        if (byId) {
+          if (byId.id === byId.userId) {
+            const { records } = await Users.findAll({ filters: { userId: byId.userId }, fields: USER_FIELDS });
+            requestedUser = records.find(r => r.id !== r.userId) || byId;
+          } else {
+            requestedUser = byId;
+          }
+        }
+      }
+      if (!requestedUser) {
+        const { records } = await Users.findAll({ filters: { userId: input.userId }, fields: USER_FIELDS });
+        requestedUser = records.find(r => r.id !== r.userId) || records[0] || null;
+      }
+    }
     const rawUserKeys = new Set<string>([
       ...userIdentityAliases(requestedUser),
       ...(input.userId ? [] : userIdentityAliases(context.user)),

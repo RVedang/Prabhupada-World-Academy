@@ -5,7 +5,8 @@ import { requireGuideRole } from '../lib/userUtils';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'phone', 'email', 'ashrayLevel', 'status',
-  'residency', 'residencyApproved', 'createdAt', 'lastLoginAt', 'isBvsl', 'isSadhanaMentor',
+  'residency', 'residencyApproved', 'residencyGuideVerified', 'selectedFolkResidency',
+  'temporaryResidency', 'temporaryResidencyEnabled', 'createdAt', 'lastLoginAt', 'isBvsl', 'isSadhanaMentor',
   'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor',
   'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
@@ -13,9 +14,25 @@ const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 's
 
 /** Resolve a user record by DB UUID or custom userId field (e.g. "USER-031") */
 async function resolveUser(id: string) {
+  if (/^USER-\d+$/i.test(id)) {
+    const { records } = await Users.findAll({ filters: { userId: id }, fields: USER_FIELDS });
+    const registered = records.find(r => r.id !== r.userId);
+    if (registered) return registered;
+    if (records.length > 0) return records[0];
+  }
   const byId = await Users.findOne({ id, fields: USER_FIELDS }).catch(() => undefined);
-  if (byId) return byId;
-  return Users.findOne({ filters: { userId: id }, fields: USER_FIELDS });
+  if (byId) {
+    if (byId.id === byId.userId) {
+      const { records } = await Users.findAll({ filters: { userId: byId.userId }, fields: USER_FIELDS });
+      const registered = records.find(r => r.id !== r.userId);
+      if (registered) return registered;
+    }
+    return byId;
+  }
+  const { records } = await Users.findAll({ filters: { userId: id }, fields: USER_FIELDS });
+  const registered = records.find(r => r.id !== r.userId);
+  if (registered) return registered;
+  return records[0] || null;
 }
 
 /**
@@ -102,6 +119,7 @@ export default createEndpoint({
     }
 
     const residencyId = Array.isArray(userRecord.residency) ? userRecord.residency[0] : userRecord.residency;
+    const effectiveResidencyId = residencyId || (Array.isArray(userRecord.selectedFolkResidency) ? userRecord.selectedFolkResidency[0] : userRecord.selectedFolkResidency);
 
     // Fetch last 100 days of entries + BV membership + residency in parallel
     const todayStr = getTodayIST();
@@ -131,8 +149,8 @@ export default createEndpoint({
       Promise.all(entryOwnerIds.map(ownerId => BvGroupMembers.findAll({
         filters: { user: ownerId }, fields: ['id', 'group'], limit: 3,
       }))),
-      residencyId
-        ? FolkResidencies.findOne({ id: residencyId as string, fields: ['id', 'residencyName'] })
+      effectiveResidencyId
+        ? FolkResidencies.findOne({ id: effectiveResidencyId as string, fields: ['id', 'residencyName'] })
         : Promise.resolve(null),
     ]);
 
@@ -183,7 +201,7 @@ export default createEndpoint({
         ashrayLevel: (userRecord.ashrayLevel as string) || null,
         status: (userRecord.status as string) || 'Active',
         residencyName: (residencyRecord as any)?.residencyName || null,
-        isResident: !!(userRecord.residencyApproved && residencyId),
+        isResident: !!((userRecord.residencyApproved || userRecord.residencyGuideVerified) && (residencyId || userRecord.selectedFolkResidency)),
         createdAt: (userRecord.createdAt as string) || '',
         lastLoginAt: (userRecord.lastLoginAt as string) || null,
         isBvsl: !!(userRecord.isBvsl),

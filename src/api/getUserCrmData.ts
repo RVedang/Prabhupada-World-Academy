@@ -2,9 +2,26 @@ import { z } from 'zod';
 import { createEndpoint, Users, AshrayUpgradeRequests, Trips, RentPayments, AppError } from '@/lib/backend-sdk';
 
 async function resolveUser(id: string) {
-  const byDbId = await Users.findOne({ id, fields: ['id', 'userId', 'fullName'] }).catch(() => undefined);
-  if (byDbId) return byDbId;
-  return Users.findOne({ filters: { userId: id }, fields: ['id', 'userId', 'fullName'] });
+  const fields = ['id', 'userId', 'fullName'];
+  if (/^USER-\d+$/i.test(id)) {
+    const { records } = await Users.findAll({ filters: { userId: id }, fields });
+    const registered = records.find(r => r.id !== r.userId);
+    if (registered) return registered;
+    if (records.length > 0) return records[0];
+  }
+  const byDbId = await Users.findOne({ id, fields }).catch(() => undefined);
+  if (byDbId) {
+    if (byDbId.id === byDbId.userId) {
+      const { records } = await Users.findAll({ filters: { userId: byDbId.userId }, fields });
+      const registered = records.find(r => r.id !== r.userId);
+      if (registered) return registered;
+    }
+    return byDbId;
+  }
+  const { records } = await Users.findAll({ filters: { userId: id }, fields });
+  const registered = records.find(r => r.id !== r.userId);
+  if (registered) return registered;
+  return records[0] || null;
 }
 
 const tripSchema = z.object({
@@ -60,7 +77,7 @@ export default createEndpoint({
     pendingTripCorrections: z.number(),
     pendingRentCorrections: z.number(),
   }),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
     if (!input.userId) throw new AppError({ code: 'BAD_REQUEST', message: 'userId is required' });
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, SadhanaEntries } from '@/lib/backend-sdk';
 
-const USER_FIELDS = ['id', 'userId', 'email', 'residencyApproved', 'residency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'userId', 'email', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'roundsCount', 'spReadingMinutes',
@@ -291,7 +291,7 @@ export default createEndpoint({
     const insightMode = input.insightMode ?? false;
 
     let targetUser: any = context.user;
-    let isResident = !!(context.user.residencyApproved && (context.user.residency));
+    let isResident = !!((context.user.residencyApproved || context.user.residencyGuideVerified) && (context.user.residency || context.user.selectedFolkResidency));
 
     // Detect scholar: NR user temporarily visiting a FOLK residency
     const tempRes = Array.isArray(context.user.temporaryResidency)
@@ -299,21 +299,38 @@ export default createEndpoint({
       : context.user.temporaryResidency;
     let isScholar = !isResident && !!(context.user.temporaryResidencyEnabled && tempRes);
 
-    if (targetUserId && targetUserId !== context.user.userId && targetUserId !== context.user.id) {
-      const found = await Users.findOne({ id: targetUserId, fields: USER_FIELDS })
-        || await Users.findOne({ filters: { userId: targetUserId } as any, fields: USER_FIELDS });
+      let found = null;
+      if (/^USER-\d+$/i.test(targetUserId)) {
+        const { records } = await Users.findAll({ filters: { userId: targetUserId } as any, fields: USER_FIELDS });
+        found = records.find(r => r.id !== r.userId) || records[0];
+      }
+      if (!found) {
+        const byId = await Users.findOne({ id: targetUserId, fields: USER_FIELDS }).catch(() => undefined);
+        if (byId) {
+          if (byId.id === byId.userId) {
+            const { records } = await Users.findAll({ filters: { userId: byId.userId } as any, fields: USER_FIELDS });
+            found = records.find(r => r.id !== r.userId) || byId;
+          } else {
+            found = byId;
+          }
+        }
+      }
+      if (!found) {
+        const { records } = await Users.findAll({ filters: { userId: targetUserId } as any, fields: USER_FIELDS });
+        found = records.find(r => r.id !== r.userId) || records[0] || null;
+      }
+
       if (found) {
         targetUser = found;
         const rid = Array.isArray(found.residency) ? found.residency[0] : found.residency;
         const foundTempRes = Array.isArray((found as any).temporaryResidency)
           ? (found as any).temporaryResidency[0]
           : (found as any).temporaryResidency;
-        const foundIsResident = !!(found.residencyApproved && rid);
+        const foundIsResident = !!((found.residencyApproved || (found as any).residencyGuideVerified) && (rid || (found as any).selectedFolkResidency));
         const foundIsScholar = !foundIsResident && !!((found as any).temporaryResidencyEnabled && foundTempRes);
         isResident = foundIsResident;
         isScholar = foundIsScholar;
       } else targetUser = { id: targetUserId };
-    }
 
     const entryOwnerIds = userIdentityAliases(targetUser);
     if (entryOwnerIds.length === 0 && targetUserId) entryOwnerIds.push(targetUserId);
