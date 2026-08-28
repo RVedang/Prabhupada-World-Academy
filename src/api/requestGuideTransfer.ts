@@ -21,16 +21,25 @@ export default createEndpoint({
     if (existing) throw new AppError({ code: 'CONFLICT', message: 'You already have a pending guide transfer request' });
 
     // Find the guide DB record by guideId field
-    const guideRecord = await Guides.findOne({ filters: { guideId: targetGuideId }, fields: ['id'] });
+    const guideRecord = await Guides.findOne({ filters: { guideId: targetGuideId }, fields: ['id'] })
+      || await Guides.findOne({ id: targetGuideId, fields: ['id'] }).catch(() => undefined)
+      || await Guides.findOne({ filters: { email: targetGuideId.toLowerCase() }, fields: ['id'] }).catch(() => undefined);
     const toGuideDbId = guideRecord?.id || targetGuideId;
 
     const userProfile = await Users.findOne({ id: context.user.id, fields: ['guide'] });
     const fromGuideId = Array.isArray(userProfile?.guide) ? userProfile.guide[0] : userProfile?.guide;
+    // Store a canonical Guides-table id when possible. Legacy user records may
+    // hold the source guide as a custom userId, email, or display name.
+    const sourceGuide = fromGuideId ? (
+      await Guides.findOne({ id: fromGuideId, fields: ['id'] }).catch(() => undefined) ||
+      await Guides.findOne({ filters: { guideId: fromGuideId }, fields: ['id'] }).catch(() => undefined) ||
+      await Guides.findOne({ filters: { email: String(fromGuideId).toLowerCase() }, fields: ['id'] }).catch(() => undefined)
+    ) : undefined;
 
     const record = await GuideTransferRequests.create({
       record: {
         user: context.user.id,
-        fromGuide: fromGuideId || undefined,
+        fromGuide: sourceGuide?.id || fromGuideId || undefined,
         toGuide: toGuideDbId,
         notes: input.reason || '',
         status: 'Pending',

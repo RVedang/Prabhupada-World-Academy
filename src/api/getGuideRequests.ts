@@ -69,10 +69,10 @@ export default createEndpoint({
       const userIds = [...new Set(filtered.map((r: any) => Array.isArray(r.user) ? r.user[0] : r.user).filter(Boolean))] as string[];
       
       const [usersRes1, usersRes2, usersRes3, usersRes4] = await Promise.all([
-        userIds.length > 0 ? Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
-        userIds.length > 0 ? Users.findAll({ filters: { userId: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
-        userIds.length > 0 ? Users.findAll({ filters: { fullName: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
-        userIds.length > 0 ? Users.findAll({ filters: { email: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+        userIds.length > 0 ? Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed', 'guide'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+        userIds.length > 0 ? Users.findAll({ filters: { userId: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed', 'guide'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+        userIds.length > 0 ? Users.findAll({ filters: { fullName: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed', 'guide'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
+        userIds.length > 0 ? Users.findAll({ filters: { email: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'email', 'phone', 'residency', 'residencyApproved', 'residencyClaimed', 'guide'], limit: 200 }).catch(() => ({ records: [] })) : { records: [] },
       ]);
 
       const userMap: Record<string, any> = {};
@@ -94,6 +94,20 @@ export default createEndpoint({
         const name = g.fullName || g.email || g.id || '';
         for (const ref of [g.id, g.guideId, g.fullName, g.email]) if (ref) guideNameMap.set(String(ref).toLowerCase(), name);
       });
+      // Some current-guide links point to the Users record (or its custom
+      // userId) rather than a Guides record. Resolve those aliases as well so
+      // the source side of a transfer never renders as "Unknown".
+      const { records: guideUsers } = await Users.findAll({
+        filters: { status: 'Active' },
+        fields: ['id', 'userId', 'fullName', 'email', 'role', 'segment'],
+        limit: 2000,
+      }).catch(() => ({ records: [] }));
+      guideUsers
+        .filter((u: any) => ['GUIDE', 'SUPER_GUIDE'].includes(String(u.role || '').toUpperCase().replace(/[\s-]+/g, '_')))
+        .forEach((u: any) => {
+          const name = u.fullName || u.email || u.id || '';
+          for (const ref of [u.id, u.userId, u.fullName, u.email]) if (ref) guideNameMap.set(String(ref).toLowerCase(), name);
+        });
       const residencyMap = new Map<string, string>(residenciesRes.records.map(r => [r.id, (r as any).residencyName || '']));
 
       guideTransfers = filtered.map((r: any) => {
