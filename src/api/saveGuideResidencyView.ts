@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, Guides, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Guides, Users, FolkResidencies, AppError } from '@/lib/backend-sdk';
+import type { ApiUserContext } from '@/lib/apiAuthorization';
 
 function normalizeIds(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -19,7 +20,10 @@ export default createEndpoint({
     success: z.boolean(),
     activeResidencyId: z.string().nullable(),
   }),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: {
+    input: { residencyId?: string | null };
+    context: { user: ApiUserContext | null };
+  }) => {
     if (!context.user?.email) throw new Error('Unauthorized');
 
     const role = String(context.user.role || '').toUpperCase().replace(/\s+/g, '_');
@@ -38,22 +42,64 @@ export default createEndpoint({
     const guide = await Guides.findOne({
       filters: { email: context.user.email, isActive: true },
       fields: ['id', 'folkResidencies'],
-    });
-    if (!guide) throw new AppError({ code: 'NOT_FOUND', message: 'Guide record not found' });
+    }).catch(() => undefined);
+    const guideUser = !guide
+      ? await Users.findOne({
+        id: context.user.id,
+        fields: ['id', 'userId', 'email', 'folkResidencies'],
+      }).catch(() => undefined) ||
+        await Users.findOne({
+          filters: { userId: context.user.userId },
+          fields: ['id', 'userId', 'email', 'folkResidencies'],
+        }).catch(() => undefined) ||
+        await Users.findOne({
+          filters: { email: context.user.email },
+          fields: ['id', 'userId', 'email', 'folkResidencies'],
+        }).catch(() => undefined)
+      : undefined;
 
-    const linkedResidencyIds = normalizeIds((guide as any).folkResidencies);
+    if (!guide && !guideUser) {
+      throw new AppError({ code: 'NOT_FOUND', message: 'Guide profile record not found' });
+    }
+
+    let linkedResidencyIds = normalizeIds((guide as any)?.folkResidencies || (guideUser as any)?.folkResidencies);
+    const isSuperGuide =
+      role === 'SUPER_GUIDE' ||
+      role === 'SUPER_ADMIN' ||
+      (context.user as any).isBvSuperAdmin === true;
+
+    if (isSuperGuide) {
+      const { records: residencies } = await FolkResidencies.findAll({
+        fields: ['id', 'residencyName', 'isActive'],
+        limit: 500,
+      });
+      linkedResidencyIds = residencies
+        .filter((residency: any) => {
+          const name = String(residency?.residencyName || '').trim().toLowerCase();
+          const isActive = residency?.isActive !== false && residency?.isActive !== 'false';
+          return isActive && !name.includes('prabhupada world') && !name.startsWith('pw ');
+        })
+        .map((residency: any) => String(residency.id || '').trim())
+        .filter(Boolean);
+    }
+
     const nextResidencyId = String(input.residencyId || '').trim();
 
     if (nextResidencyId && !linkedResidencyIds.includes(nextResidencyId)) {
       throw new AppError({ code: 'BAD_REQUEST', message: 'Please select one of your linked residencies' });
     }
 
-    await Guides.update({
-      id: (guide as any).id,
-      record: {
-        activeResidencyView: nextResidencyId || null,
-      },
-    });
+    if (guide) {
+      await Guides.update({
+        id: (guide as any).id,
+        record: { activeResidencyView: nextResidencyId || null },
+      });
+    } else {
+      await Users.update({
+        id: (guideUser as any).id,
+        record: { activeResidencyView: nextResidencyId || null },
+      });
+    }
 
     return {
       success: true,

@@ -32,9 +32,9 @@ export default createEndpoint({
     // Falling back to PW here was what made newly-created FOLK groups vanish
     // from FOLK group management and from the member-assignment dropdown.
     let facilitatorUser =
-      await Users.findOne({ id: input.bvslId, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => undefined) ||
-      await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => undefined) ||
-      await Users.findOne({ filters: { email: input.bvslId.toLowerCase() }, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => undefined);
+      await Users.findOne({ id: input.bvslId, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'guide', 'bvReportingAdminId', 'bvReportingSupervisorId'] }).catch(() => undefined) ||
+      await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'guide', 'bvReportingAdminId', 'bvReportingSupervisorId'] }).catch(() => undefined) ||
+      await Users.findOne({ filters: { email: input.bvslId.toLowerCase() }, fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'guide', 'bvReportingAdminId', 'bvReportingSupervisorId'] }).catch(() => undefined);
 
     // getGuides() can supply a Guides-table ID. Resolve it through its email
     // to the corresponding Users record when available.
@@ -46,7 +46,7 @@ export default createEndpoint({
       if (facilitatorGuide?.email) {
         facilitatorUser = await Users.findOne({
           filters: { email: facilitatorGuide.email },
-          fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser'],
+          fields: ['id', 'userId', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'guide', 'bvReportingAdminId', 'bvReportingSupervisorId'],
         }).catch(() => undefined);
       }
     }
@@ -58,6 +58,11 @@ export default createEndpoint({
     const bvslName = facilitatorUser?.fullName || facilitatorGuide?.fullName || facilitatorUser?.email || facilitatorGuide?.email || input.bvslId;
     const segment = facilitatorUser?.segment || facilitatorGuide?.segment ||
       (facilitatorUser?.isPrabhupadaWorldUser ? 'PW' : (context.user.segment || 'PW'));
+    const guideOwnerId = facilitatorUser?.bvReportingSupervisorId ||
+      facilitatorUser?.bvReportingAdminId ||
+      facilitatorUser?.guide ||
+      context.user.userId ||
+      context.user.id;
 
     const groupId = `BV-GROUP-${Date.now()}`;
     const newGroup = {
@@ -65,8 +70,9 @@ export default createEndpoint({
       groupId,
       groupName: input.groupName,
       bvslLeader: facilitatorUser?.id || undefined,
-      bvslId: facilitatorUser?.userId || facilitatorUser?.id || facilitatorGuide.guideId || facilitatorGuide.id,
+      bvslId: facilitatorUser?.userId || facilitatorUser?.id || facilitatorGuide?.guideId || facilitatorGuide?.id,
       bvslName,
+      guide: guideOwnerId || undefined,
       meetingTime: input.meetingTime || '',
       description: input.description || '',
       isActive: true,

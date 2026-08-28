@@ -34,7 +34,6 @@ interface BvAdminManagementTabProps {
 export default function BvAdminManagementTab({ segment: propSegment, guideId = '', isSuperGuide: isSuperGuideProp }: BvAdminManagementTabProps = {}) {
   const { profile } = useUserProfile();
   const navigate = useNavigate();
-  const userEmail = (profile?.userId || '').toLowerCase();
   const isSuperAdmin = isSuperGuideProp ?? !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
@@ -129,67 +128,11 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
     return () => { cancelled = true; };
   }, [loadData]);
 
-  // Super Admin sees ALL groups; Admin sees only groups under facilitators assigned to them
-  const visibleGroups = (function () {
-    if (isSuperAdmin) return groups;
-
-    const adminId = (profile?.userId || (profile as any)?.id || '').toLowerCase();
-    const adminEmail = (userEmail || '').toLowerCase();
-    const adminName = (profile?.fullName || '').toLowerCase();
-
-    return groups.filter(group => {
-      const grpGuideName = (group.guideName || '').toLowerCase();
-      const grpGuideId = (group.guideId || '').toLowerCase();
-      const grpBvslName = (group.bvslName || '').toLowerCase();
-      const grpBvslId = (group.bvslId || '').toLowerCase();
-
-      // Direct match on group guide/admin
-      if (
-        (grpGuideId && (grpGuideId === adminId || grpGuideId === adminEmail)) ||
-        (grpGuideName && adminName && (grpGuideName.includes(adminName) || adminName.includes(grpGuideName))) ||
-        (grpBvslId && (grpBvslId === adminId || grpBvslId === adminEmail))
-      ) {
-        return true;
-      }
-
-      // Check if the facilitator (RGF) of this group is under this admin
-      const facilitator = guides.find(g =>
-        (g.guideId && (g.guideId === grpBvslId || g.guideId === group.bvslLeader)) ||
-        (g.name && grpBvslName && g.name.toLowerCase().includes(grpBvslName)) ||
-        (g.email && grpBvslId && g.email.toLowerCase() === grpBvslId)
-      );
-
-      if (facilitator) {
-        const facGuideName = (facilitator.guideName || facilitator.adminName || '').toLowerCase();
-        const facGuideId = (facilitator.guideId || facilitator.adminId || '').toLowerCase();
-        const facEmail = (facilitator.email || '').toLowerCase();
-
-        if (
-          (facGuideId && (facGuideId === adminId || facGuideId === adminEmail)) ||
-          (facGuideName && adminName && (facGuideName.includes(adminName) || adminName.includes(facGuideName))) ||
-          (facEmail && facEmail === adminEmail)
-        ) {
-          return true;
-        }
-      }
-
-      // Match facilitators where guide email/name matches this admin
-      const myFacilitators = guides.filter(g => {
-        const gEmail = (g.email || '').toLowerCase();
-        const gGuide = (g.guide || g.guideName || g.adminEmail || '').toLowerCase();
-        return (
-          (gEmail && gEmail === adminEmail) ||
-          (gGuide && (gGuide.includes(adminName) || gGuide === adminEmail || gGuide === adminId))
-        );
-      });
-
-      return myFacilitators.some(f =>
-        (f.guideId && f.guideId === grpBvslId) ||
-        (f.email && f.email.toLowerCase() === grpBvslId) ||
-        (f.name && grpBvslName && f.name.toLowerCase().includes(grpBvslName))
-      );
-    });
-  })();
+  // getAllBvGroupsAdmin performs guide/RGF hierarchy scoping on the server.
+  // Do not apply a second browser-side ownership filter: the compact API group
+  // response intentionally omits raw hierarchy fields, so re-filtering it was
+  // hiding valid groups that the server had already authorized and returned.
+  const visibleGroups = groups;
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {

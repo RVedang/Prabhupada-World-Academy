@@ -26,7 +26,11 @@ export default createEndpoint({
     const userRole = String(context.user.role || '').toUpperCase().replace(/\s+/g, '_');
     const userEmail = (context.user.email || '').toLowerCase();
     const scopedGuideId = String(input?.guideId || '').trim();
-    const isSuperGuide = (!scopedGuideId || scopedGuideId === 'ALL') && (
+    const hasDepartmentWideResidencyAccess =
+      userRole === 'SUPER_GUIDE' ||
+      userRole === 'SUPER_ADMIN' ||
+      context.user.isBvSuperAdmin === true;
+    const hasSuperGuideAccess = (
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'ADMIN' ||
@@ -34,16 +38,29 @@ export default createEndpoint({
       context.user.isBvSuperAdmin ||
       context.user.isBvAdmin ||
       !!context.user.isBvSuperAdmin);
+    // An explicit guide ID means a dual-role super guide opened guide mode.
+    // Their super-guide dashboard remains unrestricted when the ID is ALL.
+    const isSuperGuide = (!scopedGuideId || scopedGuideId === 'ALL') && hasSuperGuideAccess;
 
     // Determine which residency IDs this guide manages
     let allowedResidencyIds: string[] = [];
 
     if (!isSuperGuide) {
       // Find the guide record for the current user
-      const guideRecord = await Guides.findOne({
+      let guideRecord: any = await Guides.findOne({
         ...(scopedGuideId && scopedGuideId !== 'ALL' ? { id: scopedGuideId } : { filters: { email: context.user.email, isActive: true } }),
         fields: ['id', 'folkResidencies', 'activeResidencyView'],
-      });
+      }).catch(() => undefined);
+      // Dual-role guide/super-guide profiles may exist only in Users. Prefer
+      // the authenticated record so its saved residency view is used even if
+      // legacy duplicate Users rows share the same custom userId.
+      if (!guideRecord) {
+        guideRecord =
+          await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined) ||
+          await Users.findOne({ id: scopedGuideId, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { userId: scopedGuideId }, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'folkResidencies', 'activeResidencyView'] }).catch(() => undefined);
+      }
       if (!guideRecord) return [];
 
       // Get residencies linked to this guide
@@ -53,9 +70,28 @@ export default createEndpoint({
           : [guideRecord.folkResidencies]
       );
       const activeResidencyViewId = firstRef((guideRecord as any).activeResidencyView).trim();
-      allowedResidencyIds = activeResidencyViewId && linkedResidencyIds.includes(activeResidencyViewId)
-        ? [activeResidencyViewId]
-        : linkedResidencyIds;
+
+      if (hasDepartmentWideResidencyAccess) {
+        const { records: allResidencies } = await FolkResidencies.findAll({
+          fields: ['id', 'residencyName', 'isActive'],
+          limit: 500,
+        });
+        const allFolkResidencyIds = allResidencies
+          .filter((residency: any) => {
+            const name = String(residency?.residencyName || '').trim().toLowerCase();
+            const isActive = residency?.isActive !== false && residency?.isActive !== 'false';
+            return isActive && !name.includes('prabhupada world') && !name.startsWith('pw ');
+          })
+          .map((residency: any) => String(residency.id || '').trim())
+          .filter(Boolean);
+        allowedResidencyIds = activeResidencyViewId && allFolkResidencyIds.includes(activeResidencyViewId)
+          ? [activeResidencyViewId]
+          : allFolkResidencyIds;
+      } else {
+        allowedResidencyIds = activeResidencyViewId && linkedResidencyIds.includes(activeResidencyViewId)
+          ? [activeResidencyViewId]
+          : linkedResidencyIds;
+      }
 
       // If guide has no residencies, they shouldn't see any residency transfers
       if (allowedResidencyIds.length === 0) return [];

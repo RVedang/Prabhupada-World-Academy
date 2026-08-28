@@ -6,7 +6,13 @@ const GUIDE_FIELDS = ['id', 'email', 'isActive', 'fullName', 'phone', 'abbreviat
 const CURRENT_USER_GUIDE_FIELDS = ['id', 'userId', 'email', 'fullName', 'phone', 'folkResidencies', 'activeResidencyView'];
 const USER_FIELDS = ['id', 'status', 'residencyApproved', 'guide'];
 const ENTRY_FIELDS = ['id', 'user', 'entryDate'];
-const RESIDENCY_FIELDS = ['id', 'residencyName'];
+const RESIDENCY_FIELDS = ['id', 'residencyName', 'isActive'];
+
+function isActiveFolkResidency(residency: any): boolean {
+  const name = String(residency?.residencyName || '').trim().toLowerCase();
+  const isActive = residency?.isActive !== false && residency?.isActive !== 'false';
+  return isActive && !name.includes('prabhupada world') && !name.startsWith('pw ');
+}
 
 export default createEndpoint({
   description: 'Get guide info + metrics for the guide dashboard — counts all center users, not just direct folk',
@@ -15,6 +21,14 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ context }: any) => {
     const userEmail = (context.user?.email || '').toLowerCase();
+    const normalizedRole = String(context.user?.role || '')
+      .trim()
+      .replace(/[\s-]+/g, '_')
+      .toUpperCase();
+    const isSuperGuideContext =
+      normalizedRole === 'SUPER_GUIDE' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      context.user?.isBvSuperAdmin === true;
 
     let guideRecord = await Guides.findOne({
       filters: { email: context.user?.email },
@@ -31,10 +45,6 @@ export default createEndpoint({
     // than manufacturing a hard-coded guide ID, otherwise guide-scoped APIs
     // receive an ID that cannot match their assigned RGFs.
     if (!guideRecord) {
-      const normalizedRole = String(context.user?.role || '')
-        .trim()
-        .replace(/[\s-]+/g, '_')
-        .toUpperCase();
       const hasGuideAccess =
         normalizedRole === 'GUIDE' ||
         normalizedRole === 'SUPER_GUIDE' ||
@@ -101,10 +111,17 @@ export default createEndpoint({
 
     // Fetch residency display names
     const { records: allResidencies } = await FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 });
-    const residencyMap = new Map(allResidencies.map((r: any) => [r.id, r.residencyName || '']));
-    const filteredResidencies = residencyIds
-      .filter((id: string) => residencyMap.has(id))
-      .map((id: string) => ({ id, residencyName: residencyMap.get(id) || '' }));
+    const activeFolkResidencies = allResidencies.filter(isActiveFolkResidency);
+    const residencyMap = new Map(activeFolkResidencies.map((r: any) => [r.id, r.residencyName || '']));
+    // A super guide has department-wide access and therefore usually has no
+    // restrictive folkResidencies array. Offer every active FOLK residency in
+    // the profile selector. Regular guides remain limited to linked records.
+    const filteredResidencies = isSuperGuideContext
+      ? activeFolkResidencies.map((r: any) => ({ id: r.id, residencyName: r.residencyName || '' }))
+      : residencyIds
+          .filter((id: string) => residencyMap.has(id))
+          .map((id: string) => ({ id, residencyName: residencyMap.get(id) || '' }));
+    const selectableResidencyIds = filteredResidencies.map((r: any) => r.id);
 
     return {
       guide: {
@@ -123,9 +140,10 @@ export default createEndpoint({
           ? Math.round((todaySubmitted / activeUsers.length) * 100)
           : 0,
       },
-      activeResidencyViewId: savedActiveResidencyId && residencyIds.includes(savedActiveResidencyId)
+      activeResidencyViewId: savedActiveResidencyId && selectableResidencyIds.includes(savedActiveResidencyId)
         ? savedActiveResidencyId
         : null,
+      isDepartmentWideResidencyView: isSuperGuideContext,
       residencies: filteredResidencies,
     };
   },

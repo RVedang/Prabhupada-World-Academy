@@ -245,13 +245,13 @@ export default function ProfilePage() {
 }
 
 type GuideResidencyViewData = GetCurrentGuideOutputType extends { residencies: infer R; activeResidencyViewId?: infer A }
-  ? { residencies: R extends any[] ? R : any[]; activeResidencyViewId: A extends string | null ? A : string | null }
-  : { residencies: any[]; activeResidencyViewId: string | null };
+  ? { residencies: R extends any[] ? R : any[]; activeResidencyViewId: A extends string | null ? A : string | null; isDepartmentWideResidencyView: boolean }
+  : { residencies: any[]; activeResidencyViewId: string | null; isDepartmentWideResidencyView: boolean };
 
 function GuideResidencyViewCard({ email }: { email: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [data, setData] = useState<GuideResidencyViewData>({ residencies: [], activeResidencyViewId: null });
+  const [data, setData] = useState<GuideResidencyViewData>({ residencies: [], activeResidencyViewId: null, isDepartmentWideResidencyView: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -262,11 +262,12 @@ function GuideResidencyViewCard({ email }: { email: string }) {
         setData({
           residencies: Array.isArray(res?.residencies) ? res.residencies : [],
           activeResidencyViewId: res?.activeResidencyViewId || null,
+          isDepartmentWideResidencyView: res?.isDepartmentWideResidencyView === true,
         });
       })
       .catch(() => {
         if (!cancelled) {
-          setData({ residencies: [], activeResidencyViewId: null });
+          setData({ residencies: [], activeResidencyViewId: null, isDepartmentWideResidencyView: false });
         }
       })
       .finally(() => {
@@ -290,7 +291,9 @@ function GuideResidencyViewCard({ email }: { email: string }) {
     setSaving(true);
     try {
       await saveGuideResidencyView({ residencyId: nextResidencyId } as any);
-      toast.success(nextResidencyId ? 'Guide residency view updated' : 'Showing all linked residencies');
+      toast.success(nextResidencyId
+        ? 'Guide residency view updated'
+        : (data.isDepartmentWideResidencyView ? 'Showing all FOLK residencies' : 'Showing all linked residencies'));
     } catch (error: any) {
       setData(prev => ({ ...prev, activeResidencyViewId: currentValue === 'all' ? null : currentValue }));
       toast.error(error?.message || 'Failed to update guide residency view');
@@ -316,7 +319,9 @@ function GuideResidencyViewCard({ email }: { email: string }) {
               <SelectValue placeholder="Select residency view" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All linked residencies</SelectItem>
+              <SelectItem value="all">
+                {data.isDepartmentWideResidencyView ? 'All FOLK residencies' : 'All linked residencies'}
+              </SelectItem>
               {residencies.map((residency: any) => (
                 <SelectItem key={residency.id} value={residency.id}>
                   {residency.residencyName}
