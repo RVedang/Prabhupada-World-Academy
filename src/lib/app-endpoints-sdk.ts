@@ -194,6 +194,13 @@ export const assignGuide = (input: assignGuide_Input): Promise<assignGuide_Outpu
 export type AssignGuideOutputType = assignGuide_Output;
 export type AssignGuideInputType = assignGuide_Input;
 
+import type assignFolkResidencyGuides_Type from '../api/assignFolkResidencyGuides';
+type assignFolkResidencyGuides_Input = Parameters<typeof assignFolkResidencyGuides_Type.execute>[0]['input'];
+type assignFolkResidencyGuides_Output = ReturnType<typeof assignFolkResidencyGuides_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof assignFolkResidencyGuides_Type.execute>;
+export const assignFolkResidencyGuides = (input: assignFolkResidencyGuides_Input): Promise<assignFolkResidencyGuides_Output> => invokeEndpoint('assignFolkResidencyGuides', input);
+export type AssignFolkResidencyGuidesOutputType = assignFolkResidencyGuides_Output;
+export type AssignFolkResidencyGuidesInputType = assignFolkResidencyGuides_Input;
+
 import type assignScholarStatus_Type from '../api/assignScholarStatus';
 type assignScholarStatus_Input = Parameters<typeof assignScholarStatus_Type.execute>[0]['input'];
 type assignScholarStatus_Output = ReturnType<typeof assignScholarStatus_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof assignScholarStatus_Type.execute>;

@@ -15,9 +15,33 @@ export interface GuideScope {
   guideId: string;
   /** All FOLK Residency IDs this guide is linked to via folkResidencies */
   residencyIds: string[];
+  /** Legacy residency names accepted while old user rows are migrated */
+  residencyNames?: string[];
   /** The full name of the guide to resolve name-based direct assignments */
   guideName?: string;
   isSuperAdminScope?: boolean;
+}
+
+const normalizeRefs = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : value == null ? [] : [value];
+  return values.flatMap(v => String(v || '').split(',')).map(v => v.trim()).filter(Boolean);
+};
+
+/** Resolve legacy residency names and new document IDs to canonical IDs. */
+async function resolveResidencyIds(values: unknown): Promise<string[]> {
+  const refs = normalizeRefs(values);
+  if (refs.length === 0) return [];
+  const { records } = await FolkResidencies.findAll({
+    fields: ['id', 'residencyId', 'residencyName'],
+    limit: 500,
+  }).catch(() => ({ records: [] }));
+  const byRef = new Map<string, string>();
+  for (const record of records as any[]) {
+    for (const ref of [record.id, record.residencyId, record.residencyName]) {
+      if (ref) byRef.set(String(ref).trim().toLowerCase(), String(record.id));
+    }
+  }
+  return [...new Set(refs.map(ref => byRef.get(ref.toLowerCase()) || '').filter(Boolean))];
 }
 
 /**
@@ -65,14 +89,36 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
 
   if (!guide) return null;
 
-  let residencyIds: string[] = [];
-  if (Array.isArray(guide.folkResidencies)) {
-    residencyIds = guide.folkResidencies;
-  } else if (guide.folkResidencies) {
-    residencyIds = (guide.folkResidencies as string).split(',').map((s: string) => s.trim());
+  let residencyIds = await resolveResidencyIds(guide.folkResidencies);
+
+  // A residency may also be the source of truth for assignments (especially
+  // after a Super Guide edits the hostel table). Merge those links by guide
+  // identity so older guide rows remain discoverable.
+  const guideKeys = new Set([guide.id, guide.fullName, guide.email].filter(Boolean).map((value: any) => String(value).trim().toLowerCase()));
+  if (guideKeys.size > 0) {
+    const { records: residencyRecords } = await FolkResidencies.findAll({
+      fields: ['id', 'guides', 'guideIds'],
+      limit: 500,
+    }).catch(() => ({ records: [] }));
+    for (const residency of residencyRecords as any[]) {
+      const refs = [...normalizeRefs(residency.guideIds), ...normalizeRefs(residency.guides)];
+      if (refs.some(ref => guideKeys.has(ref.toLowerCase()))) residencyIds.push(String(residency.id));
+    }
+    residencyIds = [...new Set(residencyIds)];
   }
 
-  return { guideId: guide.id, residencyIds, guideName: guide.fullName, isSuperAdminScope: !!(guide as any).isSuperAdminScope };
+  const residencyNames: string[] = [];
+  if (residencyIds.length > 0) {
+    const { records } = await FolkResidencies.findAll({ fields: ['id', 'residencyName'], limit: 500 }).catch(() => ({ records: [] }));
+    const idSet = new Set(residencyIds.map(id => String(id).toLowerCase()));
+    for (const residency of records as any[]) {
+      if (idSet.has(String(residency.id || '').toLowerCase()) && residency.residencyName) {
+        residencyNames.push(String(residency.residencyName));
+      }
+    }
+  }
+
+  return { guideId: guide.id, residencyIds, residencyNames, guideName: guide.fullName, isSuperAdminScope: !!(guide as any).isSuperAdminScope };
 }
 
 /**
@@ -121,7 +167,11 @@ export function isUserInGuideScope(
     ? userRecord.guide[0]
     : userRecord.guide;
   // Center-based: user's residency is one of the guide's centers
-  if (userResidencyId && scope.residencyIds.includes(userResidencyId as string)) return true;
+  if (userResidencyId) {
+    const residencyKey = String(userResidencyId).trim().toLowerCase();
+    if (scope.residencyIds.some(id => String(id).trim().toLowerCase() === residencyKey)) return true;
+    if ((scope.residencyNames || []).some(name => String(name).trim().toLowerCase() === residencyKey)) return true;
+  }
   // Direct assignment: user is directly under this guide (by ID or by Name)
   if (userGuideId && (userGuideId === scope.guideId || (scope.guideName && userGuideId === scope.guideName))) return true;
   return false;

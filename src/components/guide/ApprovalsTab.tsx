@@ -232,7 +232,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             </TabsTrigger>
           )}
 
-          {!isPwAdmin && (isSuperGuide || guideTransfers.length > 0) && (
+          {!isPwAdmin && (
             <TabsTrigger value="transfers" className="gap-1 text-xs sm:text-sm">
               <ArrowRightLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Guide Transfers</span>
@@ -241,7 +241,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             </TabsTrigger>
           )}
 
-          {!isPwAdmin && (isSuperGuide || residencyTransfers.length > 0) && (
+          {!isPwAdmin && (
             <TabsTrigger value="folk_transfer" className="gap-1 text-xs sm:text-sm">
               <Home className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">FOLK Transfer</span>
@@ -259,7 +259,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             </TabsTrigger>
           )}
 
-          {!isPwAdmin && cleanlinessReviews.length > 0 && (
+          {!isPwAdmin && (
             <TabsTrigger value="cleanliness" className="gap-1 text-xs sm:text-sm">
               <Sparkles className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Cleanliness</span>
@@ -737,7 +737,7 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
             {isPwAdmin && (
               <div className="space-y-1.5">
                 <Label>Assign Sadhana Mentor</Label>
-                <Select value={editedSadhanaMentorId || '__unassigned__'} onValueChange={(v) => setEditedSadhanaMentorId(v === '__unassigned__' ? '' : v)}>
+                <Select value={editedSadhanaMentorId || '__unassigned__'} onValueChange={(v) => setEditedSadhanaMentorId(!v || v === '__unassigned__' ? '' : v)}>
                   <SelectTrigger>
                     <span className="truncate">
                       {editedSadhanaMentorId

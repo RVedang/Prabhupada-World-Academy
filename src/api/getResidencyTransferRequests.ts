@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, ResidencyTransferRequests, Users, FolkResidencies, Guides } from '@/lib/backend-sdk';
+import { getGuideScope } from '../lib/guideScope';
 
 function firstRef(value: unknown): string {
   if (Array.isArray(value)) return String(value[0] || '');
@@ -33,17 +34,14 @@ export default createEndpoint({
     const hasSuperGuideAccess = (
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
-      userRole === 'ADMIN' ||
-      userEmail.includes('superadmin') ||
-      context.user.isBvSuperAdmin ||
-      context.user.isBvAdmin ||
-      !!context.user.isBvSuperAdmin);
+      context.user.isBvSuperAdmin);
     // An explicit guide ID means a dual-role super guide opened guide mode.
     // Their super-guide dashboard remains unrestricted when the ID is ALL.
     const isSuperGuide = (!scopedGuideId || scopedGuideId === 'ALL') && hasSuperGuideAccess;
 
     // Determine which residency IDs this guide manages
     let allowedResidencyIds: string[] = [];
+    let linkedResidencyNames: string[] = [];
 
     if (!isSuperGuide) {
       // Find the guide record for the current user
@@ -63,12 +61,15 @@ export default createEndpoint({
       }
       if (!guideRecord) return [];
 
-      // Get residencies linked to this guide
+      // Get residencies linked to this guide. The shared scope resolver
+      // canonicalizes both new residency IDs and legacy residency names.
       const linkedResidencyIds = normalizeIds(
         Array.isArray(guideRecord.folkResidencies)
           ? guideRecord.folkResidencies
           : [guideRecord.folkResidencies]
       );
+      const scope = await getGuideScope(context.user.email).catch(() => null);
+      linkedResidencyNames = scope?.residencyNames || [];
       if (hasDepartmentWideResidencyAccess) {
         const { records: allResidencies } = await FolkResidencies.findAll({
           fields: ['id', 'residencyName', 'isActive'],
@@ -84,7 +85,7 @@ export default createEndpoint({
           .filter(Boolean);
         allowedResidencyIds = allFolkResidencyIds;
       } else {
-        allowedResidencyIds = linkedResidencyIds;
+        allowedResidencyIds = [...new Set([...linkedResidencyIds, ...(scope?.residencyIds || [])])];
       }
 
       // If guide has no residencies, they shouldn't see any residency transfers
@@ -111,7 +112,8 @@ export default createEndpoint({
       ? requests
       : requests.filter((r: any) => {
           const transferResidencyIds = normalizeIds([r.fromResidency, r.toResidency]);
-          return transferResidencyIds.some(id => allowedResidencyIds.includes(id));
+          const allowed = new Set([...allowedResidencyIds, ...linkedResidencyNames].map(id => id.toLowerCase()));
+          return transferResidencyIds.some(id => allowed.has(id.toLowerCase()));
         });
 
     if (filtered.length === 0) return [];
@@ -137,12 +139,12 @@ export default createEndpoint({
       )
     ];
 
-    const residenciesRes = residencyIds.length > 0
-      ? await FolkResidencies.findAll({ filters: { id: { in: residencyIds } }, fields: ['id', 'residencyName'], limit: 200 })
-      : { records: [] };
+    const residenciesRes = await FolkResidencies.findAll({ fields: ['id', 'residencyId', 'residencyName'], limit: 500 });
 
     const residencyMap: Record<string, any> = {};
-    residenciesRes.records.forEach((r: any) => { residencyMap[r.id] = r; });
+    residenciesRes.records.forEach((r: any) => {
+      for (const ref of [r.id, r.residencyId, r.residencyName]) if (ref) residencyMap[String(ref).toLowerCase()] = r;
+    });
 
     return filtered.map((r: any) => {
       const uid = Array.isArray(r.user) ? r.user[0] : r.user as string;
@@ -150,8 +152,8 @@ export default createEndpoint({
       const fromId = (Array.isArray(r.fromResidency) ? r.fromResidency[0] : r.fromResidency) || 
                      (u?.residencyApproved ? (Array.isArray(u.residency) ? u.residency[0] : u.residency) : null) as string | null;
       const toId = Array.isArray(r.toResidency) ? r.toResidency[0] : r.toResidency as string | null;
-      const from = fromId ? (residencyMap[fromId] as any) : null;
-      const to = toId ? (residencyMap[toId] as any) : null;
+      const from = fromId ? (residencyMap[String(fromId).toLowerCase()] as any) : null;
+      const to = toId ? (residencyMap[String(toId).toLowerCase()] as any) : null;
       let rawPhone = u?.phone || '';
       const cleanPhone = rawPhone.replace(/\D/g, '');
       if (cleanPhone.length > 10 && !rawPhone.startsWith('+')) {

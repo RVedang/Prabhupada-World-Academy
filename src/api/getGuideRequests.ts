@@ -3,7 +3,7 @@ import { createEndpoint, GuideTransferRequests, Users, Guides, AshrayUpgradeRequ
 import { ASHRAY_LEVELS } from '../types/enums';
 
 export default createEndpoint({
-  description: 'Get guide transfer requests — only where toGuide is the current guide, plus ashray upgrades (stub)',
+  description: 'Get guide transfer requests involving the current guide, plus ashray upgrades',
   authenticated: true,
   requiredCapabilities: 'users.approve',
   inputSchema: z.object({ guideId: z.string().optional() }),
@@ -45,17 +45,22 @@ export default createEndpoint({
       String(r.status || '').trim().toUpperCase() === 'PENDING'
     );
 
-    // Filter: only show requests where toGuide is THIS guide (receiving guide)
+    // A guide needs both sides of a transfer: the source guide must approve a
+    // departure and the destination guide must approve the incoming transfer.
+    const currentGuide = !isSuperGuide
+      ? await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id', 'guideId', 'fullName', 'email'] }).catch(() => undefined)
+      : undefined;
+    const guideAliases = new Set([
+      guideDbId, context.user.id, context.user.userId, context.user.email,
+      currentGuide?.id, currentGuide?.guideId, currentGuide?.fullName, currentGuide?.email,
+    ].filter(Boolean).map((value: any) => String(value).trim().toLowerCase()));
+
     const filtered = isSuperGuide
       ? allRequests
       : allRequests.filter((r: any) => {
+          const fromId = Array.isArray(r.fromGuide) ? r.fromGuide[0] : r.fromGuide;
           const toId = Array.isArray(r.toGuide) ? r.toGuide[0] : r.toGuide;
-          const toIdLower = String(toId || '').toLowerCase();
-          return toId && (
-            toIdLower === String(guideDbId || '').toLowerCase() || 
-            toIdLower === context.user.id.toLowerCase() ||
-            toIdLower === String(context.user.email || '').toLowerCase()
-          );
+          return [fromId, toId].filter(Boolean).some((value: any) => guideAliases.has(String(value).trim().toLowerCase()));
         });
 
     // Resolve user details for guide transfers
@@ -81,10 +86,14 @@ export default createEndpoint({
 
       // Fetch all guides to resolve names
       const [guidesRes, residenciesRes] = await Promise.all([
-        Guides.findAll({ fields: ['id', 'fullName'], limit: 500 }),
+        Guides.findAll({ fields: ['id', 'guideId', 'fullName', 'email'], limit: 500 }),
         FolkResidencies.findAll({ fields: ['id', 'residencyName'], limit: 500 }).catch(() => ({ records: [] })),
       ]);
-      const guideNameMap = new Map<string, string>(guidesRes.records.map(g => [g.id, (g as any).fullName || '']));
+      const guideNameMap = new Map<string, string>();
+      guidesRes.records.forEach((g: any) => {
+        const name = g.fullName || g.email || g.id || '';
+        for (const ref of [g.id, g.guideId, g.fullName, g.email]) if (ref) guideNameMap.set(String(ref).toLowerCase(), name);
+      });
       const residencyMap = new Map<string, string>(residenciesRes.records.map(r => [r.id, (r as any).residencyName || '']));
 
       guideTransfers = filtered.map((r: any) => {
@@ -112,8 +121,8 @@ export default createEndpoint({
           residencyLabel,
           status: r.status || 'Pending',
           timestamp: r.requestedAt || '',
-          fromGuideName: fromGuideId ? (guideNameMap.get(fromGuideId) || 'Unknown') : 'None',
-          toGuideName: toGuideId ? (guideNameMap.get(toGuideId) || 'Unknown') : 'None',
+          fromGuideName: fromGuideId ? (guideNameMap.get(String(fromGuideId).toLowerCase()) || 'Unknown') : 'None',
+          toGuideName: toGuideId ? (guideNameMap.get(String(toGuideId).toLowerCase()) || 'Unknown') : 'None',
         };
       });
     }

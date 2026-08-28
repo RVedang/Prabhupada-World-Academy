@@ -6,10 +6,12 @@ const normalizeIds = (value: unknown): string[] => {
   const values = Array.isArray(value) ? value : value == null ? [] : [value];
   return values.flatMap(v => Array.isArray(v) ? v : [v]).map(v => String(v || '').trim()).filter(Boolean);
 };
+const normalizeRefs = (value: unknown): string[] => normalizeIds(value).flatMap(v => v.split(',').map(part => part.trim()).filter(Boolean));
 const isFolk = (r: any) => {
   const name = String(r?.residencyName || '').toLowerCase();
   return r?.isActive !== false && r?.isActive !== 'false' && !name.includes('prabhupada world') && !name.startsWith('pw ');
 };
+const key = (value: unknown) => String(value || '').trim().toLowerCase();
 
 export default createEndpoint({
   description: 'Get persistent FOLK residency assignments for the authenticated guide',
@@ -29,11 +31,31 @@ export default createEndpoint({
     const guide = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id', 'email', 'fullName', 'folkResidencies'] }).catch(() => undefined);
     const guideAssignedIds = normalizeIds((guide as any)?.folkResidencies);
     const assignedIds = guideAssignedIds.length > 0 ? guideAssignedIds : normalizeIds((user as any)?.folkResidencies);
-    const { records: rawResidencies } = await FolkResidencies.findAll({ limit: 500, fields: ['id', 'residencyName', 'isActive'] });
+    const { records: rawResidencies } = await FolkResidencies.findAll({ limit: 500, fields: ['id', 'residencyId', 'residencyName', 'isActive', 'guides', 'guideIds'] });
     const residencies = rawResidencies.filter(isFolk).map((r: any) => ({ id: r.id, residencyName: r.residencyName || '' }));
+    const residencyByRef = new Map<string, string>();
+    for (const r of rawResidencies.filter(isFolk) as any[]) {
+      for (const ref of [r.id, r.residencyId, r.residencyName]) if (ref) residencyByRef.set(key(ref), String(r.id));
+    }
+    const canonicalAssignedIds = assignedIds.map(id => residencyByRef.get(key(id)) || '').filter(Boolean);
+    const guideRefs = [guide, user].filter(Boolean).flatMap((record: any) => [record.id, record.userId, record.email, record.fullName]);
+    const guideRefKeys = new Set(guideRefs.filter(Boolean).map(key));
+    const guideName = key((guide as any)?.fullName || (user as any)?.fullName);
+    const assignedFromResidencyRecords = (rawResidencies as any[])
+      .filter(isFolk)
+      .filter(r => {
+        const refs = [
+          ...normalizeRefs(r.guideIds),
+          ...normalizeRefs(r.guides),
+        ];
+        return refs.some(ref => guideRefKeys.has(key(ref)) || key(ref) === guideName);
+      })
+      .map(r => String(r.id));
     const allIds = new Set(residencies.map(r => r.id));
     const isSuperGuide = role === 'SUPER_GUIDE' || role === 'SUPER_ADMIN' || context.user.isBvSuperAdmin === true;
-    const effectiveIds = isSuperGuide ? residencies.map(r => r.id) : assignedIds.filter(id => allIds.has(id));
+    const effectiveIds = isSuperGuide
+      ? residencies.map(r => r.id)
+      : [...new Set([...canonicalAssignedIds, ...assignedFromResidencyRecords])].filter(id => allIds.has(id));
 
     const requesterIds = [user?.id, user?.userId, context.user.id, context.user.userId, email].filter(Boolean).map(String);
     let pendingRequest: any = null;

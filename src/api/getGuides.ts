@@ -75,6 +75,10 @@ export default createEndpoint({
 
       const folkGuidesFromDb = guideRecords
         .filter(g => {
+          // A FOLK guide list must never include records explicitly marked as
+          // Prabhupada World. Older Guide rows without a segment remain
+          // eligible and are validated against their linked user below.
+          if (String(g.segment || '').trim().toUpperCase() === 'PW') return false;
           // Cross-reference with Users table to check if they were deleted/modified
           if (g.email) {
             const emailLower = g.email.toLowerCase().trim();

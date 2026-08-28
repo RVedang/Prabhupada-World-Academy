@@ -80,9 +80,17 @@ export default createEndpoint({
     }
 
     const todayStr = getTodayIST();
-    const residencyIds: string[] = Array.isArray(guideRecord.folkResidencies)
+    const { records: allResidencies } = await FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 });
+    const residencyRefs = Array.isArray(guideRecord.folkResidencies)
       ? guideRecord.folkResidencies
       : guideRecord.folkResidencies ? [guideRecord.folkResidencies] : [];
+    const residencyLookup = new Map<string, string>();
+    for (const residency of allResidencies as any[]) {
+      for (const ref of [residency.id, residency.residencyName]) {
+        if (ref) residencyLookup.set(String(ref).trim().toLowerCase(), String(residency.id));
+      }
+    }
+    const residencyIds: string[] = [...new Set(residencyRefs.flatMap((value: any) => String(value || '').split(',').map(v => residencyLookup.get(v.trim().toLowerCase()) || '').filter(Boolean)))];
     const savedActiveResidencyId = Array.isArray((guideRecord as any).activeResidencyView)
       ? (guideRecord as any).activeResidencyView[0]
       : (guideRecord as any).activeResidencyView || null;
@@ -115,7 +123,6 @@ export default createEndpoint({
     const todaySubmitted = [...submittedUserIds].filter(id => activeUserIds.has(id)).length;
 
     // Fetch residency display names
-    const { records: allResidencies } = await FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 });
     const activeFolkResidencies = allResidencies.filter(isActiveFolkResidency);
     const residencyMap = new Map(activeFolkResidencies.map((r: any) => [r.id, r.residencyName || '']));
     // A super guide has department-wide access and therefore usually has no

@@ -18,12 +18,12 @@ export default createEndpoint({
       { records: residents },
     ] = await Promise.all([
       FolkResidencies.findAll({
-        fields: ['id', 'residencyName', 'isActive', 'maxCapacity'],
+        fields: ['id', 'residencyId', 'residencyName', 'isActive', 'maxCapacity', 'guides', 'guideIds'],
         limit: 200,
       }),
       Guides.findAll({
         filters: { isActive: true },
-        fields: ['id', 'guideId', 'fullName', 'abbreviation', 'folkResidencies'],
+        fields: ['id', 'guideId', 'fullName', 'abbreviation', 'email', 'folkResidencies', 'segment'],
         limit: 100,
       }),
       Users.findAll({
@@ -33,21 +33,57 @@ export default createEndpoint({
       }),
     ]);
 
-    // Build residency → guides array map (from Guides.folkResidencies links)
+    const residencyByRef = new Map<string, any>();
+    for (const residency of residencies as any[]) {
+      for (const ref of [residency.id, residency.residencyId, residency.residencyName]) {
+        if (ref) residencyByRef.set(String(ref).trim().toLowerCase(), residency);
+      }
+    }
+
+    const guideByRef = new Map<string, any>();
+    for (const guide of guides as any[]) {
+      for (const ref of [guide.id, guide.guideId, guide.fullName, guide.email, guide.abbreviation]) {
+        if (ref) guideByRef.set(String(ref).trim().toLowerCase(), guide);
+      }
+    }
+
+    const resolveResidencyId = (value: unknown): string | null => {
+      const match = residencyByRef.get(String(value || '').trim().toLowerCase());
+      return match?.id ? String(match.id) : null;
+    };
+
+    const addGuide = (map: Map<string, any[]>, residencyId: string, guide: any) => {
+      if (!residencyId || !guide?.id) return;
+      if (!map.has(residencyId)) map.set(residencyId, []);
+      const list = map.get(residencyId)!;
+      if (list.some((entry: any) => entry.recordId === guide.id)) return;
+      list.push({
+        guideId: guide.id,
+        guideName: guide.fullName || '',
+        abbreviation: guide.abbreviation || '',
+        recordId: guide.id,
+      });
+    };
+
+    // Build residency → guides array map. New records use guideIds; legacy
+    // imports use a comma-separated guides field or guide folkResidencies.
     // Each entry includes recordId (Guides table UUID) for matching against User.guide
     const residencyGuideMap = new Map<string, Array<{ guideId: string; guideName: string; abbreviation: string; recordId: string }>>();
     for (const g of guides) {
-      const rids = Array.isArray(g.folkResidencies)
-        ? g.folkResidencies as string[]
-        : (g.folkResidencies ? [g.folkResidencies as string] : []);
-      for (const rid of rids) {
-        if (!residencyGuideMap.has(rid)) residencyGuideMap.set(rid, []);
-        residencyGuideMap.get(rid)!.push({
-          guideId: (g.guideId as string) || g.id,
-          guideName: (g.fullName as string) || '',
-          abbreviation: (g.abbreviation as string) || '',
-          recordId: g.id,
-        });
+      for (const value of (Array.isArray(g.folkResidencies) ? g.folkResidencies : g.folkResidencies ? [g.folkResidencies] : [])) {
+        const rid = resolveResidencyId(value);
+        if (rid) addGuide(residencyGuideMap, rid, g);
+      }
+    }
+    for (const residency of residencies as any[]) {
+      const rid = String(residency.id || '');
+      const refs = [
+        ...((Array.isArray(residency.guideIds) ? residency.guideIds : residency.guideIds ? [residency.guideIds] : [])),
+        ...((Array.isArray(residency.guides) ? residency.guides : String(residency.guides || '').split(','))),
+      ];
+      for (const ref of refs) {
+        const guide = guideByRef.get(String(ref || '').trim().toLowerCase());
+        if (guide) addGuide(residencyGuideMap, rid, guide);
       }
     }
 
@@ -56,7 +92,8 @@ export default createEndpoint({
     // Build userId → residencyId reverse map (for entry lookup)
     const userResidencyMap = new Map<string, string>();
     for (const u of residents) {
-      const rid = Array.isArray(u.residency) ? u.residency[0] : u.residency as string;
+      const rawRid = Array.isArray(u.residency) ? u.residency[0] : u.residency as string;
+      const rid = resolveResidencyId(rawRid);
       if (!rid) continue;
       if (!residencyUserMap.has(rid)) residencyUserMap.set(rid, new Set());
       residencyUserMap.get(rid)!.add(u.id);
@@ -66,9 +103,11 @@ export default createEndpoint({
     // Build residencyId → guideRecordId → resident count
     const residencyGuideUserCount = new Map<string, Map<string, number>>();
     for (const u of residents) {
-      const rid = Array.isArray(u.residency) ? u.residency[0] : u.residency as string;
+      const rawRid = Array.isArray(u.residency) ? u.residency[0] : u.residency as string;
+      const rid = resolveResidencyId(rawRid);
       if (!rid) continue;
-      const guideRecordId = Array.isArray(u.guide) ? u.guide[0] : u.guide as string;
+      const rawGuide = Array.isArray(u.guide) ? u.guide[0] : u.guide as string;
+      const guideRecordId = guideByRef.get(String(rawGuide || '').trim().toLowerCase())?.id || rawGuide;
       if (!guideRecordId) continue;
       if (!residencyGuideUserCount.has(rid)) residencyGuideUserCount.set(rid, new Map());
       const guideMap = residencyGuideUserCount.get(rid)!;
@@ -147,6 +186,7 @@ export default createEndpoint({
         guideName: guideInfo?.guideName ?? '',
         guideId: guideInfo?.guideId ?? '',
         guides: enrichedGuides,
+        assignedGuideIds: enrichedGuides.map((g: any) => g.recordId),
         residentCount,
         monthlyAvgs,
         quarterAvg,
