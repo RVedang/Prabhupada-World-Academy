@@ -4,7 +4,7 @@ import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'ashrayLevel', 'status',
+const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'phone', 'email', 'ashrayLevel', 'status',
   'residency', 'residencyApproved', 'createdAt', 'lastLoginAt', 'isBvsl', 'isSadhanaMentor',
   'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor',
   'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
@@ -122,13 +122,15 @@ export default createEndpoint({
       userRecord.firebaseAuthId,
       userRecord.firebase_id,
     ].filter(Boolean).map((value: any) => String(value).trim()))];
-    const [entryResults, membershipRes, residencyRecord] = await Promise.all([
+    const [entryResults, membershipResults, residencyRecord] = await Promise.all([
       Promise.all(entryOwnerIds.map(ownerId => SadhanaEntries.findAll({
         filters: { user: ownerId, entryDate: { gte: streakStart, lte: todayStr } } as any,
         fields: ENTRY_FIELDS,
         limit: 110,
       }))),
-      BvGroupMembers.findAll({ filters: { user: userRecord.id }, fields: ['id', 'group'], limit: 3 }),
+      Promise.all(entryOwnerIds.map(ownerId => BvGroupMembers.findAll({
+        filters: { user: ownerId }, fields: ['id', 'group'], limit: 3,
+      }))),
       residencyId
         ? FolkResidencies.findOne({ id: residencyId as string, fields: ['id', 'residencyName'] })
         : Promise.resolve(null),
@@ -136,6 +138,9 @@ export default createEndpoint({
 
     const entryById = new Map<string, any>();
     entryResults.flatMap(result => result.records).forEach((entry: any) => entryById.set(String(entry.id), entry));
+    const membershipById = new Map<string, any>();
+    membershipResults.flatMap(result => result.records).forEach((membership: any) => membershipById.set(String(membership.id), membership));
+    const memberships = [...membershipById.values()];
     const sortedEntries = [...entryById.values()].sort((a: any, b: any) =>
       ((b.entryDate as string) || '').localeCompare((a.entryDate as string) || '')
     );
@@ -146,10 +151,10 @@ export default createEndpoint({
     const streak = computeStreak(sortedEntries as any[], todayStr);
 
     let bvGroup: { groupId: string; groupName: string } | null = null;
-    if (membershipRes.records.length > 0) {
-      const gId = Array.isArray(membershipRes.records[0].group)
-        ? membershipRes.records[0].group[0]
-        : membershipRes.records[0].group;
+    if (memberships.length > 0) {
+      const gId = Array.isArray(memberships[0].group)
+        ? memberships[0].group[0]
+        : memberships[0].group;
       if (gId) {
         const g = await BvGroups.findOne({ id: gId as string, fields: ['id', 'groupId', 'groupName'] });
         if (g) bvGroup = { groupId: (g.groupId as string) || g.id, groupName: (g.groupName as string) || '' };
@@ -172,7 +177,7 @@ export default createEndpoint({
       user: {
         userId: (userRecord.userId as string) || userRecord.id,
         dbId: userRecord.id,
-        fullName: (userRecord.fullName as string) || '',
+        fullName: (userRecord.fullName as string) || (userRecord.displayName as string) || (userRecord.name as string) || (userRecord.userId as string) || userRecord.id,
         phone: userRecord.phone || '',
         email: (userRecord.email as string) || '',
         ashrayLevel: (userRecord.ashrayLevel as string) || null,

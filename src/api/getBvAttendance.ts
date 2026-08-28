@@ -1,6 +1,17 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroupMembers, BvAttendance, Users, FolkResidencies } from '@/lib/backend-sdk';
 
+const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'userId', 'email', 'fullName', 'displayName', 'name', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'residencyName', 'ashrayLevel', ...USER_IDENTITY_FIELDS.filter(field => !['id', 'userId', 'email'].includes(field))];
+
+function userIdentityAliases(user: any): string[] {
+  return [...new Set(USER_IDENTITY_FIELDS
+    .map(field => user?.[field])
+    .filter(Boolean)
+    .map(value => String(value).trim())
+    .filter(Boolean))];
+}
+
 export default createEndpoint({
   description: 'Get BV attendance history and leaderboard for the current user',
   authenticated: true,
@@ -14,17 +25,25 @@ export default createEndpoint({
     const uid = input.userId || context.user!.id;
     const sinceDate = input.sinceDate || new Date(Date.now() - 90 * 86400_000).toISOString().split('T')[0];
 
-    const userKeys = new Set<string>();
-    if (uid) userKeys.add(String(uid).toLowerCase());
-    if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
-    if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
-    if (context.user?.email) userKeys.add(String(context.user.email).toLowerCase());
+    // When a guide opens a member detail page, `input.userId` is often a
+    // legacy/custom ID. Attendance may instead be saved with Firebase Auth
+    // UID, so resolve the member and query every exact stored identity.
+    const requestedUser = input.userId
+      ? await Users.findOne({ id: input.userId, fields: USER_FIELDS })
+        || await Users.findOne({ filters: { userId: input.userId }, fields: USER_FIELDS })
+      : null;
+    const rawUserKeys = new Set<string>([
+      ...userIdentityAliases(requestedUser),
+      ...(input.userId ? [] : userIdentityAliases(context.user)),
+      ...(uid ? [String(uid).trim()] : []),
+    ].filter(Boolean));
+    const userKeys = new Set([...rawUserKeys].map(key => key.toLowerCase()));
 
     // Query only facilitator-recorded BV attendance directly by user ID (or
     // other user keys). Sadhana submissions are deliberately unrelated to
     // reading-group attendance.
     let allAtt: any[] = [];
-    for (const key of userKeys) {
+    for (const key of rawUserKeys) {
       const { records } = await BvAttendance.findAll({
         filters: { user: key, attendanceDate: { gte: sinceDate } },
         limit: 1000,
@@ -51,12 +70,12 @@ export default createEndpoint({
     const memberIds = [...new Set(allAtt.map((a: any) => Array.isArray(a.user) ? a.user[0] : a.user).filter(Boolean))] as string[];
     
     // Ensure current user is always in the leaderboard list
-    const currentUserIdStr = String(context.user!.id);
+    const currentUserIdStr = requestedUser?.id || String(context.user!.id);
     if (!memberIds.includes(currentUserIdStr)) {
       memberIds.push(currentUserIdStr);
     }
 
-    const userFields = ['id', 'fullName', 'userId', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'residencyName', 'ashrayLevel'];
+    const userFields = USER_FIELDS;
     const [userRecordsById, userRecordsByUserId] = await Promise.all([
       memberIds.length > 0
         ? Users.findAll({ filters: { id: { in: memberIds } }, fields: userFields })
@@ -90,7 +109,7 @@ export default createEndpoint({
       const rawRes = u.residencyName || (Array.isArray(u.residency) ? u.residency[0] : u.residency) || '';
       const resName = residencyMap.get(String(rawRes).toLowerCase()) || rawRes;
       const details = {
-        name: u.fullName || '',
+        name: u.fullName || u.displayName || u.name || u.userId || u.id,
         userId: u.userId || u.id,
         isResident: isApprovedResident,
         residencyName: resName,
