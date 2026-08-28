@@ -123,7 +123,10 @@ export default function ProfilePage() {
   const showGuideResidencyCard = !isPwUser && !isBvAdminUser;
   const isFolk = profile.segment === 'FOLK';
   const adminDashboardPath = isFolk ? '/folk-guide/dashboard' : '/pw-admin/dashboard';
-  const showGuideResidencyAssignmentCard = isFolk && isBvAdminUser && !isPwUser;
+  // Residency assignment is managed from a regular FOLK guide's profile.
+  // Super Guides and admins have broader access and should not see this guide
+  // assignment card in their own profile.
+  const showGuideResidencyAssignmentCard = isFolk && String(profile.role || '').toUpperCase() === 'GUIDE';
 
   return (
     <div className="min-h-screen bg-background">
