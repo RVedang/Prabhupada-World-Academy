@@ -729,7 +729,15 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                       {/* 3. Parent */}
                       {(() => {
                         const isUserAdmin = !!((u as any).isBvAdmin || (u as any).isBvSuperAdmin || u.role === 'ADMIN' || u.role === 'SUPER_ADMIN' || u.role === 'PW_ADMIN');
-                        const superAdminDisplayName = (u as any).bvReportingAdminName || 'Unassigned';
+                        const formatName = (val: string) => {
+                          if (!val) return '';
+                          if (val.includes('@')) {
+                            const parts = val.split('@')[0].split(/[._-]/);
+                            return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+                          }
+                          return val;
+                        };
+                        const superAdminDisplayName = formatName((u as any).bvReportingAdminName) || 'Unassigned';
                         return (
                           <td className="px-3 py-2 text-xs" onClick={e => { e.stopPropagation(); if (canEditRole && !isUserAdmin && currentBvRole !== 'NA') openParentDialog(u); }}>
                             {isUserAdmin ? (
@@ -746,17 +754,17 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                                   {(() => {
                                     if (currentBvRole === 'SUPERVISOR') {
                                       return (u as any).bvReportingAdminName
-                                        ? `${(u as any).bvReportingAdminName} (Admin)`
+                                        ? `${formatName((u as any).bvReportingAdminName)} (Admin)`
                                         : 'Unassigned (Admin)';
                                     }
                                     if (currentBvRole === 'FACILITATOR') {
                                       return (u as any).bvReportingSupervisorName
-                                        ? `${(u as any).bvReportingSupervisorName} (Supervisor)`
+                                        ? `${formatName((u as any).bvReportingSupervisorName)} (Supervisor)`
                                         : 'Unassigned (Supervisor)';
                                     }
                                     if (currentBvRole === 'SUB_FACILITATOR') {
                                       return (u as any).bvReportingFacilitatorName
-                                        ? `${(u as any).bvReportingFacilitatorName} (RGF)`
+                                        ? `${formatName((u as any).bvReportingFacilitatorName)} (RGF)`
                                         : 'Unassigned (RGF)';
                                     }
                                     // Regular Member
@@ -764,9 +772,9 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                                     const supName = (u as any).bvReportingSupervisorName || (u as any).supervisorName || (u as any).bvSupervisorName;
                                     const adminName = (u as any).bvReportingAdminName;
 
-                                    if (facName) return `${facName} (RGF)`;
-                                    if (supName) return `${supName} (Supervisor)`;
-                                    if (adminName) return `${adminName} (Admin)`;
+                                    if (facName) return `${formatName(facName)} (RGF)`;
+                                    if (supName) return `${formatName(supName)} (Supervisor)`;
+                                    if (adminName) return `${formatName(adminName)} (Admin)`;
 
                                     const guideDisplayName = u._guideName && !u._guideName.includes('-')
                                       ? u._guideName

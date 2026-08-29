@@ -114,6 +114,22 @@ export const fmt = {
   },
 
   /**
+   * Safe formatter for devotee names, preventing emails or raw IDs from showing in UI.
+   */
+  devoteeName(u: any): string {
+    if (!u) return 'Devotee';
+    const fullName = u.fullName || u.name || u.displayName || '';
+    if (fullName && !fullName.includes('@')) return fullName;
+    const email = u.email || (typeof u === 'string' && u.includes('@') ? u : '');
+    if (email && email.includes('@')) {
+      const parts = email.split('@')[0].split(/[._-]/);
+      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+    }
+    const val = u.userId || u.id || (typeof u === 'string' ? u : '');
+    return val ? String(val) : 'Devotee';
+  },
+
+  /**
    * Format a number with optional fallback. Returns "—" for null/undefined.
    */
   number(value: number | null | undefined, decimals = 0): string {

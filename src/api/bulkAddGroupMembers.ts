@@ -34,12 +34,21 @@ export default createEndpoint({
              || await Users.findOne({ filters: { userId: rawRgfId } }).catch(() => null);
     }
 
+    const formatEmailToName = (nameStr: string, fallback: string) => {
+      const val = nameStr || fallback || '';
+      if (val.includes('@')) {
+        const parts = val.split('@')[0].split(/[._-]/);
+        return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+      }
+      return val;
+    };
+
     const rgfUserId = rgfUser ? (rgfUser.userId || rgfUser.id) : String(rawRgfId || '');
-    const rgfName = rgfUser ? (rgfUser.fullName || '') : String(group.bvslName || '');
+    const rgfName = formatEmailToName(rgfUser ? (rgfUser.fullName || rgfUser.name || '') : '', String(group.bvslName || ''));
     const rgfSupId = rgfUser ? String(rgfUser.bvReportingSupervisorId || '') : '';
-    const rgfSupName = rgfUser ? String(rgfUser.bvReportingSupervisorName || '') : '';
+    const rgfSupName = formatEmailToName(rgfUser ? String(rgfUser.bvReportingSupervisorName || '') : '', '');
     const rgfAdminId = rgfUser ? String(rgfUser.bvReportingAdminId || '') : '';
-    const rgfAdminName = rgfUser ? String(rgfUser.bvReportingAdminName || '') : '';
+    const rgfAdminName = formatEmailToName(rgfUser ? String(rgfUser.bvReportingAdminName || '') : '', '');
 
     // Standardize all input userIds to standard Users table database UUIDs
     const resolvedUserIds: string[] = [];

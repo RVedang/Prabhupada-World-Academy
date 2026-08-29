@@ -46,11 +46,11 @@ function hasAccess(
   }
   // RGF (Facilitator) access — isBvsl (legacy) OR isBvFacilitator (new)
   if ((isBvsl || isBvFacilitator) && normAllowed.includes('BVSL')) return true;
+  if (isBvSubFacilitator && (normAllowed.includes('RGSF') || normAllowed.includes('SUB_FACILITATOR'))) return true;
   if (isSadhanaMentor && normAllowed.includes('SADHANA_MENTOR')) return true;
   if (isServiceAllocator && normAllowed.includes('SERVICE_ALLOCATOR')) return true;
   // Supervisor access — isBvMentor (legacy) OR isBvSupervisor (new)
   if ((isBvMentor || isBvSupervisor) && normAllowed.includes('BV_MENTOR')) return true;
-  // RGSFs have base role 'User' — access to /rgsf/dashboard is granted via the USER check above.
   // RGSFs do NOT get Supervisor (BV_MENTOR) or RGF (BVSL) dashboard access.
   return false;
 }

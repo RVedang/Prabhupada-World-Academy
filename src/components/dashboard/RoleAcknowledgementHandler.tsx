@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { acknowledgeBvRoleNotice, acknowledgeBvApprovalNotice, acknowledgeBvRejectionNotice, acknowledgeAshrayNotice, getUserBvStatus } from '@/lib/endpoints-sdk';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -7,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, XCircle, CheckCircle } from 'lucide-react';
 
 export default function RoleAcknowledgementHandler() {
-  const location = useLocation();
   const { profile, refreshProfile } = useUserProfile();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -16,13 +14,12 @@ export default function RoleAcknowledgementHandler() {
   // Determine what type of popup to show
   let popupType: 'ashray_notice_approved' | 'ashray_notice_rejected' | 'bv_approval_notice' | 'bv_rejection_notice' | 'bv_role_notice' | null = null;
 
-  // Role changes are acknowledged from the user's own Profile page only.
-  // Keeping this gated prevents a role update from interrupting dashboards
-  // and ensures the notice appears the next time the user visits Profile.
-  const isOwnProfilePage = location.pathname === '/profile';
-
-  if (profile && isOwnProfilePage) {
-    // Show notices regardless of role level
+  // This handler is mounted at the application root, so authenticated users
+  // see pending account/approval notices as soon as they open any page. Do not
+  // gate them to `/profile`: role and approval changes should be acknowledged
+  // on the user's next visit to the website, regardless of which dashboard or
+  // deep link they open.
+  if (profile) {
     if ((profile as any).pendingBvApprovalNotice) {
       popupType = 'bv_approval_notice';
     } else if ((profile as any).pendingBvRejectionNotice) {

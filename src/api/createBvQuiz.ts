@@ -25,8 +25,13 @@ export default createEndpoint({
   outputSchema: z.object({ quizId: z.string(), success: z.boolean() }),
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
-    if (!context.user.isBvsl && context.user.role !== 'BVSL') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Only BVSL can create quizzes' });
+    const role = String(context.user.role || '').toUpperCase().replace(/\s+/g, '_');
+    const canManageQuizzes = context.user.isBvsl ||
+      role === 'BVSL' ||
+      context.user.isBvSubFacilitator ||
+      role === 'RGSF';
+    if (!canManageQuizzes) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only RGF or RGSF can create quizzes' });
     }
     const questionsJson = JSON.stringify(input.questions);
     if (input.quizId) {

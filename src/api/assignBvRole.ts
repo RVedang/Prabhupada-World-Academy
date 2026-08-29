@@ -29,7 +29,11 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
-    const isSuperAdmin = context.user.capabilities?.includes('*') === true;
+    const isSuperAdmin = context.user.capabilities?.includes('*') === true ||
+                         context.user.isBvSuperAdmin === true ||
+                         context.user.role === 'Super Admin' ||
+                         context.user.role === 'SUPER_ADMIN' ||
+                         context.user.role === 'SUPER_GUIDE';
 
     // Only Super Admins can assign BV Admin role
     if ((input.role === 'ADMIN' || input.multiRoles?.isAdmin === true) && !isSuperAdmin) {
@@ -85,9 +89,41 @@ export default createEndpoint({
         const res = await Users.findAll({ filters: { userId: targetParentId }, limit: 1 }).catch(() => ({ records: [] }));
         parentUser = (res as any)?.records?.[0] || null;
       }
+      if (!parentUser) {
+        const res = await Users.findAll({ filters: { email: targetParentId }, limit: 1 }).catch(() => ({ records: [] }));
+        parentUser = (res as any)?.records?.[0] || null;
+      }
+      if (!parentUser) {
+        const { records: allUsers } = await Users.findAll({ limit: 2000 }).catch(() => ({ records: [] }));
+        const key = targetParentId.toLowerCase();
+        parentUser = allUsers.find((u: any) =>
+          String(u.id || '').toLowerCase() === key ||
+          String(u.userId || '').toLowerCase() === key ||
+          String(u.email || '').toLowerCase() === key
+        ) || null;
+      }
     }
 
-    const pName = targetParentName || parentUser?.fullName || 'Admin';
+    let pName = targetParentName || '';
+    if (!pName && parentUser) {
+      if (parentUser.fullName && !parentUser.fullName.includes('@')) {
+        pName = parentUser.fullName;
+      } else if (parentUser.name && !parentUser.name.includes('@')) {
+        pName = parentUser.name;
+      } else if (parentUser.displayName && !parentUser.displayName.includes('@')) {
+        pName = parentUser.displayName;
+      } else if (parentUser.email) {
+        const parts = parentUser.email.split('@')[0].split(/[._-]/);
+        pName = parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+      } else {
+        pName = parentUser.fullName || parentUser.name || 'Admin';
+      }
+    }
+    if (pName && pName.includes('@')) {
+      const parts = pName.split('@')[0].split(/[._-]/);
+      pName = parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+    }
+    if (!pName) pName = 'Admin';
 
     // Multi-role support: preserve existing role flags and enable new assigned role
     const updates: any = {

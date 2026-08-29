@@ -50,7 +50,12 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     // Authorization: only Guide, Super Guide, BVSL, or Sadhana Mentor may access stats
-    requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor: (context.user as any).isBvMentor });
+    requireGuideRole(context.user.role, {
+      isSadhanaMentor: context.user.isSadhanaMentor,
+      isBvsl: context.user.isBvsl,
+      isBvMentor: (context.user as any).isBvMentor,
+      isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
+    });
 
     const { guideId, startDate, endDate, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayLevel } = input;
 
@@ -107,17 +112,57 @@ export default createEndpoint({
     }
 
     if (bvslMode) {
-      const { records: groups } = await BvGroups.findAll({
-        filters: { bvslLeader: context.user.id, isActive: true } as any,
-        fields: ['id'], limit: 100,
+      // Resolve groups using every known identity alias. Older BV records use
+      // the Firestore id, custom userId, email, or one of several facilitator
+      // field names; matching only context.user.id makes valid RGSF reports
+      // appear empty.
+      const bvslUser = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
+      const normalizeRef = (value: unknown) => String(value || '').trim().toLowerCase();
+      const aliases = new Set([
+        context.user.id,
+        context.user.userId,
+        context.user.email,
+        bvslUser?.id,
+        bvslUser?.userId,
+        bvslUser?.email,
+      ].filter(Boolean).map(normalizeRef));
+      const refValues = (value: unknown): string[] => {
+        const values = Array.isArray(value) ? value : value == null ? [] : [value];
+        return values.flatMap(v => String(v || '').split(',')).map(normalizeRef).filter(Boolean);
+      };
+      const { records: allGroups } = await BvGroups.findAll({
+        filters: { isActive: true } as any,
+        fields: ['id', 'groupId', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
+        limit: 500,
+      });
+      const isRgsf = !!context.user.isBvSubFacilitator;
+      const groups = allGroups.filter((group: any) => {
+        const directRefs = ['bvslLeader', 'bvslId'].flatMap(field => refValues(group[field]));
+        const subRefs = ['subFacilitatorId', 'rgsfId', 'subFacilitator'].flatMap(field => refValues(group[field]));
+        return isRgsf ? subRefs.some(ref => aliases.has(ref)) : directRefs.some(ref => aliases.has(ref));
       });
       if (groups.length > 0) {
-        const groupIds = groups.map((g: any) => g.id);
+        const groupRefs = [...new Set(groups.flatMap((g: any) => [g.id, g.groupId].filter(Boolean)))];
+        const targetGroupRefs = new Set(groupRefs.map(normalizeRef));
         const { records: memberships } = await BvGroupMembers.findAll({
-          filters: { group: { in: groupIds } } as any, fields: ['id', 'user'], limit: 2000,
+          filters: { group: { in: groupRefs } } as any,
+          fields: ['id', 'user', 'userId', 'group', 'groupId'], limit: 2000,
         });
-        const memberIds = new Set(memberships.map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user).filter(Boolean));
-        users = users.filter(user => userIdentityAliases(user).some(alias => memberIds.has(alias)));
+        const { records: membershipsByGroupId } = await BvGroupMembers.findAll({
+          filters: { groupId: { in: groupRefs } } as any,
+          fields: ['id', 'user', 'userId', 'group', 'groupId'], limit: 2000,
+        }).catch(() => ({ records: [] }));
+        const memberAliases = new Set<string>();
+        for (const membership of [...memberships, ...membershipsByGroupId]) {
+          const groupRefsForMembership = refValues(membership.group || membership.groupId);
+          if (groupRefsForMembership.length > 0 && !groupRefsForMembership.some(ref => targetGroupRefs.has(ref))) continue;
+          for (const field of ['user', 'userId']) {
+            for (const ref of refValues(membership[field])) memberAliases.add(ref);
+          }
+        }
+        users = users.filter(user => userIdentityAliases(user).some(alias => memberAliases.has(normalizeRef(alias))));
       } else { users = []; }
     }
 

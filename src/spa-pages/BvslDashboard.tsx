@@ -33,8 +33,14 @@ export default function BvslDashboard() {
 
   const isFolk = profile?.segment === 'FOLK';
   const isSuperAdmin = !!(profile?.isBvSuperAdmin || profile?.role === 'SUPER_ADMIN' || profile?.isBvAdmin);
-
-  useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId]);
+  const isSubFacilitatorOnly = Boolean(
+    profile?.isBvSubFacilitator &&
+    !profile?.isBvFacilitator &&
+    !profile?.isBvsl &&
+    !profile?.isBvSupervisor &&
+    !profile?.isBvAdmin &&
+    !profile?.isBvSuperAdmin
+  );
 
   useEffect(() => {
     if (authUser?.email && !isSuperAdmin) {
@@ -49,24 +55,18 @@ export default function BvslDashboard() {
     if (!bvslId) return;
     setLoading(true);
     try {
-      const res = await getBvslGroups({ bvslId });
+      const res = await getBvslGroups({ bvslId, viewRole: isSubFacilitatorOnly ? 'RGSF' : 'RGF' });
       setGroups(res.groups);
     } catch { toast.error('Failed to load groups'); }
     finally { setLoading(false); }
-  }, [profile?.userId]);
+  }, [profile?.userId, isSubFacilitatorOnly]);
+
+  useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId, loadGroups]);
 
   if (!profile) return <LoadingPage />;
 
   const bvslId = profile.userId || '';
 
-  const isSubFacilitatorOnly = Boolean(
-    profile.isBvSubFacilitator &&
-    !profile.isBvFacilitator &&
-    !profile.isBvsl &&
-    !profile.isBvSupervisor &&
-    !profile.isBvAdmin &&
-    !profile.isBvSuperAdmin
-  );
   const canView1on1 = !isSubFacilitatorOnly;
 
   const tabs: TabConfig[] = [

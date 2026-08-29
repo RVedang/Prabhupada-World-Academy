@@ -69,7 +69,11 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
-    requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl });
+    requireGuideRole(context.user.role, {
+      isSadhanaMentor: context.user.isSadhanaMentor,
+      isBvsl: context.user.isBvsl,
+      isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
+    });
 
     const effectiveStart = (input.startDate || input.date).split('T')[0];
     const effectiveEnd   = (input.endDate   || input.date).split('T')[0];

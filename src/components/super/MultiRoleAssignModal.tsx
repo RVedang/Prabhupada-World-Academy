@@ -83,24 +83,29 @@ export default function MultiRoleAssignModal({
       // Determine primary role to assign via assignBvRole API while keeping multi-role flags
       let primaryRole = 'MEMBER';
       let parentId = '';
+      let parentName = '';
 
       if (isAdmin) {
         primaryRole = 'ADMIN';
       } else if (isSupervisor) {
         primaryRole = 'SUPERVISOR';
         parentId = adminParentId;
+        parentName = filteredAdminsList.find(a => a.id === adminParentId)?.name || '';
       } else if (isFacilitator) {
         primaryRole = 'FACILITATOR';
         parentId = supervisorParentId;
+        parentName = filteredSupervisorsList.find(s => s.id === supervisorParentId)?.name || '';
       } else if (isSubFacilitator) {
         primaryRole = 'SUB_FACILITATOR';
         parentId = facilitatorParentId;
+        parentName = filteredFacilitatorsList.find(f => f.id === facilitatorParentId)?.name || '';
       }
 
       await assignBvRole({
         userId: user.userId || user.id,
         role: primaryRole as any,
         parentId: parentId || undefined,
+        parentName: parentName || undefined,
         multiRoles: {
           isAdmin,
           isSupervisor,

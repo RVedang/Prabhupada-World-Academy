@@ -39,20 +39,52 @@ async function resolveUser(id: string) {
  * Check if a BVSL (identified by their DB record ID) has the target user
  * in any of their active BV groups.
  */
-async function isBvslMember(bvslDbId: string, targetUserId: string): Promise<boolean> {
+async function isBvslMember(caller: any, targetUserId: string, rgsfOnly = false): Promise<boolean> {
+  const callerKeys = [
+    caller?.id,
+    caller?.userId,
+    caller?.email,
+  ].filter(Boolean).map((value) => String(value).toLowerCase());
+
   const { records: bvslGroups } = await BvGroups.findAll({
-    filters: { bvslLeader: bvslDbId, isActive: true },
-    fields: ['id'],
-    limit: 50,
+    filters: { isActive: true } as any,
+    fields: ['id', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
+    limit: 500,
   });
-  if (bvslGroups.length === 0) return false;
-  const groupIds = bvslGroups.map(g => g.id);
-  const { records: memberships } = await BvGroupMembers.findAll({
-    filters: { group: { in: groupIds }, user: targetUserId } as any,
+
+  const groups = bvslGroups.filter((group: any) => {
+    const facilitatorKeys = [
+      group.bvslLeader,
+      group.bvslId,
+    ].filter(Boolean).map((value) => String(value).toLowerCase());
+    const subFacilitatorKeys = [
+      group.subFacilitatorId,
+      group.rgsfId,
+      group.subFacilitator,
+    ].flatMap((value) => Array.isArray(value) ? value : [value])
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase());
+
+    return rgsfOnly
+      ? subFacilitatorKeys.some((key) => callerKeys.includes(key))
+      : facilitatorKeys.some((key) => callerKeys.includes(key));
+  });
+
+  const groupIds = groups.map((g: any) => g.id).filter(Boolean);
+  if (groupIds.length === 0) return false;
+
+  const targetKeys = [targetUserId].filter(Boolean).map((value) => String(value));
+  const targetUser = await Users.findOne({ id: targetUserId, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
+  if (targetUser?.userId) targetKeys.push(String(targetUser.userId));
+  if (targetUser?.email) targetKeys.push(String(targetUser.email));
+
+  const membershipResults = await Promise.all(targetKeys.map((userKey) => BvGroupMembers.findAll({
+    filters: { group: { in: groupIds }, user: userKey } as any,
     fields: ['id'],
     limit: 1,
-  });
-  return memberships.length > 0;
+  }).catch(() => ({ records: [] }))));
+
+  return membershipResults.some((result) => result.records.length > 0);
 }
 
 export default createEndpoint({
@@ -69,6 +101,7 @@ export default createEndpoint({
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
       isBvMentor: (context.user as any).isBvMentor,
+      isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
     });
 
     const userRecord = await resolveUser(input.userId);
@@ -87,9 +120,14 @@ export default createEndpoint({
         if (!isUserInGuideScope(scope, userRecord)) {
           throw new AppError({ code: 'FORBIDDEN', message: 'You can only view users in your center' });
         }
+      } else if ((context.user as any).isBvSubFacilitator) {
+        const allowed = await isBvslMember(context.user, userRecord.id, true);
+        if (!allowed) {
+          throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members of your assigned BV groups' });
+        }
       } else if (context.user.isBvsl) {
         // BVSL: check if the target user is in one of their BV groups
-        const allowed = await isBvslMember(context.user.id, userRecord.id);
+        const allowed = await isBvslMember(context.user, userRecord.id);
         if (!allowed) {
           throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members of your BV groups' });
         }

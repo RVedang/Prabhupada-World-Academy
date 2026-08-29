@@ -194,6 +194,7 @@ export default function App() {
             <Route path="/guide/dashboard" element={<Navigate to="/folk-guide/dashboard" replace />} />
             <Route path="/guide/field-setup" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN']}><GuideFieldSetupPage /></ProtectedRoute>} />
             <Route path="/guide/users/:userId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR']}><GuideUserDetailPage /></ProtectedRoute>} />
+            <Route path="/rgsf/users/:userId" element={<ProtectedRoute allowedRoles={['RGSF']}><GuideUserDetailPage /></ProtectedRoute>} />
             <Route path="/guide/bv-group/:groupId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BV_MENTOR', 'ADMIN', 'PW_ADMIN', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />
             <Route path="/bvsl/groups/:groupId" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'GUIDE', 'SUPER_GUIDE', 'BV_MENTOR', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />
             <Route path="/guide/stats" element={<Navigate to="/folk-guide/dashboard" replace />} />
@@ -212,7 +213,7 @@ export default function App() {
             {/* Reading Group Facilitator (RGF) — accessible by BVSL/isBvFacilitator role */}
             <Route path="/rgf/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE']}><RgfDashboard /></ProtectedRoute>} />
             {/* RGSF dashboard — base role is 'User' but isBvSubFacilitator flag gates access via ProtectedRoute */}
-            <Route path="/rgsf/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'USER']}><RgsfDashboard /></ProtectedRoute>} />
+            <Route path="/rgsf/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE', 'RGSF']}><RgsfDashboard /></ProtectedRoute>} />
             <Route path="/bvsl/dashboard" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'GUIDE', 'SUPER_GUIDE']}><RgfDashboard /></ProtectedRoute>} />
 
             {/* Sadhana Mentor dashboard */}

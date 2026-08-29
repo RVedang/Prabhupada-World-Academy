@@ -682,7 +682,12 @@ export default createEndpoint({
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     // Authorization: only Guide, Super Guide, BVSL, or Sadhana Mentor may access reports
-    requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor: (context.user as any).isBvMentor });
+    requireGuideRole(context.user.role, {
+      isSadhanaMentor: context.user.isSadhanaMentor,
+      isBvsl: context.user.isBvsl,
+      isBvMentor: (context.user as any).isBvMentor,
+      isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
+    });
 
     const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, mentorMode } = input;
     // BUG 4 FIX: Always ensure valid date strings — never pass undefined to date operations
@@ -780,7 +785,12 @@ export default createEndpoint({
 
     const scopedUserIds = await getScopedHierarchyUserIds(context.user);
 
-    if (scopedUserIds !== null) {
+    // BVSL/RGSF mode applies its own strict group-membership scope below,
+    // including legacy aliases for group/member references. Applying the
+    // generic hierarchy set first can discard valid members when an older
+    // group record uses a different identifier shape, causing an empty report
+    // before the BVSL resolver gets a chance to recover them.
+    if (scopedUserIds !== null && !bvslMode) {
       users = users.filter(u => {
         const uId = String(u.id || '').toLowerCase();
         const userIdStr = String(u.userId || '').toLowerCase();

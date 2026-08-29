@@ -17,9 +17,12 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type Member = GetBvslMembersOutputType['members'][0];
 
-interface Props { bvslId: string; }
+interface Props {
+  bvslId: string;
+  detailBasePath?: '/guide/users' | '/rgsf/users';
+}
 
-export default function BvslMembersTable({ bvslId }: Props) {
+export default function BvslMembersTable({ bvslId, detailBasePath = '/guide/users' }: Props) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const isFolk = profile?.segment === 'FOLK';
@@ -41,6 +44,12 @@ export default function BvslMembersTable({ bvslId }: Props) {
   const [ashrayFilter, setAshrayFilter] = useState('all');
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
   const [removing, setRemoving] = useState(false);
+
+  const openMemberProfile = (member: Member) => {
+    navigate(`${detailBasePath}/${member.userId}`, {
+      state: { from: window.location.pathname + window.location.search + window.location.hash },
+    });
+  };
 
   useEffect(() => { if (bvslId) load(); }, [bvslId]);
 
@@ -162,7 +171,7 @@ export default function BvslMembersTable({ bvslId }: Props) {
                   <Card key={m.userId} className="hover:bg-accent">
                     <CardContent className="pt-4 pb-3 space-y-2">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 cursor-pointer" onClick={() => navigate(`/guide/users/${m.userId}`)}>
+                        <div className="min-w-0 cursor-pointer" onClick={() => openMemberProfile(m)}>
                           <p className="font-semibold text-sm truncate flex items-center gap-1.5">
                             {(m as any).isRgsf && (
                               <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider px-1.5 py-0 shrink-0">
@@ -217,7 +226,7 @@ export default function BvslMembersTable({ bvslId }: Props) {
                       <tr
                         key={m.userId}
                         className="border-b hover:bg-accent cursor-pointer"
-                        onClick={() => navigate(`/guide/users/${m.userId}`)}
+                        onClick={() => openMemberProfile(m)}
                       >
                         <td className="p-2 font-medium">
                           <div className="flex items-center gap-1.5">
@@ -253,7 +262,7 @@ export default function BvslMembersTable({ bvslId }: Props) {
                               </>
                             )}
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="View Profile"
-                              onClick={() => navigate(`/guide/users/${m.userId}`)}>
+                              onClick={() => openMemberProfile(m)}>
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Button>
                           </div>

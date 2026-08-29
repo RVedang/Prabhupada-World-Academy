@@ -27,6 +27,8 @@ export interface ApiDatabaseUser {
   role?: string;
   status?: string;
   segment?: string;
+  fullName?: string;
+  name?: string;
   isBvAdmin?: boolean;
   isBvSuperAdmin?: boolean;
   isBvSupervisor?: boolean;
@@ -51,6 +53,8 @@ export interface ApiUserContext {
   normalizedRole: string;
   status: string | null;
   segment: string | null;
+  fullName?: string;
+  name?: string;
   isRegistered: boolean;
   isActive: boolean;
   isBvAdmin: boolean;
@@ -153,6 +157,12 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
   if (dbUser.isBvFacilitator === true || dbUser.isBvsl === true) {
     addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage', 'meetings.manage']);
   }
+  // RGSFs (sub-facilitators) use the same scoped Sadhana/report APIs as
+  // facilitators, but do not receive facilitator-only meeting permissions.
+  // Endpoint-level scoping still limits them to their assigned groups.
+  if (dbUser.isBvSubFacilitator === true || role === 'RGSF') {
+    addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage']);
+  }
   if (dbUser.isSadhanaMentor === true) {
     addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'meetings.manage']);
   }
@@ -172,6 +182,8 @@ export function buildApiUserContext(
   const isAdminRole = normalizedRole === 'ADMIN' || normalizedRole === 'PW_ADMIN';
   const isSuperAdminRole = normalizedRole === 'SUPER_ADMIN';
 
+  const nameVal = dbUser?.fullName || dbUser?.name || '';
+
   return {
     id: dbUser?.id || identity.uid,
     uid: identity.uid,
@@ -182,6 +194,8 @@ export function buildApiUserContext(
     normalizedRole,
     status,
     segment: dbUser?.segment || null,
+    fullName: nameVal,
+    name: nameVal,
     isRegistered: !!dbUser,
     isActive,
     isBvAdmin: isActive && (isAdminRole || isSuperAdminRole || dbUser?.isBvAdmin === true),

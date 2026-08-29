@@ -20,7 +20,8 @@ function getWeeks(weeksBack: number): string[] {
 export default createEndpoint({
   description: 'Get 1:1 meeting data for RGSF, RGF, Supervisor, Admin, Super Admin scoped strictly to users under them with hierarchy names.',
   authenticated: true,
-  requiredCapabilities: 'meetings.manage',
+  // RGSF call history is read-only; RGSFs do not need meetings.manage.
+  requiredCapabilities: 'bv.manage',
   inputSchema: z.object({ weeksBack: z.number().optional() }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
@@ -79,29 +80,46 @@ export default createEndpoint({
 
     // Fallback: If group/hierarchy mapping is empty for an RGF/RGSF without explicit tree entries,
     // fetch group members from groups where user is assigned
-    if (filteredUsers.length === 0 && scopedUserIds !== null) {
-      const { records: allGroups } = await BvGroups.findAll({ limit: 500, fields: ['id', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId'] });
-      const { records: allMemberships } = await BvGroupMembers.findAll({ limit: 2500, fields: ['id', 'user', 'group'] });
+    const isRgsf = !!context.user.isBvSubFacilitator ||
+      String(context.user.role || '').toUpperCase().replace(/\s+/g, '_') === 'RGSF';
+    if ((isRgsf || filteredUsers.length === 0) && scopedUserIds !== null) {
+      const { records: allGroups } = await BvGroups.findAll({
+        limit: 500,
+        fields: ['id', 'groupId', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
+      });
+      const { records: allMemberships } = await BvGroupMembers.findAll({
+        limit: 2500,
+        fields: ['id', 'user', 'userId', 'memberId', 'group', 'groupId'],
+      });
 
+      const refValues = (value: unknown): string[] => {
+        if (Array.isArray(value)) return value.flatMap(refValues);
+        return value ? [String(value).toLowerCase()] : [];
+      };
+      const callerKeys = new Set([dbUserId, customUserId, context.user.email]
+        .filter(Boolean).map(value => String(value).toLowerCase()));
       const userGroupIds = allGroups.filter((g: any) => {
-        const leader = String(g.bvslLeader || g.bvslId || '').toLowerCase();
-        const sub = String(g.subFacilitatorId || g.rgsfId || '').toLowerCase();
-        return leader === dbUserId.toLowerCase() || leader === customUserId.toLowerCase() ||
-               sub === dbUserId.toLowerCase() || sub === customUserId.toLowerCase();
-      }).map((g: any) => g.id);
+        const assignedToCaller = refValues([
+          g.subFacilitatorId, g.rgsfId, g.subFacilitator,
+          ...(isRgsf ? [] : [g.bvslLeader, g.bvslId]),
+        ]).some(value => callerKeys.has(value));
+        return assignedToCaller;
+      }).flatMap((g: any) => [g.id, g.groupId].filter(Boolean).map(String));
+      const userGroupIdSet = new Set(userGroupIds);
 
       if (userGroupIds.length > 0) {
         const memberIds = new Set(
           allMemberships
             .filter((m: any) => {
-              const g = Array.isArray(m.group) ? m.group[0] : m.group;
-              return g && userGroupIds.includes(g);
+              return refValues([m.group, m.groupId]).some(value => userGroupIdSet.has(value));
             })
-            .map((m: any) => String(Array.isArray(m.user) ? m.user[0] : m.user || ''))
+            .flatMap((m: any) => refValues([m.user, m.userId, m.memberId]))
             .filter(Boolean)
         );
         filteredUsers = allUsers.filter((u: any) => {
-          if (!memberIds.has(u.id)) return false;
+          if (!memberIds.has(String(u.id || '').toLowerCase()) &&
+              !memberIds.has(String(u.userId || '').toLowerCase()) &&
+              !memberIds.has(String(u.email || '').toLowerCase())) return false;
           if (u.id === dbUserId || u.id === customUserId) return false;
           const uRole = (u.role || '').toUpperCase().replace(/\s+/g, '_');
           if (uRole === 'GUIDE' || uRole === 'SUPER_GUIDE') return false;

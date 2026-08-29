@@ -23,6 +23,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({
     bvslId: z.string(), // custom userId field value
+    viewRole: z.enum(['RGF', 'RGSF']).optional(),
   }),
   outputSchema: z.object({
     groups: z.array(groupSchema),
@@ -37,34 +38,72 @@ export default createEndpoint({
       const { records } = await BvGroups.findAll({ limit: 500 });
       groupRecords = records;
     } else {
-      const userRecord = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'fullName', 'guide', 'bvReportingFacilitatorId'] })
-        ?? await Users.findOne({ id: input.bvslId, fields: ['id', 'fullName', 'guide', 'bvReportingFacilitatorId'] });
+      const userRecord = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'bvReportingFacilitatorId', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator'] })
+        ?? await Users.findOne({ id: input.bvslId, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'bvReportingFacilitatorId', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator'] });
       
       const dbUserId = userRecord?.id || input.bvslId;
       const parentRgfId = (userRecord as any)?.bvReportingFacilitatorId;
       defaultBvslName = userRecord?.fullName || '';
+      const isRgsfView = input.viewRole === 'RGSF';
  
       const { records } = await BvGroups.findAll({
         limit: 200,
       });
-      // Filter by bvslLeader, bvslId, subFacilitator, or parent RGF
-      groupRecords = records.filter((g: any) => 
-        g.bvslLeader === dbUserId || 
-        g.bvslId === input.bvslId || 
-        g.bvslId === dbUserId || 
-        g.bvslLeader === input.bvslId ||
-        g.subFacilitatorId === dbUserId ||
-        g.subFacilitatorId === input.bvslId ||
-        g.rgsfId === dbUserId ||
-        g.rgsfId === input.bvslId ||
-        g.subFacilitator === dbUserId ||
-        g.subFacilitator === input.bvslId ||
-        (parentRgfId && (
-          g.bvslLeader === parentRgfId ||
-          g.bvslId === parentRgfId
-        ))
+      const callerKeys = new Set(
+        [
+          input.bvslId,
+          dbUserId,
+          userRecord?.userId,
+          userRecord?.email,
+        ]
+          .filter(Boolean)
+          .map((value) => String(value).toLowerCase())
       );
+
+      // RGSF dashboard must show only groups directly assigned to this
+      // sub-facilitator. The parent RGF fallback is for RGF views only.
+      groupRecords = records.filter((g: any) => {
+        if (g.isActive === false) return false;
+
+        const leader = String(g.bvslLeader || '').toLowerCase();
+        const bId = String(g.bvslId || '').toLowerCase();
+        const subFacilitatorValues = [
+          g.subFacilitatorId,
+          g.rgsfId,
+          g.subFacilitator,
+        ].flatMap((value) => Array.isArray(value) ? value : [value])
+          .filter(Boolean)
+          .map((value) => String(value).toLowerCase());
+
+        if (isRgsfView) {
+          return subFacilitatorValues.some((value) => callerKeys.has(value));
+        }
+
+        return (
+          callerKeys.has(leader) ||
+          callerKeys.has(bId) ||
+          subFacilitatorValues.some((value) => callerKeys.has(value)) ||
+          (parentRgfId && (
+            leader === String(parentRgfId).toLowerCase() ||
+            bId === String(parentRgfId).toLowerCase()
+          ))
+        );
+      });
     }
+
+    const dedupedGroupRecords = new Map<string, any>();
+    for (const group of groupRecords) {
+      const ownerKey = String(group.bvslId || group.bvslLeader || '').toLowerCase();
+      const timeKey = String(group.meetingTime || group.preferredTimeSlot || '').toLowerCase();
+      const groupKey = String(group.groupId || '').toLowerCase()
+        || `${String(group.groupName || '').trim().toLowerCase()}|${ownerKey}|${timeKey}`;
+      if (!groupKey) continue;
+      const existing = dedupedGroupRecords.get(groupKey);
+      if (!existing || (existing.isActive === false && group.isActive !== false)) {
+        dedupedGroupRecords.set(groupKey, group);
+      }
+    }
+    groupRecords = Array.from(dedupedGroupRecords.values());
 
     if (groupRecords.length === 0) return { groups: [], pendingRequestCount: 0, error: null };
 

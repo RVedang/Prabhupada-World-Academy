@@ -140,10 +140,11 @@ export function requireGuideRole(
     isPwAdmin?: boolean | null;
     isBvSuperAdmin?: boolean | null;
     isBvSupervisor?: boolean | null;
+    isBvSubFacilitator?: boolean | null;
   },
 ): void {
   const normRole = (userRole || '').toUpperCase().replace(/\s+/g, '_');
-  const ALLOWED_ROLES = ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'SUPER_ADMIN', 'PW_ADMIN', 'BVSL', 'SADHANA_MENTOR'];
+  const ALLOWED_ROLES = ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'SUPER_ADMIN', 'PW_ADMIN', 'BVSL', 'RGSF', 'SUB_FACILITATOR', 'SADHANA_MENTOR'];
   const roleOk = !!(normRole && ALLOWED_ROLES.includes(normRole));
   const flagOk = !!(
     flags?.isSadhanaMentor ||
@@ -152,7 +153,8 @@ export function requireGuideRole(
     flags?.isBvAdmin ||
     flags?.isPwAdmin ||
     flags?.isBvSuperAdmin ||
-    flags?.isBvSupervisor
+    flags?.isBvSupervisor ||
+    flags?.isBvSubFacilitator
   );
   if (!roleOk && !flagOk) {
     throw new Error('Unauthorized: Guide or higher role required');

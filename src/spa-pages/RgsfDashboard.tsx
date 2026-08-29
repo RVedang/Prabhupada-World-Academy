@@ -32,7 +32,7 @@ export default function RgsfDashboard() {
     if (!bvslId) return;
     setLoading(true);
     try {
-      const res = await getBvslGroups({ bvslId });
+      const res = await getBvslGroups({ bvslId, viewRole: 'RGSF' });
       setGroups(res.groups);
     } catch {
       toast.error('Failed to load sub-facilitator groups');
@@ -88,7 +88,7 @@ export default function RgsfDashboard() {
                 />
               )}
               {activeTab === 'session' && <BvslSessionPanel bvslId={bvslId} groups={groups} />}
-              {activeTab === 'members' && <BvslMembersTable bvslId={bvslId} />}
+              {activeTab === 'members' && <BvslMembersTable bvslId={bvslId} detailBasePath="/rgsf/users" />}
               {activeTab === 'report' && <BvslSadhanaReportPanel bvslId={bvslId} />}
               {activeTab === 'quizzes' && (
                 <BvslQuizPanel

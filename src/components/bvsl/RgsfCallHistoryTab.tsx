@@ -96,9 +96,9 @@ export default function RgsfCallHistoryTab() {
       <div className="space-y-4">
         <div className="rounded-lg border border-dashed border-border p-8 text-center bg-card">
           <Info className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm font-medium">No delegated members yet</p>
+          <p className="text-sm font-medium">No group members found</p>
           <p className="text-xs text-muted-foreground mt-1">
-            When members are delegated to you for 1:1 tracking, they will appear here.
+            Members of the reading group assigned to you will appear here.
           </p>
         </div>
       </div>
@@ -109,7 +109,7 @@ export default function RgsfCallHistoryTab() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">One-to-One Call History</h2>
-        <p className="text-sm text-muted-foreground">View past calls, tentative schedules, and next agendas for your delegated members.</p>
+        <p className="text-sm text-muted-foreground">View past calls, tentative schedules, and next agendas for all members of your assigned group.</p>
       </div>
 
       {loading ? (
