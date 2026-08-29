@@ -267,25 +267,31 @@ export default createEndpoint({
         batches.push(memberUserIds.slice(i, i + 30));
       }
       const results = await Promise.all(batches.map(async (batch) => {
-        const [byUserId, byId] = await Promise.all([
+        const [byUserId, byId, byEmail] = await Promise.all([
           Users.findAll({
             filters: { userId: { in: batch } } as any,
-            fields: ['id', 'userId', 'status', 'isBvMember', 'bvGroupId'],
+            fields: ['id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId'],
             limit: 100,
           }).catch(() => ({ records: [] })),
           Users.findAll({
             filters: { id: { in: batch } } as any,
-            fields: ['id', 'userId', 'status', 'isBvMember', 'bvGroupId'],
+            fields: ['id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId'],
+            limit: 100,
+          }).catch(() => ({ records: [] })),
+          Users.findAll({
+            filters: { email: { in: batch } } as any,
+            fields: ['id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId'],
             limit: 100,
           }).catch(() => ({ records: [] })),
         ]);
-        return [...(byUserId?.records || []), ...(byId?.records || [])];
+        return [...(byUserId?.records || []), ...(byId?.records || []), ...(byEmail?.records || [])];
       }));
 
       for (const list of results) {
         for (const u of list) {
-          userMap[u.id] = u;
-          if (u.userId) userMap[u.userId] = u;
+          [u.id, u.userId, u.email].filter(Boolean).forEach(alias => {
+            userMap[String(alias).toLowerCase()] = u;
+          });
         }
       }
     }
@@ -303,7 +309,7 @@ export default createEndpoint({
 
       const uid = firstValue(m.user);
       const altUid = firstValue((m as any).userId);
-      const u = userMap[uid] || userMap[uid.toLowerCase()] || userMap[altUid] || userMap[altUid.toLowerCase()];
+      const u = userMap[uid.toLowerCase()] || userMap[altUid.toLowerCase()];
       const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
 
       // BvGroupMembers is the membership source of truth. Legacy user
