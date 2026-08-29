@@ -42,15 +42,17 @@ export default createEndpoint({
 
     const callerSegment = context.user.segment || 'PW';
 
+    const userFields = [
+      'id', 'userId', 'email', 'fullName', 'role', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
+      'bvReportingAdminId', 'bvReportingAdminName',
+      'bvReportingSupervisorId', 'bvReportingSupervisorName',
+      'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'segment'
+    ];
+
     // Fetch candidate users
     const { records: allUsers } = await Users.findAll({
       filters: { segment: callerSegment, status: 'Active' },
-      fields: [
-        'id', 'userId', 'email', 'fullName', 'role', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
-        'bvReportingAdminId', 'bvReportingAdminName',
-        'bvReportingSupervisorId', 'bvReportingSupervisorName',
-        'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'segment'
-      ],
+      fields: userFields,
       limit: 2000,
     });
 
@@ -122,15 +124,29 @@ export default createEndpoint({
       const userGroupIdSet = new Set(userGroupIds);
 
       if (userGroupIds.length > 0) {
-        const memberIds = new Set(
-          allMemberships
-            .filter((m: any) => {
-              return refValues([m.group, m.groupId]).some(value => userGroupIdSet.has(value));
-            })
-            .flatMap((m: any) => refValues([m.user, m.userId, m.memberId]))
-            .filter(Boolean)
+        const scopedMemberships = allMemberships.filter((m: any) =>
+          refValues([m.group, m.groupId]).some(value => userGroupIdSet.has(value))
         );
-        filteredUsers = allUsers.filter((u: any) => {
+        const memberIdentityValues = [...new Set(scopedMemberships
+          .flatMap((m: any) => [m.user, m.userId, m.memberId])
+          .flatMap((value: any) => Array.isArray(value) ? value : [value])
+          .filter(Boolean)
+          .map(String))];
+        const memberIds = new Set(memberIdentityValues.map(value => value.toLowerCase()));
+
+        // Membership rows are authoritative. Resolve their users directly so
+        // legacy segment/status metadata cannot hide a valid RGSF group member.
+        const memberUserQueries = await Promise.all([
+          Users.findAll({ filters: { id: { in: memberIdentityValues } } as any, fields: userFields, limit: 500 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { userId: { in: memberIdentityValues } } as any, fields: userFields, limit: 500 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { email: { in: memberIdentityValues } } as any, fields: userFields, limit: 500 }).catch(() => ({ records: [] })),
+        ]);
+        const memberUsers = new Map<string, any>();
+        memberUserQueries.flatMap(result => result.records || []).forEach((user: any) => {
+          if (user.id) memberUsers.set(String(user.id), user);
+        });
+
+        filteredUsers = [...memberUsers.values()].filter((u: any) => {
           if (!memberIds.has(String(u.id || '').toLowerCase()) &&
               !memberIds.has(String(u.userId || '').toLowerCase()) &&
               !memberIds.has(String(u.email || '').toLowerCase())) return false;
