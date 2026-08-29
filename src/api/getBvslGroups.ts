@@ -229,12 +229,26 @@ export default createEndpoint({
 
     // 3. Batch fetch BvGroupMembers counts
     // Always scope to the groups we have — avoids fetching ALL members across entire DB
-    const groupIdList = groupRecords.map((g: any) => g.id);
-    const { records: allMembers } = await BvGroupMembers.findAll({
-      filters: { group: { in: groupIdList } } as any,
-      limit: 5000,
-      fields: ['id', 'group', 'user', 'userId'],
-    });
+    const groupIdList = groupRecords.map((g: any) => g.id).filter(Boolean);
+    const groupPublicIdList = groupRecords.map((g: any) => g.groupId).filter(Boolean);
+    const [membersByGroup, membersByGroupId] = await Promise.all([
+      BvGroupMembers.findAll({
+        filters: { group: { in: [...new Set([...groupIdList, ...groupPublicIdList])] } } as any,
+        limit: 5000,
+        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+      }),
+      groupPublicIdList.length > 0
+        ? BvGroupMembers.findAll({
+            filters: { groupId: { in: [...new Set(groupPublicIdList)] } } as any,
+            limit: 5000,
+            fields: ['id', 'group', 'groupId', 'user', 'userId'],
+          }).catch(() => ({ records: [] }))
+        : Promise.resolve({ records: [] }),
+    ]);
+    const membershipMap = new Map<string, any>();
+    [...membersByGroup.records, ...membersByGroupId.records]
+      .forEach((membership: any) => membershipMap.set(String(membership.id), membership));
+    const allMembers = [...membershipMap.values()];
 
     const firstValue = (value: unknown): string => {
       if (Array.isArray(value)) return String(value[0] || '');
@@ -276,27 +290,28 @@ export default createEndpoint({
       }
     }
 
-    const memberCounts: Record<string, number> = {};
+    const memberIdsByGroup = new Map<string, Set<string>>();
     for (const m of allMembers) {
-      const gid = Array.isArray(m.group) ? m.group[0] : m.group;
-      if (!gid) continue;
-
-      const groupAliases = new Set([gid].map(value => String(value).toLowerCase()));
-      const groupRec = groupRecords.find(gr => gr.id === gid);
-      if (groupRec && groupRec.groupId) {
-        groupAliases.add(String(groupRec.groupId).toLowerCase());
-      }
+      const rawGroupRef = firstValue(m.group) || firstValue((m as any).groupId);
+      if (!rawGroupRef) continue;
+      const normalizedGroupRef = rawGroupRef.toLowerCase();
+      const groupRec = groupRecords.find(gr =>
+        String(gr.id || '').toLowerCase() === normalizedGroupRef ||
+        String(gr.groupId || '').toLowerCase() === normalizedGroupRef
+      );
+      if (!groupRec) continue;
 
       const uid = firstValue(m.user);
       const altUid = firstValue((m as any).userId);
       const u = userMap[uid] || userMap[uid.toLowerCase()] || userMap[altUid] || userMap[altUid.toLowerCase()];
-
-      const profileGroupId = firstValue(u?.bvGroupId).toLowerCase();
-      const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : !!u?.isBvMember;
       const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
 
-      if (u && u.isBvMember && isCurrentGroup && isActiveUser) {
-        memberCounts[gid] = (memberCounts[gid] || 0) + 1;
+      // BvGroupMembers is the membership source of truth. Legacy user
+      // profiles can have missing isBvMember/bvGroupId fields.
+      if (u && isActiveUser) {
+        const canonicalUserId = String(u.id || u.userId || uid || altUid);
+        if (!memberIdsByGroup.has(groupRec.id)) memberIdsByGroup.set(groupRec.id, new Set());
+        memberIdsByGroup.get(groupRec.id)!.add(canonicalUserId);
       }
     }
 
@@ -309,9 +324,10 @@ export default createEndpoint({
 
       // Only fetch attendance stats if it's not the ALL view (to save API calls)
       if (!isAll) {
+        const attendanceGroupRefs = [...new Set([g.id, g.groupId].filter(Boolean))];
         const [allGroupAtt, todayPresentAtt] = await Promise.all([
-          BvAttendance.findAll({ filters: { group: g.id }, fields: ['attendanceDate'], limit: 2000 }),
-          BvAttendance.findAll({ filters: { group: g.id, attendanceDate: todayDate, present: true }, fields: ['id'], limit: 200 }),
+          BvAttendance.findAll({ filters: { group: attendanceGroupRefs.length > 1 ? { in: attendanceGroupRefs } : g.id } as any, fields: ['attendanceDate'], limit: 2000 }),
+          BvAttendance.findAll({ filters: { group: attendanceGroupRefs.length > 1 ? { in: attendanceGroupRefs } : g.id, attendanceDate: todayDate, present: true } as any, fields: ['id'], limit: 200 }),
         ]);
         const distinctDates = new Set(allGroupAtt.records.map((a: any) => a.attendanceDate).filter(Boolean));
         totalSessions = distinctDates.size;
@@ -323,7 +339,7 @@ export default createEndpoint({
         groupId: g.groupId || g.id,
         groupName: g.groupName || '',
         description: g.description || '',
-        memberCount: memberCounts[g.id] || 0,
+        memberCount: memberIdsByGroup.get(g.id)?.size || 0,
         totalSessions,
         presentToday,
         joinToken: g.joinToken || null,
