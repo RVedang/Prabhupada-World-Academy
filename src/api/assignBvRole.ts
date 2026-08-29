@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
-import { storeBroadcast } from '../lib/notificationBroadcast';
 
 export default createEndpoint({
   description: 'Assign or update Bhakti Vriksha roles for a user (Supervisor, Facilitator/RGF, Sub-Facilitator/RGSF, Admin). Requires a parentId for hierarchy roles.',
@@ -221,23 +220,6 @@ export default createEndpoint({
       await Users.update({ id: targetUser.email.toLowerCase(), record: updates }).catch(() => {});
     }
     
-    // Broadcast role update event to target user immediately
-    try {
-      const targetEmail = targetUser.email ? [targetUser.email.toLowerCase()] : [];
-      storeBroadcast(
-        'Role Updated',
-        `Your role has been updated to ${updates.pendingRoleNotice}`,
-        'role_changed',
-        undefined,
-        undefined,
-        [dbId, targetUser.id, targetUser.userId, targetUser.email].filter(Boolean) as string[],
-        undefined,
-        targetEmail,
-      );
-    } catch (err) {
-      console.error('[assignBvRole] Failed to broadcast role update:', err);
-    }
-
     serverCacheInvalidate();
 
     return {

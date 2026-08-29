@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import UserProfileProvider, { useUserProfile } from './contexts/UserProfileContext';
 import RoleAcknowledgementHandler from '@/components/dashboard/RoleAcknowledgementHandler';
-import RoleAcknowledgementModal from '@/components/RoleAcknowledgementModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import ErrorBoundary from './layouts/ErrorBoundary';
 import ProtectedRoute from './layouts/ProtectedRoute';
@@ -161,7 +160,6 @@ export default function App() {
         <InstallBanner />
         <UserProfileProvider>
           <RoleAcknowledgementHandler />
-          <RoleAcknowledgementModal />
           <Routes>
             {/* Auth — guarded to prevent active users from re-visiting */}
             <Route path="/" element={<LandingPage />} />

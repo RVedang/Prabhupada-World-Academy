@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { acknowledgeRoleChange, acknowledgeBvRoleNotice, acknowledgeBvApprovalNotice, acknowledgeBvRejectionNotice, acknowledgeAshrayNotice, getUserBvStatus } from '@/lib/endpoints-sdk';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -8,7 +8,7 @@ import { Crown, MapPin, ShieldAlert, Sparkles, XCircle, CheckCircle } from 'luci
 import { toast } from 'sonner';
 
 export default function RoleAcknowledgementHandler() {
-  const navigate = useNavigate();
+  const location = useLocation();
   const { profile, refreshProfile } = useUserProfile();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -17,7 +17,12 @@ export default function RoleAcknowledgementHandler() {
   // Determine what type of popup to show
   let popupType: 'ashray_notice_approved' | 'ashray_notice_rejected' | 'bv_approval_notice' | 'bv_rejection_notice' | 'bv_role_notice' | null = null;
 
-  if (profile) {
+  // Role changes are acknowledged from the user's own Profile page only.
+  // Keeping this gated prevents a role update from interrupting dashboards
+  // and ensures the notice appears the next time the user visits Profile.
+  const isOwnProfilePage = location.pathname === '/profile';
+
+  if (profile && isOwnProfilePage) {
     // Show notices regardless of role level
     if ((profile as any).pendingBvApprovalNotice) {
       popupType = 'bv_approval_notice';
@@ -63,20 +68,6 @@ export default function RoleAcknowledgementHandler() {
   const handleAcknowledge = async () => {
     setBusy(true);
     try {
-      let redirectPath: string | null = null;
-      if (popupType === 'bv_role_notice') {
-        const roleNoticeLabel = (profile as any).pendingRoleNotice || 'Member';
-        const routeMap: Record<string, string> = {
-          'BV Supervisor': '/bv-supervisor/dashboard',
-          'Reading Group Facilitator (RGF)': '/bvsl/dashboard',
-          'Reading Group Sub-Facilitator (RGSF)': '/bv-supervisor/dashboard',
-          'BV Admin': '/pw-admin/dashboard',
-          'Regular Member': '/user/dashboard',
-          'Sadhana Mentor': '/mentor/dashboard',
-        };
-        redirectPath = routeMap[roleNoticeLabel] || null;
-      }
-
       if (popupType === 'ashray_notice_approved' || popupType === 'ashray_notice_rejected') {
         await acknowledgeAshrayNotice({});
       } else if (popupType === 'bv_approval_notice') {
@@ -89,9 +80,6 @@ export default function RoleAcknowledgementHandler() {
       await refreshProfile();
       setOpen(false);
 
-      if (redirectPath) {
-        navigate(redirectPath, { replace: true });
-      }
     } catch {
       // Keep the database notice pending if acknowledgement fails so it can be
       // shown again instead of being permanently hidden on this device.
@@ -138,8 +126,8 @@ export default function RoleAcknowledgementHandler() {
         'Sadhana Mentor': 'Sadhana Mentor Dashboard',
       };
       const dashboardName = dashboardMap[roleNoticeLabel] || 'your updated dashboard';
-      title = 'Bhakti Vriksha Role Updated 🎉';
-      description = `Hare Krishna, Prabhu! Your Bhakti Vriksha role has been updated to: ${roleNoticeLabel}. You now have access to the ${dashboardName} on this platform.`;
+      title = 'Account Updates Notice';
+      description = 'Please review the latest update to your account permissions and responsibilities.';
       icon = <Sparkles className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
     }
@@ -157,6 +145,13 @@ export default function RoleAcknowledgementHandler() {
             {description}
           </DialogDescription>
         </DialogHeader>
+
+        {popupType === 'bv_role_notice' && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-left my-1">
+            <p className="font-semibold text-amber-700 dark:text-amber-400">Role updated:</p>
+            <p className="mt-1">{(profile as any).pendingRoleNotice || 'Your account role has been updated.'}</p>
+          </div>
+        )}
 
         {popupType === 'bv_approval_notice' && (
           <div className="bg-muted/50 border rounded-lg p-3 text-xs text-left space-y-1.5 my-1">

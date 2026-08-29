@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 import { serverCacheInvalidate } from '../lib/serverCache';
-import { storeBroadcast } from '../lib/notificationBroadcast';
 import { resolveGuideReference } from '../lib/guideResolution';
 
 export default createEndpoint({
@@ -55,22 +54,6 @@ export default createEndpoint({
     }
 
     await Users.update({ id: targetUserRecord.id, record: { guide: resolvedGuideId } });
-
-    try {
-      const targetEmail = targetUserRecord.email ? [targetUserRecord.email.toLowerCase()] : [];
-      storeBroadcast(
-        'Guide Assigned',
-        `You have been assigned to a new guide`,
-        'guide_changed',
-        undefined,
-        undefined,
-        [targetUserRecord.id, targetUserRecord.userId].filter(Boolean) as string[],
-        undefined,
-        targetEmail,
-      );
-    } catch (err) {
-      console.error('[assignGuide] Failed to broadcast guide update:', err);
-    }
 
     if (targetUserRecord.id) {
       serverCacheInvalidate('user_profile:' + targetUserRecord.id);
