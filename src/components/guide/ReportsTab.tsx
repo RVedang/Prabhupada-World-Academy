@@ -74,6 +74,29 @@ function getReportTitle(reportType: ReportType, selectedDate: string, startDate?
   return 'SADHANA REPORT';
 }
 
+function normalizeResidencyRef(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function stripFolkPrefix(value: string): string {
+  return value.replace(/^FOLK\s+/i, '');
+}
+
+function resolveResidencyName(user: ReportUser, residencies: any[]): string | undefined {
+  const existingName = String((user as any).residencyName || '').trim();
+  if (existingName) return stripFolkPrefix(existingName);
+
+  const userResidencyRef = normalizeResidencyRef((user as any).residencyId);
+  if (!userResidencyRef) return undefined;
+
+  const match = residencies.find((residency: any) =>
+    [residency.id, residency.residencyId, residency.residencyName]
+      .some(ref => normalizeResidencyRef(ref) === userResidencyRef)
+  );
+  const name = String(match?.residencyName || '').trim();
+  return name ? stripFolkPrefix(name) : undefined;
+}
+
 // Phase 7 FIX: 1 pt = 15 min (lower bound of 15–24 min range), 2 pts = 30 min
 function sbPtsToMinutes(pts: number): number {
   if (pts <= 0) return 0;
@@ -342,7 +365,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     // which allows showing the center name in the FOLK column instead of a blank.
     const withResidency = clientFilteredUsers.map(u => ({
       ...u,
-      residencyName: residencies.find(r => r.residencyId === (u as any).residencyId)?.residencyName?.replace(/^FOLK\s+/i, '') || undefined,
+      residencyName: resolveResidencyName(u, residencies),
     })) as UserRow[];
 
     // ── "All" view: remap field scores to unified common_* keys ──────────────
@@ -447,7 +470,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     u.fullName,
     u.ashrayLevel || '',
     u.isResident
-      ? (residencies.find((r: any) => r.residencyId === (u as any).residencyId)?.residencyName?.replace(/^FOLK\s+/i, '') || 'Resident')
+      ? (resolveResidencyName(u, residencies) || 'Resident')
       : 'NR',
     String(u.currentStreak ?? 0),
     ...visibleFieldDefs.map(d => {

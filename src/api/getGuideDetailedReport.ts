@@ -1018,6 +1018,20 @@ export default createEndpoint({
       entriesByUser.get(uid)!.push(e);
     }
 
+    const { records: residencyNameRecords } = await FolkResidencies.findAll({
+      fields: ['id', 'residencyId', 'residencyName'],
+      limit: 500,
+    }).catch(() => ({ records: [] as any[] }));
+    const residencyNameByRef = new Map<string, string>();
+    for (const residency of residencyNameRecords as any[]) {
+      const name = String(residency.residencyName || '').trim();
+      if (!name) continue;
+      for (const ref of [residency.id, residency.residencyId, residency.residencyName]) {
+        const key = String(ref || '').trim();
+        if (key) residencyNameByRef.set(key.toLowerCase(), name);
+      }
+    }
+
     // Build user rows
     const userRows = users.map(u => {
       const officialResidencyId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
@@ -1029,6 +1043,9 @@ export default createEndpoint({
       // Always use raw residencyId from the user's residency field, even if residencyApproved is false.
       // This lets NR users (whose application is pending) still be associated with a center.
       const residencyId = officialResidencyId || (isTempResident ? tempResidencyId : null);
+      const residencyName = residencyId
+        ? residencyNameByRef.get(String(residencyId).trim().toLowerCase()) || ''
+        : '';
       const userEntries = (entriesByUser.get(u.id) || []);
       const submitted = userEntries.length > 0;
       // SCHOLAR FIX: For scholars (temp residents), determine isResident from the entry's
@@ -1061,6 +1078,7 @@ export default createEndpoint({
         isResident: entryIsResident,
         isTempResident,
         residencyId: residencyId || null,
+        residencyName: residencyName || null,
         submitted,
         fieldScores: agg.fieldScores,
         totalScore: agg.totalScore,
