@@ -84,9 +84,10 @@ async function isBvslMember(caller: any, targetUserId: string, rgsfOnly = false)
       .map((value) => String(value).toLowerCase());
 
     const parentGroup = facilitatorKeys.some((key) => parentRgfKeys.has(key));
+    const callerOwnedLegacyGroup = facilitatorKeys.some((key) => callerKeys.includes(key));
     return rgsfOnly
-      ? parentGroup || subFacilitatorKeys.some((key) => callerKeys.includes(key))
-      : facilitatorKeys.some((key) => callerKeys.includes(key));
+      ? parentGroup || callerOwnedLegacyGroup || subFacilitatorKeys.some((key) => callerKeys.includes(key))
+      : callerOwnedLegacyGroup;
   });
 
   const groupIds = groups.map((g: any) => g.id).filter(Boolean);
