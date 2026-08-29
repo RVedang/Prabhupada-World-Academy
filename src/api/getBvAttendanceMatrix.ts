@@ -26,11 +26,17 @@ export default createEndpoint({
     if (!group) return { sessions: [], members: [], matrix: {}, rows: [], dates: [] };
 
     // Get group members
-    const membersRes = await BvGroupMembers.findAll({
+    const membersByGroupRes = await BvGroupMembers.findAll({
       filters: { group: group.id },
       fields: ['id', 'user', 'userId'],
       limit: 200,
     });
+    const membersByGroupIdRes = group.groupId
+      ? await BvGroupMembers.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'user', 'userId', 'group', 'groupId'], limit: 200 }).catch(() => ({ records: [] }))
+      : { records: [] };
+    const membershipMap = new Map<string, any>();
+    [...membersByGroupRes.records, ...membersByGroupIdRes.records].forEach((membership: any) => membershipMap.set(String(membership.id), membership));
+    const membersRes = { records: [...membershipMap.values()] };
 
     const memberUserIds = membersRes.records
       .flatMap((m: any) => [firstValue(m.user), firstValue(m.userId)])
@@ -61,9 +67,9 @@ export default createEndpoint({
       const altUid = firstValue(m.userId);
       const u = userMap[uid] || userMap[uid.toLowerCase()] || userMap[altUid] || userMap[altUid.toLowerCase()];
       const profileGroupId = firstValue(u?.bvGroupId).toLowerCase();
-      const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : !!u?.isBvMember;
+      const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : true;
       const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
-      return !!u && !!u.isBvMember && isCurrentGroup && isActiveUser;
+      return !!u && isCurrentGroup && isActiveUser;
     });
 
     // Build date range filter
@@ -77,7 +83,8 @@ export default createEndpoint({
     let attRecords: any[] = [];
     let offset = 0;
     while (true) {
-      const filters: any = { group: group.id };
+      const groupRefs = [...new Set([group.id, group.groupId].filter(Boolean))];
+      const filters: any = { group: groupRefs.length > 1 ? { in: groupRefs } : group.id };
       if (Object.keys(dateFilter).length > 0) filters.attendanceDate = dateFilter;
       const { records, hasMore } = await BvAttendance.findAll({
         filters,

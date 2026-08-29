@@ -81,18 +81,38 @@ export default createEndpoint({
     }
     if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
 
-    const [membersRes, sessionsRes, quizzesRes] = await Promise.all([
-      BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'userId', 'role', 'joinedAt'], limit: 200 }),
-      BvSessions.findAll({ filters: { group: group.id }, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }),
-      BvQuizzes.findAll({ filters: { group: group.id }, fields: ['id', 'groupId', 'quizTitle', 'createdAt'], limit: 50 }),
+    const groupRefs = [...new Set([group.id, group.groupId].filter(Boolean))];
+    const [membersRes, membersByGroupIdRes, sessionsRes, sessionsByGroupIdRes, quizzesRes, quizzesByGroupIdRes] = await Promise.all([
+      BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'userId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }),
+      group.groupId
+        ? BvGroupMembers.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'user', 'userId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }).catch(() => ({ records: [] }))
+        : Promise.resolve({ records: [] }),
+      BvSessions.findAll({ filters: { group: groupRefs.length > 1 ? { in: groupRefs } : group.id } as any, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }),
+      group.groupId
+        ? BvSessions.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }).catch(() => ({ records: [] }))
+        : Promise.resolve({ records: [] }),
+      BvQuizzes.findAll({ filters: { group: groupRefs.length > 1 ? { in: groupRefs } : group.id } as any, fields: ['id', 'groupId', 'quizTitle', 'createdAt'], limit: 50 }),
+      group.groupId
+        ? BvQuizzes.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'groupId', 'quizTitle', 'createdAt'], limit: 50 }).catch(() => ({ records: [] }))
+        : Promise.resolve({ records: [] }),
     ]);
 
-    const memberUserIds = membersRes.records.flatMap(getRecordUserKeys);
+    const membershipMap = new Map<string, any>();
+    [...membersRes.records, ...membersByGroupIdRes.records].forEach((membership: any) => membershipMap.set(String(membership.id), membership));
+    const membershipRecords = [...membershipMap.values()];
+    const sessionMap = new Map<string, any>();
+    [...sessionsRes.records, ...sessionsByGroupIdRes.records].forEach((session: any) => sessionMap.set(String(session.id), session));
+    const quizMap = new Map<string, any>();
+    [...quizzesRes.records, ...quizzesByGroupIdRes.records].forEach((quiz: any) => quizMap.set(String(quiz.id), quiz));
+    const sessionRecords = [...sessionMap.values()];
+    const quizRecords = [...quizMap.values()];
+
+    const memberUserIds = membershipRecords.flatMap(getRecordUserKeys);
 
     const [userRecords, attendanceRes] = await Promise.all([
       memberUserIds.length > 0 ? findUsersForKeys(memberUserIds) : Promise.resolve([]),
       BvAttendance.findAll({
-        filters: { group: group.id },
+        filters: { group: groupRefs.length > 1 ? { in: groupRefs } : group.id } as any,
         fields: ['id', 'user', 'userId', 'present', 'attendanceDate'],
         limit: 2000,
       }).catch(() => ({ records: [] })),
@@ -110,13 +130,15 @@ export default createEndpoint({
     };
 
     const groupAliases = new Set([group.id, group.groupId].filter(Boolean).map(value => normalizeKey(value)));
-    const activeMemberships = membersRes.records
+    const activeMemberships = membershipRecords
       .map((m: any) => {
         const resolved = resolveMember(m);
         const profileGroupId = normalizeKey(firstValue(resolved.user?.bvGroupId));
-        const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : !!resolved.user?.isBvMember;
+        // The BvGroupMembers row is authoritative. Older user profiles often
+        // lack bvGroupId/isBvMember even though their membership is active.
+        const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : true;
         const isActiveUser = !resolved.user?.status || String(resolved.user.status).toLowerCase() === 'active';
-        const isActiveMember = !!resolved.user && isActiveUser && !!resolved.user?.isBvMember && isCurrentGroup;
+        const isActiveMember = !!resolved.user && isActiveUser && isCurrentGroup;
         return { record: m, resolved, isActiveMember };
       })
       .filter(item => item.isActiveMember);
@@ -160,14 +182,14 @@ export default createEndpoint({
       };
     });
 
-    const sessions = sessionsRes.records.map((s: any) => ({
+    const sessions = sessionRecords.map((s: any) => ({
       sessionId: (s.sessionId as string) || s.id,
       sessionDate: ((s.sessionDate as string) || '').slice(0, 10),
       topic: (s.topic as string) || '',
       notes: (s.notes as string) || '',
     }));
 
-    const quizzes = quizzesRes.records.map((q: any) => ({
+    const quizzes = quizRecords.map((q: any) => ({
       quizId: q.id,
       title: (q.quizTitle as string) || (q.title as string) || 'Untitled Quiz',
       createdAt: (q.createdAt as string) || '',
