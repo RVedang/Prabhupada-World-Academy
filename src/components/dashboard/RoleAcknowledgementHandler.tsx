@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { acknowledgeRoleChange, acknowledgeBvRoleNotice, acknowledgeBvApprovalNotice, acknowledgeBvRejectionNotice, acknowledgeAshrayNotice, getUserBvStatus } from '@/lib/endpoints-sdk';
+import { acknowledgeBvRoleNotice, acknowledgeBvApprovalNotice, acknowledgeBvRejectionNotice, acknowledgeAshrayNotice, getUserBvStatus } from '@/lib/endpoints-sdk';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Crown, MapPin, ShieldAlert, Sparkles, XCircle, CheckCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { Sparkles, XCircle, CheckCircle } from 'lucide-react';
 
 export default function RoleAcknowledgementHandler() {
   const location = useLocation();
@@ -116,16 +115,6 @@ export default function RoleAcknowledgementHandler() {
       icon = <XCircle className="w-12 h-12 text-destructive mx-auto" />;
       break;
     case 'bv_role_notice': {
-      const roleNoticeLabel = (profile as any).pendingRoleNotice || 'Member';
-      const dashboardMap: Record<string, string> = {
-        'BV Supervisor': 'Supervisor Dashboard',
-        'Reading Group Facilitator (RGF)': 'Facilitator (RGF) Dashboard',
-        'Reading Group Sub-Facilitator (RGSF)': 'Sub-Facilitator (RGSF) Dashboard',
-        'BV Admin': 'Admin Dashboard',
-        'Regular Member': 'My Sadhana Dashboard',
-        'Sadhana Mentor': 'Sadhana Mentor Dashboard',
-      };
-      const dashboardName = dashboardMap[roleNoticeLabel] || 'your updated dashboard';
       title = 'Account Updates Notice';
       description = 'Please review the latest update to your account permissions and responsibilities.';
       icon = <Sparkles className="w-12 h-12 text-primary mx-auto animate-bounce" />;

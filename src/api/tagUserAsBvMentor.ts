@@ -32,7 +32,11 @@ export default createEndpoint({
     if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
     const shouldTag = input.action === 'tag';
-    const updateData: Record<string, any> = { isBvMentor: shouldTag };
+    const updateData: Record<string, any> = {
+      isBvMentor: shouldTag,
+      pendingRoleNotice: shouldTag ? 'BV Supervisor' : 'Regular Member',
+      roleNoticeAcknowledged: false,
+    };
     if (shouldTag) {
       // Assign guideId or fallback to caller user id
       updateData.bvMentorGuideId = input.guideId || context.user.id;

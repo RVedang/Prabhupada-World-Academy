@@ -47,7 +47,12 @@ export default createEndpoint({
       }
     }
 
-    await Users.update({ id: userRecord.id, record: { isTripCoordinator: input.action === 'tag' } as any });
+    const shouldTag = input.action === 'tag';
+    await Users.update({ id: userRecord.id, record: {
+      isTripCoordinator: shouldTag,
+      pendingRoleNotice: shouldTag ? 'Trip Coordinator' : 'Regular Member',
+      roleNoticeAcknowledged: false,
+    } as any });
     serverCacheInvalidate('user_profile:' + userRecord.id);
     return { success: true };
   },

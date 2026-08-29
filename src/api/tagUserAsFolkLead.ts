@@ -58,7 +58,12 @@ export default createEndpoint({
       }
     }
 
-    await Users.update({ id: userRecord.id, record: { isFolkLead: input.action === 'tag' } as any });
+    const shouldTag = input.action === 'tag';
+    await Users.update({ id: userRecord.id, record: {
+      isFolkLead: shouldTag,
+      pendingRoleNotice: shouldTag ? 'FOLK Lead' : 'Regular Member',
+      roleNoticeAcknowledged: false,
+    } as any });
     serverCacheInvalidate('user_profile:' + userRecord.id);
     return { success: true };
   },

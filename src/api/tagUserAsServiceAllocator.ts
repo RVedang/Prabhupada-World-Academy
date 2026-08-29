@@ -43,7 +43,11 @@ export default createEndpoint({
 
     await Users.update({
       id: userRecord.id,
-      record: { isServiceAllocator: input.action === 'tag' },
+      record: {
+        isServiceAllocator: input.action === 'tag',
+        pendingRoleNotice: input.action === 'tag' ? 'Service Allocator' : 'Regular Member',
+        roleNoticeAcknowledged: false,
+      },
     });
     serverCacheInvalidate('user_profile:' + userRecord.id);
     return { success: true };
