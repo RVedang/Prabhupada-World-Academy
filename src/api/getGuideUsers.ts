@@ -234,6 +234,30 @@ export default createEndpoint({
       }
     }
 
+    // Reporting parents can be regular Users (RGFs/RGSFs), not only records
+    // in the Guides collection. Build one identity-to-name map from both
+    // sources so a stored parent email/ID is always rendered as the person's
+    // database full name instead of a guessed name derived from the email.
+    const parentNameLookup = new Map<string, string>(guideLookup);
+    for (const u of users) {
+      const name = String((u as any).fullName || (u as any).displayName || (u as any).name || '').trim();
+      if (!name || name.includes('@')) continue;
+      for (const ref of [(u as any).id, (u as any).userId, (u as any).email]) {
+        const key = String(ref || '').trim().toLowerCase();
+        if (key) parentNameLookup.set(key, name);
+      }
+    }
+    const resolveParentName = (id: unknown, storedName: unknown): string | null => {
+      for (const ref of [id, storedName]) {
+        const key = String(ref || '').trim().toLowerCase();
+        if (!key) continue;
+        const resolved = parentNameLookup.get(key);
+        if (resolved) return resolved;
+      }
+      const fallback = String(storedName || '').trim();
+      return fallback && !fallback.includes('@') ? fallback : null;
+    };
+
     const callerId = String(context.user.id || '').toLowerCase();
     const callerUserId = String(context.user.userId || '').toLowerCase();
     const callerEmail = String(context.user.email || '').toLowerCase();
@@ -337,10 +361,10 @@ export default createEndpoint({
         const groupRgf = assignedGid ? groupRgfMap.get(String(assignedGid)) : null;
 
         const resolvedFacId = u.bvReportingFacilitatorId || groupRgf?.id || null;
-        let resolvedFacName = u.bvReportingFacilitatorName || groupRgf?.name || null;
-        if (!resolvedFacName && resolvedFacId) {
-          resolvedFacName = guideLookup.get(resolvedFacId.toLowerCase()) || null;
-        }
+        const resolvedFacName = resolveParentName(
+          resolvedFacId,
+          u.bvReportingFacilitatorName || groupRgf?.name,
+        );
 
         const userEntries = (entriesByUser.get(u.id) || [])
           .sort((a, b) => b.entryDate.localeCompare(a.entryDate));
