@@ -33,6 +33,9 @@ export default createEndpoint({
   execute: async ({ input }: any) => {
     let groupRecords: any[] = [];
     let defaultBvslName = 'Reading Group Facilitator';
+    const isRgsfRequest = input.viewRole === 'RGSF';
+    let rgsfCallerKeys = new Set<string>();
+    let rgsfParentKeys = new Set<string>();
 
     if (input.bvslId === 'ALL' || !input.bvslId) {
       const { records } = await BvGroups.findAll({ limit: 500 });
@@ -59,6 +62,7 @@ export default createEndpoint({
           .filter(Boolean)
           .map((value) => String(value).toLowerCase())
       );
+      rgsfCallerKeys = callerKeys;
 
       // RGSFs inherit the full group scope of their reporting RGF. Resolve
       // every parent alias because groups created at different times may
@@ -71,6 +75,7 @@ export default createEndpoint({
           await Users.findOne({ filters: { email: String(parentRgfId) }, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
         [parent?.id, parent?.userId, parent?.email].filter(Boolean).forEach(value => parentRgfKeys.add(String(value).toLowerCase()));
       }
+      rgsfParentKeys = parentRgfKeys;
 
       // RGSF dashboard shows all groups facilitated by its reporting RGF,
       // while retaining direct assignments for legacy group records.
@@ -88,12 +93,13 @@ export default createEndpoint({
           .map((value) => String(value).toLowerCase());
 
         if (isRgsfView) {
-          const isParentGroup = [g.bvslLeader, g.bvslId]
+          const ownerValues = [g.bvslLeader, g.bvslId]
             .flatMap((value) => Array.isArray(value) ? value : [value])
             .filter(Boolean)
-            .map((value) => String(value).toLowerCase())
-            .some((value) => parentRgfKeys.has(value));
-          return isParentGroup || subFacilitatorValues.some((value) => callerKeys.has(value));
+            .map((value) => String(value).toLowerCase());
+          const isParentGroup = ownerValues.some((value) => parentRgfKeys.has(value));
+          const isCallerOwnedLegacyGroup = ownerValues.some((value) => callerKeys.has(value));
+          return isParentGroup || isCallerOwnedLegacyGroup || subFacilitatorValues.some((value) => callerKeys.has(value));
         }
 
         return (
@@ -109,14 +115,34 @@ export default createEndpoint({
     }
 
     const dedupedGroupRecords = new Map<string, any>();
+    const rgsfGroupPriority = (group: any): number => {
+      const ownerValues = [group.bvslLeader, group.bvslId]
+        .flatMap((value) => Array.isArray(value) ? value : [value])
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      const subValues = [group.subFacilitatorId, group.rgsfId, group.subFacilitator]
+        .flatMap((value) => Array.isArray(value) ? value : [value])
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      if (ownerValues.some(value => rgsfCallerKeys.has(value))) return 3;
+      if (subValues.some(value => rgsfCallerKeys.has(value))) return 2;
+      if (ownerValues.some(value => rgsfParentKeys.has(value))) return 1;
+      return 0;
+    };
     for (const group of groupRecords) {
       const ownerKey = String(group.bvslId || group.bvslLeader || '').toLowerCase();
       const timeKey = String(group.meetingTime || group.preferredTimeSlot || '').toLowerCase();
-      const groupKey = String(group.groupId || '').toLowerCase()
-        || `${String(group.groupName || '').trim().toLowerCase()}|${ownerKey}|${timeKey}`;
+      const normalizedName = String(group.groupName || '').trim().toLowerCase();
+      const groupKey = isRgsfRequest
+        ? (normalizedName || String(group.groupId || group.id || '').toLowerCase())
+        : (String(group.groupId || '').toLowerCase() || `${normalizedName}|${ownerKey}|${timeKey}`);
       if (!groupKey) continue;
       const existing = dedupedGroupRecords.get(groupKey);
-      if (!existing || (existing.isActive === false && group.isActive !== false)) {
+      if (
+        !existing ||
+        (existing.isActive === false && group.isActive !== false) ||
+        (isRgsfRequest && rgsfGroupPriority(group) > rgsfGroupPriority(existing))
+      ) {
         dedupedGroupRecords.set(groupKey, group);
       }
     }
