@@ -9,7 +9,8 @@ import { Users, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
  *   2. Admin: sees Supervisors reporting to them (bvReportingAdminId), plus RGFs, RGSFs, and Members under those Supervisors.
  *   3. Supervisor: sees RGFs reporting to them (bvReportingSupervisorId), plus RGSFs and Members under those RGFs.
  *   4. RGF (Reading Group Facilitator): sees RGSFs reporting to them (bvReportingFacilitatorId), plus Groups facilitated by them and Members in those groups.
- *   5. RGSF (Reading Group Sub-Facilitator): sees ONLY the specific Reading Group where they are RGSF, plus Members of that group.
+ *   5. RGSF (Reading Group Sub-Facilitator): sees all groups facilitated by their
+ *      reporting RGF, plus members of those groups.
  */
 export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<string> | null> {
   if (!contextUser) return new Set();
@@ -54,6 +55,23 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
   const isBvSupervisor = !!(contextUser.isBvSupervisor || contextUser.isBvMentor);
   const isBvFacilitator = !!(contextUser.isBvFacilitator || contextUser.isBvsl);
   const isBvSubFacilitator = !!(contextUser.isBvSubFacilitator);
+
+  // An RGSF inherits the group scope of their reporting RGF. Resolve every
+  // identity alias for that parent because older group records may store a
+  // Firestore id, public userId, or email in bvslLeader/bvslId.
+  const callerRecord = allUsers.find((u: any) => [u.id, u.userId, u.email]
+    .filter(Boolean)
+    .some((value: any) => callerKeys.has(String(value).toLowerCase())));
+  const reportingParentRefs = [
+    contextUser.bvReportingFacilitatorId,
+    callerRecord?.bvReportingFacilitatorId,
+  ].flatMap((value: any) => Array.isArray(value) ? value : [value]).filter(Boolean)
+    .map((value: any) => String(value).toLowerCase());
+  const reportingRgfKeys = new Set<string>(reportingParentRefs);
+  allUsers.forEach((u: any) => {
+    const aliases = [u.id, u.userId, u.email].filter(Boolean).map((value: any) => String(value).toLowerCase());
+    if (aliases.some(alias => reportingRgfKeys.has(alias))) aliases.forEach(alias => reportingRgfKeys.add(alias));
+  });
 
   // Track parent keys at each level to cascade downwards
   const supervisorKeys = new Set<string>();
@@ -137,17 +155,27 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
     ...supervisorKeys,
     ...rgfKeys,
     ...rgsfKeys,
+    ...(isBvSubFacilitator ? reportingRgfKeys : []),
   ]);
 
-  groups.forEach((g: any) => {
-    const bvslId = String(g.bvslId || '').toLowerCase();
-    const bvslLeader = String(g.bvslLeader || '').toLowerCase();
-    const gGuide = String(g.guide || '').toLowerCase();
-    const subFacId = String(g.subFacilitatorId || g.rgsfId || '').toLowerCase();
+  const refValues = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.flatMap(refValues);
+    return value == null ? [] : String(value).split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+  };
 
-    // If caller is RGSF, strictly limit to their group
+  groups.forEach((g: any) => {
+    const bvslIds = refValues(g.bvslId);
+    const bvslLeaders = refValues(g.bvslLeader);
+    const gGuides = refValues(g.guide);
+    const subFacIds = refValues([g.subFacilitatorId, g.rgsfId, g.subFacilitator]);
+
+    // RGSFs can view every group facilitated by their reporting RGF. Keep
+    // direct RGSF assignments as a fallback for legacy records without the
+    // parent link.
     if (isBvSubFacilitator && !isBvAdmin && !isBvSupervisor && !isBvFacilitator) {
-      if ((subFacId && callerKeys.has(subFacId)) || (bvslId && callerKeys.has(bvslId))) {
+      const belongsToReportingRgf = bvslIds.some(id => reportingRgfKeys.has(id)) || bvslLeaders.some(id => reportingRgfKeys.has(id));
+      const directlyAssigned = subFacIds.some(id => callerKeys.has(id));
+      if (belongsToReportingRgf || directlyAssigned) {
         if (g.id) scopedGroupIds.add(String(g.id));
         if (g.groupId) scopedGroupIds.add(String(g.groupId));
       }
@@ -155,10 +183,10 @@ export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<s
     }
 
     if (
-      (bvslId && groupOwnerKeys.has(bvslId)) ||
-      (bvslLeader && groupOwnerKeys.has(bvslLeader)) ||
-      (gGuide && groupOwnerKeys.has(gGuide)) ||
-      (subFacId && groupOwnerKeys.has(subFacId))
+      bvslIds.some(id => groupOwnerKeys.has(id)) ||
+      bvslLeaders.some(id => groupOwnerKeys.has(id)) ||
+      gGuides.some(id => groupOwnerKeys.has(id)) ||
+      subFacIds.some(id => groupOwnerKeys.has(id))
     ) {
       if (g.id) scopedGroupIds.add(String(g.id));
       if (g.groupId) scopedGroupIds.add(String(g.groupId));

@@ -25,12 +25,12 @@ export default createEndpoint({
 
     // If bvslId given, find groups led by that BVSL user
     if (input.bvslId) {
-      let bvslUser = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] });
+      let bvslUser = await Users.findOne({ filters: { userId: input.bvslId }, fields: ['id', 'userId', 'email', 'role', 'bvReportingFacilitatorId', 'isBvSubFacilitator'] });
       if (!bvslUser) {
-        bvslUser = await Users.findOne({ id: input.bvslId, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] });
+        bvslUser = await Users.findOne({ id: input.bvslId, fields: ['id', 'userId', 'email', 'role', 'bvReportingFacilitatorId', 'isBvSubFacilitator'] });
       }
       if (!bvslUser) {
-        bvslUser = await Users.findOne({ filters: { email: input.bvslId }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] });
+        bvslUser = await Users.findOne({ filters: { email: input.bvslId }, fields: ['id', 'userId', 'email', 'role', 'bvReportingFacilitatorId', 'isBvSubFacilitator'] });
       }
 
       const keys = new Set<string>();
@@ -43,6 +43,19 @@ export default createEndpoint({
         parentRgfId = (bvslUser as any).bvReportingFacilitatorId;
       }
 
+      // For an RGSF, inherit every group owned by the reporting RGF. Parent
+      // references may use either the database id, public userId, or email.
+      const parentRgfKeys = new Set<string>();
+      const isRgsfView = !!(bvslUser as any)?.isBvSubFacilitator ||
+        String((bvslUser as any)?.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
+      if (parentRgfId) parentRgfKeys.add(String(parentRgfId).toLowerCase());
+      if (parentRgfId) {
+        const parent = await Users.findOne({ filters: { userId: String(parentRgfId) }, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+          await Users.findOne({ id: String(parentRgfId), fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { email: String(parentRgfId) }, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
+        [parent?.id, parent?.userId, parent?.email].filter(Boolean).forEach(value => parentRgfKeys.add(String(value).toLowerCase()));
+      }
+
       const { records: allGroups } = await BvGroups.findAll({
         filters: { isActive: true } as any,
         fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'bvslName'],
@@ -50,15 +63,18 @@ export default createEndpoint({
       });
 
       const bvslGroups = allGroups.filter((g: any) => {
-        const leader = String(g.bvslLeader || '').toLowerCase();
-        const bId = String(g.bvslId || '').toLowerCase();
+        const leaderRefs = (Array.isArray(g.bvslLeader) ? g.bvslLeader : [g.bvslLeader]).filter(Boolean).map((value: any) => String(value).toLowerCase());
+        const bIdRefs = (Array.isArray(g.bvslId) ? g.bvslId : [g.bvslId]).filter(Boolean).map((value: any) => String(value).toLowerCase());
+        const leader = leaderRefs[0] || '';
+        const bId = bIdRefs[0] || '';
         const bName = String(g.bvslName || '').toLowerCase();
         const sub = String(g.subFacilitatorId || g.rgsfId || '').toLowerCase();
+        const parentGroup = isRgsfView && [...leaderRefs, ...bIdRefs].some(value => parentRgfKeys.has(value));
         return (
           keys.has(leader) ||
           keys.has(bId) ||
           keys.has(sub) ||
-          (parentRgfId && (leader === parentRgfId.toLowerCase() || bId === parentRgfId.toLowerCase())) ||
+          parentGroup ||
           (input.bvslId.toLowerCase().includes('hiranya') && (bName.includes('hiranya') || leader.includes('hiranya')))
         );
       });
@@ -75,6 +91,10 @@ export default createEndpoint({
       targetGroups.forEach((g: any) => {
           groupMap[g.id] = (g.groupName as string) || '';
           groupIdMap[g.id] = (g.groupId as string) || g.id;
+          if (g.groupId) {
+            groupMap[g.groupId] = (g.groupName as string) || '';
+            groupIdMap[g.groupId] = (g.groupId as string) || g.id;
+          }
         });
 
         const { records: memberships } = await BvGroupMembers.findAll({
@@ -82,14 +102,33 @@ export default createEndpoint({
           fields: ['id', 'user', 'group'],
           limit: 500,
         });
+        const targetGroupKeys = [...new Set(targetGroups.flatMap((g: any) => [g.id, g.groupId].filter(Boolean)))];
+        const { records: membershipsByGroupId } = await BvGroupMembers.findAll({
+          filters: { groupId: { in: targetGroupKeys } } as any,
+          fields: ['id', 'user', 'userId', 'group', 'groupId'],
+          limit: 1000,
+        }).catch(() => ({ records: [] }));
+        const membershipMap = new Map<string, any>();
+        [...memberships, ...membershipsByGroupId].forEach((membership: any) => membershipMap.set(String(membership.id), membership));
+        const allMemberships = [...membershipMap.values()];
 
-        const userIds = [...new Set(memberships.map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user).filter(Boolean))] as string[];
-        const { records: memberUsers } = userIds.length > 0
-          ? await Users.findAll({ filters: { id: { in: userIds } }, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email', 'residency', 'residencyApproved', 'role', 'roles', 'isRgsf'], limit: 500 })
-          : { records: [] };
+        const userIds = [...new Set(allMemberships.flatMap((m: any) => [m.user, m.userId]).flatMap((value: any) => Array.isArray(value) ? value : [value]).filter(Boolean))] as string[];
+        let memberUsers: any[] = [];
+        if (userIds.length > 0) {
+          const userQueries = await Promise.all([
+            Users.findAll({ filters: { id: { in: userIds } } as any, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email', 'residency', 'residencyApproved', 'role', 'roles', 'isRgsf'], limit: 500 }).catch(() => ({ records: [] })),
+            Users.findAll({ filters: { userId: { in: userIds } } as any, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email', 'residency', 'residencyApproved', 'role', 'roles', 'isRgsf'], limit: 500 }).catch(() => ({ records: [] })),
+            Users.findAll({ filters: { email: { in: userIds } } as any, fields: ['id', 'userId', 'fullName', 'phone', 'ashrayLevel', 'email', 'residency', 'residencyApproved', 'role', 'roles', 'isRgsf'], limit: 500 }).catch(() => ({ records: [] })),
+          ]);
+          const uniqueUsers = new Map<string, any>();
+          userQueries.flatMap(result => result.records || []).forEach((user: any) => uniqueUsers.set(String(user.id), user));
+          memberUsers = [...uniqueUsers.values()];
+        }
 
         const userMap: Record<string, any> = {};
-        memberUsers.forEach((u: any) => { userMap[u.id] = u; });
+        memberUsers.forEach((u: any) => {
+          [u.id, u.userId, u.email].filter(Boolean).forEach((key: any) => { userMap[String(key).toLowerCase()] = u; });
+        });
 
         // Get residency names
         const residencyIds = [...new Set(memberUsers.map((u: any) => Array.isArray(u.residency) ? u.residency[0] : u.residency).filter(Boolean))] as string[];
@@ -103,10 +142,10 @@ export default createEndpoint({
         const callerUserId = String(context.user.userId || '').toLowerCase();
         const callerEmail = String(context.user.email || '').toLowerCase();
 
-        const members = memberships.map((m: any) => {
+        const members = allMemberships.map((m: any) => {
           const uid = Array.isArray(m.user) ? m.user[0] : m.user as string;
-          const gid = Array.isArray(m.group) ? m.group[0] : m.group as string;
-          const u = userMap[uid] as any;
+          const gid = Array.isArray(m.group) ? m.group[0] : (m.group || (Array.isArray(m.groupId) ? m.groupId[0] : m.groupId)) as string;
+          const u = userMap[String(uid || '').toLowerCase()] as any;
           if (!u) return null;
 
           const uId = String(u.id || '').toLowerCase();

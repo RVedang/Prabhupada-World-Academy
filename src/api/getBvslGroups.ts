@@ -60,8 +60,20 @@ export default createEndpoint({
           .map((value) => String(value).toLowerCase())
       );
 
-      // RGSF dashboard must show only groups directly assigned to this
-      // sub-facilitator. The parent RGF fallback is for RGF views only.
+      // RGSFs inherit the full group scope of their reporting RGF. Resolve
+      // every parent alias because groups created at different times may
+      // store a Firestore id, public userId, or email.
+      const parentRgfKeys = new Set<string>();
+      if (parentRgfId) parentRgfKeys.add(String(parentRgfId).toLowerCase());
+      if (parentRgfId) {
+        const parent = await Users.findOne({ filters: { userId: String(parentRgfId) }, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+          await Users.findOne({ id: String(parentRgfId), fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+          await Users.findOne({ filters: { email: String(parentRgfId) }, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
+        [parent?.id, parent?.userId, parent?.email].filter(Boolean).forEach(value => parentRgfKeys.add(String(value).toLowerCase()));
+      }
+
+      // RGSF dashboard shows all groups facilitated by its reporting RGF,
+      // while retaining direct assignments for legacy group records.
       groupRecords = records.filter((g: any) => {
         if (g.isActive === false) return false;
 
@@ -76,7 +88,12 @@ export default createEndpoint({
           .map((value) => String(value).toLowerCase());
 
         if (isRgsfView) {
-          return subFacilitatorValues.some((value) => callerKeys.has(value));
+          const isParentGroup = [g.bvslLeader, g.bvslId]
+            .flatMap((value) => Array.isArray(value) ? value : [value])
+            .filter(Boolean)
+            .map((value) => String(value).toLowerCase())
+            .some((value) => parentRgfKeys.has(value));
+          return isParentGroup || subFacilitatorValues.some((value) => callerKeys.has(value));
         }
 
         return (

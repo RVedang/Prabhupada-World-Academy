@@ -52,11 +52,29 @@ async function isBvslMember(caller: any, targetUserId: string, rgsfOnly = false)
     limit: 500,
   });
 
+  const parentRgfKeys = new Set<string>();
+  if (rgsfOnly) {
+    const callerRecord = await Users.findOne({ id: caller?.id, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
+      await Users.findOne({ filters: { userId: caller?.userId || caller?.id }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
+      await Users.findOne({ filters: { email: caller?.email }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined);
+    const parentRefValue = caller?.bvReportingFacilitatorId || (callerRecord as any)?.bvReportingFacilitatorId;
+    const parentRef = parentRefValue ? String(parentRefValue).toLowerCase() : '';
+    if (parentRef) {
+      parentRgfKeys.add(parentRef);
+      const parent = await Users.findOne({ filters: { userId: parentRefValue }, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+        await Users.findOne({ id: parentRefValue, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { email: parentRefValue }, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
+      [parent?.id, parent?.userId, parent?.email].filter(Boolean).forEach(value => parentRgfKeys.add(String(value).toLowerCase()));
+    }
+  }
+
   const groups = bvslGroups.filter((group: any) => {
     const facilitatorKeys = [
       group.bvslLeader,
       group.bvslId,
-    ].filter(Boolean).map((value) => String(value).toLowerCase());
+    ].flatMap((value) => Array.isArray(value) ? value : [value])
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase());
     const subFacilitatorKeys = [
       group.subFacilitatorId,
       group.rgsfId,
@@ -65,8 +83,9 @@ async function isBvslMember(caller: any, targetUserId: string, rgsfOnly = false)
       .filter(Boolean)
       .map((value) => String(value).toLowerCase());
 
+    const parentGroup = facilitatorKeys.some((key) => parentRgfKeys.has(key));
     return rgsfOnly
-      ? subFacilitatorKeys.some((key) => callerKeys.includes(key))
+      ? parentGroup || subFacilitatorKeys.some((key) => callerKeys.includes(key))
       : facilitatorKeys.some((key) => callerKeys.includes(key));
   });
 
@@ -110,20 +129,22 @@ export default createEndpoint({
     const isSuperGuide = context.user.role === 'Super Guide';
 
     const isBvMentor = !!(context.user as any).isBvMentor;
+    const isRgsf = !!(context.user as any).isBvSubFacilitator ||
+      String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
 
     if (!isSuperGuide && !isBvMentor) {
       // Try center-based scope (works for guides)
       const scope = await getGuideScope(context.user.email);
 
-      if (scope) {
+      if (isRgsf) {
+        const allowed = await isBvslMember(context.user, userRecord.id, true);
+        if (!allowed) {
+          throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members of your reporting RGF groups' });
+        }
+      } else if (scope) {
         // Caller has a guide record — enforce center-based access
         if (!isUserInGuideScope(scope, userRecord)) {
           throw new AppError({ code: 'FORBIDDEN', message: 'You can only view users in your center' });
-        }
-      } else if ((context.user as any).isBvSubFacilitator) {
-        const allowed = await isBvslMember(context.user, userRecord.id, true);
-        if (!allowed) {
-          throw new AppError({ code: 'FORBIDDEN', message: 'You can only view members of your assigned BV groups' });
         }
       } else if (context.user.isBvsl) {
         // BVSL: check if the target user is in one of their BV groups

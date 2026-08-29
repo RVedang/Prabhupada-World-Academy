@@ -852,9 +852,9 @@ export default createEndpoint({
       // either the Firebase document ID or the app's USER-* ID. Resolve all
       // aliases before selecting the RGF's groups, otherwise today's entries
       // disappear from the report even though the user is a valid member.
-      const bvslUser = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
+      const bvslUser = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined);
       const normalizeRef = (value: unknown) => String(value || '').trim().toLowerCase();
       const bvslAliases = new Set([
         context.user.id,
@@ -864,6 +864,21 @@ export default createEndpoint({
         bvslUser?.userId,
         bvslUser?.email,
       ].filter(Boolean).map(normalizeRef));
+      const reportingRgfAliases = new Set(
+        [context.user.bvReportingFacilitatorId, (bvslUser as any)?.bvReportingFacilitatorId]
+          .flatMap((value: any) => Array.isArray(value) ? value : [value])
+          .filter(Boolean)
+          .map(normalizeRef)
+      );
+      if (reportingRgfAliases.size > 0) {
+        const parentQueries = await Promise.all([
+          Users.findAll({ filters: { id: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { userId: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { email: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+        ]);
+        parentQueries.flatMap(result => result.records || []).forEach((parent: any) => [parent.id, parent.userId, parent.email].filter(Boolean)
+          .forEach((value: any) => reportingRgfAliases.add(normalizeRef(value))));
+      }
       const groupRefValues = (value: unknown): string[] => {
         const values = Array.isArray(value) ? value : value == null ? [] : [value];
         return values.flatMap(v => String(v || '').split(',')).map(normalizeRef).filter(Boolean);
@@ -874,10 +889,16 @@ export default createEndpoint({
         fields: ['id', 'groupId', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
         limit: 500,
       });
-      const bvslGroups = allBvslGroups.filter((group: any) =>
-        ['bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator']
-          .some(field => groupRefValues(group[field]).some(ref => bvslAliases.has(ref)))
-      );
+      const isRgsf = !!context.user.isBvSubFacilitator ||
+        String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
+      const bvslGroups = allBvslGroups.filter((group: any) => {
+        const directRefs = ['bvslLeader', 'bvslId'].flatMap(field => groupRefValues(group[field]));
+        const subRefs = ['subFacilitatorId', 'rgsfId', 'subFacilitator'].flatMap(field => groupRefValues(group[field]));
+        const parentGroup = directRefs.some(ref => reportingRgfAliases.has(ref));
+        return isRgsf
+          ? parentGroup || subRefs.some(ref => bvslAliases.has(ref))
+          : directRefs.some(ref => bvslAliases.has(ref));
+      });
 
       if (bvslGroups.length > 0) {
         // Legacy group-membership rows may point at either the Firestore row

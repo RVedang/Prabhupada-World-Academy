@@ -98,12 +98,26 @@ export default createEndpoint({
       };
       const callerKeys = new Set([dbUserId, customUserId, context.user.email]
         .filter(Boolean).map(value => String(value).toLowerCase()));
+      const callerRecord = await Users.findOne({ id: dbUserId, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: customUserId }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined);
+      const parentKeys = new Set([context.user.bvReportingFacilitatorId, (callerRecord as any)?.bvReportingFacilitatorId]
+        .filter(Boolean).map((value: any) => String(value).toLowerCase()));
+      if (parentKeys.size > 0) {
+        const parentQueries = await Promise.all([
+          Users.findAll({ filters: { id: { in: Array.from(parentKeys) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { userId: { in: Array.from(parentKeys) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { email: { in: Array.from(parentKeys) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+        ]);
+        parentQueries.flatMap(result => result.records || []).forEach((parent: any) => [parent.id, parent.userId, parent.email].filter(Boolean)
+          .forEach((value: any) => parentKeys.add(String(value).toLowerCase())));
+      }
       const userGroupIds = allGroups.filter((g: any) => {
         const assignedToCaller = refValues([
           g.subFacilitatorId, g.rgsfId, g.subFacilitator,
-          ...(isRgsf ? [] : [g.bvslLeader, g.bvslId]),
+          g.bvslLeader, g.bvslId,
         ]).some(value => callerKeys.has(value));
-        return assignedToCaller;
+        const assignedToReportingRgf = isRgsf && refValues([g.bvslLeader, g.bvslId]).some(value => parentKeys.has(value));
+        return assignedToCaller || assignedToReportingRgf;
       }).flatMap((g: any) => [g.id, g.groupId].filter(Boolean).map(String));
       const userGroupIdSet = new Set(userGroupIds);
 

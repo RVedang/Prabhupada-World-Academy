@@ -24,7 +24,9 @@ export default createEndpoint({
     // Get groups
     const groupFilter: any = { isActive: true };
     if (bvslMode) {
-      groupFilter.bvslLeader = context.user.id;
+      // Scope below by both the caller and (for an RGSF) their reporting RGF.
+      // Group records use mixed identity fields, so a simple bvslLeader filter
+      // would omit valid parent-RGF groups.
     } else if (residencyIds && residencyIds.length > 0) {
       // Center-based scoping: get all guides in these residencies
       const allGuideIds = await getGuideIdsForResidencies(residencyIds);
@@ -38,11 +40,38 @@ export default createEndpoint({
     }
     if (groupId) groupFilter.id = groupId;
 
-    const { records: groups } = await BvGroups.findAll({
+    let { records: groups } = await BvGroups.findAll({
       filters: groupFilter,
       fields: ['id', 'groupName', 'bvslLeader'],
       limit: 200,
     });
+
+    if (bvslMode) {
+      const caller = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId', 'isBvSubFacilitator'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId', 'isBvSubFacilitator'] }).catch(() => undefined);
+      const normalize = (value: unknown) => String(value || '').trim().toLowerCase();
+      const callerAliases = new Set([context.user.id, context.user.userId, context.user.email, caller?.id, caller?.userId, caller?.email].filter(Boolean).map(normalize));
+      const parentAliases = new Set([context.user.bvReportingFacilitatorId, (caller as any)?.bvReportingFacilitatorId].filter(Boolean).map(normalize));
+      if (parentAliases.size > 0) {
+        const parentQueries = await Promise.all([
+          Users.findAll({ filters: { id: { in: Array.from(parentAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { userId: { in: Array.from(parentAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { email: { in: Array.from(parentAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+        ]);
+        parentQueries.flatMap(result => result.records || []).forEach((parent: any) => [parent.id, parent.userId, parent.email].filter(Boolean)
+          .forEach((value: any) => parentAliases.add(normalize(value))));
+      }
+      const isRgsf = !!context.user.isBvSubFacilitator || !!(caller as any)?.isBvSubFacilitator || normalize(context.user.role).includes('rgsf');
+      const allGroups = await BvGroups.findAll({ filters: { isActive: true } as any, fields: ['id', 'groupName', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId'], limit: 500 });
+      groups = (allGroups.records || []).filter((group: any) => {
+        const ownerRefs = [group.bvslLeader, group.bvslId].flatMap((value: any) => Array.isArray(value) ? value : [value]).filter(Boolean).map(normalize);
+        const subRefs = [group.subFacilitatorId, group.rgsfId].flatMap((value: any) => Array.isArray(value) ? value : [value]).filter(Boolean).map(normalize);
+        return ownerRefs.some((ref: string) => callerAliases.has(ref)) ||
+          (isRgsf && ownerRefs.some((ref: string) => parentAliases.has(ref))) ||
+          subRefs.some((ref: string) => callerAliases.has(ref));
+      });
+      if (groupId) groups = groups.filter((group: any) => group.id === groupId);
+    }
 
     if (groups.length === 0) {
       return { members: [], allDates: [], sessionDates: [], groups: [], attendance: {}, quizScores: {} };

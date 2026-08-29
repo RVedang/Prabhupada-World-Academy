@@ -116,9 +116,9 @@ export default createEndpoint({
       // the Firestore id, custom userId, email, or one of several facilitator
       // field names; matching only context.user.id makes valid RGSF reports
       // appear empty.
-      const bvslUser = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email'] }).catch(() => undefined);
+      const bvslUser = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined);
       const normalizeRef = (value: unknown) => String(value || '').trim().toLowerCase();
       const aliases = new Set([
         context.user.id,
@@ -128,6 +128,21 @@ export default createEndpoint({
         bvslUser?.userId,
         bvslUser?.email,
       ].filter(Boolean).map(normalizeRef));
+      const reportingRgfAliases = new Set(
+        [context.user.bvReportingFacilitatorId, (bvslUser as any)?.bvReportingFacilitatorId]
+          .flatMap((value: any) => Array.isArray(value) ? value : [value])
+          .filter(Boolean)
+          .map(normalizeRef)
+      );
+      if (reportingRgfAliases.size > 0) {
+        const parentQueries = await Promise.all([
+          Users.findAll({ filters: { id: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { userId: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+          Users.findAll({ filters: { email: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
+        ]);
+        parentQueries.flatMap(result => result.records || []).forEach((parent: any) => [parent.id, parent.userId, parent.email].filter(Boolean)
+          .forEach((value: any) => reportingRgfAliases.add(normalizeRef(value))));
+      }
       const refValues = (value: unknown): string[] => {
         const values = Array.isArray(value) ? value : value == null ? [] : [value];
         return values.flatMap(v => String(v || '').split(',')).map(normalizeRef).filter(Boolean);
@@ -137,11 +152,15 @@ export default createEndpoint({
         fields: ['id', 'groupId', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
         limit: 500,
       });
-      const isRgsf = !!context.user.isBvSubFacilitator;
+      const isRgsf = !!context.user.isBvSubFacilitator ||
+        String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
       const groups = allGroups.filter((group: any) => {
         const directRefs = ['bvslLeader', 'bvslId'].flatMap(field => refValues(group[field]));
         const subRefs = ['subFacilitatorId', 'rgsfId', 'subFacilitator'].flatMap(field => refValues(group[field]));
-        return isRgsf ? subRefs.some(ref => aliases.has(ref)) : directRefs.some(ref => aliases.has(ref));
+        const parentGroup = directRefs.some(ref => reportingRgfAliases.has(ref));
+        return isRgsf
+          ? parentGroup || subRefs.some(ref => aliases.has(ref))
+          : directRefs.some(ref => aliases.has(ref));
       });
       if (groups.length > 0) {
         const groupRefs = [...new Set(groups.flatMap((g: any) => [g.id, g.groupId].filter(Boolean)))];
@@ -162,7 +181,19 @@ export default createEndpoint({
             for (const ref of refValues(membership[field])) memberAliases.add(ref);
           }
         }
-        users = users.filter(user => userIdentityAliases(user).some(alias => memberAliases.has(normalizeRef(alias))));
+        // Group members can belong to a different guide/residency than the
+        // RGSF, so merge the authoritative membership users before filtering.
+        const { records: allActiveUsers } = await Users.findAll({
+          filters: { status: 'Active' },
+          fields: USER_FIELDS,
+          limit: 3000,
+        });
+        const mergedUsers = new Map<string, any>();
+        for (const user of users) mergedUsers.set(String(user.id), user);
+        for (const user of allActiveUsers) {
+          if (userIdentityAliases(user).some(alias => memberAliases.has(normalizeRef(alias)))) mergedUsers.set(String(user.id), user);
+        }
+        users = [...mergedUsers.values()].filter(user => userIdentityAliases(user).some(alias => memberAliases.has(normalizeRef(alias))));
       } else { users = []; }
     }
 

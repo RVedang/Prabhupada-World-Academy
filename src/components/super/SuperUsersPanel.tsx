@@ -737,6 +737,24 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           }
                           return val;
                         };
+                        const resolveParentUser = (parentId: unknown, parentName: unknown) => {
+                          const refs = [parentId, parentName]
+                            .map(value => String(value || '').trim().toLowerCase())
+                            .filter(Boolean);
+                          if (refs.length === 0) return null;
+                          return users.find(candidate => [candidate.id, candidate.userId, candidate.email, candidate.fullName]
+                            .map(value => String(value || '').trim().toLowerCase())
+                            .some(ref => refs.includes(ref))) || null;
+                        };
+                        const parentRoleLabel = (parentId: unknown, parentName: unknown, fallback: string) => {
+                          const parent = resolveParentUser(parentId, parentName) as any;
+                          const role = String(parent?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+                          if (parent?.isBvSubFacilitator === true || ['RGSF', 'SUB_FACILITATOR'].includes(role) || role.includes('SUB_FACILITATOR')) return 'RGSF';
+                          if (parent?.isBvFacilitator === true || parent?.isBvsl === true || ['RGF', 'BVSL', 'FACILITATOR'].includes(role)) return 'RGF';
+                          if (parent?.isBvSupervisor === true || parent?.isBvMentor === true || role.includes('SUPERVISOR')) return 'Supervisor';
+                          if (parent?.isBvAdmin === true || parent?.isBvSuperAdmin === true || ['ADMIN', 'SUPER_ADMIN', 'PW_ADMIN'].includes(role)) return 'Admin';
+                          return fallback;
+                        };
                         const superAdminDisplayName = formatName((u as any).bvReportingAdminName) || 'Unassigned';
                         return (
                           <td className="px-3 py-2 text-xs" onClick={e => { e.stopPropagation(); if (canEditRole && !isUserAdmin && currentBvRole !== 'NA') openParentDialog(u); }}>
@@ -769,10 +787,11 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                                     }
                                     // Regular Member
                                     const facName = (u as any).bvReportingFacilitatorName;
+                                    const facId = (u as any).bvReportingFacilitatorId;
                                     const supName = (u as any).bvReportingSupervisorName || (u as any).supervisorName || (u as any).bvSupervisorName;
                                     const adminName = (u as any).bvReportingAdminName;
 
-                                    if (facName) return `${formatName(facName)} (RGF)`;
+                                    if (facName) return `${formatName(facName)} (${parentRoleLabel(facId, facName, 'RGF')})`;
                                     if (supName) return `${formatName(supName)} (Supervisor)`;
                                     if (adminName) return `${formatName(adminName)} (Admin)`;
 
