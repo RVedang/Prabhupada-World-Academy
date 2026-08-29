@@ -191,20 +191,28 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(() => {
-    if (isPw) return 'all';
+    // An RGF's report scope is their reading-group membership, not the
+    // facilitator's own residency. Defaulting to "Residents" can silently
+    // hide non-resident group members.
+    if (isPw || bvslMode) return 'all';
     return (sessionStorage.getItem('guide_report_residencyFilter') as ResidencyFilter) || 'resident';
   });
   const [ashrayLevelFilter, setAshrayLevelFilter] = useState<string>('all');
   const [folkResidencyId, setFolkResidencyId] = useState<string>(() => {
-    if (isPw) return 'all';
+    // RGF groups can contain members from another FOLK residency. Never seed
+    // an invisible profile-residency filter in BVSL/RGF mode.
+    if (isPw || bvslMode) return 'all';
     return isSuperAdmin ? 'all' : (profile?.folkResidencyCustomId || 'all');
   });
 
   useEffect(() => {
-    if (profile && !isSuperAdmin && !isPw) {
+    if (bvslMode) {
+      setFolkResidencyId('all');
+      setResidencyFilter('all');
+    } else if (profile && !isSuperAdmin && !isPw) {
       setFolkResidencyId(profile.folkResidencyCustomId || 'all');
     }
-  }, [profile, isSuperAdmin, isPw]);
+  }, [profile, isSuperAdmin, isPw, bvslMode]);
 
   const [rawReportData, setRawReportData] = useState<GetGuideDetailedReportOutputType | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -281,12 +289,16 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
 
   // NI-04: Auto-select when guide covers exactly 1 residency; reset to 'all' when multiple
   useEffect(() => {
+    if (bvslMode) {
+      setFolkResidencyId('all');
+      return;
+    }
     if (residencies.length === 1) {
       setFolkResidencyId(residencies[0].residencyId);
     } else if (residencies.length > 1) {
       setFolkResidencyId('all');
     }
-  }, [residencies.length]);
+  }, [residencies.length, bvslMode]);
 
   // Fix 4: Client-side filtering — instant, no API call needed
   const clientFilteredUsers = useMemo(() => {
@@ -309,7 +321,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       }
       if (ashrayLevelFilter !== 'all' && u.ashrayLevel !== ashrayLevelFilter) return false;
       // FOLK Residency filter: only applies to residents
-      if (folkResidencyId !== 'all') {
+      if (!bvslMode && folkResidencyId !== 'all') {
         if (u.isResident && u.residencyId !== folkResidencyId) return false;
       }
       if (!showMissing && !u.submitted) return false;
@@ -321,7 +333,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       if (searchQuery && !u.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
-  }, [rawReportData, residencyFilter, ashrayLevelFilter, folkResidencyId, searchQuery, showScholars, showMissing, guideFilter]);
+  }, [rawReportData, residencyFilter, ashrayLevelFilter, folkResidencyId, searchQuery, showScholars, showMissing, guideFilter, bvslMode]);
 
   // Compute canonical ranks from the canonical sort order
   const usersForTable = useMemo(() => {
