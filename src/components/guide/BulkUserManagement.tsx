@@ -137,7 +137,13 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
     try {
       const exported = await exportBulkUsers(filters);
       if (!exported.rows.length) { toast.info('No users match the selected filters'); return; }
-      exportToCsv(exported.filename, exported.headers, exported.rows);
+      const textColumns = exported.headers.filter((header, index) =>
+        /(?:phone|whatsapp|dob)/i.test(header)
+        || exported.rows.some(row => /^\+?\d{10,}$/.test(String(row[index] ?? '').replace(/^'+/, '').trim())),
+      );
+      exportToCsv(exported.filename, exported.headers, exported.rows, {
+        textColumns,
+      });
       setExportOpen(false);
     } catch (error: any) {
       toast.error(error?.message || 'Unable to export users');

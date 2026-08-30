@@ -42,7 +42,7 @@ Imported users are not pre-created with an artificial password or provider. On f
 - Guide: normal FOLK users directly assigned to the authenticated Guide.
 - Super Guide: normal FOLK users within the existing Super Guide department-wide scope, optionally filtered by assigned Guide.
 
-Filters include active/inactive status, creation date range, Bhakti Vriksha group, and (for Super Guides) assigned Guide. The export begins with the complete import/form schema, renders phone values as spreadsheet-safe text, and resolves FOLK residency and approval references to names. Internal assignment, hierarchy, and registration ID fields are excluded from the export.
+Filters include active/inactive status, creation date range, Bhakti Vriksha group, and (for Super Guides) assigned Guide. The export begins with the complete import/form schema, preserves phone values as their original digit strings, and resolves FOLK residency and approval references to names. Internal assignment, hierarchy, and registration ID fields are excluded from the export.
 
 ## Verification checklist
 
