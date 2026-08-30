@@ -15,6 +15,7 @@ import {
 } from '@/lib/endpoints-sdk';
 import { BULK_USER_MAX_FILE_BYTES, parseCsv, type ParsedCsv } from '@/config/bulkUserCsv';
 import { exportToCsv } from '@/utils/exportCsv';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 interface PreviewRow {
   rowNumber: number;
@@ -137,9 +138,9 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
     try {
       const exported = await exportBulkUsers(filters);
       if (!exported.rows.length) { toast.info('No users match the selected filters'); return; }
-      const textColumns = exported.headers.filter((header, index) =>
+      const textColumns = exported.headers.filter((header: string, index: number) =>
         /(?:phone|whatsapp|dob)/i.test(header)
-        || exported.rows.some(row => /^\+?\d{10,}$/.test(String(row[index] ?? '').replace(/^'+/, '').trim())),
+        || exported.rows.some((row: any) => /^\+?\d{10,}$/.test(String(row[index] ?? '').replace(/^'+/, '').trim())),
       );
       exportToCsv(exported.filename, exported.headers, exported.rows, {
         textColumns,
@@ -227,8 +228,8 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1"><Label>Status</Label><Select value={filters.status} onValueChange={value => setFilters(current => ({ ...current, status: value || 'all' }))}><SelectTrigger><span>{filters.status === 'all' ? 'All' : filters.status === 'active' ? 'Active Users' : 'Inactive Users'}</span></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="active">Active Users</SelectItem><SelectItem value="inactive">Inactive Users</SelectItem></SelectContent></Select></div>
             <div className="space-y-1"><Label>Bhakti Vriksha Group</Label><Select value={filters.groupId} onValueChange={value => setFilters(current => ({ ...current, groupId: value || 'all' }))}><SelectTrigger><span>{filters.groupId === 'all' ? 'All' : options.groups.find(group => group.id === filters.groupId)?.name || filters.groupId}</span></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem>{options.groups.map(group => <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1"><Label>From Date</Label><Input type="date" value={filters.startDate} onChange={event => setFilters(current => ({ ...current, startDate: event.target.value }))} /></div>
-            <div className="space-y-1"><Label>To Date</Label><Input type="date" value={filters.endDate} onChange={event => setFilters(current => ({ ...current, endDate: event.target.value }))} /></div>
+            <div className="space-y-1"><Label>From Date</Label><DateTimePicker type="date" value={filters.startDate} onChange={value => setFilters(current => ({ ...current, startDate: value }))} placeholder="Choose start date" className="h-8 rounded-lg" /></div>
+            <div className="space-y-1"><Label>To Date</Label><DateTimePicker type="date" value={filters.endDate} onChange={value => setFilters(current => ({ ...current, endDate: value }))} placeholder="Choose end date" className="h-8 rounded-lg" /></div>
             {isSuperGuide && <div className="space-y-1 sm:col-span-2"><Label>Assigned Guide</Label><Select value={filters.assignedGuideId} onValueChange={value => setFilters(current => ({ ...current, assignedGuideId: value || 'all' }))}><SelectTrigger><span>{filters.assignedGuideId === 'all' ? 'All' : options.guides.find(guide => guide.id === filters.assignedGuideId)?.name || filters.assignedGuideId}</span></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem>{options.guides.map(guide => <SelectItem key={guide.id} value={guide.id}>{guide.name}</SelectItem>)}</SelectContent></Select></div>}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setExportOpen(false)} disabled={busy}>Cancel</Button><Button onClick={runExport} disabled={busy}>{busy && <Loader2 className="w-4 h-4 animate-spin" />} Export CSV</Button></DialogFooter>

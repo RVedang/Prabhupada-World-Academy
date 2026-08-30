@@ -121,7 +121,7 @@ async function findAll(table: { findAll(input: any): Promise<{ records: any[]; h
 export async function requireBulkUserManager(user: ApiUserContext | null) {
   if (!user || !user.isActive) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
   const role = normalizeApiRole(user.role);
-  if (!['GUIDE', 'SUPER_GUIDE'].includes(role) || String(user.segment || '').toUpperCase() === 'PW') {
+  if (!['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN'].includes(role) || String(user.segment || '').toUpperCase() === 'PW') {
     throw new AppError({ code: 'FORBIDDEN', message: 'Only active FOLK Guides and FOLK Super Guides can manage bulk users' });
   }
   const guideScope = await getGuideScope(user.email);
@@ -133,7 +133,7 @@ export async function requireBulkUserManager(user: ApiUserContext | null) {
   const canonicalScope = canonicalGuide?.id
     ? { ...guideScope, guideId: canonicalGuide.id, guideName: canonicalGuide.fullName || guideScope.guideName }
     : guideScope;
-  return { user, role, guideScope: canonicalScope, isSuperGuide: role === 'SUPER_GUIDE' };
+  return { user, role, guideScope: canonicalScope, isSuperGuide: ['SUPER_GUIDE', 'SUPER_ADMIN'].includes(role) };
 }
 
 function validateHeaders(headers: string[]): string[] {
@@ -496,22 +496,26 @@ export async function getBulkExportData(
 
 export async function getBulkExportOptions(manager: Awaited<ReturnType<typeof requireBulkUserManager>>) {
   const [groups, guides, users, memberships] = await Promise.all([
-    findAll(BvGroups, ['id', 'groupId', 'groupName', 'guide']),
+    findAll(BvGroups, ['id', 'groupId', 'groupName', 'guide', 'segment']),
     findAll(Guides, ['id', 'fullName', 'name', 'email']),
     findAll(Users, ['id', 'userId', 'guide', 'bvGroupId']),
     findAll(BvGroupMembers, ['user', 'userId', 'group', 'groupId']),
   ]);
   let scopedGroups = groups;
-  if (!manager.isSuperGuide) {
-    const directUsers = users.filter(user => refValues(user.guide).includes(manager.guideScope.guideId.toLowerCase()));
-    const userRefs = new Set(directUsers.flatMap(user => [user.id, user.userId]).filter(Boolean).map(value => String(value).toLowerCase()));
-    const groupRefs = new Set(directUsers.flatMap(user => refValues(user.bvGroupId)));
-    for (const membership of memberships) {
-      if ([membership.user, membership.userId].some(ref => ref && userRefs.has(String(ref).toLowerCase()))) {
-        for (const ref of [membership.group, membership.groupId]) if (ref) groupRefs.add(String(ref).toLowerCase());
-      }
-    }
-    scopedGroups = groups.filter(group => [group.id, group.groupId].some(ref => ref && groupRefs.has(String(ref).toLowerCase())));
+  if (manager.isSuperGuide) {
+    scopedGroups = groups.filter(group => {
+      const segment = String(group.segment || '').toUpperCase();
+      return segment === 'FOLK';
+    });
+  } else {
+    const guideIdLower = manager.guideScope.guideId.toLowerCase();
+    const guideEmailLower = (manager.user.email || '').toLowerCase();
+    scopedGroups = groups.filter(group => {
+      const segment = String(group.segment || '').toUpperCase();
+      if (segment !== 'FOLK') return false;
+      const refs = refValues(group.guide).map(v => String(v).toLowerCase());
+      return refs.includes(guideIdLower) || refs.includes(guideEmailLower);
+    });
   }
   return {
     groups: scopedGroups.map(group => ({ id: String(group.id), name: String(group.groupName || group.groupId || group.id) })).sort((a, b) => a.name.localeCompare(b.name)),
