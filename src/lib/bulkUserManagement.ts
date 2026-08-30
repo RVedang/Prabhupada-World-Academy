@@ -424,10 +424,12 @@ export async function getBulkExportData(
     'assignedGuideId', 'bvGroupId', 'user.assignedGuideId', 'user.bvGroupId',
     'bvRegistration.assignedGroupId', 'bvRegistration.assignedGroupld',
     'bvRegistration.pwClassesAttending', 'bvRegistration.isPrabhupadaWorldUser',
-    'bvRegistration.userDbId', 'bvRegistration.userDbld',
+    'bvRegistration.userDbId', 'bvRegistration.userDbld', 'bvRegistration.userId', 'bvRegistration.userld',
     'user.bvReportingAdminId', 'user.bvReportingAdminld',
     'user.bvReportingFacilitatorId', 'user.bvReportingFacilitatorld',
     'user.bvReportingSupervisorId', 'user.bvReportingSupervisorld', 'user.guide',
+    'bvRegistration.segment', 'user.lastLoginAt', 'user.lastStreakUpdatedAt',
+    'user.roleNoticeAcknowledged', 'user.segment',
   ]);
 
   const scoped = users.filter(user => {
