@@ -92,7 +92,14 @@ test('mock integration creates only a normal assigned Users profile and existing
 
   const exported = await getBulkExportData(manager, { status: 'all' });
   const emailColumn = exported.headers.indexOf('email');
-  const guideColumn = exported.headers.indexOf('assignedGuideId');
+  const phoneColumn = exported.headers.indexOf('phone');
   assert.ok(exported.rows.some(rowValues => rowValues[emailColumn] === 'bulk.create@example.com'));
-  assert.ok(exported.rows.every(rowValues => rowValues[guideColumn] === manager.guideScope.guideId));
+  assert.ok(exported.rows.some(rowValues => rowValues[phoneColumn] === "'9865432109"));
+  for (const removedHeader of [
+    'assignedGuideId', 'bvGroupId', 'bvRegistration.assignedGroupId', 'bvRegistration.pwClassesAttending',
+    'bvRegistration.isPrabhupadaWorldUser', 'bvRegistration.userDbId', 'user.bvReportingAdminId',
+    'user.bvReportingFacilitatorId', 'user.bvReportingSupervisorId', 'user.guide',
+  ]) {
+    assert.ok(!exported.headers.includes(removedHeader), `${removedHeader} must not be exported`);
+  }
 });

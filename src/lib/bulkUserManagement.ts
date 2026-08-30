@@ -388,8 +388,8 @@ export async function getBulkExportData(
   manager: Awaited<ReturnType<typeof requireBulkUserManager>>,
   filters: { status?: string; startDate?: string; endDate?: string; groupId?: string; assignedGuideId?: string },
 ) {
-  const [users, registrations, memberships, groups, guides] = await Promise.all([
-    findAll(Users), findAll(BvMemberRegistrations), findAll(BvGroupMembers), findAll(BvGroups), findAll(Guides),
+  const [users, registrations, memberships, groups, guides, residencies] = await Promise.all([
+    findAll(Users), findAll(BvMemberRegistrations), findAll(BvGroupMembers), findAll(BvGroups), findAll(Guides), findAll(FolkResidencies),
   ]);
   const registrationByUser = new Map<string, any>();
   for (const registration of registrations) {
@@ -410,6 +410,25 @@ export async function getBulkExportData(
     const name = String(possibleGuide.fullName || possibleGuide.name || possibleGuide.email || '');
     for (const ref of [possibleGuide.id, possibleGuide.userId, possibleGuide.email]) if (ref) guideNameByRef.set(String(ref).toLowerCase(), name);
   }
+  const residencyNameByRef = new Map<string, string>();
+  for (const residency of residencies) {
+    const name = String(residency.residencyName || residency.name || '');
+    if (!name) continue;
+    for (const ref of [residency.id, residency.residencyId, residency.residencyName]) {
+      if (ref) residencyNameByRef.set(String(ref).toLowerCase(), name);
+    }
+  }
+  const residencyName = (reference: unknown) => residencyNameByRef.get(String(reference || '').toLowerCase()) || '';
+  const personName = (reference: unknown) => guideNameByRef.get(String(reference || '').toLowerCase()) || '';
+  const excludedExportFields = new Set([
+    'assignedGuideId', 'bvGroupId', 'user.assignedGuideId', 'user.bvGroupId',
+    'bvRegistration.assignedGroupId', 'bvRegistration.assignedGroupld',
+    'bvRegistration.pwClassesAttending', 'bvRegistration.isPrabhupadaWorldUser',
+    'bvRegistration.userDbId', 'bvRegistration.userDbld',
+    'user.bvReportingAdminId', 'user.bvReportingAdminld',
+    'user.bvReportingFacilitatorId', 'user.bvReportingFacilitatorld',
+    'user.bvReportingSupervisorId', 'user.bvReportingSupervisorld', 'user.guide',
+  ]);
 
   const scoped = users.filter(user => {
     const role = normalizeApiRole(user.role);
@@ -436,28 +455,42 @@ export async function getBulkExportData(
     const group = groupByRef.get(groupRef.toLowerCase());
     const combined: Record<string, unknown> = {};
     for (const header of BULK_USER_CSV_HEADERS) {
-      if (header === 'selectedFolkResidency') combined[header] = user.residency || '';
+      if (header === 'selectedFolkResidency') combined[header] = residencyName(user.residency || registration.selectedFolkResidency);
       else if (header === 'residencyUserClaim') combined[header] = user.residencyClaimed ? 'Yes' : 'No';
       else if (header === 'phone') combined[header] = registration.phone || user.phone || '';
       else combined[header] = registration[header] ?? user[header] ?? '';
     }
     const assignedGuideId = Array.isArray(user.guide) ? user.guide[0] : user.guide || '';
-    combined.assignedGuideId = assignedGuideId;
-    combined.assignedGuideName = guideNameByRef.get(String(assignedGuideId).toLowerCase()) || '';
-    combined.bvGroupId = group?.id || groupRef;
+    combined.assignedGuideName = personName(assignedGuideId);
     combined.bvGroupName = group?.groupName || user.bvGroupName || '';
-    for (const [key, value] of Object.entries(user)) if (!(key in combined) && value !== undefined) combined[`user.${key}`] = value;
-    for (const [key, value] of Object.entries(registration)) if (!(key in combined) && value !== undefined) combined[`bvRegistration.${key}`] = value;
+    for (const [key, value] of Object.entries(user)) {
+      const exportKey = `user.${key}`;
+      if (!(key in combined) && value !== undefined && !excludedExportFields.has(exportKey)) {
+        combined[exportKey] = key === 'residency' ? residencyName(value) : value;
+      }
+    }
+    for (const [key, value] of Object.entries(registration)) {
+      const exportKey = `bvRegistration.${key}`;
+      if (!(key in combined) && value !== undefined && !excludedExportFields.has(exportKey)) {
+        combined[exportKey] = key === 'approvedBy' ? personName(value) : value;
+      }
+    }
     return combined;
   });
 
-  const preferred = [...BULK_USER_CSV_HEADERS, 'assignedGuideId', 'assignedGuideName', 'bvGroupId', 'bvGroupName'];
+  const preferred = [...BULK_USER_CSV_HEADERS, 'assignedGuideName', 'bvGroupName'];
   const dynamic = [...new Set(rows.flatMap(row => Object.keys(row)))].filter(key => !preferred.includes(key as any)).sort();
   const headers = [...preferred, ...dynamic];
-  const serialize = (value: unknown) => value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+  const serialize = (header: string, value: unknown) => {
+    if (value == null) return '';
+    const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    // CSV has no column types. The leading apostrophe makes Excel/Sheets keep
+    // all phone fields as text instead of turning them into scientific notation.
+    return /(?:phone|whatsapp)/i.test(header) && text ? `'${text}` : text;
+  };
   return {
     headers,
-    rows: rows.map(row => headers.map(header => serialize(row[header]))),
+    rows: rows.map(row => headers.map(header => serialize(header, row[header]))),
     filename: `folk-users-${new Date().toISOString().slice(0, 10)}.csv`,
   };
 }

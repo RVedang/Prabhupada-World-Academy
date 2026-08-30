@@ -7,7 +7,7 @@ function firstValue(value: unknown): string {
 }
 
 export default createEndpoint({
-  description: 'Get attendance matrix for a BV group — dates x members grid (queries attendance directly by group+date)',
+  description: 'Get attendance matrix for a BV group — dates x members grid (queries attendance by group and filters the requested date range)',
   authenticated: true,
   inputSchema: z.object({
     groupId: z.string().optional(),
@@ -72,20 +72,14 @@ export default createEndpoint({
       return !!u && isCurrentGroup && isActiveUser;
     });
 
-    // Build date range filter
-    const dateFilter: any = {};
-    if (input.startDate || input.endDate) {
-      if (input.startDate) dateFilter.gte = input.startDate;
-      if (input.endDate) dateFilter.lte = input.endDate;
-    }
-
-    // Query attendance directly by group (+ optional date range)
+    // Query by group only. Combining group with an attendanceDate range needs
+    // a Firestore composite index; filtering the small per-group result here
+    // keeps the matrix reliable even before that index is deployed.
     let attRecords: any[] = [];
     let offset = 0;
     while (true) {
       const groupRefs = [...new Set([group.id, group.groupId].filter(Boolean))];
       const filters: any = { group: groupRefs.length > 1 ? { in: groupRefs } : group.id };
-      if (Object.keys(dateFilter).length > 0) filters.attendanceDate = dateFilter;
       const { records, hasMore } = await BvAttendance.findAll({
         filters,
         fields: ['id', 'user', 'present', 'attendanceDate'],
@@ -96,6 +90,12 @@ export default createEndpoint({
       if (!hasMore) break;
       offset += 2000;
     }
+    attRecords = attRecords.filter((attendance: any) => {
+      const date = String(attendance.attendanceDate || '').slice(0, 10);
+      return !!date &&
+        (!input.startDate || date >= input.startDate) &&
+        (!input.endDate || date <= input.endDate);
+    });
 
     // Build date list from attendance records
     const dates = [...new Set(
