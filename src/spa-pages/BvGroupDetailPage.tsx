@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,7 @@ import type { GetBvGroupDetailOutputType, GetBvAttendanceMatrixOutputType } from
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { Calendar } from 'lucide-react';
 import { DashboardLayout } from '@/layouts';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 type GroupDetail = GetBvGroupDetailOutputType;
 type MatrixData = GetBvAttendanceMatrixOutputType;
@@ -65,7 +66,7 @@ function AttendanceMatrix({ matrix, dates }: { matrix: MatrixData; dates: string
           </tr>
         </thead>
         <tbody>
-          {matrix.rows.map(row => (
+          {matrix.rows.map((row: any) => (
             <tr key={row.userId} className="border-b hover:bg-muted/30">
               <td className="px-3 py-2 font-medium sticky left-0 bg-card z-10 whitespace-nowrap">
                 {row.name}
@@ -76,8 +77,8 @@ function AttendanceMatrix({ matrix, dates }: { matrix: MatrixData; dates: string
               {dates.map(d => {
                 const val = row.attendance[d] ?? 0;
                 return (
-                  <td key={d} className={`text-center px-2 py-2 font-mono font-bold ${val === 1 ? 'text-green-600 bg-green-50' : 'text-muted-foreground'}`}>
-                    {val === 1 ? '✓' : '—'}
+                  <td key={d} className={`text-center px-2 py-2 font-mono font-bold ${val === 1 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+                    {val === 1 ? '✓' : '✗'}
                   </td>
                 );
               })}
@@ -116,7 +117,7 @@ function MembersTab({ members, onUserClick }: { members: GroupDetail['members'];
           </tr>
         </thead>
         <tbody>
-          {members.map(m => (
+          {members.map((m: any) => (
             <tr key={m.userId} className="border-b hover:bg-muted/40 cursor-pointer" onClick={() => onUserClick(m.userId)}>
               <td className="px-3 py-2.5 font-medium">{m.fullName}</td>
               <td className="px-3 py-2.5 hidden sm:table-cell">
@@ -179,6 +180,8 @@ function QuizzesTab({ quizzes }: { quizzes: Array<{ quizId: string; title: strin
 export default function BvGroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { profile } = useUserProfile();
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [matrix, setMatrix] = useState<MatrixData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -240,8 +243,8 @@ export default function BvGroupDetailPage() {
 
   const overallRate = useMemo(() => {
     if (!detail || detail.members.length === 0) return 0;
-    const total = detail.members.reduce((s, m) => s + m.totalCount, 0);
-    const present = detail.members.reduce((s, m) => s + m.presentCount, 0);
+    const total = detail.members.reduce((s: number, m: any) => s + m.totalCount, 0);
+    const present = detail.members.reduce((s: number, m: any) => s + m.presentCount, 0);
     return total > 0 ? Math.round((present / total) * 100) : 0;
   }, [detail]);
 
@@ -395,7 +398,12 @@ export default function BvGroupDetailPage() {
           <TabsContent value="members" className="mt-4">
             <MembersTab
               members={detail.members}
-              onUserClick={(uid) => navigate(`/guide/users/${uid}`)}
+              onUserClick={(uid) => {
+                const detailBasePath = profile?.isBvSubFacilitator ? '/rgsf/users' : '/guide/users';
+                navigate(`${detailBasePath}/${encodeURIComponent(uid)}`, {
+                  state: { from: `${location.pathname}${location.search}` },
+                });
+              }}
             />
           </TabsContent>
         </Tabs>
