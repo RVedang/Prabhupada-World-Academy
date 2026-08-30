@@ -60,14 +60,15 @@ export default createEndpoint({
     // Query only facilitator-recorded BV attendance directly by user ID (or
     // other user keys). Sadhana submissions are deliberately unrelated to
     // reading-group attendance.
-    let allAtt: any[] = [];
-    for (const key of rawUserKeys) {
-      const { records } = await BvAttendance.findAll({
-        filters: { user: key, attendanceDate: { gte: sinceDate } },
-        limit: 1000,
-      }).catch(() => ({ records: [] }));
-      allAtt = allAtt.concat(records);
-    }
+    const { records: allRecords } = await BvAttendance.findAll({
+      filters: { attendanceDate: { gte: sinceDate } } as any,
+      limit: 2000,
+    }).catch(() => ({ records: [] }));
+
+    let allAtt = allRecords.filter(a => {
+      const uStr = String(Array.isArray(a.user) ? a.user[0] : a.user || '').trim().toLowerCase();
+      return userKeys.has(uStr);
+    });
 
     // Deduplicate attendance records by ID
     const seenAttIds = new Set<string>();

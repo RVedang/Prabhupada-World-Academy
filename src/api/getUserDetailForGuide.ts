@@ -10,7 +10,7 @@ const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'phone',
   'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor',
   'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
-  'flagSick', 'flagOs', 'submittedAt'];
+  'flagSick', 'flagOs', 'submittedAt', 'user'];
 
 /** Resolve a user record by DB UUID or custom userId field (e.g. "USER-031") */
 async function resolveUser(id: string) {
@@ -200,22 +200,28 @@ export default createEndpoint({
       userRecord.firebaseAuthId,
       userRecord.firebase_id,
     ].filter(Boolean).map((value: any) => String(value).trim()))];
-    const [entryResults, membershipResults, residencyRecord] = await Promise.all([
-      Promise.all(entryOwnerIds.map(ownerId => SadhanaEntries.findAll({
-        filters: { user: ownerId, entryDate: { gte: streakStart, lte: todayStr } } as any,
-        fields: ENTRY_FIELDS,
-        limit: 110,
-      }))),
-      Promise.all(entryOwnerIds.map(ownerId => BvGroupMembers.findAll({
-        filters: { user: ownerId }, fields: ['id', 'group'], limit: 3,
-      }))),
-      effectiveResidencyId
-        ? FolkResidencies.findOne({ id: effectiveResidencyId as string, fields: ['id', 'residencyName'] })
-        : Promise.resolve(null),
-    ]);
-
-    const entryById = new Map<string, any>();
-    entryResults.flatMap(result => result.records).forEach((entry: any) => entryById.set(String(entry.id), entry));
+     const [allEntriesRes, membershipResults, residencyRecord] = await Promise.all([
+       SadhanaEntries.findAll({
+         filters: { entryDate: { gte: streakStart, lte: todayStr } } as any,
+         fields: ENTRY_FIELDS,
+         limit: 2000,
+       }).catch(() => ({ records: [] })),
+       Promise.all(entryOwnerIds.map(ownerId => BvGroupMembers.findAll({
+         filters: { user: ownerId }, fields: ['id', 'group'], limit: 3,
+       }))),
+       effectiveResidencyId
+         ? FolkResidencies.findOne({ id: effectiveResidencyId as string, fields: ['id', 'residencyName'] })
+         : Promise.resolve(null),
+     ]);
+ 
+     const entryOwnerSet = new Set(entryOwnerIds.map(id => String(id).trim().toLowerCase()));
+     const entryById = new Map<string, any>();
+     (allEntriesRes.records || []).forEach((entry: any) => {
+       const owner = String(Array.isArray(entry.user) ? entry.user[0] : entry.user || '').trim().toLowerCase();
+       if (entryOwnerSet.has(owner)) {
+         entryById.set(String(entry.id), entry);
+       }
+     });
     const membershipById = new Map<string, any>();
     membershipResults.flatMap(result => result.records).forEach((membership: any) => membershipById.set(String(membership.id), membership));
     const memberships = [...membershipById.values()];
