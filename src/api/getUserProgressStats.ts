@@ -4,7 +4,7 @@ import { createEndpoint, Users, SadhanaEntries } from '@/lib/backend-sdk';
 const USER_FIELDS = ['id', 'userId', 'email', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
-  'id', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'roundsCount', 'spReadingMinutes',
+  'id', 'user', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'roundsCount', 'spReadingMinutes',
   'preachingMinutes', 'booksDistributed', 'sleepMinutes',
   'sbPoints', 'maNaGvPoints', 'cleanlinessPoints', 'dailyServicePoints',
   'sleepQualityPoints', 'roundsPoints', 'spReadingPoints', 'quotesTulasiPoints', 'japaVisiblePoints',
@@ -278,6 +278,8 @@ export default createEndpoint({
     days: z.number().optional(),
     period: z.enum(['daily', 'weekly', 'monthly']).optional(),
     includeToday: z.boolean().optional(),
+    startDate: z.string().max(10).optional(),
+    endDate: z.string().max(10).optional(),
     // When true: use entry-count based insights instead of date-range
     // daily = yesterday's entry, weekly = last 7 entries, monthly = last 30 entries
     insightMode: z.boolean().optional(),
@@ -334,7 +336,29 @@ export default createEndpoint({
 
     const entryOwnerIds = userIdentityAliases(targetUser);
     if (entryOwnerIds.length === 0 && targetUserId) entryOwnerIds.push(targetUserId);
+    const entryOwnerSet = new Set(entryOwnerIds.map(String));
     const loadEntries = async (filters: Record<string, unknown>, limit = 500) => {
+      // A user equality plus entryDate range requires a composite Firestore
+      // index. Query the indexed date field first and resolve canonical user
+      // aliases in memory, just like the aggregate Stats endpoint does.
+      if (filters.entryDate !== undefined) {
+        const records: any[] = [];
+        const pageSize = 2000;
+        for (let offset = 0; ; offset += pageSize) {
+          const result = await SadhanaEntries.findAll({
+            filters: { entryDate: filters.entryDate } as any,
+            fields: ENTRY_FIELDS,
+            limit: pageSize,
+            offset,
+          });
+          records.push(...result.records);
+          if (!result.hasMore) break;
+        }
+        return dedupeEntries([{ records: records.filter(entry => {
+          const owner = String(Array.isArray(entry.user) ? entry.user[0] : entry.user || '').trim();
+          return entryOwnerSet.has(owner);
+        }) }]);
+      }
       const results = await Promise.all(entryOwnerIds.map(user => SadhanaEntries.findAll({
         filters: { ...filters, user } as any,
         fields: ENTRY_FIELDS,
@@ -352,12 +376,19 @@ export default createEndpoint({
     if (period === 'daily' && !includeToday) {
       endD.setDate(endD.getDate() - 1);
     }
-    const endDate = endD.toISOString().split('T')[0];
+    const endDate = input.endDate || endD.toISOString().split('T')[0];
     const defaultDays = period === 'monthly' ? 30 : period === 'weekly' ? 7 : 1;
-    const days = input.days ?? defaultDays;
-    const startD = new Date(endD);
-    startD.setDate(startD.getDate() - (days - 1));
-    const startDate = startD.toISOString().split('T')[0];
+    let days = input.days ?? defaultDays;
+    let startDate = input.startDate || '';
+    if (!startDate) {
+      const startD = new Date(`${endDate}T00:00:00Z`);
+      startD.setUTCDate(startD.getUTCDate() - (days - 1));
+      startDate = startD.toISOString().split('T')[0];
+    } else if (input.endDate) {
+      const rangeStart = new Date(`${startDate}T00:00:00Z`).getTime();
+      const rangeEnd = new Date(`${endDate}T00:00:00Z`).getTime();
+      days = Math.max(1, Math.floor((rangeEnd - rangeStart) / 86400000) + 1);
+    }
 
     const trendEntries = await loadEntries({ entryDate: { gte: startDate, lte: endDate } });
 

@@ -484,9 +484,7 @@ export async function getBulkExportData(
   const serialize = (header: string, value: unknown) => {
     if (value == null) return '';
     const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-    // CSV has no column types. The leading apostrophe makes Excel/Sheets keep
-    // all phone fields as text instead of turning them into scientific notation.
-    return /(?:phone|whatsapp)/i.test(header) && text ? `'${text}` : text;
+    return text;
   };
   return {
     headers,

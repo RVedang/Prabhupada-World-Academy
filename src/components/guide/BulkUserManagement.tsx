@@ -24,6 +24,7 @@ interface PreviewRow {
   errors: string[];
 }
 
+
 interface PreviewResult {
   totalRecords: number;
   newUsers: number;
@@ -218,11 +219,11 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
         <DialogContent className="sm:max-w-xl">
           <DialogHeader><DialogTitle>Export FOLK Users</DialogTitle><DialogDescription>Only users allowed by your existing guide hierarchy are included.</DialogDescription></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="space-y-1"><Label>Status</Label><Select value={filters.status} onValueChange={value => setFilters(current => ({ ...current, status: value || 'all' }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ALL</SelectItem><SelectItem value="active">Active Users</SelectItem><SelectItem value="inactive">Inactive Users</SelectItem></SelectContent></Select></div>
-            <div className="space-y-1"><Label>Bhakti Vriksha Group</Label><Select value={filters.groupId} onValueChange={value => setFilters(current => ({ ...current, groupId: value || 'all' }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ALL</SelectItem>{options.groups.map(group => <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1"><Label>Status</Label><Select value={filters.status} onValueChange={value => setFilters(current => ({ ...current, status: value || 'all' }))}><SelectTrigger><span>{filters.status === 'all' ? 'ALL' : filters.status === 'active' ? 'Active Users' : 'Inactive Users'}</span></SelectTrigger><SelectContent><SelectItem value="all">ALL</SelectItem><SelectItem value="active">Active Users</SelectItem><SelectItem value="inactive">Inactive Users</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1"><Label>Bhakti Vriksha Group</Label><Select value={filters.groupId} onValueChange={value => setFilters(current => ({ ...current, groupId: value || 'all' }))}><SelectTrigger><span>{filters.groupId === 'all' ? 'ALL' : options.groups.find(group => group.id === filters.groupId)?.name || filters.groupId}</span></SelectTrigger><SelectContent><SelectItem value="all">ALL</SelectItem>{options.groups.map(group => <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-1"><Label>From Date</Label><Input type="date" value={filters.startDate} onChange={event => setFilters(current => ({ ...current, startDate: event.target.value }))} /></div>
             <div className="space-y-1"><Label>To Date</Label><Input type="date" value={filters.endDate} onChange={event => setFilters(current => ({ ...current, endDate: event.target.value }))} /></div>
-            {isSuperGuide && <div className="space-y-1 sm:col-span-2"><Label>Assigned Guide</Label><Select value={filters.assignedGuideId} onValueChange={value => setFilters(current => ({ ...current, assignedGuideId: value || 'all' }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">ALL</SelectItem>{options.guides.map(guide => <SelectItem key={guide.id} value={guide.id}>{guide.name}</SelectItem>)}</SelectContent></Select></div>}
+            {isSuperGuide && <div className="space-y-1 sm:col-span-2"><Label>Assigned Guide</Label><Select value={filters.assignedGuideId} onValueChange={value => setFilters(current => ({ ...current, assignedGuideId: value || 'all' }))}><SelectTrigger><span>{filters.assignedGuideId === 'all' ? 'ALL' : options.guides.find(guide => guide.id === filters.assignedGuideId)?.name || filters.assignedGuideId}</span></SelectTrigger><SelectContent><SelectItem value="all">ALL</SelectItem>{options.guides.map(guide => <SelectItem key={guide.id} value={guide.id}>{guide.name}</SelectItem>)}</SelectContent></Select></div>}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setExportOpen(false)} disabled={busy}>Cancel</Button><Button onClick={runExport} disabled={busy}>{busy && <Loader2 className="w-4 h-4 animate-spin" />} Export CSV</Button></DialogFooter>
         </DialogContent>
@@ -230,4 +231,3 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
     </>
   );
 }
-

@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Users, CheckCircle2, Brain } from 'lucide-react';
 import { toast } from 'sonner';
@@ -46,6 +46,9 @@ function StatCard({ icon: Icon, label, value, sub, color = 'text-primary' }: {
 function AttendanceMatrix({ matrix, dates }: { matrix: MatrixData; dates: string[] }) {
   if (matrix.rows.length === 0) {
     return <p className="text-sm text-muted-foreground text-center py-6">No attendance records found.</p>;
+  }
+  if (dates.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-6">No attendance sessions found in the selected date range.</p>;
   }
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -182,25 +185,44 @@ export default function BvGroupDetailPage() {
   const [weekFilter, setWeekFilter] = useState<WeekFilter>('this_week');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [matrixLoading, setMatrixLoading] = useState(false);
+  const [matrixError, setMatrixError] = useState('');
 
   const dateRange = useMemo(() => {
     if (weekFilter === 'custom' && customStart && customEnd) {
       return { start: customStart, end: customEnd };
     }
+    if (weekFilter === 'custom') return null;
     return getWeekRange(weekFilter === 'prev_week' ? 'prev_week' : 'this_week');
   }, [weekFilter, customStart, customEnd]);
 
   useEffect(() => { if (groupId) load(); }, [groupId]);
 
   useEffect(() => {
-    if (!groupId) return;
+    if (!groupId || !dateRange) {
+      setMatrix(null);
+      setMatrixLoading(false);
+      setMatrixError('');
+      return;
+    }
+    let cancelled = false;
+    setMatrixLoading(true);
+    setMatrixError('');
+    setMatrix(null);
     getBvAttendanceMatrix({
       groupId,
       startDate: dateRange.start,
       endDate: dateRange.end,
     })
-      .then(setMatrix)
-      .catch(() => {});
+      .then(data => { if (!cancelled) setMatrix(data); })
+      .catch(() => {
+        if (!cancelled) {
+          setMatrixError('Unable to load attendance for this date range.');
+          toast.error('Unable to refresh the attendance matrix');
+        }
+      })
+      .finally(() => { if (!cancelled) setMatrixLoading(false); });
+    return () => { cancelled = true; };
   }, [groupId, dateRange]);
 
   const load = async () => {
@@ -223,10 +245,7 @@ export default function BvGroupDetailPage() {
     return total > 0 ? Math.round((present / total) * 100) : 0;
   }, [detail]);
 
-  const activeDates = useMemo(() => {
-    if (!matrix) return [];
-    return matrix.dates.filter(d => matrix.rows.some(r => r.attendance[d] === 1));
-  }, [matrix]);
+  const matrixDates = useMemo(() => matrix?.dates ?? [], [matrix]);
 
   if (loading) {
     return (
@@ -320,11 +339,25 @@ export default function BvGroupDetailPage() {
                     <>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">From</span>
-                      <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="w-36 h-8" />
+                      <DateTimePicker
+                        type="date"
+                        value={customStart}
+                        onChange={setCustomStart}
+                        max={customEnd || undefined}
+                        placeholder="Choose start date"
+                        className="h-9 w-[190px] rounded-lg"
+                      />
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">To</span>
-                      <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="w-36 h-8" />
+                      <DateTimePicker
+                        type="date"
+                        value={customEnd}
+                        onChange={setCustomEnd}
+                        min={customStart || undefined}
+                        placeholder="Choose end date"
+                        className="h-9 w-[190px] rounded-lg"
+                      />
                     </div>
                     </>
                   ) : (
@@ -332,13 +365,13 @@ export default function BvGroupDetailPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">From</span>
                         <span className="text-sm font-medium border rounded-md px-3 py-1.5 bg-muted/30">
-                          {format(new Date(dateRange.start + 'T00:00:00'), 'MM/dd/yyyy')}
+                          {dateRange ? format(new Date(dateRange.start + 'T00:00:00'), 'MM/dd/yyyy') : ''}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">To</span>
                         <span className="text-sm font-medium border rounded-md px-3 py-1.5 bg-muted/30">
-                          {format(new Date(dateRange.end + 'T00:00:00'), 'MM/dd/yyyy')}
+                          {dateRange ? format(new Date(dateRange.end + 'T00:00:00'), 'MM/dd/yyyy') : ''}
                         </span>
                       </div>
                     </>
@@ -346,10 +379,14 @@ export default function BvGroupDetailPage() {
                   </div>
               </CardHeader>
               <CardContent>
-                {matrix ? (
-                  <AttendanceMatrix matrix={matrix} dates={activeDates} />
+                {matrixLoading ? (
+                  <Skeleton className="h-24 w-full rounded-lg" />
+                ) : matrixError ? (
+                  <p className="text-sm text-destructive text-center py-6">{matrixError}</p>
+                ) : matrix ? (
+                  <AttendanceMatrix matrix={matrix} dates={matrixDates} />
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">Loading attendance data...</p>
+                  <p className="text-sm text-muted-foreground text-center py-6">Select both From and To dates to load attendance.</p>
                 )}
               </CardContent>
             </Card>

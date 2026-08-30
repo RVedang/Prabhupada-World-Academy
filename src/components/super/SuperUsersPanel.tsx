@@ -83,7 +83,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
   const isPwMode = effectiveSegment === 'PW';
   const normalizedProfileRole = String(profile?.role || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
-  const canManageBulkUsers = !isPwMode && ['GUIDE', 'SUPER_GUIDE'].includes(normalizedProfileRole);
+  const canManageBulkUsers = !isPwMode && ['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN'].includes(normalizedProfileRole);
 
   const isSuperAdmin = isSuperAdminOverride !== undefined ? isSuperAdminOverride : !!(
     profile?.isBvSuperAdmin ||
@@ -560,7 +560,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
           <div className="flex flex-col gap-3">
             {canManageBulkUsers && (
               <BulkUserManagement
-                isSuperGuide={normalizedProfileRole === 'SUPER_GUIDE'}
+                isSuperGuide={isSuperAdmin}
                 onImported={loadData}
               />
             )}

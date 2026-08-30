@@ -93,6 +93,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [userStats, setUserStats] = useState<any>(null);
   const [userLoading, setUserLoading] = useState(false);
+  const [userError, setUserError] = useState('');
 
   const { start, end } = useMemo(() => getPeriodDates(period), [period]);
 
@@ -116,17 +117,32 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
   }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter, isPw]);
 
   // Reset user when filters change
-  useEffect(() => { setSelectedUserId(''); setUserStats(null); }, [residencyFilter, folkResidencyId, period]);
+  useEffect(() => { setSelectedUserId(''); setUserStats(null); setUserError(''); }, [residencyFilter, folkResidencyId, period]);
 
   useEffect(() => {
-    if (!selectedUserId) { setUserStats(null); return; }
+    if (!selectedUserId) { setUserStats(null); setUserError(''); return; }
+    let cancelled = false;
     setUserLoading(true);
+    setUserError('');
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 31;
-    getUserProgressStats({ userId: selectedUserId, days, period: 'daily', includeToday: true })
-      .then(data => setUserStats(data))
-      .catch(() => {})
-      .finally(() => setUserLoading(false));
-  }, [selectedUserId, period]);
+    getUserProgressStats({
+      userId: selectedUserId,
+      days,
+      period: 'daily',
+      includeToday: true,
+      startDate: start,
+      endDate: end,
+    })
+      .then(data => { if (!cancelled) setUserStats(data); })
+      .catch(() => {
+        if (!cancelled) {
+          setUserStats(null);
+          setUserError('Unable to load this user’s stats. Please try again.');
+        }
+      })
+      .finally(() => { if (!cancelled) setUserLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedUserId, period, start, end]);
 
   const groupFieldConfigs: FieldConfig[] = useMemo(() => {
     if (residencyFilter === 'resident' || residencyFilter === 'scholar') return RESIDENT_FIELD_CONFIGS;
@@ -329,6 +345,10 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
             </div>
           ) : userLoading ? (
             <Skeleton className="h-72 w-full" />
+          ) : userError ? (
+            <div className="flex items-center justify-center h-28 text-destructive text-sm">
+              {userError}
+            </div>
           ) : userStats && userChartData.length > 0 ? (
             <FieldTrendChart
               data={userChartData}
