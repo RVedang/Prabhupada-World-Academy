@@ -430,6 +430,8 @@ export async function getBulkExportData(
     'user.bvReportingSupervisorId', 'user.bvReportingSupervisorld', 'user.guide',
     'bvRegistration.segment', 'user.lastLoginAt', 'user.lastStreakUpdatedAt',
     'user.roleNoticeAcknowledged', 'user.segment',
+    'bvRegistration.id', 'user.currentStreak', 'user.id',
+    'user.selectedGuideId', 'user.selectedGuideld',
   ]);
 
   const scoped = users.filter(user => {

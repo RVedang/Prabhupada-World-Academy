@@ -139,7 +139,7 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
       const exported = await exportBulkUsers(filters);
       if (!exported.rows.length) { toast.info('No users match the selected filters'); return; }
       const textColumns = exported.headers.filter((header: string, index: number) =>
-        /(?:phone|whatsapp|dob|statusChangedAt)/i.test(header)
+        /(?:phone|whatsapp|dob|statusChangedAt|residencyJoinDate)/i.test(header)
         || exported.rows.some((row: any) => /^\+?\d{10,}$/.test(String(row[index] ?? '').replace(/^'+/, '').trim())),
       );
       exportToCsv(exported.filename, exported.headers, exported.rows, {
