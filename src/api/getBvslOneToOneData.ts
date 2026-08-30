@@ -51,7 +51,10 @@ export default createEndpoint({
 
     // Fetch candidate users
     const { records: allUsers } = await Users.findAll({
-      filters: { segment: callerSegment, status: 'Active' },
+      // Group Members resolves users from the membership records and does not
+      // exclude them by status. Keep the same behavior here so members shown
+      // in that tab are also available in the RGSF 1:1 report.
+      filters: { segment: callerSegment },
       fields: userFields,
       limit: 2000,
     });
@@ -120,7 +123,9 @@ export default createEndpoint({
         ]).some(value => callerKeys.has(value));
         const assignedToReportingRgf = isRgsf && refValues([g.bvslLeader, g.bvslId]).some(value => parentKeys.has(value));
         return assignedToCaller || assignedToReportingRgf;
-      }).flatMap((g: any) => [g.id, g.groupId].filter(Boolean).map(String));
+      }).flatMap((g: any) => [g.id, g.groupId]
+        .filter(Boolean)
+        .map(value => String(value).toLowerCase()));
       const userGroupIdSet = new Set(userGroupIds);
 
       if (userGroupIds.length > 0) {

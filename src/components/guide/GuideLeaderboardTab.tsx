@@ -69,9 +69,9 @@ const MONTH_OPTIONS = getMonthOptions();
 const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
 const today = format(new Date(), 'yyyy-MM-dd');
 
-interface Props { guideId?: string; }
+interface Props { guideId?: string; bvslMode?: boolean; }
 
-export default function GuideLeaderboardTab({ guideId }: Props) {
+export default function GuideLeaderboardTab({ guideId, bvslMode }: Props) {
   const { profile } = useUserProfile();
   const isFolk = profile?.segment === 'FOLK';
   const [reportType, setReportType] = useState<ReportType>('daily');
@@ -102,20 +102,20 @@ export default function GuideLeaderboardTab({ guideId }: Props) {
 
   const loadFolk = useCallback(async (s: string, e: string) => {
     setFolkLoading(true);
-    try { setFolkData(await getFolkSadhanaReport({ date: s, startDate: s, endDate: e })); }
+    try { setFolkData(await getFolkSadhanaReport({ date: s, startDate: s, endDate: e, bvslMode })); }
     catch {/* ignore */} finally { setFolkLoading(false); }
-  }, []);
+  }, [bvslMode]);
 
   const loadLb = useCallback(async (s: string, e: string) => {
     setLbLoading(true);
-    try { setLbData(await getSadhanaLeaderboard({ date: s, startDate: s, endDate: e })); }
+    try { setLbData(await getSadhanaLeaderboard({ date: s, startDate: s, endDate: e, guideId, bvslMode })); }
     catch {/* ignore */} finally { setLbLoading(false); }
-  }, []);
+  }, [guideId, bvslMode]);
 
   useEffect(() => {
     loadFolk(startDate, endDate);
     loadLb(startDate, endDate);
-  }, [startDate, endDate]);
+  }, [startDate, endDate, loadFolk, loadLb]);
 
   const handleRefresh = () => { loadFolk(startDate, endDate); loadLb(startDate, endDate); };
 

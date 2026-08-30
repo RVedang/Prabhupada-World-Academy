@@ -2,10 +2,11 @@ import { z } from 'zod';
 import { createEndpoint, Users, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
+import { bvUserAliases, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 
 const ENTRY_FIELDS = ['id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'maxScore', 'flagSick', 'flagOs', 'submittedAt'];
 const STREAK_ENTRY_FIELDS = ['id', 'user', 'entryDate', 'scorePercent'];
-const USER_FIELDS = ['id', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'guide', 'status', 'userId', 'role'];
+const USER_FIELDS = ['id', 'fullName', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'guide', 'status', 'userId', 'role', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 
 /** Roles to exclude from the leaderboard — only administrative roles */
 const EXCLUDED_ROLES = new Set(['Guide', 'Super Guide']);
@@ -35,6 +36,7 @@ export default createEndpoint({
     residencyId: z.string().optional(),
     guideId: z.string().optional(),
     scope: z.enum(['residency', 'guide', 'global']).optional(),
+    bvslMode: z.boolean().optional(),
     date: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
@@ -143,6 +145,10 @@ export default createEndpoint({
       }
     }
 
+    if (input.bvslMode) {
+      allUsers = await resolveBvGroupMemberUsers(context.user, USER_FIELDS);
+    }
+
     // ── Streak entries (100-day window up to endStr) ──────────────────────
     const streakRefDate = endStr <= todayStr ? endStr : todayStr;
     const streakStart   = daysAgo(streakRefDate, 100);
@@ -161,11 +167,15 @@ export default createEndpoint({
     }
 
     // Build streak history per user
-    const userDbIds = new Set(allUsers.map(u => u.id));
+    const aliasToUserId = new Map<string, string>();
+    for (const user of allUsers) {
+      bvUserAliases(user).forEach(alias => aliasToUserId.set(alias, user.id));
+    }
     const streakByUser = new Map<string, Array<{ entryDate: string; scorePercent: number | null }>>();
     for (const e of streakEntries) {
-      const uid = (Array.isArray(e.user) ? e.user[0] : e.user) as string;
-      if (!uid || !userDbIds.has(uid)) continue;
+      const rawUid = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim().toLowerCase();
+      const uid = aliasToUserId.get(rawUid);
+      if (!uid) continue;
       if (!streakByUser.has(uid)) streakByUser.set(uid, []);
       streakByUser.get(uid)!.push({ entryDate: (e.entryDate as string) || '', scorePercent: e.scorePercent as number | null });
     }
@@ -173,7 +183,8 @@ export default createEndpoint({
     // ── Group entries by user DB ID ───────────────────────────────────────
     const entriesByUser = new Map<string, any[]>();
     for (const e of allEntries) {
-      const uid = (Array.isArray(e.user) ? e.user[0] : e.user) as string;
+      const rawUid = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim().toLowerCase();
+      const uid = aliasToUserId.get(rawUid);
       if (!uid) continue;
       if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
       entriesByUser.get(uid)!.push(e);

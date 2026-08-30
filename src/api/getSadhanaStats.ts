@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
+import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
@@ -64,7 +65,7 @@ export default createEndpoint({
       const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'guide'] });
       const gid = Array.isArray(userRec?.guide) ? userRec!.guide[0] : userRec?.guide;
       guideDbId = gid ? (gid as string) : null;
-      if (!guideDbId) return { dailyTrend: [], fieldAverages: [], userSummaries: [], totalUsers: 0, error: 'No FOLK Guide assigned.' };
+      if (!guideDbId && mentorMode) return { dailyTrend: [], fieldAverages: [], userSummaries: [], totalUsers: 0, error: 'No FOLK Guide assigned.' };
     }
 
     let guideResidencyIds: string[] = [];
@@ -112,89 +113,7 @@ export default createEndpoint({
     }
 
     if (bvslMode) {
-      // Resolve groups using every known identity alias. Older BV records use
-      // the Firestore id, custom userId, email, or one of several facilitator
-      // field names; matching only context.user.id makes valid RGSF reports
-      // appear empty.
-      const bvslUser = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined);
-      const normalizeRef = (value: unknown) => String(value || '').trim().toLowerCase();
-      const aliases = new Set([
-        context.user.id,
-        context.user.userId,
-        context.user.email,
-        bvslUser?.id,
-        bvslUser?.userId,
-        bvslUser?.email,
-      ].filter(Boolean).map(normalizeRef));
-      const reportingRgfAliases = new Set(
-        [context.user.bvReportingFacilitatorId, (bvslUser as any)?.bvReportingFacilitatorId]
-          .flatMap((value: any) => Array.isArray(value) ? value : [value])
-          .filter(Boolean)
-          .map(normalizeRef)
-      );
-      if (reportingRgfAliases.size > 0) {
-        const parentQueries = await Promise.all([
-          Users.findAll({ filters: { id: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-          Users.findAll({ filters: { userId: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-          Users.findAll({ filters: { email: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-        ]);
-        parentQueries.flatMap(result => result.records || []).forEach((parent: any) => [parent.id, parent.userId, parent.email].filter(Boolean)
-          .forEach((value: any) => reportingRgfAliases.add(normalizeRef(value))));
-      }
-      const refValues = (value: unknown): string[] => {
-        const values = Array.isArray(value) ? value : value == null ? [] : [value];
-        return values.flatMap(v => String(v || '').split(',')).map(normalizeRef).filter(Boolean);
-      };
-      const { records: allGroups } = await BvGroups.findAll({
-        filters: { isActive: true } as any,
-        fields: ['id', 'groupId', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
-        limit: 500,
-      });
-      const isRgsf = !!context.user.isBvSubFacilitator ||
-        String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
-      const groups = allGroups.filter((group: any) => {
-        const directRefs = ['bvslLeader', 'bvslId'].flatMap(field => refValues(group[field]));
-        const subRefs = ['subFacilitatorId', 'rgsfId', 'subFacilitator'].flatMap(field => refValues(group[field]));
-        const parentGroup = directRefs.some(ref => reportingRgfAliases.has(ref));
-        return isRgsf
-          ? parentGroup || subRefs.some(ref => aliases.has(ref))
-          : directRefs.some(ref => aliases.has(ref));
-      });
-      if (groups.length > 0) {
-        const groupRefs = [...new Set(groups.flatMap((g: any) => [g.id, g.groupId].filter(Boolean)))];
-        const targetGroupRefs = new Set(groupRefs.map(normalizeRef));
-        const { records: memberships } = await BvGroupMembers.findAll({
-          filters: { group: { in: groupRefs } } as any,
-          fields: ['id', 'user', 'userId', 'group', 'groupId'], limit: 2000,
-        });
-        const { records: membershipsByGroupId } = await BvGroupMembers.findAll({
-          filters: { groupId: { in: groupRefs } } as any,
-          fields: ['id', 'user', 'userId', 'group', 'groupId'], limit: 2000,
-        }).catch(() => ({ records: [] }));
-        const memberAliases = new Set<string>();
-        for (const membership of [...memberships, ...membershipsByGroupId]) {
-          const groupRefsForMembership = refValues(membership.group || membership.groupId);
-          if (groupRefsForMembership.length > 0 && !groupRefsForMembership.some(ref => targetGroupRefs.has(ref))) continue;
-          for (const field of ['user', 'userId']) {
-            for (const ref of refValues(membership[field])) memberAliases.add(ref);
-          }
-        }
-        // Group members can belong to a different guide/residency than the
-        // RGSF, so merge the authoritative membership users before filtering.
-        const { records: allActiveUsers } = await Users.findAll({
-          filters: { status: 'Active' },
-          fields: USER_FIELDS,
-          limit: 3000,
-        });
-        const mergedUsers = new Map<string, any>();
-        for (const user of users) mergedUsers.set(String(user.id), user);
-        for (const user of allActiveUsers) {
-          if (userIdentityAliases(user).some(alias => memberAliases.has(normalizeRef(alias)))) mergedUsers.set(String(user.id), user);
-        }
-        users = [...mergedUsers.values()].filter(user => userIdentityAliases(user).some(alias => memberAliases.has(normalizeRef(alias))));
-      } else { users = []; }
+      users = await resolveBvGroupMemberUsers(context.user, USER_FIELDS);
     }
 
     // Helper: is a user a scholar (temp resident visiting FOLK)?

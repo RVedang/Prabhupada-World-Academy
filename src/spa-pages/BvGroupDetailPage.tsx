@@ -194,10 +194,14 @@ export default function BvGroupDetailPage() {
 
   useEffect(() => {
     if (!groupId) return;
-    getBvAttendanceMatrix({ groupId })
+    getBvAttendanceMatrix({
+      groupId,
+      startDate: dateRange.start,
+      endDate: dateRange.end,
+    })
       .then(setMatrix)
       .catch(() => {});
-  }, [groupId]);
+  }, [groupId, dateRange]);
 
   const load = async () => {
     if (!groupId) return;
@@ -311,8 +315,9 @@ export default function BvGroupDetailPage() {
                     ))}
                   </div>
                 </div>
-                {weekFilter === 'custom' && (
-                  <div className="flex gap-3 flex-wrap mt-2">
+                <div className="flex gap-3 flex-wrap mt-2">
+                  {weekFilter === 'custom' ? (
+                    <>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">From</span>
                       <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="w-36 h-8" />
@@ -321,8 +326,24 @@ export default function BvGroupDetailPage() {
                       <span className="text-sm text-muted-foreground">To</span>
                       <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="w-36 h-8" />
                     </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">From</span>
+                        <span className="text-sm font-medium border rounded-md px-3 py-1.5 bg-muted/30">
+                          {format(new Date(dateRange.start + 'T00:00:00'), 'MM/dd/yyyy')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">To</span>
+                        <span className="text-sm font-medium border rounded-md px-3 py-1.5 bg-muted/30">
+                          {format(new Date(dateRange.end + 'T00:00:00'), 'MM/dd/yyyy')}
+                        </span>
+                      </div>
+                    </>
+                  )}
                   </div>
-                )}
               </CardHeader>
               <CardContent>
                 {matrix ? (

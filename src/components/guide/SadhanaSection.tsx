@@ -73,7 +73,7 @@ export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMo
         <ImprovementTab guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} />
       )}
       {subTab === 'leaderboard' && (
-        <GuideLeaderboardTab guideId={guideId} />
+        <GuideLeaderboardTab guideId={guideId} bvslMode={bvslMode} />
       )}
     </div>
   );

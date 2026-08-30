@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { createEndpoint, Users, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideScope } from '../lib/guideScope';
+import { bvUserAliases, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+
+const MEMBER_USER_FIELDS = ['id', 'userId', 'email', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 
 function parseFieldValues(json: string | null | undefined): Record<string, any> {
   if (!json) return {};
@@ -65,6 +68,7 @@ export default createEndpoint({
     date: z.string(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
+    bvslMode: z.boolean().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: { input: any; context: any }) => {
@@ -108,19 +112,24 @@ export default createEndpoint({
       guideRids = scope?.residencyIds || [];
     }
 
-    const residents = allUsers.filter(u => {
+    const scopedUsers = input.bvslMode
+      ? await resolveBvGroupMemberUsers(context.user, MEMBER_USER_FIELDS)
+      : allUsers;
+    const residents = scopedUsers.filter(u => {
       const resId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
       const isApprovedRes = u.residencyApproved && resId && !u.temporaryResidencyEnabled;
       if (!isApprovedRes) return false;
-      if (!isSuperGuide) {
+      if (!input.bvslMode && !isSuperGuide) {
         return guideRids.includes(resId);
       }
       return true;
     });
 
-    if (residents.length === 0) return { folkRows: [], fieldDefs: RESIDENT_FIELD_DEFS, title: isSuperGuide ? "All Residencies" : "My Residency" };
+    const scopedTitle = input.bvslMode ? 'Assigned Groups' : isSuperGuide ? 'All Residencies' : 'My Residency';
+    if (residents.length === 0) return { folkRows: [], fieldDefs: RESIDENT_FIELD_DEFS, title: scopedTitle };
 
-    const residentIdSet = new Set(residents.map(u => u.id));
+    const residentAliasToId = new Map<string, string>();
+    residents.forEach(user => bvUserAliases(user).forEach(alias => residentAliasToId.set(alias, user.id)));
 
     // 2. Fetch entries for the date range
     const isDaily = effectiveStart === effectiveEnd;
@@ -153,8 +162,9 @@ export default createEndpoint({
     // 3. Map entries by user DB ID
     const entriesByUser = new Map<string, any[]>();
     for (const e of allEntries) {
-      const uid = Array.isArray(e.user) ? e.user[0] : e.user;
-      if (!uid || !residentIdSet.has(uid)) continue;
+      const rawUid = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim().toLowerCase();
+      const uid = residentAliasToId.get(rawUid);
+      if (!uid) continue;
       if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
       entriesByUser.get(uid)!.push(e);
     }
@@ -317,7 +327,9 @@ export default createEndpoint({
     folkRows.sort((a, b) => (b.weightedScore ?? -1) - (a.weightedScore ?? -1));
 
     const residencyNames = residencyIds.map(id => (residencyNameMap[id] || '').replace(/^FOLK\s+/i, '') || id);
-    const title = isSuperGuide
+    const title = input.bvslMode
+      ? 'Assigned Groups'
+      : isSuperGuide
       ? "All Residencies"
       : (residencyNames.length > 0 ? residencyNames.join(', ') : 'My Residency');
 

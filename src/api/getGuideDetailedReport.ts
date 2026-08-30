@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
+import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole, normalizeAshrayLevel } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
+import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 import { NON_RESIDENT_FIELDS } from '../config/sadhanaFields';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
@@ -846,110 +847,9 @@ export default createEndpoint({
       });
     }
 
-    // Fix 11: BVSL mode — filter users to only members of this BVSL's own active BV groups
+    // BVSL/RGSF reports use authoritative assigned-group memberships.
     if (bvslMode) {
-      // Group records have historically used several facilitator fields and
-      // either the Firebase document ID or the app's USER-* ID. Resolve all
-      // aliases before selecting the RGF's groups, otherwise today's entries
-      // disappear from the report even though the user is a valid member.
-      const bvslUser = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId'] }).catch(() => undefined);
-      const normalizeRef = (value: unknown) => String(value || '').trim().toLowerCase();
-      const bvslAliases = new Set([
-        context.user.id,
-        context.user.userId,
-        context.user.email,
-        bvslUser?.id,
-        bvslUser?.userId,
-        bvslUser?.email,
-      ].filter(Boolean).map(normalizeRef));
-      const reportingRgfAliases = new Set(
-        [context.user.bvReportingFacilitatorId, (bvslUser as any)?.bvReportingFacilitatorId]
-          .flatMap((value: any) => Array.isArray(value) ? value : [value])
-          .filter(Boolean)
-          .map(normalizeRef)
-      );
-      if (reportingRgfAliases.size > 0) {
-        const parentQueries = await Promise.all([
-          Users.findAll({ filters: { id: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-          Users.findAll({ filters: { userId: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-          Users.findAll({ filters: { email: { in: Array.from(reportingRgfAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-        ]);
-        parentQueries.flatMap(result => result.records || []).forEach((parent: any) => [parent.id, parent.userId, parent.email].filter(Boolean)
-          .forEach((value: any) => reportingRgfAliases.add(normalizeRef(value))));
-      }
-      const groupRefValues = (value: unknown): string[] => {
-        const values = Array.isArray(value) ? value : value == null ? [] : [value];
-        return values.flatMap(v => String(v || '').split(',')).map(normalizeRef).filter(Boolean);
-      };
-
-      const { records: allBvslGroups } = await BvGroups.findAll({
-        filters: { isActive: true } as any,
-        fields: ['id', 'groupId', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
-        limit: 500,
-      });
-      const isRgsf = !!context.user.isBvSubFacilitator ||
-        String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
-      const bvslGroups = allBvslGroups.filter((group: any) => {
-        const directRefs = ['bvslLeader', 'bvslId'].flatMap(field => groupRefValues(group[field]));
-        const subRefs = ['subFacilitatorId', 'rgsfId', 'subFacilitator'].flatMap(field => groupRefValues(group[field]));
-        const parentGroup = directRefs.some(ref => reportingRgfAliases.has(ref));
-        return isRgsf
-          ? parentGroup || subRefs.some(ref => bvslAliases.has(ref))
-          : directRefs.some(ref => bvslAliases.has(ref));
-      });
-
-      if (bvslGroups.length > 0) {
-        // Legacy group-membership rows may point at either the Firestore row
-        // id or the public groupId. Query both forms so valid members are not
-        // dropped from the RGF report.
-        const groupRefs = [...new Set(bvslGroups.flatMap((g: any) => [g.id, g.groupId].filter(Boolean)))];
-        const targetGroupRefs = new Set(groupRefs.map(normalizeRef));
-        const { records: memberships } = await BvGroupMembers.findAll({
-          filters: { group: { in: groupRefs } } as any,
-          fields: ['id', 'user', 'userId', 'group', 'groupId'],
-          limit: 2000,
-        });
-        // Also fetch memberships linked by the custom groupId string (some records use groupId instead of group)
-        const { records: membershipsByGroupId } = await BvGroupMembers.findAll({
-          filters: { groupId: { in: groupRefs } } as any,
-          fields: ['id', 'user', 'userId', 'group', 'groupId'],
-          limit: 2000,
-        }).catch(() => ({ records: [] }));
-        const allMemberships = [...memberships, ...membershipsByGroupId];
-        const scopedMemberships = allMemberships.filter((membership: any) => {
-          const groupRef = Array.isArray(membership.group) ? membership.group[0] : membership.group;
-          const refs = groupRefValues(groupRef || membership.groupId);
-          return refs.length === 0 || refs.some(ref => targetGroupRefs.has(ref));
-        });
-        const memberAliases = new Set<string>();
-        for (const membership of scopedMemberships) {
-          for (const field of ['user', 'userId']) {
-            for (const ref of groupRefValues(membership[field])) memberAliases.add(ref);
-          }
-        }
-
-        // Fetch the group members directly. They may not be under the RGF's
-        // parent guide/residency, so relying only on the earlier guide query
-        // can incorrectly produce an empty report.
-        const { records: allActiveUsers } = await Users.findAll({
-          filters: { status: 'Active' },
-          fields: USER_FIELDS,
-          limit: 3000,
-        });
-        const memberUsers = allActiveUsers.filter((u: any) =>
-          [u.id, u.userId, u.email].map(normalizeRef).some(ref => memberAliases.has(ref))
-        );
-        const mergedUsers = new Map<string, any>();
-        for (const user of users) mergedUsers.set(String(user.id), user);
-        for (const user of memberUsers) mergedUsers.set(String(user.id), user);
-        users = [...mergedUsers.values()].filter((u: any) =>
-          [u.id, u.userId, u.email].map(normalizeRef).some(ref => memberAliases.has(ref))
-        );
-      } else {
-        users = []; // BVSL has no active groups → empty report
-      }
+      users = await resolveBvGroupMemberUsers(context.user, USER_FIELDS);
     }
 
     if (users.length === 0) return { users: [], fieldDefs: FIELD_DEFS, availableResidencies, availableGuides: [], currentGuideId: guideDbId, summary: {} };
