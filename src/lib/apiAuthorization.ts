@@ -3,6 +3,7 @@ export type ApiCapability =
   | 'system.admin'
   | 'users.approve'
   | 'users.assigned.read'
+  | 'users.bulk.manage'
   | 'roles.assign'
   | 'sadhana.mentor.assign'
   | 'sadhana.reports'
@@ -122,6 +123,7 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
     addCapabilities(capabilities, [
       'users.approve',
       'users.assigned.read',
+      'users.bulk.manage',
       'roles.assign',
       'sadhana.mentor.assign',
       'sadhana.reports',
@@ -139,6 +141,7 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
     addCapabilities(capabilities, [
       'users.approve',
       'users.assigned.read',
+      'users.bulk.manage',
       'sadhana.mentor.assign',
       'sadhana.reports',
       'bv.manage',

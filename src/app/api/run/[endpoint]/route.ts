@@ -23,6 +23,7 @@ interface EndpointConfig {
   public?: boolean;
   publicSecretEnv?: string;
   requiredCapabilities?: ApiCapability | ApiCapability[];
+  maxBodyBytes?: number;
   inputSchema?: EndpointSchema;
   execute(args: { input: unknown; context: { user: ApiUserContext | null } }): Promise<unknown> | unknown;
 }
@@ -201,11 +202,6 @@ export async function POST(
     return NextResponse.json({ message: 'Invalid endpoint' }, { status: 404 });
   }
 
-  const contentLength = Number(req.headers.get('content-length') || 0);
-  if (Number.isFinite(contentLength) && contentLength > 1_000_000) {
-    return NextResponse.json({ message: 'Request body is too large' }, { status: 413 });
-  }
-
   try {
     // 1. Dynamic import of the requested endpoint file
     let endpointConfig: EndpointConfig;
@@ -217,6 +213,12 @@ export async function POST(
         { message: `Endpoint ${endpoint} not found or failed to load.` },
         { status: 404 }
       );
+    }
+
+    const contentLength = Number(req.headers.get('content-length') || 0);
+    const maxBodyBytes = endpointConfig.maxBodyBytes || 1_000_000;
+    if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
+      return NextResponse.json({ message: 'Request body is too large' }, { status: 413 });
     }
 
     // Public access must be explicitly declared. Missing configuration is private.
@@ -246,11 +248,41 @@ export async function POST(
         }
 
         const emailLower = decodedUser.email.toLowerCase();
-        const dbUser = (
-          await Users.findOne({ id: decodedUser.uid }).catch(() => null) ||
-          await Users.findOne({ filters: { email: decodedUser.email } }).catch(() => null) ||
-          await Users.findOne({ filters: { email: emailLower } }).catch(() => null)
-        ) as ApiDatabaseUser | null;
+        const uidRecord = await Users.findOne({ id: decodedUser.uid }).catch(() => null);
+        const uidRecordIsProfile = !!(uidRecord?.userId && uidRecord?.status);
+        let dbUser: ApiDatabaseUser | null = uidRecordIsProfile ? uidRecord : null;
+
+        if (!dbUser) {
+          dbUser = await Users.findOne({ filters: { firebaseUid: decodedUser.uid } }).catch(() => null);
+        }
+        if (!dbUser) {
+          const [exactEmailMatches, lowerEmailMatches] = await Promise.all([
+            Users.findAll({ filters: { email: decodedUser.email }, limit: 10 }).catch(() => ({ records: [] })),
+            Users.findAll({ filters: { email: emailLower }, limit: 10 }).catch(() => ({ records: [] })),
+          ]);
+          const emailCandidates = [...(exactEmailMatches.records || []), ...(lowerEmailMatches.records || [])]
+            .filter((record, index, records) => records.findIndex(item => item.id === record.id) === index);
+          dbUser = emailCandidates.find(record => record.userId && record.status) || emailCandidates[0] || uidRecord || null;
+        }
+
+        // Bulk-created profiles exist before the member's first Google login.
+        // Link the verified Firebase UID to the email-matched profile so every
+        // later request resolves directly, while preserving the existing user
+        // document ID referenced by assignments and BV records.
+        if (dbUser?.id && dbUser.id !== decodedUser.uid && (dbUser as any).firebaseUid !== decodedUser.uid) {
+          await Users.update({
+            id: dbUser.id,
+            record: { firebaseUid: decodedUser.uid, authLinkedAt: new Date().toISOString() },
+          });
+          (dbUser as any).firebaseUid = decodedUser.uid;
+
+          // Authentication sync may have created a bare UID document before
+          // this first API request. Once its verified email is linked to the
+          // complete imported profile, remove only that incomplete duplicate.
+          if (uidRecord?.id === decodedUser.uid && !uidRecordIsProfile && uidRecord.id !== dbUser.id) {
+            await Users.delete({ id: uidRecord.id }).catch(() => undefined);
+          }
+        }
 
         context.user = buildApiUserContext(decodedUser, dbUser);
       } catch (authError: unknown) {
@@ -272,7 +304,7 @@ export async function POST(
     }
 
     // 4. Input validation using Zod schema defined in endpoint
-    let validatedInput = body;
+    let validatedInput: unknown = body;
     if (endpointConfig.inputSchema) {
       const parseResult = endpointConfig.inputSchema.safeParse(body);
       if (!parseResult.success) {

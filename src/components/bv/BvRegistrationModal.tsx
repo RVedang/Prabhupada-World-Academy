@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Loader2, Leaf, HeartHandshake, BookOpen, Clock, Building2 } from 'lucide-react';
 import { registerBvMember } from '@/lib/app-endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { BULK_USER_ASHRAY_LEVELS, BULK_USER_TIME_PREFERENCES } from '@/config/bulkUserCsv';
 
 interface Props {
   open: boolean;
@@ -39,17 +40,10 @@ const COUNTRY_CODES = [
   { code: '+64', country: 'New Zealand', flag: '🇳🇿' },
 ];
 
-const ASHRAY_LEVELS = [
-  { value: 'None', label: 'None (Not a member yet)' },
-  { value: 'Jigyasa', label: 'Jigyasa' },
-  { value: 'Shraddhavan', label: 'Shraddhavan' },
-  { value: 'Sevak', label: 'Sevak' },
-  { value: 'Sadhaka', label: 'Sadhaka' },
-  { value: 'Upasaka', label: 'Upasaka' },
-  { value: 'Caranashraya', label: 'Caranashraya' },
-  { value: 'Harinam Diksha', label: 'Harinam Diksha' },
-  { value: 'Gauranga Sabha', label: 'Gauranga Sabha' },
-];
+const ASHRAY_LEVELS = BULK_USER_ASHRAY_LEVELS.map(value => ({
+  value,
+  label: value === 'None' ? 'None (Not a member yet)' : value,
+}));
 
 const PW_CLASSES = [
   { value: '5.30 a.m.', label: '5:30 AM Morning Class' },
@@ -58,12 +52,7 @@ const PW_CLASSES = [
   { value: 'None', label: 'None / Not attending currently' },
 ];
 
-const TIME_PREFERENCES = [
-  '7:45 PM – 8:15 PM (Everyday)',
-  '1:00 PM – 1:30 PM (Monday to Friday)',
-  '8:30 PM – 9:00 PM (Monday to Friday)',
-  '11:00 AM – 12:00 PM (Saturday & Sunday only)',
-];
+const TIME_PREFERENCES = BULK_USER_TIME_PREFERENCES;
 
 const parsePhone = (p?: string) => {
   if (!p) return { cc: '+91', num: '' };
@@ -509,6 +498,5 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
     </Dialog>
   );
 }
-
 
 

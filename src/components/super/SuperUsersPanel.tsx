@@ -22,6 +22,7 @@ import { scoreColor } from '@/lib/scoring';
 import { EmptyState, ConfirmDialog } from '@/shared';
 
 import MultiRoleAssignModal from './MultiRoleAssignModal';
+import BulkUserManagement from '@/components/guide/BulkUserManagement';
 
 type User = GetGuideUsersOutputType['users'][0] & { _guideId: string; _guideName: string };
 type GuideEntry = GetGuidesOutputType['guides'][0];
@@ -81,6 +82,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
   const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
   const isPwMode = effectiveSegment === 'PW';
+  const normalizedProfileRole = String(profile?.role || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
+  const canManageBulkUsers = !isPwMode && ['GUIDE', 'SUPER_GUIDE'].includes(normalizedProfileRole);
 
   const isSuperAdmin = isSuperAdminOverride !== undefined ? isSuperAdminOverride : !!(
     profile?.isBvSuperAdmin ||
@@ -555,6 +558,12 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3">
+            {canManageBulkUsers && (
+              <BulkUserManagement
+                isSuperGuide={normalizedProfileRole === 'SUPER_GUIDE'}
+                onImported={loadData}
+              />
+            )}
             <div className="flex flex-wrap gap-3 items-end">
               <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
                 <label className="text-xs font-medium text-muted-foreground">Search</label>

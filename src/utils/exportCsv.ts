@@ -24,7 +24,12 @@ export function exportToCsv(
   }
 
   const escape = (cell: any): string => {
-    const str = cell == null ? '' : String(cell);
+    let str = cell == null ? '' : String(cell);
+    // Prevent spreadsheet formula execution when an exported value is opened
+    // in Excel/Sheets. Preserve ordinary negative numeric values.
+    if (/^[=+@\t\r]/.test(str) || (/^-/.test(str) && !/^-\d+(?:\.\d+)?$/.test(str))) {
+      str = `'${str}`;
+    }
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
       return `"${str.replace(/"/g, '""')}"`;
     }
