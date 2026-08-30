@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, OneToOneMeetings, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
+import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 
 function getWeeks(weeksBack: number): string[] {
   const today = new Date();
@@ -161,6 +162,13 @@ export default createEndpoint({
           return true;
         });
       }
+    }
+
+    // Keep the RGSF 1:1 list on the same canonical group-member resolver used
+    // by Sadhana. This also removes blank legacy Users records that share the
+    // complete member profile's custom userId.
+    if (isRgsf) {
+      filteredUsers = await resolveBvGroupMemberUsers(context.user, userFields);
     }
 
     // Build hierarchy lookup maps for user cards
