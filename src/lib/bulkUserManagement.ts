@@ -505,16 +505,36 @@ export async function getBulkExportOptions(manager: Awaited<ReturnType<typeof re
   if (manager.isSuperGuide) {
     scopedGroups = groups.filter(group => {
       const segment = String(group.segment || '').toUpperCase();
-      return segment === 'FOLK';
+      return segment !== 'PW';
     });
   } else {
     const guideIdLower = manager.guideScope.guideId.toLowerCase();
     const guideEmailLower = (manager.user.email || '').toLowerCase();
+    const guideNameLower = (manager.guideScope.guideName || '').toLowerCase();
+
+    const canonical = await resolveGuideReference(manager.user.email);
+    const aliases = new Set<string>([
+      guideIdLower,
+      guideEmailLower,
+      guideNameLower,
+      String(manager.user.id || '').toLowerCase(),
+      String(manager.user.userId || '').toLowerCase(),
+      String(manager.user.fullName || '').toLowerCase(),
+      String(manager.user.name || '').toLowerCase(),
+    ].filter(Boolean));
+
+    if (canonical) {
+      if (canonical.id) aliases.add(canonical.id.toLowerCase());
+      if (canonical.userId) aliases.add(canonical.userId.toLowerCase());
+      if (canonical.email) aliases.add(canonical.email.toLowerCase());
+      if (canonical.fullName) aliases.add(canonical.fullName.toLowerCase());
+    }
+
     scopedGroups = groups.filter(group => {
       const segment = String(group.segment || '').toUpperCase();
-      if (segment !== 'FOLK') return false;
+      if (segment === 'PW') return false;
       const refs = refValues(group.guide).map(v => String(v).toLowerCase());
-      return refs.includes(guideIdLower) || refs.includes(guideEmailLower);
+      return refs.some(ref => aliases.has(ref));
     });
   }
   return {

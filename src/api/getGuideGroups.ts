@@ -6,28 +6,57 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({ guideId: z.string().optional() }),
   outputSchema: z.any(),
-  execute: async ({ context }) => {
+  execute: async ({ context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
     const isSuperGuide = context.user.role === 'Super Guide';
-    let guideDbId: string | null = null;
+    const guide = await Guides.findOne({ filters: { email: context.user.email, isActive: true } }).catch(() => null);
+    const userRec = await Users.findOne({ filters: { email: context.user.email } }).catch(() => null);
 
-    if (!isSuperGuide) {
-      const guide = await Guides.findOne({ filters: { email: context.user.email, isActive: true }, fields: ['id'] });
-      if (!guide) return { groups: [], availableUsers: [] };
-      guideDbId = (guide as any).id;
+    const aliases = new Set<string>([
+      context.user.email.toLowerCase(),
+      String(context.user.id || '').toLowerCase(),
+      String(context.user.userId || '').toLowerCase(),
+      String(context.user.fullName || '').toLowerCase(),
+      String(context.user.name || '').toLowerCase(),
+    ].filter(Boolean));
+
+    if (guide) {
+      aliases.add(String(guide.id).toLowerCase());
+      if (guide.fullName) aliases.add(guide.fullName.toLowerCase());
+      if (guide.name) aliases.add(guide.name.toLowerCase());
+      if (guide.email) aliases.add(guide.email.toLowerCase());
+    }
+    if (userRec) {
+      aliases.add(String(userRec.id).toLowerCase());
+      if (userRec.userId) aliases.add(userRec.userId.toLowerCase());
+      if (userRec.fullName) aliases.add(userRec.fullName.toLowerCase());
+      if (userRec.name) aliases.add(userRec.name.toLowerCase());
     }
 
-    const filter: any = { isActive: true };
-    if (guideDbId) filter.guide = guideDbId;
-
-    const [{ records: groups }, { records: activeUsers }] = await Promise.all([
-      BvGroups.findAll({ filters: filter, fields: ['id', 'groupId', 'groupName', 'description'], limit: 200 }),
+    const [{ records: allGroups }, { records: allUsers }] = await Promise.all([
+      BvGroups.findAll({ filters: { isActive: true }, fields: ['id', 'groupId', 'groupName', 'description', 'guide', 'segment'], limit: 500 }),
       Users.findAll({
-        filters: { status: 'Active', ...(guideDbId ? { guide: guideDbId } : {}) },
-        fields: ['id', 'userId', 'fullName', 'status'],
-        limit: 500,
+        filters: { status: 'Active' },
+        fields: ['id', 'userId', 'fullName', 'status', 'guide', 'segment'],
+        limit: 1000,
       }),
     ]);
+
+    const groups = allGroups.filter((g: any) => {
+      const segment = String(g.segment || '').toUpperCase();
+      if (segment === 'PW') return false;
+      if (isSuperGuide) return true;
+      const refs = (Array.isArray(g.guide) ? g.guide : g.guide == null ? [] : [g.guide]).map((v: any) => String(v).toLowerCase());
+      return refs.some((ref: string) => aliases.has(ref));
+    });
+
+    const activeUsers = allUsers.filter((u: any) => {
+      const segment = String(u.segment || '').toUpperCase();
+      if (segment === 'PW') return false;
+      if (isSuperGuide) return true;
+      const refs = (Array.isArray(u.guide) ? u.guide : u.guide == null ? [] : [u.guide]).map((v: any) => String(v).toLowerCase());
+      return refs.some((ref: string) => aliases.has(ref));
+    });
 
     const groupsWithDetails = await Promise.all(groups.map(async (g: any) => {
       const { records: memberships } = await BvGroupMembers.findAll({
