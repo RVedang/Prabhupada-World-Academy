@@ -431,7 +431,7 @@ export async function getBulkExportData(
     'bvRegistration.segment', 'user.lastLoginAt', 'user.lastStreakUpdatedAt',
     'user.roleNoticeAcknowledged', 'user.segment',
     'bvRegistration.id', 'user.currentStreak', 'user.id',
-    'user.selectedGuideId', 'user.selectedGuideld',
+    'user.selectedGuideId', 'user.selectedGuideld', 'user.pendingRoleNotice', 'user.statusChangedAt',
   ]);
 
   const scoped = users.filter(user => {
