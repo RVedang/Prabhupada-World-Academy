@@ -488,7 +488,22 @@ export async function getBulkExportData(
   const serialize = (header: string, value: unknown) => {
     if (value == null) return '';
     const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-    if (/(?:phone|whatsapp)/i.test(header)) return text.replace(/^'+/, '');
+    if (/(?:phone|whatsapp)/i.test(header)) {
+      let clean = text.replace(/^'+/, '').trim();
+      let digits = clean.replace(/[^\d]/g, '');
+      if (digits.length >= 10) {
+        if (!clean.startsWith('+')) {
+          if (digits.length === 10) {
+            clean = '+91' + digits;
+          } else {
+            clean = '+' + digits;
+          }
+        } else {
+          clean = '+' + digits;
+        }
+      }
+      return clean;
+    }
     return text;
   };
   return {
