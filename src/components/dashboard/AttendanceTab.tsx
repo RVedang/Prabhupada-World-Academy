@@ -196,7 +196,7 @@ function AttendanceCalendar({ attendanceMap, quizDates, currentMonth, onMonthCha
                 key={dateStr}
                 title={title}
                 className={[
-                  'min-h-[44px] rounded-lg flex flex-col items-center justify-center border transition-all font-semibold',
+                  'min-h-[54px] rounded-lg flex flex-col items-center justify-center border transition-all font-semibold p-1',
                   isFuture
                     ? 'bg-transparent border-transparent text-muted-foreground/30'
                     : isPresent
@@ -208,12 +208,15 @@ function AttendanceCalendar({ attendanceMap, quizDates, currentMonth, onMonthCha
                 ].join(' ')}
               >
                 <span className="text-sm leading-none">{format(day, 'd')}</span>
-                {isPresent && <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 leading-none mt-0.5">✓</span>}
-                {isAbsent && <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 leading-none mt-0.5">✗</span>}
+                <div className="flex items-center gap-0.5 mt-0.5 min-h-[12px]">
+                  {isPresent && <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">✓</span>}
+                  {isAbsent && <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 leading-none">✗</span>}
+                </div>
                 {quiz && (
-                  <span className="text-[9px] leading-none font-bold text-violet-700 dark:text-violet-300">
-                    Q {quiz.percentage}%
-                  </span>
+                  <div className="mt-1 flex items-center justify-center gap-0.5 px-1 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/20 text-violet-700 dark:text-violet-300 text-[8px] font-extrabold leading-none select-none">
+                    <BookOpenCheck className="w-2.5 h-2.5 text-violet-600 dark:text-violet-400 shrink-0" />
+                    <span>{quiz.percentage}%</span>
+                  </div>
                 )}
               </div>
             );
