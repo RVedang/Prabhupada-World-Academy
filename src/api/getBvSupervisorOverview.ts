@@ -98,8 +98,12 @@ export default createEndpoint({
           return uId && scopedUserIds.has(uId);
         });
 
-    // Count unique RGFs (bvslId in active groups)
-    const uniqueRgfs = new Set(groups.flatMap((g: any) => normalizedRefs([g.bvslId, g.bvslLeader])));
+    // One group can carry both the current facilitator ID and a legacy leader
+    // alias for the same person. Count one canonical facilitator per group
+    // instead of treating those two references as two different RGFs.
+    const uniqueRgfs = new Set(groups.map((g: any) =>
+      normalizedRefs(g.bvslId)[0] || normalizedRefs(g.bvslLeader)[0] || ''
+    ).filter(Boolean));
 
     const today = getTodayIST();
     const mappedGroups = await Promise.all(groups.map(async (g: any) => {

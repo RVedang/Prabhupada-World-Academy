@@ -20,12 +20,14 @@ interface TabRouterProps {
   desktopCols?: number;
   /** When true, ignores URL hash — always starts at defaultTab and doesn't write hash */
   ignoreUrlHash?: boolean;
+  /** Keep previously visited tab panels mounted. Disable when hidden panels perform network requests. */
+  keepAlive?: boolean;
 }
 
 /** Number of tabs shown inline on desktop before collapsing the rest into "More" */
 const VISIBLE_COUNT = 7;
 
-export default function TabRouter({ tabs, defaultTab, children, desktopCols, ignoreUrlHash }: TabRouterProps) {
+export default function TabRouter({ tabs, defaultTab, children, desktopCols, ignoreUrlHash, keepAlive = true }: TabRouterProps) {
   const [activeTab, setActiveTab] = useState(() => {
     if (ignoreUrlHash) return defaultTab || tabs[0]?.value || '';
     return window.location.hash.slice(1) || defaultTab || tabs[0]?.value || '';
@@ -199,7 +201,7 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
       </div>
 
       <TabTransition activeTab={activeTab}>
-        {Array.from(visitedTabs).map(tabVal => (
+        {(keepAlive ? Array.from(visitedTabs) : [activeTab]).map(tabVal => (
           <div key={tabVal} className={activeTab === tabVal ? 'block' : 'hidden'}>
             {children(tabVal, handleChange)}
           </div>

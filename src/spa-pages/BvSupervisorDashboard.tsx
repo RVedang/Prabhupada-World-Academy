@@ -73,7 +73,7 @@ export default function BvSupervisorDashboard() {
           <Skeleton className="h-64" />
         </div>
       ) : (
-        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={7}>
+        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={7} keepAlive={false}>
           {(activeTab) => (
             <>
               {activeTab === 'overview' && (

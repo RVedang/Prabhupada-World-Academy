@@ -120,8 +120,9 @@ export default createEndpoint({
     requireGuideRole(context.user.role, {
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
-      isBvMentor: (context.user as any).isBvMentor,
-      isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
+      isBvMentor: context.user.isBvMentor,
+      isBvSupervisor: context.user.isBvSupervisor,
+      isBvSubFacilitator: context.user.isBvSubFacilitator,
     });
 
     const userRecord = await resolveUser(input.userId);
@@ -129,8 +130,8 @@ export default createEndpoint({
 
     const isSuperGuide = context.user.role === 'Super Guide';
 
-    const isBvMentor = !!(context.user as any).isBvMentor;
-    const isRgsf = !!(context.user as any).isBvSubFacilitator ||
+    const isBvMentor = !!(context.user.isBvMentor || context.user.isBvSupervisor);
+    const isRgsf = !!context.user.isBvSubFacilitator ||
       String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
 
     if (!isSuperGuide && !isBvMentor) {

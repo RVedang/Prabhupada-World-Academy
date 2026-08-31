@@ -108,7 +108,10 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   }, [guideId, start, end, groupId, bvslMode, residencyIds]);
 
   const debouncedFetch = useDebouncedCallback(fetchData, 300);
-  useEffect(() => { debouncedFetch(); }, [guideId, start, end, groupId, bvslMode, residencyIds]);
+  useEffect(() => {
+    debouncedFetch();
+    return () => debouncedFetch.cancel();
+  }, [debouncedFetch]);
 
   const groups: { id: string; name: string }[] = (data as any)?.groups ?? [];
 

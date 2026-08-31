@@ -177,6 +177,7 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     } as never);
 
     assert.deepEqual(result.groups.map((group: any) => group.groupId), [supervisedGroup.groupId]);
+    assert.equal(result.rgfCount, 1);
     assert.equal(result.groups[0].memberCount, 1);
     assert.equal(result.groups[0].totalSessions, 1);
     assert.equal(result.groups[0].presentToday, 1);
