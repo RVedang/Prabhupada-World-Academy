@@ -29,32 +29,32 @@ export function DurationPicker({ value, onChange, className, disabled = false }:
   };
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex items-center gap-1.5', className)}>
       <Select
         value={hasValue ? String(hours).padStart(2, '0') : undefined}
         onValueChange={updateHours}
         disabled={disabled}
       >
-        <SelectTrigger className="h-10 flex-1 min-w-0">
-          <SelectValue placeholder="Hours" />
+        <SelectTrigger className="h-9 w-[66px]">
+          <SelectValue placeholder="HH" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="min-w-[66px] w-[66px]">
           {HOURS.map(hour => {
             const display = String(hour).padStart(2, '0');
             return <SelectItem key={display} value={display}>{display}</SelectItem>;
           })}
         </SelectContent>
       </Select>
-      <span className="text-lg font-semibold text-muted-foreground" aria-hidden="true">:</span>
+      <span className="text-lg font-bold text-muted-foreground" aria-hidden="true">:</span>
       <Select
         value={hasValue ? String(minutes).padStart(2, '0') : undefined}
         onValueChange={updateMinutes}
         disabled={disabled}
       >
-        <SelectTrigger className="h-10 flex-1 min-w-0">
-          <SelectValue placeholder="Minutes" />
+        <SelectTrigger className="h-9 w-[66px]">
+          <SelectValue placeholder="MM" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="min-w-[66px] w-[66px]">
           {MINUTES.map(minute => {
             const display = String(minute).padStart(2, '0');
             return <SelectItem key={display} value={display}>{display}</SelectItem>;
