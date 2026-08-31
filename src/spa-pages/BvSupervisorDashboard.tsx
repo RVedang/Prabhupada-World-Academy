@@ -43,8 +43,8 @@ function FacilitatorGroupCard({ group, onOpen }: { group: SupervisorGroup; onOpe
       <CardContent className="pt-4 pb-4 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-bold text-sm text-primary truncate">{group.bvslName}</p>
-            <p className="text-xs text-muted-foreground">Reading Group Facilitator</p>
+            <p className="font-bold text-sm text-primary truncate">{group.groupName}</p>
+            <p className="text-xs text-muted-foreground">Bhakti Vriksha Reading Group</p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
@@ -57,7 +57,7 @@ function FacilitatorGroupCard({ group, onOpen }: { group: SupervisorGroup; onOpe
         </div>
         <div className={`bg-muted/40 p-2.5 rounded text-xs space-y-1 ${interactive ? 'group-hover:bg-primary/5 transition-colors' : ''}`}>
           <p className={`font-medium text-foreground ${interactive ? 'group-hover:text-primary transition-colors' : ''}`}>
-            📖 {group.groupName}
+            👤 RGF: {group.bvslName}
           </p>
           {group.meetingTime && <p className="text-muted-foreground">⏰ {group.meetingTime}</p>}
         </div>

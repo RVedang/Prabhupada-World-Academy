@@ -176,10 +176,28 @@ export default createEndpoint({
       }
     }
 
-    // Keep the RGSF 1:1 list on the same canonical group-member resolver used
-    // by Sadhana. This also removes blank legacy Users records that share the
-    // complete member profile's custom userId.
-    if (isSupervisor || isRgsf) {
+    // The Supervisor report includes the reporting hierarchy (RGFs/RGSFs) as
+    // well as every authoritative group member. The membership resolver adds
+    // valid legacy members that may not have complete reporting fields, while
+    // the hierarchy result keeps the reporting RGFs visible. Both sources are
+    // already scoped by getScopedHierarchyUserIds, so sibling supervisors are
+    // never included.
+    if (isSupervisor) {
+      const groupMembers = await resolveBvGroupMemberUsers(context.user, userFields, {
+        segment: callerSegment === 'FOLK' ? 'FOLK' : 'PW',
+      });
+      const seenAliases = new Set<string>();
+      filteredUsers = [...filteredUsers, ...groupMembers].filter((user: any) => {
+        const aliases = [user.id, user.userId, user.email]
+          .filter(Boolean)
+          .map(value => String(value).toLowerCase());
+        if (aliases.some(alias => seenAliases.has(alias))) return false;
+        aliases.forEach(alias => seenAliases.add(alias));
+        return aliases.length > 0;
+      });
+    } else if (isRgsf) {
+      // RGSFs remain membership-only, using the same canonical resolver as
+      // Sadhana to remove blank legacy profile records.
       filteredUsers = await resolveBvGroupMemberUsers(context.user, userFields, {
         segment: callerSegment === 'FOLK' ? 'FOLK' : 'PW',
       });
