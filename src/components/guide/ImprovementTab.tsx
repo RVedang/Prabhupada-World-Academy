@@ -320,13 +320,22 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
   const load = () => {
     const { start, end, reportType } = getPeriodDates(period);
     setLoading(true);
-    getGuideDetailedReport({ guideId, date: end, reportType, startDate: start, endDate: end, bvslMode, mentorMode })
+    getGuideDetailedReport({
+      guideId,
+      date: end,
+      reportType,
+      startDate: start,
+      endDate: end,
+      bvslMode,
+      mentorMode,
+      segment: isFolk ? 'FOLK' : 'PW',
+    })
       .then(res => setData(res as any))
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode]);
+  useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode, isFolk]);
 
   const filteredUsers = useMemo(() => {
     if (!data) return [];

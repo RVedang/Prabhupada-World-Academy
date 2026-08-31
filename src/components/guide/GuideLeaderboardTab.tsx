@@ -10,6 +10,7 @@ import FolkReportTable from '@/components/guide/FolkReportTable';
 import GuideLeaderboardDisplay from '@/components/guide/GuideLeaderboardDisplay';
 import { getFolkSadhanaReport, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
 
 type ReportType = 'daily' | 'weekly' | 'monthly';
 
@@ -69,15 +70,20 @@ const MONTH_OPTIONS = getMonthOptions();
 const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
 const today = format(new Date(), 'yyyy-MM-dd');
 
-interface Props { guideId?: string; bvslMode?: boolean; }
+interface Props {
+  guideId?: string;
+  bvslMode?: boolean;
+  groupOptions?: SadhanaGroupOption[];
+}
 
-export default function GuideLeaderboardTab({ guideId, bvslMode }: Props) {
+export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = [] }: Props) {
   const { profile } = useUserProfile();
   const isFolk = profile?.segment === 'FOLK';
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [selectedDate, setSelectedDate] = useState(yesterday);
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [selectedGroupId, setSelectedGroupId] = useState('all');
 
   const [folkData, setFolkData] = useState<any>(null);
   const [folkLoading, setFolkLoading] = useState(false);
@@ -100,17 +106,40 @@ export default function GuideLeaderboardTab({ guideId, bvslMode }: Props) {
     return { startDate: selectedDate, endDate: selectedDate, rangeLabel: label };
   }, [reportType, selectedDate, selectedWeek, selectedMonth]);
 
+  useEffect(() => {
+    if (selectedGroupId !== 'all' && !groupOptions.some(group => group.id === selectedGroupId || group.groupId === selectedGroupId)) {
+      setSelectedGroupId('all');
+    }
+  }, [groupOptions, selectedGroupId]);
+
   const loadFolk = useCallback(async (s: string, e: string) => {
     setFolkLoading(true);
-    try { setFolkData(await getFolkSadhanaReport({ date: s, startDate: s, endDate: e, bvslMode })); }
+    try {
+      setFolkData(await getFolkSadhanaReport({
+        date: s,
+        startDate: s,
+        endDate: e,
+        bvslMode,
+        groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+      }));
+    }
     catch {/* ignore */} finally { setFolkLoading(false); }
-  }, [bvslMode]);
+  }, [bvslMode, selectedGroupId]);
 
   const loadLb = useCallback(async (s: string, e: string) => {
     setLbLoading(true);
-    try { setLbData(await getSadhanaLeaderboard({ date: s, startDate: s, endDate: e, guideId, bvslMode })); }
+    try {
+      setLbData(await getSadhanaLeaderboard({
+        date: s,
+        startDate: s,
+        endDate: e,
+        guideId,
+        bvslMode,
+        groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+      }));
+    }
     catch {/* ignore */} finally { setLbLoading(false); }
-  }, [guideId, bvslMode]);
+  }, [guideId, bvslMode, selectedGroupId]);
 
   useEffect(() => {
     loadFolk(startDate, endDate);
@@ -170,6 +199,27 @@ export default function GuideLeaderboardTab({ guideId, bvslMode }: Props) {
               <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-60">
                 {MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {groupOptions.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Label className="text-sm font-medium whitespace-nowrap">Group:</Label>
+            <Select value={selectedGroupId} onValueChange={(value: string | null) => setSelectedGroupId(value || 'all')}>
+              <SelectTrigger className="h-8 w-[210px]">
+                <span className="truncate">
+                  {selectedGroupId === 'all'
+                    ? 'All Groups'
+                    : groupOptions.find(group => group.id === selectedGroupId || group.groupId === selectedGroupId)?.groupName || 'Reading Group'}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Groups</SelectItem>
+                {groupOptions.map(group => (
+                  <SelectItem key={group.id} value={group.id}>{group.groupName}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

@@ -24,7 +24,21 @@ import { exportToCsv } from '@/utils/exportCsv';
 import { exportReportAsImage } from '@/utils/exportReportImage';
 import ScoringCriteriaPanel from '@/components/guide/ScoringCriteriaPanel';
 
-interface ReportsTabProps { guideId?: string; senderName?: string; bvslMode?: boolean; mentorMode?: boolean; isSuperAdminOverride?: boolean; segment?: 'PW' | 'FOLK'; }
+export interface SadhanaGroupOption {
+  id: string;
+  groupId?: string;
+  groupName: string;
+}
+
+interface ReportsTabProps {
+  guideId?: string;
+  senderName?: string;
+  bvslMode?: boolean;
+  mentorMode?: boolean;
+  isSuperAdminOverride?: boolean;
+  segment?: 'PW' | 'FOLK';
+  groupOptions?: SadhanaGroupOption[];
+}
 type ReportType = 'daily' | 'weekly' | 'monthly';
 type ResidencyFilter = 'all' | 'resident' | 'non_resident' | 'scholar';
 
@@ -198,7 +212,7 @@ function computeSummary(users: ReportUser[], isScholarView = false) {
   };
 }
 
-export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode, isSuperAdminOverride }: ReportsTabProps) {
+export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode, isSuperAdminOverride, groupOptions = [] }: ReportsTabProps) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const isPw = (profile?.segment === 'PW') || false;
@@ -213,6 +227,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   const [selectedDate, setSelectedDate] = useState(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [selectedGroupId, setSelectedGroupId] = useState('all');
   const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(() => {
     // An RGF's report scope is their reading-group membership, not the
     // facilitator's own residency. Defaulting to "Residents" can silently
@@ -237,6 +252,12 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     }
   }, [profile, isSuperAdmin, isPw, bvslMode]);
 
+  useEffect(() => {
+    if (selectedGroupId !== 'all' && !groupOptions.some(group => group.id === selectedGroupId || group.groupId === selectedGroupId)) {
+      setSelectedGroupId('all');
+    }
+  }, [groupOptions, selectedGroupId]);
+
   const [rawReportData, setRawReportData] = useState<GetGuideDetailedReportOutputType | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -256,7 +277,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
 
   const fetchReport = useCallback(async (params: {
     guideId: string; date: string; reportType: ReportType;
-    computedStart?: string; computedEnd?: string; bvslMode?: boolean; mentorMode?: boolean;
+    computedStart?: string; computedEnd?: string; bvslMode?: boolean; mentorMode?: boolean; groupId?: string;
   }) => {
     // Assign a unique sequence number to this request
     const seq = ++fetchSeqRef.current;
@@ -270,6 +291,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
         endDate: params.computedEnd,
         bvslMode: params.bvslMode,
         mentorMode: params.mentorMode,
+        groupId: params.groupId,
         segment: isPw ? 'PW' : 'FOLK',
       });
       // Only apply if this is still the latest request
@@ -293,8 +315,17 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   const effectiveShowRealValues = realValuesForced || showRealValues;
 
   useEffect(() => {
-    debouncedFetch({ guideId, date: selectedDate, reportType, computedStart, computedEnd, bvslMode, mentorMode });
-  }, [guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, isPw]);
+    debouncedFetch({
+      guideId,
+      date: selectedDate,
+      reportType,
+      computedStart,
+      computedEnd,
+      bvslMode,
+      mentorMode,
+      groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+    });
+  }, [guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, isPw, selectedGroupId]);
 
   const residencies = rawReportData?.availableResidencies ?? [];
   const availableGuides: { guideId: string; guideName: string }[] = (rawReportData as any)?.availableGuides ?? [];
@@ -522,10 +553,14 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       ? `guide-${slug(availableGuides.find(g => g.guideId === guideFilter)?.guideName || guideFilter)}`
       : '';
 
+    const groupPart = selectedGroupId !== 'all'
+      ? `group-${slug(groupOptions.find(group => group.id === selectedGroupId || group.groupId === selectedGroupId)?.groupName || selectedGroupId)}`
+      : '';
+
     // Ashray segment
     const ashrayPart = ashrayLevelFilter !== 'all' ? `level-${slug(ashrayLevelFilter)}` : '';
 
-    const parts = ['sadhana-report', datePart, residencyPart, folkPart, guidePart, ashrayPart].filter(Boolean);
+    const parts = ['sadhana-report', datePart, residencyPart, folkPart, groupPart, guidePart, ashrayPart].filter(Boolean);
     return `${parts.join('-')}.${ext}`;
   };
 
@@ -588,7 +623,16 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       if (result.fixed > 0) {
         toast.success(`✅ Synced ${result.fixed} entr${result.fixed === 1 ? 'y' : 'ies'} — refreshing report…`);
         // Refresh the report to show updated scores
-        await fetchReport({ guideId, date: selectedDate, reportType, computedStart, computedEnd, bvslMode, mentorMode });
+        await fetchReport({
+          guideId,
+          date: selectedDate,
+          reportType,
+          computedStart,
+          computedEnd,
+          bvslMode,
+          mentorMode,
+          groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+        });
       } else {
         toast.info('All scores are already up-to-date.');
       }
@@ -693,7 +737,16 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
               <div className="flex items-center gap-2 flex-wrap">
                 <CardTitle className="text-base">Sadhana Report</CardTitle>
                 <button
-                  onClick={() => fetchReport({ guideId, date: selectedDate, reportType, computedStart, computedEnd, bvslMode, mentorMode })}
+                  onClick={() => fetchReport({
+                    guideId,
+                    date: selectedDate,
+                    reportType,
+                    computedStart,
+                    computedEnd,
+                    bvslMode,
+                    mentorMode,
+                    groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+                  })}
                   disabled={loading}
                   title="Refresh report data"
                   className="flex items-center gap-1 px-2 py-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-40 text-xs font-medium"
@@ -783,6 +836,27 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
                       {MONTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {groupOptions.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-sm font-medium whitespace-nowrap">Group:</Label>
+                  <Select value={selectedGroupId} onValueChange={(value: string | null) => setSelectedGroupId(value || 'all')}>
+                    <SelectTrigger className="h-8 w-[210px]">
+                      <span className="truncate">
+                        {selectedGroupId === 'all'
+                          ? 'All Groups'
+                          : groupOptions.find(group => group.id === selectedGroupId || group.groupId === selectedGroupId)?.groupName || 'Reading Group'}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Groups</SelectItem>
+                      {groupOptions.map(group => (
+                        <SelectItem key={group.id} value={group.id}>{group.groupName}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

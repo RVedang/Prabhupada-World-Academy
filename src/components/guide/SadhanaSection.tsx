@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { Database, BarChart3, TrendingUp, Trophy } from 'lucide-react';
 import ReportsTab from '@/components/guide/ReportsTab';
+import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
 import StatsOverviewPanel from '@/components/guide/StatsOverviewPanel';
 import ImprovementTab from '@/components/guide/ImprovementTab';
 import GuideLeaderboardTab from '@/components/guide/GuideLeaderboardTab';
@@ -14,6 +15,7 @@ interface SadhanaSectionProps {
   senderName?: string;
   bvslMode?: boolean;
   mentorMode?: boolean;
+  groupOptions?: SadhanaGroupOption[];
 }
 
 type SubTab = 'report' | 'stats' | 'improvement' | 'leaderboard';
@@ -35,7 +37,7 @@ function readStoredSubTab(): SubTab {
   return 'report';
 }
 
-export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMode }: SadhanaSectionProps) {
+export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMode, groupOptions = [] }: SadhanaSectionProps) {
   const [subTab, setSubTab] = useState<SubTab>(readStoredSubTab);
 
   useEffect(() => {
@@ -64,7 +66,13 @@ export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMo
 
       {/* Sub-tab content */}
       {subTab === 'report' && (
-        <ReportsTab guideId={guideId} senderName={senderName} bvslMode={bvslMode} mentorMode={mentorMode} />
+        <ReportsTab
+          guideId={guideId}
+          senderName={senderName}
+          bvslMode={bvslMode}
+          mentorMode={mentorMode}
+          groupOptions={groupOptions}
+        />
       )}
       {subTab === 'stats' && (
         <StatsOverviewPanel guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} />
@@ -73,7 +81,7 @@ export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMo
         <ImprovementTab guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} />
       )}
       {subTab === 'leaderboard' && (
-        <GuideLeaderboardTab guideId={guideId} bvslMode={bvslMode} />
+        <GuideLeaderboardTab guideId={guideId} bvslMode={bvslMode} groupOptions={groupOptions} />
       )}
     </div>
   );

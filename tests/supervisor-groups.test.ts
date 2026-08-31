@@ -4,7 +4,11 @@ import test from 'node:test';
 import getBvAttendanceMatrix from '../src/api/getBvAttendanceMatrix';
 import getBvGroupDetail from '../src/api/getBvGroupDetail';
 import getBvSupervisorOverview from '../src/api/getBvSupervisorOverview';
-import { BvAttendance, BvGroupMembers, BvGroups, BvQuizzes, Users } from '../src/lib/app-backend-sdk';
+import getGuideDetailedReport from '../src/api/getGuideDetailedReport';
+import getSadhanaLeaderboard from '../src/api/getSadhanaLeaderboard';
+import getSadhanaStats from '../src/api/getSadhanaStats';
+import { BvAttendance, BvGroupMembers, BvGroups, BvQuizzes, SadhanaEntries, Users } from '../src/lib/app-backend-sdk';
+import { resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../src/lib/bvGroupMemberScope';
 import { getTodayIST } from '../src/lib/streakUtils';
 
 const supervisor = {
@@ -52,6 +56,16 @@ const member = {
   segment: 'FOLK',
 };
 
+const outsideMember = {
+  id: 'SUPERVISOR-GROUPS-OUTSIDE-MEMBER-DB',
+  userId: 'SUPERVISOR-GROUPS-OUTSIDE-MEMBER',
+  email: 'supervisor-groups-outside-member@example.invalid',
+  fullName: 'Outside Group Member',
+  role: 'User',
+  status: 'Active',
+  segment: 'FOLK',
+};
+
 const supervisedGroup = {
   id: 'SUPERVISOR-GROUPS-GROUP-DB',
   groupId: 'SUPERVISOR-GROUPS-GROUP',
@@ -74,11 +88,15 @@ const outsideGroup = {
 };
 
 test('supervisor groups include only groups led by reporting RGFs with RGF card metrics', async () => {
-  const users = [supervisor, reportingRgf, outsideRgf, member];
+  const users = [supervisor, reportingRgf, outsideRgf, member, outsideMember];
   const groups = [supervisedGroup, outsideGroup];
   const membershipId = 'SUPERVISOR-GROUPS-MEMBERSHIP';
+  const outsideMembershipId = 'SUPERVISOR-GROUPS-OUTSIDE-MEMBERSHIP';
   const attendanceId = 'SUPERVISOR-GROUPS-ATTENDANCE';
   const quizId = 'SUPERVISOR-GROUPS-QUIZ';
+  const memberEntryId = 'SUPERVISOR-GROUPS-SADHANA';
+  const outsideEntryId = 'SUPERVISOR-GROUPS-OUTSIDE-SADHANA';
+  const today = getTodayIST();
 
   for (const user of users) await Users.create({ record: user });
   for (const group of groups) await BvGroups.create({ record: group });
@@ -92,12 +110,22 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       role: 'Member',
     },
   });
+  await BvGroupMembers.create({
+    record: {
+      id: outsideMembershipId,
+      group: outsideGroup.id,
+      groupId: outsideGroup.groupId,
+      user: outsideMember.id,
+      userId: outsideMember.userId,
+      role: 'Member',
+    },
+  });
   await BvAttendance.create({
     record: {
       id: attendanceId,
       group: supervisedGroup.id,
       user: member.id,
-      attendanceDate: getTodayIST(),
+      attendanceDate: today,
       present: true,
     },
   });
@@ -111,6 +139,32 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       department: 'FOLK',
       isActive: true,
       createdAt: new Date().toISOString(),
+    },
+  });
+  await SadhanaEntries.create({
+    record: {
+      id: memberEntryId,
+      user: member.id,
+      entryDate: today,
+      totalScore: 17,
+      maxScore: 20,
+      scorePercent: 85,
+      templateMode: 'NON_RESIDENT',
+      fieldValuesJson: '{}',
+      submittedAt: `${today}T05:00:00.000Z`,
+    },
+  });
+  await SadhanaEntries.create({
+    record: {
+      id: outsideEntryId,
+      user: outsideMember.id,
+      entryDate: today,
+      totalScore: 20,
+      maxScore: 20,
+      scorePercent: 100,
+      templateMode: 'NON_RESIDENT',
+      fieldValuesJson: '{}',
+      submittedAt: `${today}T04:00:00.000Z`,
     },
   });
 
@@ -140,10 +194,83 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     } as never);
     assert.deepEqual(matrix.dates, [getTodayIST()]);
     assert.equal(matrix.rows[0].weekTotal, 1);
+
+    const scopedGroups = await resolveBvScopedGroups(supervisor, { segment: 'FOLK' });
+    assert.deepEqual(scopedGroups.map(group => group.groupId), [supervisedGroup.groupId]);
+
+    const allScopedMembers = await resolveBvGroupMemberUsers(
+      supervisor,
+      ['id', 'userId', 'fullName', 'email'],
+      { segment: 'FOLK' },
+    );
+    assert.deepEqual(allScopedMembers.map(user => user.id), [member.id]);
+
+    const selectedGroupMembers = await resolveBvGroupMemberUsers(
+      supervisor,
+      ['id', 'userId', 'fullName', 'email'],
+      { segment: 'FOLK', groupId: supervisedGroup.groupId },
+    );
+    assert.deepEqual(selectedGroupMembers.map(user => user.id), [member.id]);
+    await assert.rejects(
+      () => resolveBvGroupMemberUsers(supervisor, ['id'], { segment: 'FOLK', groupId: outsideGroup.id }),
+      /not assigned to your hierarchy/,
+    );
+
+    const report = await getGuideDetailedReport.execute({
+      input: {
+        guideId: supervisor.userId,
+        date: today,
+        reportType: 'daily',
+        bvslMode: true,
+        groupId: supervisedGroup.id,
+        segment: 'FOLK',
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.deepEqual(report.users.map((user: any) => user.fullName), [member.fullName]);
+
+    const stats = await getSadhanaStats.execute({
+      input: {
+        guideId: supervisor.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+        groupId: supervisedGroup.groupId,
+        segment: 'FOLK',
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.equal(stats.totalUsers, 1);
+    assert.equal(stats.userSummaries[0].fullName, member.fullName);
+
+    const leaderboard = await getSadhanaLeaderboard.execute({
+      input: {
+        date: today,
+        bvslMode: true,
+        groupId: supervisedGroup.id,
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.deepEqual(leaderboard.leaderboard.map((row: any) => row.displayName), [member.fullName]);
+
+    await assert.rejects(
+      () => getSadhanaLeaderboard.execute({
+        input: {
+          date: today,
+          bvslMode: true,
+          groupId: outsideGroup.id,
+        },
+        context: { user: supervisor },
+      } as never),
+      /not assigned to your hierarchy/,
+    );
   } finally {
+    await SadhanaEntries.delete({ id: memberEntryId });
+    await SadhanaEntries.delete({ id: outsideEntryId });
     await BvQuizzes.delete({ id: quizId });
     await BvAttendance.delete({ id: attendanceId });
     await BvGroupMembers.delete({ id: membershipId });
+    await BvGroupMembers.delete({ id: outsideMembershipId });
     for (const group of groups) await BvGroups.delete({ id: group.id });
     for (const user of users) await Users.delete({ id: user.id });
   }

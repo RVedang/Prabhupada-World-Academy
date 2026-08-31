@@ -81,7 +81,9 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
   const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
 
   const [period, setPeriod] = useState<Period>('30d');
-  const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(isPw ? 'all' : 'resident');
+  // Reading-group dashboards must start with every member visible; a resident
+  // default silently hides non-resident members from RGF/Supervisor totals.
+  const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(isPw || bvslMode ? 'all' : 'resident');
   const [folkResidencyId, setFolkResidencyId] = useState<string>('all');
   const [ashrayFilter, setAshrayFilter] = useState<string>('all');
 

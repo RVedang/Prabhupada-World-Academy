@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Leaf, Clock, CheckCircle2, UserCheck, ShieldCheck, BarChart3, CalendarClock, BookOpen, Layers, ChevronRight, Video } from 'lucide-react';
+import { Users, Leaf, UserCheck, ShieldCheck, BarChart3, CalendarClock, FileText, Layers, ChevronRight, Video } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { DashboardLayout } from '@/layouts';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { useAuth } from '@/lib/auth-sdk';
-import { getBvSupervisorOverview, getCurrentGuide } from '@/lib/endpoints-sdk';
-import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
+import { getBvSupervisorOverview } from '@/lib/endpoints-sdk';
 import BvSection from '@/components/guide/BvSection';
+import SadhanaSection from '@/components/guide/SadhanaSection';
 import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 import TabRouter, { TabConfig } from '@/shared/TabRouter';
@@ -19,11 +17,9 @@ import BvslGroupsPanel from '@/components/bvsl/BvslGroupsPanel';
 
 export default function BvSupervisorDashboard() {
   const { profile } = useUserProfile();
-  const { user: authUser } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<Awaited<ReturnType<typeof getBvSupervisorOverview>> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     loadOverview();
@@ -41,18 +37,17 @@ export default function BvSupervisorDashboard() {
     }
   };
 
-  const pendingCount = data?.pendingRegistrations || 0;
+  const isFolk = profile?.segment === 'FOLK';
 
   const tabs: TabConfig[] = [
     { value: 'overview', label: 'Overview', icon: Layers },
     { value: 'groups', label: 'Groups', icon: Users },
     { value: 'rgfs', label: 'Facilitators (RGFs)', icon: Users },
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
+    ...(isFolk ? [{ value: 'sadhana', label: 'Sadhana', icon: FileText }] : []),
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
     { value: 'meetings', label: 'Meetings & MoMs', icon: Video },
   ];
-
-  const isFolk = profile?.segment === 'FOLK';
 
   return (
     <DashboardLayout
@@ -78,7 +73,7 @@ export default function BvSupervisorDashboard() {
           <Skeleton className="h-64" />
         </div>
       ) : (
-        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={6}>
+        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={isFolk ? 7 : 6}>
           {(activeTab) => (
             <>
               {activeTab === 'overview' && (
@@ -228,6 +223,18 @@ export default function BvSupervisorDashboard() {
 
               {activeTab === 'bvreport' && (
                 <BvSection guideId={profile?.userId || 'ALL'} bvslMode />
+              )}
+
+              {activeTab === 'sadhana' && isFolk && (
+                <SadhanaSection
+                  guideId={profile?.userId || ''}
+                  bvslMode
+                  groupOptions={(data?.groups || []).map(group => ({
+                    id: group.id,
+                    groupId: group.groupId,
+                    groupName: group.groupName,
+                  }))}
+                />
               )}
 
               {activeTab === 'callreports' && (
