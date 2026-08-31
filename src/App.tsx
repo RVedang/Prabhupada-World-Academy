@@ -193,7 +193,7 @@ export default function App() {
             {/* Guide */}
             <Route path="/guide/dashboard" element={<Navigate to="/folk-guide/dashboard" replace />} />
             <Route path="/guide/field-setup" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN']}><GuideFieldSetupPage /></ProtectedRoute>} />
-            <Route path="/guide/users/:userId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR']}><GuideUserDetailPage /></ProtectedRoute>} />
+            <Route path="/guide/users/:userId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BVSL', 'SADHANA_MENTOR', 'BV_MENTOR']}><GuideUserDetailPage /></ProtectedRoute>} />
             <Route path="/rgsf/users/:userId" element={<ProtectedRoute allowedRoles={['RGSF']}><GuideUserDetailPage /></ProtectedRoute>} />
             <Route path="/guide/bv-group/:groupId" element={<ProtectedRoute allowedRoles={['GUIDE', 'SUPER_GUIDE', 'SUPER_ADMIN', 'BV_MENTOR', 'ADMIN', 'PW_ADMIN', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />
             <Route path="/bvsl/groups/:groupId" element={<ProtectedRoute allowedRoles={['BVSL', 'SADHANA_MENTOR', 'SUPER_ADMIN', 'ADMIN', 'PW_ADMIN', 'GUIDE', 'SUPER_GUIDE', 'BV_MENTOR', 'USER']}><BvGroupDetailPage /></ProtectedRoute>} />

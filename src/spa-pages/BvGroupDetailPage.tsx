@@ -93,7 +93,7 @@ function AttendanceMatrix({ matrix, dates }: { matrix: MatrixData; dates: string
   );
 }
 
-function MembersTab({ members, onUserClick }: { members: GroupDetail['members']; onUserClick: (userId: string) => void }) {
+function MembersTab({ members, onUserClick }: { members: GroupDetail['members']; onUserClick?: (userId: string) => void }) {
   if (members.length === 0) {
     return (
       <div className="text-center py-10 space-y-2">
@@ -118,7 +118,11 @@ function MembersTab({ members, onUserClick }: { members: GroupDetail['members'];
         </thead>
         <tbody>
           {members.map((m: any) => (
-            <tr key={m.userId} className="border-b hover:bg-muted/40 cursor-pointer" onClick={() => onUserClick(m.userId)}>
+            <tr
+              key={m.userId}
+              className={`border-b ${onUserClick ? 'hover:bg-muted/40 cursor-pointer' : ''}`}
+              onClick={onUserClick ? () => onUserClick(m.userId) : undefined}
+            >
               <td className="px-3 py-2.5 font-medium">{m.fullName}</td>
               <td className="px-3 py-2.5 hidden sm:table-cell">
                 {m.ashrayLevel
@@ -182,6 +186,19 @@ export default function BvGroupDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile } = useUserProfile();
+  const canViewUserProfile = !!(
+    profile && (
+      profile.role === 'GUIDE' ||
+      profile.role === 'SUPER_GUIDE' ||
+      (profile.role as string) === 'ADMIN' ||
+      profile.role === 'SUPER_ADMIN' ||
+      profile.isBvsl ||
+      profile.isSadhanaMentor ||
+      profile.isBvMentor ||
+      profile.isBvSupervisor ||
+      profile.isBvSubFacilitator
+    )
+  );
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [matrix, setMatrix] = useState<MatrixData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -398,12 +415,12 @@ export default function BvGroupDetailPage() {
           <TabsContent value="members" className="mt-4">
             <MembersTab
               members={detail.members}
-              onUserClick={(uid) => {
+              onUserClick={canViewUserProfile ? (uid) => {
                 const detailBasePath = profile?.isBvSubFacilitator ? '/rgsf/users' : '/guide/users';
                 navigate(`${detailBasePath}/${encodeURIComponent(uid)}`, {
                   state: { from: `${location.pathname}${location.search}` },
                 });
-              }}
+              } : undefined}
             />
           </TabsContent>
         </Tabs>

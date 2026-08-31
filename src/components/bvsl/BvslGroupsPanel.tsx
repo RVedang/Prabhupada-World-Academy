@@ -207,6 +207,11 @@ export default function BvslGroupsPanel({
                         <h4 className="text-base font-bold text-foreground truncate group-hover:text-primary transition-colors">
                           {g.groupName}
                         </h4>
+                        {g.bvslName && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            RGF: <span className="font-semibold text-foreground/80">{g.bvslName}</span>
+                          </p>
+                        )}
                         {g.description ? (
                           <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{g.description}</p>
                         ) : (
