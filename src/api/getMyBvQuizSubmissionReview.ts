@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, AppError, BvQuizSubmissions, BvQuizzes } from '@/lib/backend-sdk';
+import { quizRefValues } from '@/lib/bvQuizAccess';
 
 export default createEndpoint({
   description: 'Get the current user\'s completed BV quiz with their answer review',
@@ -11,10 +12,19 @@ export default createEndpoint({
 
     // A result can only ever be reviewed by the user who submitted it.
     const submission = await BvQuizSubmissions.findOne({
-      filters: { id: input.submissionId, user: context.user.id },
+      id: input.submissionId,
       fields: ['id', 'quiz', 'score', 'totalQuestions', 'percentage', 'submittedAt', 'answersJson'],
     });
-    if (!submission) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz submission not found' });
+    const callerAliases = new Set(quizRefValues([
+      context.user.id,
+      context.user.userId,
+      context.user.uid,
+      context.user.email,
+      context.user.fullName,
+      context.user.name,
+    ]));
+    const ownsSubmission = !!submission && quizRefValues([submission.user, submission.userId]).some(reference => callerAliases.has(reference));
+    if (!submission || !ownsSubmission) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz submission not found' });
 
     const quizId = Array.isArray(submission.quiz) ? submission.quiz[0] : submission.quiz;
     const quiz = quizId ? await BvQuizzes.findOne({

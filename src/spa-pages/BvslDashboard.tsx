@@ -118,6 +118,9 @@ export default function BvslDashboard() {
                 <BvslQuizPanel
                   bvslId={bvslId}
                   groups={groups.map((g: any) => ({ id: g.id, groupName: g.groupName }))}
+                  department={isFolk ? 'FOLK' : 'PW'}
+                  canManageContent={isFolk || isSuperAdmin}
+                  canToggleGroupActivation={!isFolk && !isSubFacilitatorOnly}
                 />
               )}
               {activeTab === 'onetone' && <BvslOneToOneTab />}

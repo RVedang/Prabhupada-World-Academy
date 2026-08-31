@@ -1,92 +1,110 @@
 import { z } from 'zod';
-import { createEndpoint, BvQuizSubmissions, BvQuizzes, BvGroupMembers } from '@/lib/backend-sdk';
+import { AppError, BvQuizSubmissions, BvQuizzes, createEndpoint } from '@/lib/backend-sdk';
+import {
+  getUserQuizGroups,
+  legacyQuizMatchesGroup,
+  normalizeQuizDepartment,
+  quizIsActivatedForGroup,
+  quizRefValues,
+  resolveQuizDepartment,
+} from '@/lib/bvQuizAccess';
 
 export default createEndpoint({
-  description: 'Get the current user\'s BV quiz submission history and pending quizzes',
+  description: 'Get the current user department-scoped BV quiz history and pending quizzes',
   authenticated: true,
   inputSchema: z.object({}),
   outputSchema: z.any(),
   execute: async ({ context }) => {
-    const uid = context.user!.id;
+    if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    const department = normalizeQuizDepartment(context.user.segment, 'PW');
+    const groups = await getUserQuizGroups(context.user, department);
 
-    // Get user's group membership
-    const { records: memberships } = await BvGroupMembers.findAll({
-      filters: { user: uid },
-      limit: 5,
-      fields: ['id', 'group'],
-    });
-    const groupId = memberships.length > 0
-      ? (Array.isArray(memberships[0].group) ? memberships[0].group[0] : memberships[0].group)
-      : null;
+    const [{ records: allSubmissions }, { records: allQuizzes }] = await Promise.all([
+      BvQuizSubmissions.findAll({
+        limit: 5000,
+        fields: ['id', 'user', 'userId', 'quiz', 'score', 'totalQuestions', 'percentage', 'submittedAt'],
+      }),
+      BvQuizzes.findAll({ limit: 500 }),
+    ]);
+    const userAliases = new Set(quizRefValues([
+      context.user.id,
+      context.user.userId,
+      context.user.uid,
+      context.user.email,
+      context.user.fullName,
+      context.user.name,
+    ]));
+    const ownSubmissions = allSubmissions.filter(submission =>
+      quizRefValues([submission.user, submission.userId]).some(reference => userAliases.has(reference))
+    );
 
-    // Get user's submissions
-    const { records: subs } = await BvQuizSubmissions.findAll({
-      filters: { user: uid },
-      limit: 100,
-      fields: ['id', 'quiz', 'score', 'totalQuestions', 'percentage', 'submittedAt'],
-    });
-
-    const quizIds = [...new Set(subs.map(s => Array.isArray(s.quiz) ? s.quiz[0] : s.quiz).filter(Boolean))] as string[];
-    const { records: quizzes } = quizIds.length > 0
-      ? await BvQuizzes.findAll({ filters: { id: { in: quizIds } }, fields: ['id', 'quizTitle', 'createdAt'] })
-      : { records: [] };
-    const quizMap = new Map<string, typeof quizzes[0]>(quizzes.map(q => [q.id, q] as [string, typeof quizzes[0]]));
-
-    // FIX: Always fetch pending quizzes regardless of submission history
-    // Previously this was inside the subs.length === 0 block and skipped pending quizzes for users with no submissions
-    let pendingQuizzes: any[] = [];
-    if (groupId) {
-      const { records: groupQuizzes } = await BvQuizzes.findAll({
-        filters: { group: groupId, isActive: true },
-        limit: 50,
-        fields: ['id', 'quizTitle', 'questionsJson', 'createdAt'],
-      });
-      const submittedIds = new Set(quizIds);
-      pendingQuizzes = groupQuizzes
-        .filter(q => !submittedIds.has(q.id))
-        .map(q => {
-          let qCount = 0;
-          try { qCount = JSON.parse(q.questionsJson || '[]').length; } catch {}
-          return { id: q.id, title: q.quizTitle || '', questionCount: qCount, createdAt: q.createdAt || '' };
-        });
-    }
-
-    if (subs.length === 0) {
-      return { submissions: [], quizDates: [], pendingQuizzes, stats: { totalTaken: 0, avgPercent: 0 } };
-    }
-
-    const submissions = subs
-      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))
-      .map(s => {
-        const qId = Array.isArray(s.quiz) ? s.quiz[0] : s.quiz;
-        const quiz = quizMap.get(qId || '');
+    const quizDepartmentPairs = await Promise.all(allQuizzes.map(async quiz => ({
+      quiz,
+      department: await resolveQuizDepartment(quiz, department),
+    })));
+    const departmentQuizzes = quizDepartmentPairs
+      .filter(pair => pair.department === department)
+      .map(pair => pair.quiz);
+    const quizById = new Map(departmentQuizzes.map(quiz => [String(quiz.id).toLowerCase(), quiz]));
+    const submissions = ownSubmissions
+      .map(submission => {
+        const quizId = quizRefValues(submission.quiz)[0];
+        const quiz = quizById.get(quizId || '');
+        if (!quiz) return null;
         return {
-          id: s.id,
-          quizId: qId || '',
-          quizTitle: (quiz as any)?.quizTitle || 'Quiz',
-          score: s.score ?? 0,
-          totalQuestions: s.totalQuestions ?? 0,
-          percentage: s.percentage ?? 0,
-          submittedAt: s.submittedAt || '',
-          submittedDate: s.submittedAt ? s.submittedAt.split('T')[0] : '',
+          id: submission.id,
+          quizId: quiz.id,
+          quizTitle: quiz.quizTitle || 'Quiz',
+          score: submission.score ?? 0,
+          totalQuestions: submission.totalQuestions ?? 0,
+          percentage: submission.percentage ?? 0,
+          submittedAt: submission.submittedAt || '',
+          submittedDate: submission.submittedAt ? String(submission.submittedAt).split('T')[0] : '',
         };
-      });
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => String(b.submittedAt).localeCompare(String(a.submittedAt))) as any[];
+    const submittedQuizIds = new Set(submissions.map(submission => String(submission.quizId).toLowerCase()));
 
-    const quizDates = submissions.map(s => ({
-      date: s.submittedDate,
-      percentage: s.percentage,
-      quizTitle: s.quizTitle,
-    })).filter(d => d.date);
+    const pendingQuizzes = departmentQuizzes
+      .filter(quiz => quiz.isActive === true && !submittedQuizIds.has(String(quiz.id).toLowerCase()))
+      .filter(quiz => groups.some(group => department === 'PW'
+        ? (quizIsActivatedForGroup(quiz, group) || legacyQuizMatchesGroup(quiz, group))
+        : legacyQuizMatchesGroup(quiz, group)))
+      .map(quiz => {
+        let questionCount = 0;
+        try { questionCount = JSON.parse(quiz.questionsJson || '[]').length; } catch {}
+        return {
+          id: quiz.id,
+          title: quiz.quizTitle || '',
+          description: quiz.description || '',
+          questionCount,
+          quizDate: quiz.quizDate || '',
+          createdAt: quiz.createdAt || '',
+        };
+      })
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 
-    const avgPercent = submissions.length > 0
-      ? Math.round(submissions.reduce((s, sub) => s + sub.percentage, 0) / submissions.length)
+    const quizDates = submissions
+      .map(submission => ({
+        date: submission.submittedDate,
+        percentage: submission.percentage,
+        quizTitle: submission.quizTitle,
+      }))
+      .filter(entry => entry.date);
+    const averagePercentage = submissions.length
+      ? Math.round(submissions.reduce((sum, submission) => sum + submission.percentage, 0) / submissions.length)
       : 0;
 
     return {
+      department,
       submissions,
       quizDates,
       pendingQuizzes,
-      stats: { totalTaken: submissions.length, avgPercent },
+      stats: {
+        totalTaken: submissions.length,
+        avgPercent: averagePercentage,
+      },
     };
   },
 });

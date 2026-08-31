@@ -7,8 +7,20 @@ export default createEndpoint({
   inputSchema: z.object({ userId: z.string().optional() }),
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ context }) => {
-    await Users.update({
+    const user = await Users.findOne({
       id: context.user!.id,
+      fields: ['id', 'userId', 'status'],
+    });
+
+    // Firestore set(..., { merge: true }) creates a document when it does not
+    // exist. Do not let a login timestamp create a bare Users document for an
+    // authenticated person who has not completed registration.
+    if (!user?.userId || !user?.status) {
+      return { success: false };
+    }
+
+    await Users.update({
+      id: user.id,
       record: { lastLoginAt: new Date().toISOString() },
     });
     return { success: true };

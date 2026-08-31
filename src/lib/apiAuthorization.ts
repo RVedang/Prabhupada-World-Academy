@@ -199,7 +199,7 @@ export function buildApiUserContext(
     segment: dbUser?.segment || null,
     fullName: nameVal,
     name: nameVal,
-    isRegistered: !!dbUser,
+    isRegistered: !!(dbUser?.userId && dbUser?.status),
     isActive,
     isBvAdmin: isActive && (isAdminRole || isSuperAdminRole || dbUser?.isBvAdmin === true),
     isBvSuperAdmin: isActive && (isSuperAdminRole || dbUser?.isBvSuperAdmin === true),

@@ -136,20 +136,6 @@ export default createEndpoint({
                  await Users.findOne({ filters: { email: context.user.email.toLowerCase() } });
     }
 
-    // Auto-heal missing userId/status if record exists
-    if (userRecord && (userRecord.status || userRecord.role || userRecord.email)) {
-      if (!userRecord.userId) {
-        userRecord.userId = userRecord.id || `USER-${context.user.id.slice(0, 8)}`;
-      }
-      if (!userRecord.status) {
-        userRecord.status = 'Active';
-      }
-      await Users.update({
-        id: userRecord.id || context.user.id,
-        record: { userId: userRecord.userId, status: userRecord.status },
-      }).catch(() => {});
-    }
-
     if (!userRecord?.status || !userRecord?.userId) {
       // ── EMAIL FALLBACK ────────────────────────────────────────────────────
       // User-sync created a bare record (no userId/status). This happens when:

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { BULK_USER_CSV_HEADERS, parseCsv } from '../src/config/bulkUserCsv';
 import { deriveApiCapabilities } from '../src/lib/apiAuthorization';
 import { createBulkUser, getBulkExportData, previewBulkUsers, requireBulkUserManager } from '../src/lib/bulkUserManagement';
-import { BvMemberRegistrations, Users } from '../src/lib/app-backend-sdk';
+import { BvMemberRegistrations, Guides, Users } from '../src/lib/app-backend-sdk';
 
 test('bulk import template is the combined FOLK registration shape without privileged fields', () => {
   for (const field of ['email', 'fullName', 'phone', 'selectedFolkResidency', 'whatsappNumber', 'address', 'ashrayLevel', 'timePreference']) {
@@ -60,6 +60,20 @@ test('endpoint-local role guard rejects FOLK admins despite wildcard-style autho
 });
 
 test('mock integration creates only a normal assigned Users profile and existing BV registration', async () => {
+  const guideId = 'GUIDE-BULK-TEST-FIXTURE';
+  const guideEmail = 'bulk-guide-fixture@example.invalid';
+  await Guides.create({
+    record: {
+      id: guideId,
+      guideId,
+      email: guideEmail,
+      fullName: 'Bulk Test Guide',
+      role: 'Guide',
+      segment: 'FOLK',
+      isActive: true,
+    },
+  });
+
   const row = Object.fromEntries(BULK_USER_CSV_HEADERS.map(header => [header, ''])) as Record<string, string>;
   Object.assign(row, {
     email: 'bulk.create@example.com', fullName: 'Bulk Created',
@@ -72,7 +86,7 @@ test('mock integration creates only a normal assigned Users profile and existing
   });
   const preview = await previewBulkUsers([...BULK_USER_CSV_HEADERS], [row]);
   const manager = await requireBulkUserManager({
-    id: 'guide@gmail.com', email: 'guide@gmail.com', role: 'Guide', segment: 'FOLK', isActive: true, fullName: 'Spiritual Guide',
+    id: guideId, email: guideEmail, role: 'Guide', segment: 'FOLK', isActive: true, fullName: 'Bulk Test Guide',
   } as any);
   const created = await createBulkUser(preview.rows[0].normalized!, manager, 0);
   assert.equal(created.status, 'created');
@@ -94,7 +108,7 @@ test('mock integration creates only a normal assigned Users profile and existing
   const emailColumn = exported.headers.indexOf('email');
   const phoneColumn = exported.headers.indexOf('phone');
   assert.ok(exported.rows.some(rowValues => rowValues[emailColumn] === 'bulk.create@example.com'));
-  assert.ok(exported.rows.some(rowValues => rowValues[phoneColumn] === "'9865432109"));
+  assert.ok(exported.rows.some(rowValues => rowValues[phoneColumn] === '+919865432109'));
   for (const removedHeader of [
     'assignedGuideId', 'bvGroupId', 'bvRegistration.assignedGroupId', 'bvRegistration.pwClassesAttending',
     'bvRegistration.isPrabhupadaWorldUser', 'bvRegistration.userDbId', 'user.bvReportingAdminId',
@@ -102,4 +116,6 @@ test('mock integration creates only a normal assigned Users profile and existing
   ]) {
     assert.ok(!exported.headers.includes(removedHeader), `${removedHeader} must not be exported`);
   }
+
+  await Guides.delete({ id: guideId });
 });

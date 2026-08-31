@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvSessions, BvAttendance, BvQuizzes, Users, AppError } from '@/lib/backend-sdk';
+import { legacyQuizMatchesGroup, normalizeQuizDepartment, quizIsActivatedForGroup } from '@/lib/bvQuizAccess';
 
 function normalizeKey(value: unknown): string {
   return String(value || '').trim().toLowerCase();
@@ -82,7 +83,7 @@ export default createEndpoint({
     if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
 
     const groupRefs = [...new Set([group.id, group.groupId].filter(Boolean))];
-    const [membersRes, membersByGroupIdRes, sessionsRes, sessionsByGroupIdRes, quizzesRes, quizzesByGroupIdRes] = await Promise.all([
+    const [membersRes, membersByGroupIdRes, sessionsRes, sessionsByGroupIdRes, allQuizzesRes] = await Promise.all([
       BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'userId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }),
       group.groupId
         ? BvGroupMembers.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'user', 'userId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }).catch(() => ({ records: [] }))
@@ -91,10 +92,7 @@ export default createEndpoint({
       group.groupId
         ? BvSessions.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }).catch(() => ({ records: [] }))
         : Promise.resolve({ records: [] }),
-      BvQuizzes.findAll({ filters: { group: groupRefs.length > 1 ? { in: groupRefs } : group.id } as any, fields: ['id', 'groupId', 'quizTitle', 'createdAt'], limit: 50 }),
-      group.groupId
-        ? BvQuizzes.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'groupId', 'quizTitle', 'createdAt'], limit: 50 }).catch(() => ({ records: [] }))
-        : Promise.resolve({ records: [] }),
+      BvQuizzes.findAll({ fields: ['id', 'group', 'groupId', 'department', 'activeGroupIds', 'isActive', 'quizTitle', 'createdAt'], limit: 500 }),
     ]);
 
     const membershipMap = new Map<string, any>();
@@ -103,7 +101,12 @@ export default createEndpoint({
     const sessionMap = new Map<string, any>();
     [...sessionsRes.records, ...sessionsByGroupIdRes.records].forEach((session: any) => sessionMap.set(String(session.id), session));
     const quizMap = new Map<string, any>();
-    [...quizzesRes.records, ...quizzesByGroupIdRes.records].forEach((quiz: any) => quizMap.set(String(quiz.id), quiz));
+    allQuizzesRes.records
+      .filter((quiz: any) =>
+        legacyQuizMatchesGroup(quiz, group) ||
+        (normalizeQuizDepartment(quiz.department, 'FOLK') === 'PW' && quiz.isActive === true && quizIsActivatedForGroup(quiz, group))
+      )
+      .forEach((quiz: any) => quizMap.set(String(quiz.id), quiz));
     const sessionRecords = [...sessionMap.values()];
     const quizRecords = [...quizMap.values()];
 

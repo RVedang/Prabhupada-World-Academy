@@ -16,7 +16,7 @@ const GUIDE_FIELDS = ['id', 'fullName', 'abbr'];
 const RESIDENCY_FIELDS = ['id', 'residencyName', 'residencyId'];
 
 export default createEndpoint({
-  description: 'Get user profile — always reads fresh from DB, with email fallback for case-mismatch bare records',
+  description: 'Get user profile — always reads fresh from DB and rejects incomplete authentication-sync records',
   authenticated: true,
   inputSchema: z.object({
     email: z.string().optional(),
@@ -35,22 +35,8 @@ export default createEndpoint({
                  await Users.findOne({ filters: { email: context.user.email.toLowerCase() } });
     }
 
-    // Auto-heal missing userId/status if record exists
-    if (userRecord && (userRecord.status || userRecord.role || userRecord.email)) {
-      if (!userRecord.userId) {
-        userRecord.userId = userRecord.id || `USER-${context.user.id.slice(0, 8)}`;
-      }
-      if (!userRecord.status) {
-        userRecord.status = 'Active';
-      }
-      await Users.update({
-        id: userRecord.id || context.user.id,
-        record: { userId: userRecord.userId, status: userRecord.status },
-      }).catch(() => {});
-    }
-
     // ── EMAIL FALLBACK ────────────────────────────────────────────────────────
-    if (!userRecord?.userId && context.user.email) {
+    if ((!userRecord?.userId || !userRecord?.status) && context.user.email) {
       const emailLower = context.user.email.toLowerCase();
       const { records: allRecords } = await Users.findAll({
         fields: USER_FIELDS,
@@ -94,7 +80,9 @@ export default createEndpoint({
       }
     }
 
-    if (!userRecord?.userId) return { user: null };
+    // Authentication-sync documents are not registrations. A real profile is
+    // valid only after the registration flow has assigned both fields.
+    if (!userRecord?.userId || !userRecord?.status) return { user: null };
 
     // Current membership requires both a real BvGroupMembers row and a profile
     // that still agrees the user belongs to that group. This prevents stale

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizzes, BvQuizSubmissions, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
+import { legacyQuizMatchesGroup, normalizeQuizDepartment, quizIsActivatedForGroup } from '../lib/bvQuizAccess';
 
 export default createEndpoint({
   description: 'BV attendance + quiz matrix — person × date grid for guides/bvsls (queries attendance directly by group+date)',
@@ -230,12 +231,16 @@ export default createEndpoint({
       }
     }
 
-    // Get quizzes for these groups
-    const { records: quizzes } = await BvQuizzes.findAll({
-      filters: { group: { in: groupIds } } as any,
-      fields: ['id', 'group'],
-      limit: 200,
+    // Include both legacy group-specific quizzes and centrally published PW
+    // quizzes that an RGF/Admin has activated for one of these groups.
+    const { records: allQuizzes } = await BvQuizzes.findAll({
+      fields: ['id', 'group', 'department', 'activeGroupIds'],
+      limit: 500,
     });
+    const quizzes = allQuizzes.filter((quiz: any) =>
+      groups.some((group: any) => legacyQuizMatchesGroup(quiz, group)) ||
+      (normalizeQuizDepartment(quiz.department, 'FOLK') === 'PW' && groups.some((group: any) => quizIsActivatedForGroup(quiz, group)))
+    );
 
     const quizIds = quizzes.map(q => q.id);
 

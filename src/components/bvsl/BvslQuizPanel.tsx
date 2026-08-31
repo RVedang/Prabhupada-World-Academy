@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,14 +10,20 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import GroupSelect from '@/components/bvsl/GroupSelect';
 import {
   Plus, Trash2, CheckCircle2, Circle, ChevronDown, ChevronUp,
-  BookOpen, ArrowLeft, BarChart2, Users, Loader2, GripVertical, FileDown,
+  BookOpen, ArrowLeft, BarChart2, Users, Loader2, GripVertical, FileDown, Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createBvQuiz, getBvQuizzes, getBvQuizSubmissions, deleteBvQuiz } from '@/lib/endpoints-sdk';
+import {
+  createBvQuiz,
+  deleteBvQuiz,
+  getBvQuizDetail,
+  getBvQuizzes,
+  getBvQuizSubmissions,
+  setBvQuizGroupActivation,
+} from '@/lib/endpoints-sdk';
 import type { GetBvQuizzesOutputType } from '@/lib/endpoints-sdk';
 import { useEffect } from 'react';
 import { format } from 'date-fns';
@@ -35,6 +41,9 @@ interface QuizQuestion {
 interface Props {
   bvslId: string;
   groups: { id: string; groupName: string }[];
+  department?: 'FOLK' | 'PW';
+  canManageContent?: boolean;
+  canToggleGroupActivation?: boolean;
 }
 
 type QuizListItem = GetBvQuizzesOutputType['quizzes'][0];
@@ -57,11 +66,13 @@ function emptyQuestion(): QuizQuestion {
 // --- Quiz Editor ---
 function QuizEditor({
   groupId,
+  department,
   editingQuiz,
   onSaved,
   onCancel,
 }: {
-  groupId: string;
+  groupId?: string;
+  department: 'FOLK' | 'PW';
   editingQuiz: QuizListItem | null;
   onSaved: () => void;
   onCancel: () => void;
@@ -70,7 +81,7 @@ function QuizEditor({
   const [description, setDescription] = useState(editingQuiz?.description || '');
   const [isActive, setIsActive] = useState(editingQuiz?.isActive ?? true);
   const [quizDate, setQuizDate] = useState(() => {
-    if ((editingQuiz as any)?.quizDate) return (editingQuiz as any).quizDate;
+    if (editingQuiz?.quizDate) return editingQuiz.quizDate;
     return format(new Date(), 'yyyy-MM-dd');
   });
   const [questions, setQuestions] = useState<QuizQuestion[]>(() => {
@@ -78,7 +89,36 @@ function QuizEditor({
     return [emptyQuestion()];
   });
   const [saving, setSaving] = useState(false);
+  const [loadingQuiz, setLoadingQuiz] = useState(!!editingQuiz);
+  const [loadError, setLoadError] = useState('');
   const [expandedQ, setExpandedQ] = useState<string>(questions[0]?.id || '');
+
+  useEffect(() => {
+    if (!editingQuiz) return;
+    getBvQuizDetail({ quizId: editingQuiz.id, department, includeAnswers: true })
+      .then((quiz: any) => {
+        setTitle(quiz.title || 'Untitled Quiz');
+        setDescription(quiz.description || '');
+        setIsActive(quiz.isActive === true);
+        setQuizDate(quiz.quizDate || format(new Date(), 'yyyy-MM-dd'));
+        const loadedQuestions = (quiz.questions || []).map((question: any) => ({
+          id: question.id || generateId(),
+          text: question.text || '',
+          type: question.type === 'multiple' ? 'multiple' : 'single',
+          options: Array.isArray(question.options) ? question.options : ['', ''],
+          correctAnswers: Array.isArray(question.correctAnswers) ? question.correctAnswers : [],
+          explanation: question.explanation || '',
+        }));
+        setQuestions(loadedQuestions.length ? loadedQuestions : [emptyQuestion()]);
+        setExpandedQ(loadedQuestions[0]?.id || '');
+      })
+      .catch((error: any) => {
+        const message = error.message || 'Failed to load quiz for editing';
+        setLoadError(message);
+        toast.error(message);
+      })
+      .finally(() => setLoadingQuiz(false));
+  }, [department, editingQuiz?.id]);
 
   const addQuestion = () => {
     const q = emptyQuestion();
@@ -140,9 +180,10 @@ function QuizEditor({
     try {
       await createBvQuiz({
         quizId: editingQuiz?.id,
+        department,
         title,
         description,
-        groupId,
+        groupId: groupId || undefined,
         questions,
         isActive,
         quizDate,
@@ -156,6 +197,20 @@ function QuizEditor({
     }
   };
 
+  if (loadingQuiz) {
+    return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="font-medium">Unable to open this quiz for editing</p>
+        <p className="text-sm text-muted-foreground">{loadError}</p>
+        <Button variant="outline" size="sm" onClick={onCancel}><ArrowLeft className="w-4 h-4 mr-1" />Back to quizzes</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Header actions */}
@@ -166,7 +221,7 @@ function QuizEditor({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Switch id="quiz-active" checked={isActive} onCheckedChange={setIsActive} />
-            <Label htmlFor="quiz-active" className="text-sm">Active</Label>
+            <Label htmlFor="quiz-active" className="text-sm">{department === 'PW' ? 'Published' : 'Active'}</Label>
           </div>
           <Button onClick={handleSave} disabled={saving} size="sm">
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
@@ -368,28 +423,48 @@ function QuestionCard({
 }
 
 // --- Quiz Result Panel ---
-function QuizResultsPanel({ quiz, onBack }: { quiz: QuizListItem; onBack: () => void }) {
+function QuizResultsPanel({
+  quiz,
+  department,
+  groupId,
+  onBack,
+}: {
+  quiz: QuizListItem;
+  department: 'FOLK' | 'PW';
+  groupId?: string;
+  onBack: () => void;
+}) {
   const [subs, setSubs] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getBvQuizSubmissions({ quizId: quiz.id })
-      .then(r => setSubs(r.submissions))
+    getBvQuizSubmissions({ quizId: quiz.id, department, groupId })
+      .then(r => {
+        setSubs(r.submissions);
+        setAnalytics(r.analytics);
+      })
       .catch(() => toast.error('Failed to load submissions'))
       .finally(() => setLoading(false));
-  }, [quiz.id]);
+  }, [department, groupId, quiz.id]);
 
   const handleExportCsv = () => {
     if (subs.length === 0) return toast.error('No submissions to export');
-    const headers = ['Name', 'Score', 'Total Questions', 'Percentage', 'Submitted At'];
+    const headers = ['Name', 'Group', 'Score', 'Total Questions', 'Percentage', 'Submitted At'];
     const rows = subs.map(s => [
       s.userName,
+      s.groupName,
       String(s.score),
       String(s.totalQuestions),
       `${s.percentage}%`,
       s.submittedAt ? format(new Date(s.submittedAt), 'dd MMM yyyy, h:mm a') : '',
     ]);
-    const csvContent = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csvCell = (value: unknown) => {
+      const text = String(value ?? '');
+      const formulaSafe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+      return `"${formulaSafe.replace(/"/g, '""')}"`;
+    };
+    const csvContent = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -418,13 +493,13 @@ function QuizResultsPanel({ quiz, onBack }: { quiz: QuizListItem; onBack: () => 
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-3 text-center">
           <div className="text-2xl font-bold text-primary">
-            {subs.length > 0 ? Math.round(subs.reduce((s, r) => s + r.percentage, 0) / subs.length) : 0}%
+            {analytics?.averagePercentage ?? (subs.length > 0 ? Math.round(subs.reduce((s, r) => s + r.percentage, 0) / subs.length) : 0)}%
           </div>
           <div className="text-xs text-muted-foreground">Avg Score</div>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-3 text-center">
           <div className="text-2xl font-bold text-green-500">
-            {subs.filter(s => s.percentage >= 70).length}
+            {analytics?.passingCount ?? subs.filter(s => s.percentage >= 70).length}
           </div>
           <div className="text-xs text-muted-foreground">≥70%</div>
         </CardContent></Card>
@@ -442,6 +517,7 @@ function QuizResultsPanel({ quiz, onBack }: { quiz: QuizListItem; onBack: () => 
                 <div>
                   <p className="font-medium text-sm">{s.userName}</p>
                   <p className="text-xs text-muted-foreground">
+                    {department === 'PW' && !groupId ? `${s.groupName} · ` : ''}
                     {s.submittedAt ? format(new Date(s.submittedAt), 'd MMM, h:mm a') : ''}
                   </p>
                 </div>
@@ -456,50 +532,113 @@ function QuizResultsPanel({ quiz, onBack }: { quiz: QuizListItem; onBack: () => 
           ))}
         </div>
       )}
+
+      {!loading && (analytics?.questionAnalytics || []).length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="font-semibold text-sm">Question-wise Analysis</h3>
+            <p className="text-xs text-muted-foreground">Accuracy and option selection across the visible submissions.</p>
+          </div>
+          {(analytics.questionAnalytics as any[]).map((question, index) => (
+            <Card key={question.questionId}>
+              <CardContent className="py-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium"><span className="text-muted-foreground mr-1">Q{index + 1}.</span>{question.questionText}</p>
+                  <Badge variant="outline" className="shrink-0">{question.correctPercentage}% correct</Badge>
+                </div>
+                <div className="space-y-1.5">
+                  {(question.options || []).map((option: string, optionIndex: number) => {
+                    const count = question.optionCounts?.[optionIndex] || 0;
+                    const percentage = question.responses ? Math.round((count / question.responses) * 100) : 0;
+                    return (
+                      <div key={optionIndex} className="flex items-center gap-2 text-xs">
+                        <span className="min-w-0 flex-1 truncate">{option}</span>
+                        <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full bg-primary" style={{ width: `${percentage}%` }} />
+                        </div>
+                        <span className="w-12 text-right text-muted-foreground">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // --- Main Panel ---
-export default function BvslQuizPanel({ bvslId, groups }: Props) {
-  const [selectedGroupId, setSelectedGroupId] = useState(() => groups[0]?.id || '');
+export default function BvslQuizPanel({
+  bvslId,
+  groups,
+  department = 'FOLK',
+  canManageContent = department === 'FOLK',
+  canToggleGroupActivation = department === 'PW',
+}: Props) {
+  const groupOptions = useMemo(() => {
+    if (department === 'PW' && canManageContent) {
+      return [{ id: 'ALL', groupName: 'All PW Reading Groups' }, ...groups.filter(group => group.id !== 'ALL')];
+    }
+    return groups;
+  }, [canManageContent, department, groups]);
+  const [selectedGroupId, setSelectedGroupId] = useState(() =>
+    department === 'PW' && canManageContent ? 'ALL' : (groups[0]?.id || '')
+  );
   const [quizzes, setQuizzes] = useState<QuizListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [permissions, setPermissions] = useState<any>(null);
+  const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'create' | 'results'>('list');
   const [editingQuiz, setEditingQuiz] = useState<QuizListItem | null>(null);
   const [viewingQuiz, setViewingQuiz] = useState<QuizListItem | null>(null);
 
   const loadQuizzes = useCallback(async (gId: string) => {
-    if (!gId) return;
+    if (!gId && !(department === 'PW' && canManageContent)) return;
     setLoading(true);
     try {
-      const r = await getBvQuizzes({ groupId: gId });
+      const r = await getBvQuizzes({
+        department,
+        groupId: gId && gId !== 'ALL' ? gId : undefined,
+      });
       setQuizzes(r.quizzes);
+      setPermissions(r.permissions);
     } catch { toast.error('Failed to load quizzes'); }
     finally { setLoading(false); }
-  }, []);
+  }, [canManageContent, department]);
 
   useEffect(() => {
-    if (selectedGroupId) loadQuizzes(selectedGroupId);
+    if (selectedGroupId || (department === 'PW' && canManageContent)) loadQuizzes(selectedGroupId);
   }, [selectedGroupId, loadQuizzes]);
 
   const handleDelete = async (quizId: string) => {
     try {
-      await deleteBvQuiz({ quizId });
+      await deleteBvQuiz({ quizId, department });
       toast.success('Quiz deleted');
       loadQuizzes(selectedGroupId);
     } catch { toast.error('Failed to delete quiz'); }
   };
 
-  if (groups.length === 0) return (
-    <div className="text-center py-12 text-muted-foreground">
-      <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
-      <p className="font-medium">No groups found</p>
-      <p className="text-sm mt-1">Create a BV group first to add quizzes.</p>
-    </div>
-  );
+  const handleGroupActivation = async (quizId: string, isActive: boolean) => {
+    if (!selectedGroupId || selectedGroupId === 'ALL') return;
+    setTogglingQuizId(quizId);
+    try {
+      await setBvQuizGroupActivation({ quizId, groupId: selectedGroupId, isActive });
+      toast.success(isActive ? 'Quiz turned on for this group' : 'Quiz turned off for this group');
+      await loadQuizzes(selectedGroupId);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update quiz availability');
+    } finally {
+      setTogglingQuizId(null);
+    }
+  };
 
-  if (groups.length === 0) return (
+  const effectiveCanManage = canManageContent && permissions?.canManageContent !== false;
+  const effectiveCanToggle = canToggleGroupActivation && permissions?.canToggleGroups !== false;
+
+  if (groups.length === 0 && !(department === 'PW' && canManageContent)) return (
     <div className="text-center py-12 text-muted-foreground">
       <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
       <p className="font-medium">No groups found</p>
@@ -510,7 +649,8 @@ export default function BvslQuizPanel({ bvslId, groups }: Props) {
   if (view === 'create') {
     return (
       <QuizEditor
-        groupId={selectedGroupId}
+        groupId={department === 'FOLK' ? selectedGroupId : undefined}
+        department={department}
         editingQuiz={editingQuiz}
         onCancel={() => { setView('list'); setEditingQuiz(null); }}
         onSaved={() => { setView('list'); setEditingQuiz(null); loadQuizzes(selectedGroupId); }}
@@ -519,7 +659,12 @@ export default function BvslQuizPanel({ bvslId, groups }: Props) {
   }
 
   if (view === 'results' && viewingQuiz) {
-    return <QuizResultsPanel quiz={viewingQuiz} onBack={() => { setView('list'); setViewingQuiz(null); }} />;
+    return <QuizResultsPanel
+      quiz={viewingQuiz}
+      department={department}
+      groupId={selectedGroupId && selectedGroupId !== 'ALL' ? selectedGroupId : undefined}
+      onBack={() => { setView('list'); setViewingQuiz(null); }}
+    />;
   }
 
   return (
@@ -529,18 +674,32 @@ export default function BvslQuizPanel({ bvslId, groups }: Props) {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-primary" />
-            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Select Reading Group:</span>
+            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+              {department === 'PW' ? 'Quiz scope:' : 'Select Reading Group:'}
+            </span>
           </div>
-          <GroupSelect
-            groups={groups}
-            selectedGroupId={selectedGroupId}
-            onSelectGroup={setSelectedGroupId}
-          />
+          {groupOptions.length > 0 ? (
+            <GroupSelect
+              groups={groupOptions}
+              selectedGroupId={selectedGroupId}
+              onSelectGroup={setSelectedGroupId}
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">No PW groups created yet</span>
+          )}
         </div>
-        <Button size="sm" onClick={() => { setEditingQuiz(null); setView('create'); }}>
-          <Plus className="w-4 h-4 mr-1" /> New Quiz
-        </Button>
+        {effectiveCanManage && (
+          <Button size="sm" onClick={() => { setEditingQuiz(null); setView('create'); }}>
+            <Plus className="w-4 h-4 mr-1" /> New Quiz
+          </Button>
+        )}
       </div>
+
+      {department === 'PW' && selectedGroupId !== 'ALL' && (
+        <p className="text-xs text-muted-foreground px-1">
+          Published quizzes are managed centrally. The ON/OFF control below changes availability only for this reading group.
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
@@ -548,53 +707,86 @@ export default function BvslQuizPanel({ bvslId, groups }: Props) {
         <div className="text-center py-12 text-muted-foreground">
           <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="font-medium">No quizzes yet</p>
-          <p className="text-sm mt-1">Create your first quiz for this group</p>
+          <p className="text-sm mt-1">
+            {effectiveCanManage ? 'Create your first quiz' : 'An Admin has not published any quizzes yet'}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
           {quizzes.map(q => (
-            <Card key={q.id} className={`border-l-4 ${q.isActive ? 'border-l-green-400' : 'border-l-muted'}`}>
+            <Card key={q.id} className={`border-l-4 ${(department === 'PW' && selectedGroupId !== 'ALL' ? q.isActiveForGroup : q.isActive) ? 'border-l-green-400' : 'border-l-muted'}`}>
               <CardContent className="pt-3 pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm truncate">{q.title}</span>
-                      <Badge variant={q.isActive ? 'default' : 'outline'} className="text-xs shrink-0">
-                        {q.isActive ? 'Active' : 'Inactive'}
+                      <Badge
+                        variant={(department === 'PW' && selectedGroupId !== 'ALL' ? q.isActiveForGroup : q.isActive) ? 'default' : 'outline'}
+                        className="text-xs shrink-0"
+                      >
+                        {department === 'PW'
+                          ? (selectedGroupId === 'ALL'
+                            ? (q.isActive ? 'Published' : 'Unpublished')
+                            : (q.isActiveForGroup ? 'ON for Group' : 'OFF for Group'))
+                          : (q.isActive ? 'Active' : 'Inactive')}
                       </Badge>
                     </div>
                     {q.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{q.description}</p>}
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                       <span>{q.questionCount} questions</span>
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" />{q.submissionCount} submitted</span>
+                      {department === 'PW' && selectedGroupId === 'ALL' && <span>{q.activeGroupCount || 0} groups active</span>}
                       {q.createdAt && <span>{format(new Date(q.createdAt), 'd MMM yyyy')}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    {department === 'PW' && selectedGroupId !== 'ALL' && effectiveCanToggle && (
+                      <div className="flex items-center gap-2 px-2">
+                        {togglingQuizId === q.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                        <Switch
+                          aria-label={`${q.isActiveForGroup ? 'Turn off' : 'Turn on'} ${q.title} for selected group`}
+                          checked={q.isActiveForGroup}
+                          disabled={!q.isActive || togglingQuizId === q.id}
+                          onCheckedChange={checked => handleGroupActivation(q.id, checked)}
+                        />
+                      </div>
+                    )}
                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs"
                       onClick={() => { setViewingQuiz(q); setView('results'); }}>
                       <BarChart2 className="w-4 h-4" />
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-destructive">
-                          <Trash2 className="w-4 h-4" />
+                    {effectiveCanManage && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => { setEditingQuiz(q); setView('create'); }}
+                        >
+                          <Pencil className="w-4 h-4" />
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Quiz?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete "{q.title}". Submissions will also be removed.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(q.id)}
-                            className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Quiz?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete "{q.title}". Submissions will also be removed.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(q.id)}
+                                className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>

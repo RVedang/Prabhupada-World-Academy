@@ -98,6 +98,9 @@ export default function RgfDashboard() {
                 <BvslQuizPanel
                   bvslId={bvslId}
                   groups={groups.map((g: any) => ({ id: g.id, groupName: g.groupName }))}
+                  department={isFolk ? 'FOLK' : 'PW'}
+                  canManageContent={isFolk}
+                  canToggleGroupActivation={!isFolk}
                 />
               )}
               {activeTab === 'onetone' && <BvslOneToOneTab />}
