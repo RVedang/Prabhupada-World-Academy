@@ -169,9 +169,11 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
   });
 
   try {
+    // Legacy FOLK supervisors may not have a segment stored yet. The FOLK
+    // supervisor dashboard must still resolve their reporting RGFs.
     const result = await getBvSupervisorOverview.execute({
       input: {},
-      context: { user: supervisor },
+      context: { user: { ...supervisor, segment: undefined } },
     } as never);
 
     assert.deepEqual(result.groups.map((group: any) => group.groupId), [supervisedGroup.groupId]);

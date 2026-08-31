@@ -54,10 +54,12 @@ export default createEndpoint({
 
     const scopedUserIds = await getScopedHierarchyUserIds(context.user);
 
-    // Fetch active groups and filter by user segment ('PW' vs 'FOLK')
-    const userSegment = context.user.segment || 'PW';
+    // This endpoint powers the FOLK Supervisor dashboard. Older supervisor
+    // profiles can predate the segment field; treating those as PW hides all
+    // correctly linked FOLK RGFs and groups.
+    const userSegment = String(context.user.segment || 'FOLK').toUpperCase();
     const { records: rawGroups } = await BvGroups.findAll({ filters: { isActive: true }, limit: 500 });
-    let groups = rawGroups.filter((g: any) => String(g.segment || 'PW').toUpperCase() === String(userSegment).toUpperCase());
+    let groups = rawGroups.filter((g: any) => String(g.segment || 'PW').toUpperCase() === userSegment);
 
     // Apply hierarchy scoping if not Super Admin
     if (scopedUserIds !== null) {

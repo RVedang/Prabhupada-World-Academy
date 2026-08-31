@@ -37,14 +37,14 @@ export default function BvSupervisorDashboard() {
     }
   };
 
-  const isFolk = profile?.segment === 'FOLK';
+  const isFolk = String(profile?.segment || '').trim().toUpperCase() === 'FOLK';
 
   const tabs: TabConfig[] = [
     { value: 'overview', label: 'Overview', icon: Layers },
     { value: 'groups', label: 'Groups', icon: Users },
     { value: 'rgfs', label: 'Facilitators (RGFs)', icon: Users },
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
-    ...(isFolk ? [{ value: 'sadhana', label: 'Sadhana', icon: FileText }] : []),
+    { value: 'sadhana', label: 'Sadhana', icon: FileText },
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
     { value: 'meetings', label: 'Meetings & MoMs', icon: Video },
   ];
@@ -73,7 +73,7 @@ export default function BvSupervisorDashboard() {
           <Skeleton className="h-64" />
         </div>
       ) : (
-        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={isFolk ? 7 : 6}>
+        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={7}>
           {(activeTab) => (
             <>
               {activeTab === 'overview' && (
@@ -225,7 +225,7 @@ export default function BvSupervisorDashboard() {
                 <BvSection guideId={profile?.userId || 'ALL'} bvslMode />
               )}
 
-              {activeTab === 'sadhana' && isFolk && (
+              {activeTab === 'sadhana' && (
                 <SadhanaSection
                   guideId={profile?.userId || ''}
                   bvslMode
