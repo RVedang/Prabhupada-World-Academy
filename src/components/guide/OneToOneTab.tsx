@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Link, Check, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { Link, Check, ChevronDown, ChevronUp, Settings2, Calendar, Clock, FileText, User } from 'lucide-react';
 import OneToOneMatrix from './OneToOneMatrix';
 import type { Member, Meeting } from './OneToOneMatrix';
 import OneToOneLogDialog from './OneToOneLogDialog';
@@ -19,6 +20,14 @@ interface DialogState { open: boolean; memberId: string; memberName: string; wee
 interface Props { guideId: string; }
 
 const ASHRAY_LEVELS = ['Jigyasa', 'Shraddhavan', 'Sevak', 'Sadhaka', 'Upasaka', 'Caranashraya', 'Harinam Diksha'];
+
+function formatCallDate(dateStr: string | undefined): string {
+  if (!dateStr) return 'No calls logged yet';
+  const date = new Date(`${dateStr}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? dateStr
+    : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 function BookingLinkSettings({ initialLink }: { initialLink: string }) {
   const [link, setLink] = useState(initialLink);
@@ -79,6 +88,7 @@ export default function OneToOneTab({ guideId }: Props) {
   // Dialogs
   const [dialog, setDialog] = useState<DialogState>({ open: false, memberId: '', memberName: '', weekDate: '', existing: null });
   const [eligibilityOpen, setEligibilityOpen] = useState(false);
+  const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({});
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -110,6 +120,19 @@ export default function OneToOneTab({ guideId }: Props) {
   });
 
   const groupByAshray = ashrayFilter === 'All';
+
+  const getMemberCallDetails = (memberId: string) => {
+    const memberMeetings = meetings
+      .filter(meeting => meeting.memberId === memberId)
+      .sort((a, b) => b.meetingDate.localeCompare(a.meetingDate));
+    const latestWithNextCall = memberMeetings.find(meeting => meeting.nextCallDate);
+    return {
+      memberMeetings,
+      lastCallDate: memberMeetings[0]?.meetingDate,
+      nextCallDate: latestWithNextCall?.nextCallDate,
+      nextCallAgenda: latestWithNextCall?.nextCallAgenda,
+    };
+  };
 
   return (
     <div className="space-y-4">
@@ -195,6 +218,84 @@ export default function OneToOneTab({ guideId }: Props) {
             groupByAshray={groupByAshray}
             onCellClick={openDialog}
           />
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" /> Member Call Details & History ({filteredMembers.length})
+            </h3>
+            <div className="grid grid-cols-1 gap-4">
+              {filteredMembers.map(member => {
+                const { memberMeetings, lastCallDate, nextCallDate, nextCallAgenda } = getMemberCallDetails(member.userId);
+                const isExpanded = !!expandedMembers[member.userId];
+                return (
+                  <Card key={member.userId} className="border border-border bg-card shadow-xs">
+                    <CardHeader className="pb-3 pt-4 px-4 flex flex-row items-center justify-between space-y-0">
+                      <div>
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                          <User className="w-4 h-4 text-muted-foreground" /> {member.fullName}
+                        </CardTitle>
+                        <CardDescription className="text-xs mt-0.5">
+                          {member.ashrayLevel || 'No level'} · {member.isResident ? 'Resident' : 'Non-Resident'}
+                        </CardDescription>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => setExpandedMembers(current => ({ ...current, [member.userId]: !current[member.userId] }))}
+                      >
+                        {isExpanded ? <><ChevronUp className="w-4 h-4 mr-1" /> Hide history</> : <><ChevronDown className="w-4 h-4 mr-1" /> View history</>}
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="pt-0 pb-4 px-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-muted/30 p-2.5 rounded-md">
+                        <div>
+                          <span className="text-muted-foreground block font-medium">Last Call Logged</span>
+                          <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
+                            <Calendar className="w-3.5 h-3.5 text-primary" /> {formatCallDate(lastCallDate)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block font-medium">Next Call Agenda / Plan</span>
+                          {nextCallDate ? (
+                            <div className="mt-0.5">
+                              <span className="font-semibold text-amber-600 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {formatCallDate(nextCallDate)}</span>
+                              {nextCallAgenda && <p className="text-muted-foreground italic mt-0.5">{nextCallAgenda}</p>}
+                            </div>
+                          ) : <span className="text-muted-foreground italic mt-0.5 block">No upcoming call scheduled</span>}
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="pt-2 space-y-3 border-t border-border/60">
+                          <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-muted-foreground" /> Call History Logs ({memberMeetings.length})
+                          </h4>
+                          {memberMeetings.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic py-2">No calls logged yet for this member.</p>
+                          ) : (
+                            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                              {memberMeetings.map(meeting => (
+                                <div key={meeting.id} className="border border-border/80 rounded-md p-2.5 bg-background text-xs space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-1.5">
+                                    <span className="font-semibold text-foreground flex items-center gap-1"><Calendar className="w-3 h-3 text-muted-foreground" /> {formatCallDate(meeting.meetingDate)}</span>
+                                    <span className="text-muted-foreground">{meeting.durationMinutes || 0} mins</span>
+                                  </div>
+                                  {meeting.callStatus && <span className="text-muted-foreground">Status: {meeting.callStatus}</span>}
+                                  {meeting.notes && <p className="text-muted-foreground whitespace-pre-wrap">{meeting.notes}</p>}
+                                  {meeting.nextCallDate && <p className="text-amber-700 font-medium">Next: {formatCallDate(meeting.nextCallDate)}{meeting.nextCallAgenda ? ` — ${meeting.nextCallAgenda}` : ''}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
         </>
       )}
 
