@@ -89,6 +89,10 @@ export default createEndpoint({
     const currentEmail = String(context.user?.email || '').toLowerCase();
 
     const users = allUsers.filter((u: any) => {
+      // Never expose incomplete profile records as blank member rows. A mentor
+      // can only act on a real, identifiable member.
+      if (!String(u.fullName || '').trim()) return false;
+
       // Exclude the Sadhana Mentor themselves from the list
       const uId = String(u.id || '').toLowerCase();
       const uUserId = String(u.userId || '').toLowerCase();
@@ -204,7 +208,7 @@ export default createEndpoint({
 
       return {
         userId: u.userId || u.id,
-        fullName: u.fullName || '',
+        fullName: String(u.fullName || '').trim(),
         email: u.email || '',
         phone: u.phone || null,
         ashrayLevel: u.ashrayLevel || null,

@@ -58,10 +58,17 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
   // Combined location filter: 'all' | 'non_residents' | residencyName
   const [locationFilter, setLocationFilter] = useState('all');
 
+  // Keep the table resilient if a legacy or malformed profile reaches the
+  // client before the server-side validation has been deployed.
+  const validMembers = useMemo(
+    () => members.filter(member => Boolean(member.userId?.trim()) && Boolean(member.fullName?.trim())),
+    [members],
+  );
+
   // Derive distinct ashray levels and residency options from members
   const distinctAshray = useMemo(() =>
-    ASHRAY_LEVELS.filter(l => members.some(m => m.ashrayLevel === l)),
-  [members]);
+    ASHRAY_LEVELS.filter(l => validMembers.some(m => m.ashrayLevel === l)),
+  [validMembers]);
 
   // Location options: All + Non-Resident + each unique residency
   const locationOptions = useMemo(() => {
@@ -70,17 +77,17 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
       { value: 'all', label: 'All Members' },
       { value: 'non_residents', label: 'Non-Resident' },
     ];
-    members.forEach(m => {
+    validMembers.forEach(m => {
       if (m.isResident && m.residencyName && !seen.has(m.residencyName)) {
         seen.add(m.residencyName);
         opts.push({ value: m.residencyName, label: m.residencyName.replace(/^FOLK\s+/i, '') });
       }
     });
     return opts;
-  }, [members]);
+  }, [validMembers]);
 
   const filtered = useMemo(() => {
-    let result = members;
+    let result = validMembers;
     if (search) result = result.filter(m =>
       m.fullName.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase())
@@ -89,7 +96,7 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
     else if (locationFilter !== 'all') result = result.filter(m => m.isResident && m.residencyName === locationFilter);
     if (ashrayFilter !== 'all') result = result.filter(m => m.ashrayLevel === ashrayFilter);
     return result;
-  }, [members, search, locationFilter, ashrayFilter]);
+  }, [validMembers, search, locationFilter, ashrayFilter]);
 
   const sorted = useMemo(() => [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -150,7 +157,9 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
 
         {distinctAshray.length > 1 && (
           <Select value={ashrayFilter} onValueChange={(v) => setAshrayFilter(v || 'all')}>
-            <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="All Ashraya" /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue>{ashrayFilter === 'all' ? 'All Ashraya Levels' : ashrayFilter}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Ashraya</SelectItem>
               {distinctAshray.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
@@ -159,7 +168,7 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
         )}
 
         <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
-          <Users className="w-3.5 h-3.5" />{sorted.length}/{members.length} · <strong>{guideName}</strong>
+          <Users className="w-3.5 h-3.5" />{sorted.length}/{validMembers.length} · <strong>{guideName}</strong>
         </span>
       </div>
 
@@ -306,7 +315,7 @@ export default function SadhanaMentorDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile.fullName}!`}
+      title="FOLK Sadhana Mentor Dashboard"
       subtitle={subtitle}
       role="SADHANA_MENTOR"
       maxWidth="max-w-6xl"
