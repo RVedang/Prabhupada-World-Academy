@@ -18,7 +18,15 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
-    requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor: (context.user as any).isBvMentor });
+    requireGuideRole(context.user.role, {
+      isSadhanaMentor: context.user.isSadhanaMentor,
+      isBvsl: context.user.isBvsl,
+      isBvMentor: context.user.isBvMentor,
+      isBvSupervisor: context.user.isBvSupervisor,
+      isBvAdmin: context.user.isBvAdmin,
+      isBvSuperAdmin: context.user.isBvSuperAdmin,
+      isBvSubFacilitator: context.user.isBvSubFacilitator,
+    });
 
     const { guideId, startDate, endDate, groupId, bvslMode, residencyIds } = input;
 

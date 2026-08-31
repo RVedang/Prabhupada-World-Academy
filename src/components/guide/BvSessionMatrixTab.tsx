@@ -2,7 +2,7 @@
  * BvSessionMatrixTab — BV session attendance + quiz matrix
  * Columns: Name | Level | FOLK | Group | date columns (Attend | Quiz) | Att% | Quiz%
  */
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -71,6 +71,8 @@ const MONTH_OPTIONS = getMonthOptions();
 
 interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
 
+const BV_REPORT_LOAD_TOAST_ID = 'bv-session-matrix-load';
+
 export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: Props) {
   const { profile } = useUserProfile();
   const navigate = useNavigate();
@@ -87,6 +89,8 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   const [folkFilter, setFolkFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<'both' | 'attendance' | 'quiz'>('both');
   const [data, setData] = useState<GetBvSessionMatrixOutputType | null>(null);
+  const mountedRef = useRef(true);
+  const requestVersionRef = useRef(0);
 
   const { start, end } = useMemo(() => {
     if (reportType === 'weekly') return parseWeekInput(selectedWeek);
@@ -94,6 +98,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   }, [reportType, selectedWeek, selectedMonth]);
 
   const fetchData = useCallback(async () => {
+    const requestVersion = ++requestVersionRef.current;
     setLoading(true);
     try {
       const result = await getBvSessionMatrix({
@@ -102,15 +107,28 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
         bvslMode,
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
       });
+      if (!mountedRef.current || requestVersion !== requestVersionRef.current) return;
       setData(result);
-    } catch { toast.error('Failed to load BV report'); }
-    finally { setLoading(false); }
+      toast.dismiss(BV_REPORT_LOAD_TOAST_ID);
+    } catch {
+      if (mountedRef.current && requestVersion === requestVersionRef.current) {
+        toast.error('Failed to load BV report', { id: BV_REPORT_LOAD_TOAST_ID });
+      }
+    } finally {
+      if (mountedRef.current && requestVersion === requestVersionRef.current) setLoading(false);
+    }
   }, [guideId, start, end, groupId, bvslMode, residencyIds]);
 
   const debouncedFetch = useDebouncedCallback(fetchData, 300);
   useEffect(() => {
+    mountedRef.current = true;
     debouncedFetch();
-    return () => debouncedFetch.cancel();
+    return () => {
+      mountedRef.current = false;
+      requestVersionRef.current += 1;
+      debouncedFetch.cancel();
+      toast.dismiss(BV_REPORT_LOAD_TOAST_ID);
+    };
   }, [debouncedFetch]);
 
   const groups: { id: string; name: string }[] = (data as any)?.groups ?? [];
