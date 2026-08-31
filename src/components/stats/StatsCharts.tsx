@@ -43,9 +43,9 @@ export function ScoreTrendChart({ data }: { data: TrendPoint[] }) {
             return [val, name];
           }}
         />
-        {/* 75% line — NR threshold */}
+        {/* 75% line — non-resident threshold */}
         <ReferenceLine y={75} stroke="hsl(var(--chart-3))" strokeDasharray="4 2" strokeWidth={1.5}
-          label={{ value: '75% (NR)', position: 'insideTopRight', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+          label={{ value: '75% (Non-Resident)', position: 'insideTopRight', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
         {/* 95% line — Resident threshold */}
         <ReferenceLine y={95} stroke="hsl(var(--chart-2))" strokeDasharray="4 2" strokeWidth={1.5}
           label={{ value: '95% (Res)', position: 'insideTopRight', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />

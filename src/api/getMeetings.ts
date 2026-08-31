@@ -41,17 +41,14 @@ export default createEndpoint({
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
     const userEmail = (context.user.email || '').toLowerCase();
-    const callerRole = (context.user.role || '').toUpperCase();
+    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
     const userId = context.user.id;
 
     const isSuperAdminOrAdmin = !!(
       context.user.isBvSuperAdmin ||
       context.user.isBvAdmin ||
       context.user.isPwAdmin ||
-      callerRole.includes('ADMIN') ||
-      callerRole.includes('SUPER') ||
-      callerRole === 'PW_ADMIN' ||
-      context.user.isBvSuperAdmin
+      ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
     );
 
     const storedSegment = String(context.user.segment || '').trim().toUpperCase();
@@ -66,9 +63,8 @@ export default createEndpoint({
 
     if (!isSuperAdminOrAdmin) {
       filtered = filtered.filter((m: any) => {
-        // Non-admins only see meetings where they were participants/invitees or creator
+        // Supervisors and other non-admins see only meetings to which they are invited.
         return (
-          m.createdByUserId === userId ||
           (m.inviteeUserIds || []).includes(userId) ||
           (m.invitees || []).some((inv: any) => inv.userId === userId || (inv.email && inv.email.toLowerCase() === userEmail))
         );

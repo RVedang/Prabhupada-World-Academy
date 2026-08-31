@@ -156,7 +156,6 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
   return (
     <>
       <div className="flex flex-wrap gap-2 justify-end">
-        <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4" /> Download Import Template</Button>
         <Button variant="outline" size="sm" onClick={() => { resetImport(); setImportOpen(true); }}><Upload className="w-4 h-4" /> Import Users</Button>
         <Button variant="outline" size="sm" onClick={openExport}><FileSpreadsheet className="w-4 h-4" /> Export Users</Button>
       </div>
@@ -169,6 +168,14 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
               Upload the application-generated template. Every new member is assigned to your FOLK Guide profile and receives only normal User access.
             </DialogDescription>
           </DialogHeader>
+
+          {!result && (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={downloadTemplate} disabled={busy}>
+                <Download className="w-4 h-4" /> Download Import Template
+              </Button>
+            </div>
+          )}
 
           {!result && (
             <div className="space-y-4">

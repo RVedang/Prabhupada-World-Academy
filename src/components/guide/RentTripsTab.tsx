@@ -105,7 +105,7 @@ function UserRow({ user, onClick }: { user: OverviewUser; onClick: () => void })
             <div className="flex items-center gap-1 mt-0.5">
               {user.isResident
                 ? <span className="text-xs text-primary flex items-center gap-0.5"><Home className="w-3 h-3" />Resident</span>
-                : <span className="text-xs text-muted-foreground flex items-center gap-0.5"><Globe className="w-3 h-3" />NR</span>}
+                : <span className="text-xs text-muted-foreground flex items-center gap-0.5"><Globe className="w-3 h-3" />Non-Resident</span>}
             </div>
           </div>
         </div>

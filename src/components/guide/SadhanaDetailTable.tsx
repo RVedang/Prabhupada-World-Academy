@@ -330,12 +330,12 @@ export default function SadhanaDetailTable({
             ? <span className="text-foreground font-medium truncate block max-w-[86px] mx-auto" title={user.ashrayLevel}>{user.ashrayLevel}</span>
             : <span className="text-muted-foreground/40">—</span>}
         </td>
-        {/* R/NR */}
+        {/* Residency status */}
         {showFolkColumn && (
           <td className="px-2 py-2 text-center text-xs no-print-col">
             {user.isResident
-              ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300 leading-tight">R</span>
-              : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border leading-tight">NR</span>}
+              ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300 leading-tight">Resident</span>
+              : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border leading-tight">Non-Resident</span>}
           </td>
         )}
         {/* FOLK */}
@@ -445,10 +445,10 @@ export default function SadhanaDetailTable({
                 {!groupByAshray && <SortIcon col="ashrayLevel" sortKey={sortKey} sortDir={sortDir} />}
               </span>
             </th>
-            {/* R/NR */}
+            {/* Residency status */}
             {showFolkColumn && (
-              <th className={`${TH_TOP} w-[52px] min-w-[52px] text-center no-print-col`}>
-                R/NR
+              <th className={`${TH_TOP} w-[120px] min-w-[120px] text-center no-print-col`}>
+                Residency
               </th>
             )}
             {/* FOLK */}

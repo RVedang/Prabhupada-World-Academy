@@ -238,7 +238,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   const [ashrayLevelFilter, setAshrayLevelFilter] = useState<string>('all');
   const [folkResidencyId, setFolkResidencyId] = useState<string>(() => {
     // RGF groups can contain members from another FOLK residency. Never seed
-    // an invisible profile-residency filter in BVSL/RGF mode.
+    // an invisible profile-residency filter in RGF mode.
     if (isPw || bvslMode) return 'all';
     return isSuperAdmin ? 'all' : (profile?.folkResidencyCustomId || 'all');
   });
@@ -325,7 +325,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       mentorMode,
       groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
     });
-  }, [guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, isPw, selectedGroupId]);
+  }, [debouncedFetch, guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, isPw, selectedGroupId]);
 
   const residencies = rawReportData?.availableResidencies ?? [];
   const availableGuides: { guideId: string; guideName: string }[] = (rawReportData as any)?.availableGuides ?? [];
@@ -502,7 +502,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     u.ashrayLevel || '',
     u.isResident
       ? (resolveResidencyName(u, residencies) || 'Resident')
-      : 'NR',
+      : 'Non-Resident',
     String(u.currentStreak ?? 0),
     ...visibleFieldDefs.map(d => {
       const applicable = u.isResident ? d.forResident : d.forNR;

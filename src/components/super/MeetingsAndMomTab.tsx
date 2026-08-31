@@ -345,8 +345,8 @@ interface Mom {
 }
 
 const getRolePriority = (u: any) => {
-  const roleUpper = (u.role || '').toUpperCase();
-  const isAdmin = u.isBvAdmin || roleUpper.includes('ADMIN') || roleUpper.includes('SUPER');
+  const roleUpper = String(u.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+  const isAdmin = u.isBvAdmin || ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(roleUpper);
   const isSupervisor = u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
   const isFac = u.isBvsl || roleUpper === 'BVSL' || roleUpper === 'FACILITATOR';
   const isRgsf = u.isBvSubFacilitator || roleUpper === 'RGSF' || roleUpper.includes('SUB_FACILITATOR') || roleUpper.includes('SUB-FACILITATOR');
@@ -370,18 +370,15 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
     (String(profile?.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW');
 
   const userEmailLower = (user?.email || '').toLowerCase();
+  const profileRole = String(profile?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
   const isSuperAdmin = !!(
     (profile as any)?.isBvSuperAdmin ||
-    profile?.role === 'SUPER_ADMIN' ||
-    profile?.role === 'SUPER_GUIDE' ||
-    (profile?.role as string)?.toUpperCase()?.includes('SUPER')
+    ['SUPER_ADMIN', 'SUPER_GUIDE'].includes(profileRole)
   );
   const isAdminUser = isSuperAdmin ||
                       !!profile?.isBvAdmin ||
                       !!(profile as any)?.isPwAdmin ||
-                      profile?.role?.toUpperCase() === 'ADMIN' ||
-                      profile?.role?.toUpperCase() === 'PW_ADMIN' ||
-                      profile?.role?.toUpperCase()?.includes('ADMIN');
+                      ['ADMIN', 'PW_ADMIN'].includes(profileRole);
 
   const isSupervisor = !!profile?.isBvSupervisor ||
                        !!(profile as any)?.isBvMentor ||

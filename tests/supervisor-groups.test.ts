@@ -273,6 +273,32 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     assert.equal(preachingStats.totalSubmitted, 1);
     assert.deepEqual(preachingStats.userSummaries.map((row: any) => row.fullName), [reportingRgf.fullName]);
 
+    const groupScopedPreachingStats = await getBvStats.execute({
+      input: {
+        guideId: supervisor.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+        groupId: supervisedGroup.groupId,
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.equal(groupScopedPreachingStats.totalUsers, 1);
+    assert.deepEqual(groupScopedPreachingStats.userSummaries.map((row: any) => row.fullName), [reportingRgf.fullName]);
+    await assert.rejects(
+      getBvStats.execute({
+        input: {
+          guideId: supervisor.userId,
+          startDate: today,
+          endDate: today,
+          bvslMode: true,
+          groupId: outsideGroup.groupId,
+        },
+        context: { user: supervisor },
+      } as never),
+      /not assigned to your hierarchy/,
+    );
+
     const groupStats = await getGuideGroupStats.execute({
       input: { guideId: supervisor.userId, bvslMode: true },
       context: { user: supervisor },

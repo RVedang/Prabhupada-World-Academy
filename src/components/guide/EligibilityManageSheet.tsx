@@ -114,11 +114,11 @@ export default function EligibilityManageSheet({ open, onClose, onSaved, members
             {curr.eligibility === 'Delegated' && (
               <Select value={curr.delegateId || ''} onValueChange={v => setDelegate(m.userId, v)}>
                 <SelectTrigger className="h-7 w-36 text-xs">
-                  <SelectValue placeholder="Pick BVSL" />
+                  <SelectValue placeholder="Pick RGF" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableBvsls.length === 0 && (
-                    <div className="px-2 py-1 text-xs text-muted-foreground">No BVSLs found</div>
+                    <div className="px-2 py-1 text-xs text-muted-foreground">No RGFs found</div>
                   )}
                   {availableBvsls.map(b => (
                     <SelectItem key={b.userId} value={b.userId}>{b.fullName}</SelectItem>
@@ -151,7 +151,7 @@ export default function EligibilityManageSheet({ open, onClose, onSaved, members
             Manage 1:1 Eligibility
           </SheetTitle>
           <p className="text-xs text-muted-foreground">
-            Set who each member does their 1:1 with. "With Me" = you; "Delegated" = a BVSL under you; "Not Eligible" = no 1:1 needed.
+            Set who each member does their 1:1 with. "With Me" = you; "Delegated" = an RGF under you; "Not Eligible" = no 1:1 needed.
           </p>
         </SheetHeader>
 

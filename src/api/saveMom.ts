@@ -38,16 +38,13 @@ export default createEndpoint({
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
     const userEmail = (context.user.email || '').toLowerCase();
-    const callerRole = (context.user.role || '').toUpperCase();
+    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
 
     const isSuperAdminOrAdmin = !!(
       context.user.isBvSuperAdmin ||
       context.user.isBvAdmin ||
       context.user.isPwAdmin ||
-      callerRole.includes('ADMIN') ||
-      callerRole.includes('SUPER') ||
-      callerRole === 'PW_ADMIN' ||
-      context.user.isBvSuperAdmin
+      ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
     );
 
     const meeting = await Meetings.findOne({ id: input.meetingId });

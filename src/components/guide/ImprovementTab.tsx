@@ -335,7 +335,7 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode, isFolk]);
+  useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode, isFolk, residencyIds]);
 
   const filteredUsers = useMemo(() => {
     if (!data) return [];

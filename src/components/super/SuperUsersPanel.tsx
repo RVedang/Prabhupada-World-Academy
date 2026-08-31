@@ -938,7 +938,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
         </CardContent>
       </Card>
 
-      {/* BVSL Confirm — replaces AlertDialog block */}
+      {/* RGF confirmation — replaces AlertDialog block */}
       <ConfirmDialog
         open={!!bvslDialog}
         onOpenChange={o => !o && setBvslDialog(null)}

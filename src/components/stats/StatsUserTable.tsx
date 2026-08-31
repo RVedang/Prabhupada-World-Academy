@@ -82,7 +82,7 @@ export default function StatsUserTable({ users }: { users: UserSummary[] }) {
                     {u.residencyName || 'Resident'}
                   </Badge>
                 ) : (
-                  <Badge variant="secondary" className="text-xs">NR</Badge>
+                  <Badge variant="secondary" className="text-xs">Non-Resident</Badge>
                 )}
               </TableCell>
               <TableCell className="text-sm">

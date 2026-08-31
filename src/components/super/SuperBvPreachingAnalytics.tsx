@@ -1,7 +1,7 @@
 /**
  * SuperBvPreachingAnalytics — center-wise BV preaching data for the Super Guide.
  * Shows a summary table: rows = centers, columns = each BV preaching field.
- * Clicking a center expands it to reveal individual BVSL rows.
+ * Clicking a center expands it to reveal individual RGF rows.
  * Toggle between Totals and Averages. Overall row always visible at bottom.
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
@@ -152,7 +152,9 @@ export default function SuperBvPreachingAnalytics() {
   }, [reportType, selectedDate, rangeStart, rangeEnd]);
 
   const debouncedFetch = useDebouncedCallback(doFetch, 300);
-  useEffect(() => { debouncedFetch(); }, [reportType, selectedDate, rangeStart, rangeEnd]);
+  useEffect(() => {
+    debouncedFetch();
+  }, [debouncedFetch, reportType, selectedDate, rangeStart, rangeEnd]);
 
   const toggleCenter = (guideId: string) => setExpanded(prev => {
     const next = new Set(prev); next.has(guideId) ? next.delete(guideId) : next.add(guideId); return next;
@@ -330,7 +332,7 @@ export default function SuperBvPreachingAnalytics() {
   );
 }
 
-// ── Expanded BVSL sub-table ──────────────────────────────────────────────────
+// ── Expanded RGF sub-table ───────────────────────────────────────────────────
 function BvslSubTable({ bvsls }: { bvsls: BvslDetail[] }) {
   return (
     <div className="px-6 py-3">

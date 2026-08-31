@@ -1,5 +1,5 @@
 /**
- * BvReportTab — color-coded BV preaching report (BVSL Report), mirrors SadhanaDetailTable style.
+ * BvReportTab — color-coded BV preaching report (RGF Report), mirrors SadhanaDetailTable style.
  * Duration thresholds: green ≥30 min, amber 15-29 min, red <15 min
  * Count thresholds:    green ≥2, amber =1, red =0
  * Total thresholds:    green ≥120 min, amber 60-119 min, red <60 min
@@ -129,10 +129,12 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds }: Props) 
       setData(result);
     } catch { toast.error('Failed to load RGF report'); }
     finally { setLoading(false); }
-  }, [guideId, selectedDate, reportType, computedStart, computedEnd, bvslMode, selectedGroup]);
+  }, [guideId, selectedDate, reportType, computedStart, computedEnd, bvslMode, selectedGroup, residencyIds]);
 
   const debouncedFetch = useDebouncedCallback(fetchReport, 300);
-  useEffect(() => { debouncedFetch(); }, [guideId, reportType, selectedDate, computedStart, computedEnd, selectedGroup]);
+  useEffect(() => {
+    debouncedFetch();
+  }, [debouncedFetch, guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, selectedGroup, residencyIds]);
 
   // Available groups from the data (stable, not re-derived unless data changes)
   const availableGroups = useMemo(() => {

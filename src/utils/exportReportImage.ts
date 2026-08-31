@@ -344,12 +344,12 @@ export function exportReportAsImage(
       ctx.fillText('MISSING', tLeft + COL_RANK + 8, ry + ROW_H - 5);
     }
 
-    // R / NR inline badge (only when FOLK column is shown = "All" filter is active)
+    // Residency-status badge (only when FOLK column is shown = "All" filter is active)
     if (_showFolk) {
       const isRes = user.isResident;
-      const abbrName = isRes ? 'R' : 'NR';
+      const residencyStatus = isRes ? 'Resident' : 'Non-Resident';
       ctx.font = `bold 8px ${FONT}`;
-      const badgeText = abbrName;
+      const badgeText = residencyStatus;
       const bw = ctx.measureText(badgeText).width + 8;
       // Position badge below name, left-aligned
       const bx = tLeft + COL_RANK + 8;
@@ -401,7 +401,7 @@ export function exportReportAsImage(
     ctx.beginPath(); ctx.moveTo(rowX, ry); ctx.lineTo(rowX, ry + ROW_H); ctx.stroke();
 
     if (_showFolk) {
-      const folkDisplay = user.residencyName || (user.isResident ? 'Res.' : 'NR');
+      const folkDisplay = user.residencyName || (user.isResident ? 'Resident' : 'Non-Resident');
       ctx.fillStyle = user.residencyName ? C.primary : (user.isResident ? C.primary : C.muted);
       ctx.font = `10px ${FONT}`;
       ctx.fillText(clip(folkDisplay, 8), rowX + COL_FOLK / 2, ry + ROW_H / 2 + 4);

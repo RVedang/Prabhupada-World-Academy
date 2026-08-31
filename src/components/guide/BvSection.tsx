@@ -8,11 +8,15 @@ import BvSessionMatrixTab from '@/components/guide/BvSessionMatrixTab';
 import SadhanaSection from '@/components/guide/SadhanaSection';
 import BvslManagementTab from '@/components/guide/BvslManagementTab';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
 
 interface Props {
   guideId: string;
   bvslMode?: boolean;
   residencyIds?: string[];
+  groupOptions?: SadhanaGroupOption[];
+  /** Supervisor dashboard already has navigable group cards in its main Groups tab. */
+  summaryOnlyGroups?: boolean;
 }
 
 type SubTab = 'report' | 'stats' | 'improvement' | 'groups' | 'bvmatrix' | 'sadhana' | 'management';
@@ -28,7 +32,7 @@ function readStoredSubTab(): SubTab {
   return 'bvmatrix';
 }
 
-export default function BvSection({ guideId, bvslMode, residencyIds }: Props) {
+export default function BvSection({ guideId, bvslMode, residencyIds, groupOptions, summaryOnlyGroups }: Props) {
   const { profile } = useUserProfile();
   const [subTab, setSubTab] = useState<SubTab>(readStoredSubTab);
 
@@ -79,9 +83,9 @@ export default function BvSection({ guideId, bvslMode, residencyIds }: Props) {
       {activeSubTab === 'bvmatrix'    && <BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} />}
-      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} />}
+      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} groupOptions={groupOptions} />}
       {activeSubTab === 'improvement' && <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
-      {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} summaryOnly={summaryOnlyGroups} />}
       {activeSubTab === 'management'  && !bvslMode && <BvslManagementTab guideId={guideId} />}
     </div>
   );

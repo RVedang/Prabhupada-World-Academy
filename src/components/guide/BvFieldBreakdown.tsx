@@ -1,6 +1,6 @@
 /**
- * BvFieldBreakdown — collapsible per-field detail tables for the guide's BVSL Preaching Report.
- * Shown below the main preaching table. Each field accordion shows individual BVSL values
+ * BvFieldBreakdown — collapsible per-field detail tables for the guide's RGF Preaching Report.
+ * Shown below the main preaching table. Each field accordion shows individual RGF values
  * sorted by value, plus a center aggregate (total + avg) at the bottom.
  */
 import { useState } from 'react';

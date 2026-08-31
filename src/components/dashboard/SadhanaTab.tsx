@@ -119,7 +119,7 @@ function ImprovementInsights({ insights, isResident, isScholar, period, onPeriod
               <Badge variant="outline" className="text-xs border-primary/40 text-primary">Resident · {targetPct}% target</Badge>
             )}
             {!isResident && (
-              <Badge variant="outline" className="text-xs border-muted-foreground/40 text-muted-foreground">NR · {targetPct}% target</Badge>
+              <Badge variant="outline" className="text-xs border-muted-foreground/40 text-muted-foreground">Non-Resident · {targetPct}% target</Badge>
             )}
           </div>
           <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">

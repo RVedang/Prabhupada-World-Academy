@@ -39,17 +39,14 @@ export default createEndpoint({
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
     const userEmail = (context.user.email || '').toLowerCase();
-    const callerRole = (context.user.role || '').toUpperCase();
+    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
     const userId = context.user.id;
 
     const isSuperAdminOrAdmin = !!(
       context.user.isBvSuperAdmin ||
       context.user.isBvAdmin ||
       context.user.isPwAdmin ||
-      callerRole.includes('ADMIN') ||
-      callerRole.includes('SUPER') ||
-      callerRole === 'PW_ADMIN' ||
-      context.user.isBvSuperAdmin
+      ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
     );
 
     const storedSegment = String(context.user.segment || '').trim().toUpperCase();
@@ -77,13 +74,8 @@ export default createEndpoint({
         if (!mom.isPublished) return false;
 
         const meeting = meetingMap.get(mom.meetingId);
-        const visibleUsers: string[] = mom.visibleToUserIds || [];
-        if (visibleUsers.includes(userId)) return true;
-
         if (meeting) {
-          if (
-            meeting.createdByUserId === userId ||
-            (meeting.inviteeUserIds || []).includes(userId) ||
+          if ((meeting.inviteeUserIds || []).includes(userId) ||
             (meeting.invitees || []).some((inv: any) => inv.userId === userId || (inv.email && inv.email.toLowerCase() === userEmail))
           ) {
             return true;

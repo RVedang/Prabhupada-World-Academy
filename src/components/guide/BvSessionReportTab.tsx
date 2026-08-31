@@ -37,7 +37,9 @@ export default function BvSessionReportTab({ guideId }: Props) {
   }, [guideId, startDate, endDate, groupFilter]);
 
   const debouncedFetch = useDebouncedCallback(fetchReport, 300);
-  useEffect(() => { debouncedFetch(); }, [guideId, startDate, endDate, groupFilter]);
+  useEffect(() => {
+    debouncedFetch();
+  }, [debouncedFetch, guideId, startDate, endDate, groupFilter]);
 
   const sessions = useMemo(() => data?.sessions || [], [data]);
 

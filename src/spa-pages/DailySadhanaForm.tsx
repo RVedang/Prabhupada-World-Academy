@@ -44,7 +44,7 @@ export default function DailySadhanaForm() {
   const { profile } = useUserProfile();
 
   // Sadhana form always returns to the sadhana dashboard — regardless of role.
-  // BVSL / Mentors also use the sadhana form and expect to land back on user dashboard.
+  // RGFs / Mentors also use the sadhana form and expect to land back on user dashboard.
   const getDashboardUrl = useCallback(() => '/user/dashboard', []);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -335,7 +335,7 @@ export default function DailySadhanaForm() {
     });
     if (missing.length > 0) { toast.error(`Please fill: ${missing.map(f => f.fieldLabel).join(', ')}`); return; }
 
-    // BV-FIX-1: Validate BVSL preaching fields are compulsory
+    // BV-FIX-1: Validate RGF preaching fields are compulsory
     if (isBvsl) {
       const bvDurationFields = ['pr_calling_time', 'pr_one_on_one_time', 'pr_book_dist_time', 'pr_rdua_time', 'pr_plan_time'];
       const bvNumberFields = ['pr_books_distributed', 'pr_contacts_collected', 'pr_unique_one_on_ones'];

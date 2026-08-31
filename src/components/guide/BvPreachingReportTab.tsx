@@ -104,7 +104,9 @@ export default function BvPreachingReportTab({ guideId }: Props) {
 
   const debouncedFetch = useDebouncedCallback(fetchReport, 300);
 
-  useEffect(() => { debouncedFetch(); }, [guideId, reportType, selectedDate, computedStart, computedEnd]);
+  useEffect(() => {
+    debouncedFetch();
+  }, [debouncedFetch, guideId, reportType, selectedDate, computedStart, computedEnd]);
 
   const filteredBvsls = useMemo(() => {
     if (!data) return [];

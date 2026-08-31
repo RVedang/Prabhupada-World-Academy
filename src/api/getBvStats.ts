@@ -17,6 +17,7 @@ export default createEndpoint({
     endDate: z.string(),
     bvslMode: z.boolean().optional(),
     residencyIds: z.array(z.string()).optional(),
+    groupId: z.string().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
@@ -30,7 +31,7 @@ export default createEndpoint({
       isBvSuperAdmin: context.user.isBvSuperAdmin,
       isBvSubFacilitator: context.user.isBvSubFacilitator,
     });
-    const { guideId, startDate, endDate, bvslMode, residencyIds } = input;
+    const { guideId, startDate, endDate, bvslMode, residencyIds, groupId } = input;
 
     let bvslUsers: any[] = [];
 
@@ -41,7 +42,7 @@ export default createEndpoint({
       bvslUsers = await resolveBvGroupFacilitatorUsers(
         context.user as any,
         ['id', 'userId', 'email', 'fullName'],
-        { segment },
+        { segment, groupId },
       );
     } else if (bvslMode) {
       // Show BVSLs from the current user's groups

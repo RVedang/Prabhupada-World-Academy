@@ -60,7 +60,7 @@ export default function GuideOneToOneCard() {
 
   return (
     <div className={`rounded-lg border-2 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 transition-all ${urgencyClass(lastMeetingWeeksAgo)}`}>
-      {/* Guide/BVSL info */}
+      {/* Guide/RGF info */}
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <span className={`w-2 h-2 rounded-full shrink-0 ${urgencyDot(lastMeetingWeeksAgo)}`} />
         <div className="flex items-center gap-1.5 text-sm font-medium shrink-0">

@@ -129,7 +129,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
       debouncedFetch.cancel();
       toast.dismiss(BV_REPORT_LOAD_TOAST_ID);
     };
-  }, [debouncedFetch]);
+  }, [debouncedFetch, guideId, start, end, groupId, bvslMode, residencyIds]);
 
   const groups: { id: string; name: string }[] = (data as any)?.groups ?? [];
 
@@ -262,7 +262,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
         return [hasS ? (a ? '✓' : '✗') : '—', q != null ? `${q}%` : '—'];
       });
       return [
-        m.fullName, m.ashrayLevel || '', m.isResident ? ((m as any).residencyName || 'Resident') : 'NR', m.groupName,
+        m.fullName, m.ashrayLevel || '', m.isResident ? ((m as any).residencyName || 'Resident') : 'Non-Resident', m.groupName,
         ...dateCells,
         attP > 0 ? `${Math.round(attT / attP * 100)}%` : '—',
         ql.length > 0 ? `${Math.round(ql.reduce((a, b) => a + b, 0) / ql.length)}%` : '—',
@@ -393,12 +393,12 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">FOLK:</Label>
                 <Select value={folkFilter} onValueChange={setFolkFilter}>
-                  <SelectTrigger className="h-8 w-[140px]">
-                    <SelectValue>{folkFilter === 'all' ? 'All Residencies' : folkFilter}</SelectValue>
+                  <SelectTrigger className="h-8 w-[160px]">
+                    <SelectValue>{folkFilter === 'all' ? 'All Residencies' : folkFilter === 'NR' ? 'Non-Resident' : folkFilter}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Residencies</SelectItem>
-                    <SelectItem value="NR">NR</SelectItem>
+                    <SelectItem value="NR">Non-Resident</SelectItem>
                     {availableResidencies.map((r: any) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -447,8 +447,8 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
           ) : (
             <Card>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table id="bv-matrix-table" className="text-xs border-collapse" style={{ minWidth: 400 }}>
+                <div className="w-full overflow-x-auto">
+                  <table id="bv-matrix-table" className="w-full min-w-max text-xs border-collapse">
                     <thead>
                       {/* Row 1: date group headers */}
                       <tr className="bg-muted/50 border-b">
@@ -531,7 +531,7 @@ function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven
   const attPct = attPossible > 0 ? Math.round(attTotal / attPossible * 100) : null;
   const avgQuiz = quizList.length > 0 ? Math.round(quizList.reduce((a, b) => a + b, 0) / quizList.length) : null;
 
-  const folkLabel = member.isResident ? ((member as any).residencyName || 'Resident') : 'NR';
+  const folkLabel = member.isResident ? ((member as any).residencyName || 'Resident') : 'Non-Resident';
 
   const isRgsf = (member as any).isRgsf || (member as any).role === 'RGSF' || (Array.isArray((member as any).roles) && (member as any).roles.includes('RGSF'));
 
@@ -554,7 +554,7 @@ function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven
         <td className="p-2 text-center text-[11px]">
           {member.isResident
             ? <span className="text-primary font-medium truncate block max-w-[68px] mx-auto">{folkLabel}</span>
-            : <span className="text-muted-foreground font-medium">NR</span>}
+            : <span className="text-muted-foreground font-medium">Non-Resident</span>}
         </td>
       )}
       <td className={`p-2 text-muted-foreground border-r ${isEven ? 'bg-background' : 'bg-muted/20'}`} style={{ minWidth: 80 }}>

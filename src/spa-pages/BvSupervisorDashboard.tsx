@@ -222,7 +222,16 @@ export default function BvSupervisorDashboard() {
 
 
               {activeTab === 'bvreport' && (
-                <BvSection guideId={profile?.userId || 'ALL'} bvslMode />
+                <BvSection
+                  guideId={profile?.userId || 'ALL'}
+                  bvslMode
+                  summaryOnlyGroups
+                  groupOptions={(data?.groups || []).map(group => ({
+                    id: group.id,
+                    groupId: group.id,
+                    groupName: group.groupName,
+                  }))}
+                />
               )}
 
               {activeTab === 'sadhana' && (

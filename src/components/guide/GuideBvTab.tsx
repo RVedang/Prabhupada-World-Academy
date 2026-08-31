@@ -9,7 +9,7 @@ import { getGuideGroupStats } from '@/lib/endpoints-sdk';
 import type { GetGuideGroupStatsOutputType } from '@/lib/endpoints-sdk';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
+interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; summaryOnly?: boolean; }
 
 type GroupStat = GetGuideGroupStatsOutputType['groups'][0];
 
@@ -90,7 +90,7 @@ function PerformanceChart({ groups }: { groups: GroupStat[] }) {
   );
 }
 
-export default function GuideBvTab({ guideId, bvslMode, residencyIds }: Props) {
+export default function GuideBvTab({ guideId, bvslMode, residencyIds, summaryOnly = false }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<GroupStat[]>([]);
@@ -129,6 +129,57 @@ export default function GuideBvTab({ guideId, bvslMode, residencyIds }: Props) {
           <p className="text-sm mt-1">BV groups will appear here once RGFs create them.</p>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (summaryOnly) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-base font-semibold mb-1">Group Attendance Summary</h3>
+          <p className="text-sm text-muted-foreground">A non-clickable performance summary. Open a group from Facilitators (RGF) &amp; Groups to view its members and attendance records.</p>
+        </div>
+
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left">
+                  <th className="px-4 py-3 text-xs font-semibold">Group</th>
+                  <th className="px-4 py-3 text-xs font-semibold">RGF</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-center">Members</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-center">Present / Sessions</th>
+                  <th className="px-4 py-3 text-xs font-semibold min-w-[220px]">Attendance</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map(group => {
+                  const rateColor = group.attendanceRate >= 75 ? 'text-emerald-600' : group.attendanceRate >= 50 ? 'text-amber-600' : 'text-rose-500';
+                  const status = group.attendanceRate >= 75 ? 'Good' : group.attendanceRate >= 50 ? 'Fair' : 'Needs Attention';
+                  return (
+                    <tr key={group.groupId} className="border-b last:border-0">
+                      <td className="px-4 py-3 font-medium">{group.groupName}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{group.bvslName || 'Unassigned'}</td>
+                      <td className="px-4 py-3 text-center">{group.memberCount}</td>
+                      <td className="px-4 py-3 text-center">{group.presentCount}/{group.totalSessions}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-10 font-bold ${rateColor}`}>{group.attendanceRate}%</span>
+                          <div className="h-2 flex-1 max-w-[130px] overflow-hidden rounded-full bg-muted">
+                            <div className={`h-full rounded-full ${group.attendanceRate >= 75 ? 'bg-emerald-500' : group.attendanceRate >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${group.attendanceRate}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center"><Badge variant="outline" className={`text-[10px] ${rateColor} border-current/40`}>{status}</Badge></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

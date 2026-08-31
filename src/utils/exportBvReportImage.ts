@@ -1,4 +1,4 @@
-// Canvas-based PNG export for BVSL preaching report
+// Canvas-based PNG export for RGF preaching report
 function cssVar(name: string, fallback: string): string {
   try {
     const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -125,7 +125,7 @@ export function exportBvslReportAsImage(
   // Header
   ctx.fillStyle = C.primary; ctx.fillRect(0, 0, canvasW, HDR_H);
   ctx.fillStyle = C.white; ctx.font = `bold 17px ${FONT}`;
-  ctx.fillText('BVSL Preaching Report', PAD, 26);
+  ctx.fillText('RGF Preaching Report', PAD, 26);
   if (dateLabel) {
     ctx.font = `bold 12px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fillText(dateLabel, PAD, 46);
@@ -135,7 +135,7 @@ export function exportBvslReportAsImage(
 
   // Summary stat cards
   const statItems = [
-    { label: 'Total BVSLs',     value: String(summary.total) },
+    { label: 'Total RGFs',      value: String(summary.total) },
     { label: 'Submitted',       value: String(summary.submitted) },
     { label: 'Total Preaching', value: minsToHHMM(summary.totalMins) },
     { label: 'Avg Preaching',   value: minsToHHMM(summary.avgMins) },

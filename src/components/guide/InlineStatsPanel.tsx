@@ -167,7 +167,7 @@ export default function InlineStatsPanel({ users, residencies, residencyFilter }
                   {sorted.map((u, i) => {
                     const residencyName = u.isResident
                       ? residencies.find(r => r.residencyId === u.residencyId)?.residencyName?.replace(/^FOLK\s+/i, '') || 'Resident'
-                      : 'NR';
+                      : 'Non-Resident';
                     return (
                       <tr
                         key={u.userId}

@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getBvStats } from '@/lib/endpoints-sdk';
 import FieldTrendChart from '@/components/stats/FieldTrendChart';
 import type { FieldConfig } from '@/components/stats/FieldTrendChart';
+import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
 
 type Period = '7d' | '30d' | '90d' | 'current_month' | 'prev_month';
 
@@ -51,25 +52,45 @@ interface Props {
   bvslMode?: boolean;
   residencyIds?: string[];
   showIndividualStats?: boolean;
+  /** Groups already resolved for a supervisor's hierarchy. */
+  groupOptions?: SadhanaGroupOption[];
 }
 
-export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndividualStats }: Props) {
+export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndividualStats, groupOptions = [] }: Props) {
   const [period, setPeriod]               = useState<Period>('30d');
   const [groupStats, setGroupStats]       = useState<any>(null);
   const [groupLoading, setGroupLoading]   = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState('all');
 
   const { start, end } = useMemo(() => getPeriodDates(period), [period]);
 
   useEffect(() => {
     setGroupLoading(true);
-    getBvStats({ guideId, startDate: start, endDate: end, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined })
+    getBvStats({
+      guideId,
+      startDate: start,
+      endDate: end,
+      bvslMode,
+      residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
+      groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+    })
       .then(setGroupStats)
       .catch(() => {})
       .finally(() => setGroupLoading(false));
-  }, [guideId, start, end, bvslMode]);
+  }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId]);
 
   useEffect(() => { setSelectedUserId(''); }, [period]);
+
+  useEffect(() => {
+    if (selectedGroupId !== 'all' && !groupOptions.some(group => group.id === selectedGroupId || group.groupId === selectedGroupId)) {
+      setSelectedGroupId('all');
+    }
+  }, [groupOptions, selectedGroupId]);
+
+  const selectedGroupName = selectedGroupId === 'all'
+    ? 'All Groups'
+    : groupOptions.find(group => group.id === selectedGroupId || group.groupId === selectedGroupId)?.groupName || 'Reading Group';
 
   const groupChartData = useMemo(() => {
     if (!groupStats?.dailyTrend) return [];
@@ -81,7 +102,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
     return [...groupStats.userSummaries].sort((a: any, b: any) => a.fullName.localeCompare(b.fullName));
   }, [groupStats]);
 
-  // For individual BVSL stats, we re-use the group trend data filtered to that BVSL
+  // For individual RGF stats, we re-use the group trend data filtered to that RGF
   // (getBvStats returns group averages; for individual we'd need per-user entries)
   // Show the group chart data as the user chart for now — individual selection shows their averages
   const selectedUserInfo = useMemo(() => {
@@ -107,6 +128,22 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
                 >{label}</button>
               ))}
             </div>
+            {groupOptions.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Group:</span>
+                <Select value={selectedGroupId} onValueChange={(value) => setSelectedGroupId(value || 'all')}>
+                  <SelectTrigger className="h-8 w-[220px]">
+                    <SelectValue>{selectedGroupName}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Groups</SelectItem>
+                    {groupOptions.map(group => (
+                      <SelectItem key={group.id} value={group.id}>{group.groupName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -115,7 +152,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            BV Field Trends (Group Averages)
+            BV Field Trends ({selectedGroupName} Averages)
             {groupStats && (
               <span className="text-xs font-normal text-muted-foreground">
                 · {groupStats.totalUsers} Facilitators · {groupStats.totalSubmitted ?? 0} entries

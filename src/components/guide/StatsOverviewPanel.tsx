@@ -119,7 +119,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
   }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter, isPw]);
 
   // Reset user when filters change
-  useEffect(() => { setSelectedUserId(''); setUserStats(null); setUserError(''); }, [residencyFilter, folkResidencyId, period]);
+  useEffect(() => { setSelectedUserId(''); setUserStats(null); setUserError(''); }, [residencyFilter, folkResidencyId, ashrayFilter, period]);
 
   useEffect(() => {
     if (!selectedUserId) { setUserStats(null); setUserError(''); return; }

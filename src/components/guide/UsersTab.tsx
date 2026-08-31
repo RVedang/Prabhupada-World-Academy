@@ -553,7 +553,7 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                             <Button size="sm" variant="outline"
                               className="h-7 text-xs border-primary text-primary hover:bg-primary/10"
                               onClick={() => setResidencyDialog({ user, makeResident: false })}>
-                              <Home className="w-3 h-3 mr-1" />Resident → NR
+                              <Home className="w-3 h-3 mr-1" />Resident → Non-Resident
                             </Button>
                           ) : (
                             <Button size="sm" variant="ghost" className="h-7 text-xs"
@@ -561,7 +561,7 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                                 user, makeResident: true,
                                 residencyId: residencies.length === 1 ? residencies[0].id : undefined,
                               })}>
-                              <Home className="w-3 h-3 mr-1" />NR → Resident
+                              <Home className="w-3 h-3 mr-1" />Non-Resident → Resident
                             </Button>
                           )}
                         </td>

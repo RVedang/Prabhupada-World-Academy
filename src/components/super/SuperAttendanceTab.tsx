@@ -55,7 +55,7 @@ export default function SuperAttendanceTab({ segment }: SuperAttendanceTabProps 
       setData(res);
     } catch { /* silent */ }
     setLoading(false);
-  }, [startDate, endDate, ashrayLevel, guideId, residencyId, eventId, sessionId, search, offset]);
+  }, [startDate, endDate, ashrayLevel, guideId, residencyId, eventId, sessionId, search, offset, effectiveSegment]);
 
   useEffect(() => { load(); }, [load]);
 

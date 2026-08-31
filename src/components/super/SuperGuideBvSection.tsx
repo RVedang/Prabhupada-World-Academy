@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -43,9 +43,7 @@ export default function SuperGuideBvSection() {
   const [selectedWeek, setSelectedWeek] = useState(() => weekOptions[0].value);
   const [data, setData] = useState<GetSuperGuideBvStatsOutputType | null>(null);
 
-  useEffect(() => { loadData(); }, [filterGuideId, selectedWeek, isPw]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const opt = weekOptions.find(o => o.value === selectedWeek) ?? weekOptions[0];
@@ -58,7 +56,9 @@ export default function SuperGuideBvSection() {
       setData(result);
     } catch { toast.error('Failed to load BV stats'); }
     finally { setLoading(false); }
-  };
+  }, [filterGuideId, selectedWeek, isPw, weekOptions]);
+
+  useEffect(() => { void loadData(); }, [loadData]);
 
   return (
     <div className="space-y-6 mt-8">

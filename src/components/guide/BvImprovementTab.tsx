@@ -1,6 +1,6 @@
 /**
  * BvImprovementTab — client-side BV improvement analysis.
- * Mirrors ImprovementTab but for BVSL preaching metrics.
+ * Mirrors ImprovementTab but for RGF preaching metrics.
  * Uses getBvPreachingReport data to compute field loss and low performers.
  */
 import { useState, useEffect, useMemo } from 'react';
@@ -32,10 +32,10 @@ interface BvFieldDef {
 }
 
 const BV_FIELDS: BvFieldDef[] = [
-  { key: 'totalMinutes',     label: 'Total Preaching', unit: 'min',   target: 120, tip: 'Encourage BVSLs to aim for at least 2 hours of total preaching activity per day.' },
-  { key: 'callingTime',      label: 'Calling Time',    unit: 'min',   target: 30,  tip: 'BVSLs should spend at least 30 minutes calling contacts and prospects.' },
+  { key: 'totalMinutes',     label: 'Total Preaching', unit: 'min',   target: 120, tip: 'Encourage RGFs to aim for at least 2 hours of total preaching activity per day.' },
+  { key: 'callingTime',      label: 'Calling Time',    unit: 'min',   target: 30,  tip: 'RGFs should spend at least 30 minutes calling contacts and prospects.' },
   { key: 'oneOnOneTime',     label: '1-on-1 Time',     unit: 'min',   target: 30,  tip: 'Encourage at least 30 minutes of personal 1-on-1 interactions per day.' },
-  { key: 'bookDistTime',     label: 'Book Dist Time',  unit: 'min',   target: 30,  tip: 'Encourage BVSLs to spend 30+ minutes distributing books.' },
+  { key: 'bookDistTime',     label: 'Book Dist Time',  unit: 'min',   target: 30,  tip: 'Encourage RGFs to spend 30+ minutes distributing books.' },
   { key: 'booksDistributed', label: 'Books Distributed', unit: 'count', target: 2, tip: 'Aim for distributing at least 2 books per preaching session.' },
   { key: 'contactsCollected',label: 'Contacts Collected', unit: 'count', target: 2, tip: 'Collecting 2+ new contacts per session keeps the pipeline active.' },
   { key: 'uniqueOneOnOnes',  label: 'Unique 1-on-1s',  unit: 'count', target: 2,  tip: 'Encourage at least 2 unique personal interactions per session.' },
@@ -183,7 +183,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                   Action Plan — What to Improve
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Top fields where BVSLs are falling short of targets
+                  Top fields where RGFs are falling short of targets
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -197,13 +197,13 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                           <p className="font-bold text-sm">{row.def.label}</p>
-                          <Badge variant="outline" className="text-xs border-primary/40 text-primary">👥 All BVSLs</Badge>
+                          <Badge variant="outline" className="text-xs border-primary/40 text-primary">👥 All RGFs</Badge>
                           <span className={`text-xs font-semibold ${priority === 'high' ? 'text-destructive' : priority === 'medium' ? 'text-amber-600' : 'text-muted-foreground'}`}>
                             {priority === 'high' ? '— Urgent' : priority === 'medium' ? '— Attention needed' : '— Keep an eye'}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mb-2 leading-relaxed">
-                          {row.belowCount} of {row.totalCount} BVSLs are below target ({formatValue(row.def.target, row.def.unit)}).
+                          {row.belowCount} of {row.totalCount} RGFs are below target ({formatValue(row.def.target, row.def.unit)}).
                           {' '}Group avg: {formatValue(row.avgValue, row.def.unit)} vs target {formatValue(row.def.target, row.def.unit)}.
                         </p>
                         <div className="flex items-start gap-2 bg-background rounded-md px-2.5 py-2 border border-border/60">
@@ -224,17 +224,17 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <TrendingDown className="w-4 h-4 text-destructive" />
-                  Where Are BVSLs Falling Short?
+                  Where Are RGFs Falling Short?
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  BV fields ranked by how far below target — {submitted.length} BVSLs submitted
+                  BV fields ranked by how far below target — {submitted.length} RGFs submitted
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {fieldLoss.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-2xl mb-2">🎉</p>
-                    <p className="font-semibold text-sm text-green-600">All BVSLs are meeting targets!</p>
+                    <p className="font-semibold text-sm text-green-600">All RGFs are meeting targets!</p>
                     <p className="text-xs text-muted-foreground mt-1">Excellent preaching work — keep it up 🙏</p>
                   </div>
                 ) : (
@@ -302,14 +302,14 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                   )}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  BVSLs missing targets — missing total preaching or 2+ fields
+                  RGFs missing targets — missing total preaching or 2+ fields
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {lowPerformers.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-2xl mb-2">🎉</p>
-                    <p className="font-semibold text-sm text-green-600">All BVSLs are meeting targets!</p>
+                    <p className="font-semibold text-sm text-green-600">All RGFs are meeting targets!</p>
                     <p className="text-xs text-muted-foreground mt-1">Great preaching engagement — keep it up 🙏</p>
                   </div>
                 ) : (
@@ -339,7 +339,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                       </div>
                     ))}
                     <p className="text-xs text-muted-foreground pt-1 text-center border-t">
-                      Speak personally with BVSLs who are consistently missing targets
+                      Speak personally with RGFs who are consistently missing targets
                     </p>
                   </div>
                 )}
