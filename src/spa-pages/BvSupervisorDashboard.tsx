@@ -45,7 +45,6 @@ export default function BvSupervisorDashboard() {
   const tabs: TabConfig[] = [
     { value: 'overview', label: 'Overview', icon: Layers },
     { value: 'rgfs', label: 'Facilitators (RGFs)', icon: Users },
-    { value: 'registrations', label: `Pending Registrations${pendingCount > 0 ? ` (${pendingCount})` : ''}`, icon: Clock },
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
     { value: 'meetings', label: 'Meetings & MoMs', icon: Video },
@@ -55,7 +54,7 @@ export default function BvSupervisorDashboard() {
 
   return (
     <DashboardLayout
-      title="Bhakti Vriksha Supervisor Dashboard"
+      title="FOLK Bhakti Vriksha Supervisor Dashboard"
       subtitle={[
         `Hare Krishna ${profile?.fullName || 'Supervisor'}!`,
         (profile as any)?.bvReportingAdminName
@@ -83,7 +82,7 @@ export default function BvSupervisorDashboard() {
               {activeTab === 'overview' && (
                 <div className="space-y-6">
                   {/* Summary Metric Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Card className="border-l-4 border-l-primary">
                       <CardContent className="pt-4 pb-4">
                         <div className="flex items-center justify-between">
@@ -116,18 +115,6 @@ export default function BvSupervisorDashboard() {
                             <p className="text-2xl font-bold text-foreground mt-1">{data?.totalMembers || 0}</p>
                           </div>
                           <ShieldCheck className="w-8 h-8 text-green-500/70" />
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-l-4 border-l-orange-500">
-                      <CardContent className="pt-4 pb-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-muted-foreground font-medium">Pending Registrations</p>
-                            <p className="text-2xl font-bold text-foreground mt-1">{data?.pendingRegistrations || 0}</p>
-                          </div>
-                          <Clock className="w-8 h-8 text-orange-500/70" />
                         </div>
                       </CardContent>
                     </Card>
@@ -225,9 +212,6 @@ export default function BvSupervisorDashboard() {
                 </Card>
               )}
 
-              {activeTab === 'registrations' && (
-                <SuperBvRegistrationsTab />
-              )}
 
               {activeTab === 'bvreport' && (
                 <BvSection guideId={profile?.userId || 'ALL'} bvslMode />
