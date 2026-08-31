@@ -677,6 +677,7 @@ export default createEndpoint({
     endDate: z.string().optional(),
     bvslMode: z.boolean().optional(),
     mentorMode: z.boolean().optional(),
+    groupId: z.string().optional(),
     segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
@@ -687,6 +688,7 @@ export default createEndpoint({
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
       isBvMentor: (context.user as any).isBvMentor,
+      isBvSupervisor: (context.user as any).isBvSupervisor,
       isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
     });
 
@@ -849,7 +851,10 @@ export default createEndpoint({
 
     // BVSL/RGSF reports use authoritative assigned-group memberships.
     if (bvslMode) {
-      users = await resolveBvGroupMemberUsers(context.user, USER_FIELDS);
+      users = await resolveBvGroupMemberUsers(context.user, USER_FIELDS, {
+        groupId: input.groupId,
+        segment: input.segment,
+      });
     }
 
     if (users.length === 0) return { users: [], fieldDefs: FIELD_DEFS, availableResidencies, availableGuides: [], currentGuideId: guideDbId, summary: {} };

@@ -69,6 +69,7 @@ export default createEndpoint({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     bvslMode: z.boolean().optional(),
+    groupId: z.string().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: { input: any; context: any }) => {
@@ -76,6 +77,8 @@ export default createEndpoint({
     requireGuideRole(context.user.role, {
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
+      isBvMentor: context.user.isBvMentor,
+      isBvSupervisor: context.user.isBvSupervisor,
       isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
     });
 
@@ -113,7 +116,10 @@ export default createEndpoint({
     }
 
     const scopedUsers = input.bvslMode
-      ? await resolveBvGroupMemberUsers(context.user, MEMBER_USER_FIELDS)
+      ? await resolveBvGroupMemberUsers(context.user, MEMBER_USER_FIELDS, {
+          groupId: input.groupId,
+          segment: 'FOLK',
+        })
       : allUsers;
     const residents = scopedUsers.filter(u => {
       const resId = Array.isArray(u.residency) ? u.residency[0] : u.residency;

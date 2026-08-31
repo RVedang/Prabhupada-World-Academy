@@ -15,6 +15,7 @@ import BvSection from '@/components/guide/BvSection';
 import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 import TabRouter, { TabConfig } from '@/shared/TabRouter';
+import BvslGroupsPanel from '@/components/bvsl/BvslGroupsPanel';
 
 export default function BvSupervisorDashboard() {
   const { profile } = useUserProfile();
@@ -44,6 +45,7 @@ export default function BvSupervisorDashboard() {
 
   const tabs: TabConfig[] = [
     { value: 'overview', label: 'Overview', icon: Layers },
+    { value: 'groups', label: 'Groups', icon: Users },
     { value: 'rgfs', label: 'Facilitators (RGFs)', icon: Users },
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
@@ -76,7 +78,7 @@ export default function BvSupervisorDashboard() {
           <Skeleton className="h-64" />
         </div>
       ) : (
-        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={5}>
+        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={6}>
           {(activeTab) => (
             <>
               {activeTab === 'overview' && (
@@ -163,6 +165,17 @@ export default function BvSupervisorDashboard() {
                     </CardContent>
                   </Card>
                 </div>
+              )}
+
+              {activeTab === 'groups' && (
+                <BvslGroupsPanel
+                  bvslId={profile?.userId || ''}
+                  groups={data?.groups || []}
+                  onGroupSelect={(groupId) => navigate(`/bvsl/groups/${groupId}`)}
+                  onRefresh={loadOverview}
+                  title="Groups Under My Supervision"
+                  readOnly
+                />
               )}
 
               {activeTab === 'rgfs' && (

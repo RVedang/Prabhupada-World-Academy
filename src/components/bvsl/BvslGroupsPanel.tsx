@@ -21,6 +21,8 @@ interface Props {
   groups: Group[];
   onGroupSelect: (groupId: string) => void;
   onRefresh: () => void;
+  title?: string;
+  readOnly?: boolean;
 }
 
 function EditGroupDialog({ group, onSave }: { group: Group; onSave: () => void }) {
@@ -111,14 +113,21 @@ function DeleteGroupButton({ group, onDeleted }: { group: Group; onDeleted: () =
   );
 }
 
-export default function BvslGroupsPanel({ bvslId, groups, onGroupSelect, onRefresh }: Props) {
+export default function BvslGroupsPanel({
+  bvslId,
+  groups,
+  onGroupSelect,
+  onRefresh,
+  title = 'My BV Groups',
+  readOnly = false,
+}: Props) {
   const { profile } = useUserProfile();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const canManageGroups = !!(
+  const canManageGroups = !readOnly && !!(
     (profile?.role as string) === 'SUPER_GUIDE' ||
     (profile?.role as string) === 'GUIDE' ||
     (profile?.role as string) === 'SUPER_ADMIN' ||
@@ -144,7 +153,7 @@ export default function BvslGroupsPanel({ bvslId, groups, onGroupSelect, onRefre
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">My BV Groups</h3>
+        <h3 className="text-lg font-semibold">{title}</h3>
         {canManageGroups && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>

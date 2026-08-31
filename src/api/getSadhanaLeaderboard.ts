@@ -3,6 +3,7 @@ import { createEndpoint, Users, SadhanaEntries, FolkResidencies } from '@/lib/ba
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
 import { bvUserAliases, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+import { requireGuideRole } from '../lib/userUtils';
 
 const ENTRY_FIELDS = ['id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'maxScore', 'flagSick', 'flagOs', 'submittedAt'];
 const STREAK_ENTRY_FIELDS = ['id', 'user', 'entryDate', 'scorePercent'];
@@ -37,6 +38,7 @@ export default createEndpoint({
     guideId: z.string().optional(),
     scope: z.enum(['residency', 'guide', 'global']).optional(),
     bvslMode: z.boolean().optional(),
+    groupId: z.string().optional(),
     date: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
@@ -45,6 +47,16 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
+    if (input.bvslMode) {
+      requireGuideRole(context.user.role, {
+        isBvsl: context.user.isBvsl,
+        isBvMentor: context.user.isBvMentor,
+        isBvSupervisor: context.user.isBvSupervisor,
+        isBvSubFacilitator: context.user.isBvSubFacilitator,
+        isBvAdmin: context.user.isBvAdmin,
+        isBvSuperAdmin: context.user.isBvSuperAdmin,
+      });
+    }
     const sessionUserId = String(input.userId || context.user.userId || context.user.id || '');
     const sessionEmail = String(context.user.email || '').toLowerCase();
     const todayStr = getTodayIST();
@@ -146,7 +158,10 @@ export default createEndpoint({
     }
 
     if (input.bvslMode) {
-      allUsers = await resolveBvGroupMemberUsers(context.user, USER_FIELDS);
+      allUsers = await resolveBvGroupMemberUsers(context.user, USER_FIELDS, {
+        groupId: input.groupId,
+        segment: String(context.user.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW',
+      });
     }
 
     // ── Streak entries (100-day window up to endStr) ──────────────────────

@@ -42,6 +42,7 @@ export default createEndpoint({
     endDate: z.string(),
     bvslMode: z.boolean().optional(),
     mentorMode: z.boolean().optional(),
+    groupId: z.string().optional(),
     residencyFilter: z.enum(['all', 'resident', 'non_resident', 'scholar']).optional(),
     folkResidencyId: z.string().optional(),
     ashrayLevel: z.string().optional(),
@@ -55,6 +56,7 @@ export default createEndpoint({
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
       isBvMentor: (context.user as any).isBvMentor,
+      isBvSupervisor: (context.user as any).isBvSupervisor,
       isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
     });
 
@@ -113,7 +115,10 @@ export default createEndpoint({
     }
 
     if (bvslMode) {
-      users = await resolveBvGroupMemberUsers(context.user, USER_FIELDS);
+      users = await resolveBvGroupMemberUsers(context.user, USER_FIELDS, {
+        groupId: input.groupId,
+        segment: input.segment,
+      });
     }
 
     // Helper: is a user a scholar (temp resident visiting FOLK)?
