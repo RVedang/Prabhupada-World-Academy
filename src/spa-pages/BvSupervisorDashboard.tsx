@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Leaf, UserCheck, ShieldCheck, BarChart3, CalendarClock, FileText, Layers, ChevronRight, Video } from 'lucide-react';
+import { Users, UserCheck, ShieldCheck, BarChart3, CalendarClock, FileText, Layers, ChevronRight, Video } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,7 +41,6 @@ export default function BvSupervisorDashboard() {
 
   const tabs: TabConfig[] = [
     { value: 'overview', label: 'Overview', icon: Layers },
-    { value: 'groups', label: 'Groups', icon: Users },
     { value: 'rgfs', label: 'Facilitators (RGFs)', icon: Users },
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
     { value: 'sadhana', label: 'Sadhana', icon: FileText },
@@ -117,60 +116,15 @@ export default function BvSupervisorDashboard() {
                     </Card>
                   </div>
 
-                  {/* Group Summary Table */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Leaf className="w-4 h-4 text-primary" /> Active Reading Groups Overview
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        Overview of active Bhakti Vriksha reading groups. Click any group to view details, members, and session attendance.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {(!data?.groups || data.groups.length === 0) ? (
-                        <div className="py-8 text-center text-muted-foreground text-sm">
-                          No active reading groups found.
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {data.groups.map((g: { id: string; groupName: string; bvslName: string; meetingTime?: string; memberCount: number }) => (
-                            <div
-                              key={g.id}
-                              className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/40 cursor-pointer hover:border-primary/40 transition-colors group"
-                              onClick={() => navigate(`/bvsl/groups/${g.id}`)}
-                            >
-                              <div>
-                                <p className="font-semibold text-sm group-hover:text-primary transition-colors">{g.groupName}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  Facilitator: <span className="font-medium text-foreground">{g.bvslName}</span>
-                                  {g.meetingTime ? ` · ${g.meetingTime}` : ''}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="font-mono text-xs">
-                                  {g.memberCount} members
-                                </Badge>
-                                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  <BvslGroupsPanel
+                    bvslId={profile?.userId || ''}
+                    groups={data?.groups || []}
+                    onGroupSelect={(groupId) => navigate(`/bvsl/groups/${groupId}`)}
+                    onRefresh={loadOverview}
+                    title="Groups Under My Supervision"
+                    readOnly
+                  />
                 </div>
-              )}
-
-              {activeTab === 'groups' && (
-                <BvslGroupsPanel
-                  bvslId={profile?.userId || ''}
-                  groups={data?.groups || []}
-                  onGroupSelect={(groupId) => navigate(`/bvsl/groups/${groupId}`)}
-                  onRefresh={loadOverview}
-                  title="Groups Under My Supervision"
-                  readOnly
-                />
               )}
 
               {activeTab === 'rgfs' && (

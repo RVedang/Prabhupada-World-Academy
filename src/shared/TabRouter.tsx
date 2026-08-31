@@ -28,12 +28,15 @@ interface TabRouterProps {
 const VISIBLE_COUNT = 7;
 
 export default function TabRouter({ tabs, defaultTab, children, desktopCols, ignoreUrlHash, keepAlive = true }: TabRouterProps) {
-  const [activeTab, setActiveTab] = useState(() => {
-    if (ignoreUrlHash) return defaultTab || tabs[0]?.value || '';
-    return window.location.hash.slice(1) || defaultTab || tabs[0]?.value || '';
-  });
+  const fallbackTab = defaultTab || tabs[0]?.value || '';
+  const initialTab = (() => {
+    if (ignoreUrlHash || typeof window === 'undefined') return fallbackTab;
+    const hash = window.location.hash.slice(1);
+    return tabs.some(tab => tab.value === hash) ? hash : fallbackTab;
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([ignoreUrlHash ? (defaultTab || tabs[0]?.value || '') : (typeof window !== 'undefined' ? window.location.hash.slice(1) || defaultTab || tabs[0]?.value || '' : defaultTab || tabs[0]?.value || '')]));
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
 
   useEffect(() => {
     setVisitedTabs(prev => {
