@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Users, CheckCircle2, Brain } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle2, Brain, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvGroupDetail, getBvAttendanceMatrix } from '@/lib/endpoints-sdk';
+import { getBvGroupDetail, getBvAttendanceMatrix, getBvQuizSubmissions } from '@/lib/endpoints-sdk';
 import type { GetBvGroupDetailOutputType, GetBvAttendanceMatrixOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { Calendar } from 'lucide-react';
@@ -153,7 +153,159 @@ function MembersTab({ members, onUserClick }: { members: GroupDetail['members'];
 }
 
 
-function QuizzesTab({ quizzes }: { quizzes: Array<{ quizId: string; title: string; createdAt: string }> }) {
+type GroupQuiz = { quizId: string; title: string; createdAt: string };
+
+function scoreClass(percentage: number) {
+  if (percentage >= 70) return 'text-green-600';
+  if (percentage >= 40) return 'text-amber-600';
+  return 'text-red-600';
+}
+
+function QuizAnalyticsCard({ quiz, groupId, memberCount }: {
+  quiz: GroupQuiz;
+  groupId: string;
+  memberCount: number;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState('');
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [showQuestions, setShowQuestions] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    getBvQuizSubmissions({ quizId: quiz.quizId, department: 'FOLK', groupId })
+      .then(data => { if (!cancelled) setResult(data); })
+      .catch((requestError: any) => {
+        if (!cancelled) setError(requestError?.message || 'Unable to load quiz analytics.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [groupId, quiz.quizId]);
+
+  const submissions = result?.submissions || [];
+  const analytics = result?.analytics;
+  const participantLabel = memberCount > 0
+    ? `${analytics?.totalSubmissions ?? submissions.length} of ${memberCount}`
+    : String(analytics?.totalSubmissions ?? submissions.length);
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Brain className="w-4 h-4 text-primary shrink-0" />
+              <span className="truncate">{quiz.title}</span>
+            </CardTitle>
+            {quiz.createdAt && (
+              <p className="text-xs text-muted-foreground mt-1">Created {format(new Date(quiz.createdAt), 'MMM d, yyyy')}</p>
+            )}
+          </div>
+          {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : loading ? (
+          <div className="grid grid-cols-3 gap-3">
+            <Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <p className="text-xl font-bold">{participantLabel}</p>
+                <p className="text-xs text-muted-foreground">Members attempted</p>
+              </div>
+              <div className="rounded-lg bg-primary/10 p-3 text-center">
+                <p className="text-xl font-bold text-primary">{analytics?.averagePercentage ?? 0}%</p>
+                <p className="text-xs text-muted-foreground">Average score</p>
+              </div>
+              <div className="rounded-lg bg-green-500/10 p-3 text-center">
+                <p className="text-xl font-bold text-green-600">{analytics?.passingCount ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Passed (70%+)</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowParticipants(value => !value)}
+              className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted/50"
+            >
+              <span>Participant scores ({submissions.length})</span>
+              {showParticipants ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            {showParticipants && (
+              submissions.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">No members have attempted this quiz yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">Member</th>
+                        <th className="text-center px-3 py-2 font-medium">Score</th>
+                        <th className="text-right px-3 py-2 font-medium">Submitted</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {submissions.map((submission: any) => (
+                        <tr key={submission.id} className="border-t">
+                          <td className="px-3 py-2 font-medium">{submission.userName}</td>
+                          <td className={`px-3 py-2 text-center font-semibold ${scoreClass(Number(submission.percentage) || 0)}`}>
+                            {submission.score}/{submission.totalQuestions} ({submission.percentage}%)
+                          </td>
+                          <td className="px-3 py-2 text-right text-xs text-muted-foreground whitespace-nowrap">
+                            {submission.submittedAt ? format(new Date(submission.submittedAt), 'MMM d, yyyy') : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+
+            {(analytics?.questionAnalytics || []).length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowQuestions(value => !value)}
+                  className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted/50"
+                >
+                  <span>Question-wise analysis</span>
+                  {showQuestions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {showQuestions && (
+                  <div className="space-y-2">
+                    {analytics.questionAnalytics.map((question: any, index: number) => (
+                      <div key={question.questionId} className="rounded-md border p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm"><span className="font-medium">Q{index + 1}.</span> {question.questionText}</p>
+                          <Badge variant="outline" className="shrink-0">{question.correctPercentage}% correct</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function QuizzesTab({ quizzes, groupId, memberCount }: {
+  quizzes: GroupQuiz[];
+  groupId: string;
+  memberCount: number;
+}) {
   if (quizzes.length === 0) {
     return (
       <div className="text-center py-10">
@@ -163,20 +315,9 @@ function QuizzesTab({ quizzes }: { quizzes: Array<{ quizId: string; title: strin
     );
   }
   return (
-    <div className="space-y-2">
-      {quizzes.map(q => (
-        <div key={q.quizId} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-          <Brain className="w-4 h-4 text-primary shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm">{q.title}</p>
-            {q.createdAt && (
-              <p className="text-xs text-muted-foreground">
-                Created {format(new Date(q.createdAt), 'MMM d, yyyy')}
-              </p>
-            )}
-          </div>
-        </div>
-      ))}
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">Quiz participation and performance for this group.</p>
+      {quizzes.map(q => <QuizAnalyticsCard key={q.quizId} quiz={q} groupId={groupId} memberCount={memberCount} />)}
     </div>
   );
 }
@@ -335,7 +476,7 @@ export default function BvGroupDetailPage() {
           </TabsList>
 
           <TabsContent value="quizzes" className="mt-4">
-            <QuizzesTab quizzes={quizzes} />
+            <QuizzesTab quizzes={quizzes} groupId={detail.group.groupId} memberCount={detail.members.length} />
           </TabsContent>
 
           <TabsContent value="attendance" className="mt-4">

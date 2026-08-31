@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AppError, BvGroupMembers, BvQuizzes, BvQuizSubmissions, createEndpoint, Users } from '@/lib/backend-sdk';
 import {
   canManageQuizContent,
+  canReadFolkQuizResults,
   findScopedQuizGroup,
   getQuizGroupsForUser,
   isPwQuizFacilitator,
@@ -54,7 +55,8 @@ export default createEndpoint({
 
     const canManageContent = canManageQuizContent(context.user, department);
     const canReadPwGroups = department === 'PW' && (isPwQuizFacilitator(context.user) || isPwQuizSubFacilitator(context.user));
-    if (!canManageContent && !canReadPwGroups) {
+    const canReadFolkSupervisorGroups = department === 'FOLK' && canReadFolkQuizResults(context.user);
+    if (!canManageContent && !canReadPwGroups && !canReadFolkSupervisorGroups) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You do not have access to these quiz results' });
     }
 

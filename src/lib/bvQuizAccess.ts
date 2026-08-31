@@ -1,5 +1,6 @@
 import { AppError, BvGroupMembers, BvGroups, Guides, Users } from '@/lib/backend-sdk';
 import type { ApiUserContext } from '@/lib/apiAuthorization';
+import { getScopedHierarchyUserIds } from '@/lib/hierarchyUtils';
 
 export type QuizDepartment = 'FOLK' | 'PW';
 
@@ -20,6 +21,8 @@ type QuizAccessUser = ApiUserContext | (Record<string, unknown> & {
   isBvFacilitator?: boolean;
   isBvSubFacilitator?: boolean;
   isBvsl?: boolean;
+  isBvSupervisor?: boolean;
+  isBvMentor?: boolean;
 });
 
 export interface QuizGroupScope {
@@ -118,6 +121,12 @@ export function isFolkQuizContentManager(user: QuizAccessUser | null | undefined
   const role = normalizeQuizRole(user.normalizedRole || user.role);
   return user.isBvFacilitator === true || user.isBvsl === true || user.isBvSubFacilitator === true ||
     role === 'BVSL' || role === 'RGF' || role === 'RGSF' || role === 'FACILITATOR' || role === 'SUB_FACILITATOR';
+}
+
+/** FOLK supervisors may read quiz results for their reporting hierarchy only. */
+export function canReadFolkQuizResults(user: QuizAccessUser | null | undefined): boolean {
+  if (!isActiveUser(user) || !user || normalizeQuizDepartment(user.segment, 'PW') !== 'FOLK') return false;
+  return user.isBvSupervisor === true || user.isBvMentor === true;
 }
 
 export function canManageQuizContent(user: QuizAccessUser | null | undefined, department: QuizDepartment): boolean {
@@ -226,6 +235,8 @@ export async function getQuizGroupsForUser(
   const reportingFacilitatorAliases = await getExpandedAliases((callerRecord as any)?.bvReportingFacilitatorId);
   const isAdmin = department === 'PW' && isPwQuizAdmin(user);
   const allowRgsfRead = options.readOnly === true && isPwQuizSubFacilitator(user);
+  const allowFolkSupervisorRead = department === 'FOLK' && options.readOnly === true && canReadFolkQuizResults(user);
+  const supervisorScope = allowFolkSupervisorRead ? await getScopedHierarchyUserIds(user) : undefined;
 
   return groupResult.records
     .filter((group: any) => options.includeInactive || group.isActive !== false)
@@ -250,7 +261,14 @@ export async function getQuizGroupsForUser(
         return false;
       }
 
-      if (!isFolkQuizContentManager(user)) return false;
+      if (!isFolkQuizContentManager(user) && !allowFolkSupervisorRead) return false;
+      if (allowFolkSupervisorRead) {
+        if (supervisorScope === null) return true;
+        if (supervisorScope?.size) {
+          return owners.some(reference => supervisorScope.has(reference)) ||
+            subFacilitators.some(reference => supervisorScope.has(reference));
+        }
+      }
       const inherited = owners.some(reference => reportingFacilitatorAliases.has(reference));
       return directlyOwned || directlyAssigned || inherited;
     })
