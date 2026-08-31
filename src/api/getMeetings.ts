@@ -6,6 +6,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({
     status: z.enum(['ALL', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional().default('ALL'),
+    department: z.enum(['FOLK', 'PW']).optional(),
   }),
   outputSchema: z.object({
     meetings: z.array(z.object({
@@ -53,9 +54,15 @@ export default createEndpoint({
       context.user.isBvSuperAdmin
     );
 
+    const storedSegment = String(context.user.segment || '').trim().toUpperCase();
+    const department = input.department || storedSegment || 'PW';
+    if (input.department && storedSegment && input.department !== storedSegment) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view meetings for another department' });
+    }
+
     const { records: allMeetings } = await Meetings.findAll({ limit: 1000 });
 
-    let filtered = allMeetings.filter((m: any) => (m.segment || 'PW') === 'PW');
+    let filtered = allMeetings.filter((m: any) => String(m.segment || 'PW').toUpperCase() === department);
 
     if (!isSuperAdminOrAdmin) {
       filtered = filtered.filter((m: any) => {
@@ -100,7 +107,7 @@ export default createEndpoint({
         id: m.id,
         title: m.title || 'Untitled Meeting',
         type: m.type || 'OTHER',
-        segment: m.segment || 'PW',
+        segment: m.segment || department,
         scheduledAt: m.scheduledAt || new Date().toISOString(),
         durationMinutes: m.durationMinutes || 60,
         locationOrLink: m.locationOrLink || '',

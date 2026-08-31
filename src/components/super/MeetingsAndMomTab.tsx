@@ -360,11 +360,14 @@ const getRolePriority = (u: any) => {
 
 interface MeetingsAndMomTabProps {
   allowSchedule?: boolean;
+  department?: 'FOLK' | 'PW';
 }
 
-export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAndMomTabProps = {}) {
+export default function MeetingsAndMomTab({ allowSchedule = false, department: requestedDepartment }: MeetingsAndMomTabProps = {}) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
+  const department: 'FOLK' | 'PW' = requestedDepartment ||
+    (String(profile?.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW');
 
   const userEmailLower = (user?.email || '').toLowerCase();
   const isSuperAdmin = !!(
@@ -470,8 +473,8 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
     setError(null);
     try {
       const [mRes, momRes, usersRes] = await Promise.all([
-        getMeetings(options?.silent ? { _nocache: true } : {}),
-        getMoms(options?.silent ? { _nocache: true } : {}),
+        getMeetings({ department, ...(options?.silent ? { _nocache: true } : {}) }),
+        getMoms({ department, ...(options?.silent ? { _nocache: true } : {}) }),
         getGuideUsers({ guideId: 'ALL', statusFilter: 'all', minimal: true, ...(options?.silent ? { _nocache: true } : {}) }).catch(() => ({ users: [] })),
       ]);
       const now = Date.now();
@@ -536,15 +539,14 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
       }));
       setMoms(mappedMoms);
 
-      // Filter to PW segment users only (exclude FOLK users and non-PW users)
-      const pwUsers = (usersRes.users || []).filter((u: any) => {
+      const departmentUsers = (usersRes.users || []).filter((u: any) => {
         const emailLower = (u.email || '').toLowerCase();
         const roleUpper = (u.role || '').toUpperCase();
         const isFolk = u.segment === 'FOLK';
         const isPw = u.segment === 'PW' || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('hrvd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
-        return isPw && !isFolk;
+        return department === 'FOLK' ? isFolk : (isPw && !isFolk);
       });
-      setRegisteredUsers(pwUsers);
+      setRegisteredUsers(departmentUsers);
     } catch (err: any) {
       console.error('Failed to load meetings/moms/users:', err);
       if (!options?.silent) setError(err.message || 'Failed to load meetings and MoMs');
@@ -559,7 +561,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false }: MeetingsAnd
       loadData({ silent: true });
     }, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [department]);
 
   const openNewMeetingModal = () => {
     setEditingMeeting(null);

@@ -6,6 +6,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({
     meetingId: z.string().optional(),
+    department: z.enum(['FOLK', 'PW']).optional(),
   }),
   outputSchema: z.object({
     moms: z.array(z.object({
@@ -51,12 +52,21 @@ export default createEndpoint({
       context.user.isBvSuperAdmin
     );
 
+    const storedSegment = String(context.user.segment || '').trim().toUpperCase();
+    const department = input.department || storedSegment || 'PW';
+    if (input.department && storedSegment && input.department !== storedSegment) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view minutes for another department' });
+    }
+
     const { records: allMoms } = await MinutesOfMeeting.findAll({ limit: 1000 });
     const { records: allMeetings } = await Meetings.findAll({ limit: 1000 });
 
     const meetingMap = new Map(allMeetings.map((m: any) => [m.id, m]));
 
-    let filtered = allMoms;
+    let filtered = allMoms.filter((mom: any) => {
+      const meeting = meetingMap.get(mom.meetingId);
+      return meeting && String(meeting.segment || 'PW').toUpperCase() === department;
+    });
 
     if (input.meetingId) {
       filtered = filtered.filter((mom: any) => mom.meetingId === input.meetingId);

@@ -19,6 +19,7 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
   maxWidth?: string;
   showProfile?: boolean;
+  meetingDepartment?: 'FOLK' | 'PW';
 }
 
 export default function DashboardLayout({
@@ -29,6 +30,7 @@ export default function DashboardLayout({
   children,
   maxWidth = 'max-w-7xl',
   showProfile = true,
+  meetingDepartment,
 }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -172,7 +174,9 @@ export default function DashboardLayout({
 
     const checkUpcomingMeetings = async () => {
       try {
-        const { meetings } = await getMeetings({});
+        const department = meetingDepartment ||
+          (String(profile.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW');
+        const { meetings } = await getMeetings({ department });
         const scheduled = (meetings || []).filter((m: any) => {
           const statusLower = (m.status || '').toLowerCase();
           return statusLower === 'scheduled';
@@ -234,7 +238,7 @@ export default function DashboardLayout({
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [profile]);
+  }, [meetingDepartment, profile]);
 
   return (
     <div className="min-h-screen bg-background">

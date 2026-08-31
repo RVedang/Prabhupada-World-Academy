@@ -98,7 +98,7 @@ function formatCallDate(dateStr: string) {
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
-export default function BvslOneToOneTab() {
+export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 'PW' } = {}) {
   const { profile } = useUserProfile();
   const isFolk = profile?.segment === 'FOLK';
   const isSuperAdmin = !!(
@@ -126,7 +126,7 @@ export default function BvslOneToOneTab() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getBvslOneToOneData({}) as any;
+      const res = await getBvslOneToOneData({ department }) as any;
       setMembers(res.users || []);
       setMeetings(res.meetings || []);
       setWeeks(res.weeks || []);

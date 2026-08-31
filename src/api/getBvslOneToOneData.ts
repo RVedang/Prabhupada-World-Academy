@@ -23,7 +23,10 @@ export default createEndpoint({
   authenticated: true,
   // RGSF call history is read-only; RGSFs do not need meetings.manage.
   requiredCapabilities: 'bv.manage',
-  inputSchema: z.object({ weeksBack: z.number().optional() }),
+  inputSchema: z.object({
+    weeksBack: z.number().optional(),
+    department: z.enum(['FOLK', 'PW']).optional(),
+  }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
@@ -41,7 +44,16 @@ export default createEndpoint({
     // Get strict hierarchy scoped user IDs for the calling user
     const scopedUserIds = await getScopedHierarchyUserIds(context.user).catch(() => null);
 
-    const callerSegment = context.user.segment || 'PW';
+    const storedSegment = String(context.user.segment || '').trim().toUpperCase();
+    const callerSegment = input.department || storedSegment || 'PW';
+    if (input.department && storedSegment && input.department !== storedSegment) {
+      throw new Error('You cannot view one-to-one data for another department');
+    }
+    const isSupervisor = !!(
+      context.user.isBvSupervisor ||
+      context.user.isBvMentor ||
+      ['SUPERVISOR', 'BV_SUPERVISOR', 'BV_MENTOR'].includes(String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_'))
+    );
 
     const userFields = [
       'id', 'userId', 'email', 'fullName', 'role', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
@@ -167,8 +179,10 @@ export default createEndpoint({
     // Keep the RGSF 1:1 list on the same canonical group-member resolver used
     // by Sadhana. This also removes blank legacy Users records that share the
     // complete member profile's custom userId.
-    if (isRgsf) {
-      filteredUsers = await resolveBvGroupMemberUsers(context.user, userFields);
+    if (isSupervisor || isRgsf) {
+      filteredUsers = await resolveBvGroupMemberUsers(context.user, userFields, {
+        segment: callerSegment === 'FOLK' ? 'FOLK' : 'PW',
+      });
     }
 
     // Build hierarchy lookup maps for user cards
