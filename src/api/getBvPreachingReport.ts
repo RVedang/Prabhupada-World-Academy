@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
+import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 function isFolkMemberLevelFacilitator(user: any): boolean {
   const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
@@ -58,8 +59,20 @@ export default createEndpoint({
       }
     }
 
+    const isSupervisorMode = !!bvslMode && !!(context.user.isBvSupervisor || context.user.isBvMentor);
+    let hierarchyGroups: any[] | null = null;
     let bvslUsers: any[] = [];
-    if (bvslMode) {
+    if (isSupervisorMode) {
+      const rawSegment = String(context.user.segment || 'FOLK').toUpperCase();
+      const segment = rawSegment === 'PW' ? 'PW' : 'FOLK';
+      hierarchyGroups = (await resolveBvScopedGroups(context.user as any, { segment, groupId }))
+        .map(group => group.record);
+      bvslUsers = await resolveBvGroupFacilitatorUsers(
+        context.user as any,
+        ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
+        { segment, groupId },
+      );
+    } else if (bvslMode) {
       // bvslMode: return only the current user's data
       const me = await Users.findOne({
         id: context.user.id,
@@ -103,36 +116,42 @@ export default createEndpoint({
 
     const bvslDbIds = bvslUsers.map(u => u.id);
 
-    // Get groups led by these BVSLs (with optional groupId filter)
-    const groupFilter: any = { bvslLeader: { in: bvslDbIds }, isActive: true };
-    if (groupId) groupFilter.id = groupId;
-
-    const { records: groups } = await BvGroups.findAll({
-      filters: groupFilter,
-      fields: ['id', 'groupName', 'bvslLeader'],
-      limit: 200,
-    });
+    // Get groups led by these BVSLs (with optional groupId filter). Supervisor
+    // mode already resolved mixed Firestore/public/email ownership aliases.
+    let groups: any[];
+    if (hierarchyGroups !== null) {
+      groups = hierarchyGroups;
+    } else {
+      const groupFilter: any = { bvslLeader: { in: bvslDbIds }, isActive: true };
+      if (groupId) groupFilter.id = groupId;
+      groups = (await BvGroups.findAll({
+        filters: groupFilter,
+        fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
+        limit: 200,
+      })).records;
+    }
 
     // If a specific group is selected, only show BVSLs leading that group
     let filteredBvslUsers = bvslUsers;
     if (groupId && groups.length > 0) {
-      const leaderIdsInGroup = new Set(
-        groups.map(g => {
-          const lid = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader;
-          return lid as string;
-        }).filter(Boolean)
+      const leaderIdsInGroup = new Set(groups.flatMap(g => [
+        g.bvslLeader, g.bvslId, g.subFacilitatorId, g.rgsfId, g.subFacilitator,
+      ]).flat().filter(Boolean).map(value => String(value).toLowerCase()));
+      filteredBvslUsers = bvslUsers.filter(u =>
+        bvUserAliases(u).some(alias => leaderIdsInGroup.has(alias))
       );
-      filteredBvslUsers = bvslUsers.filter(u => leaderIdsInGroup.has(u.id));
     }
 
     const groupByBvsl = new Map<string, string>();
     for (const g of groups) {
-      const lid = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader;
-      if (lid) groupByBvsl.set(lid as string, g.groupName || '');
+      [g.bvslLeader, g.bvslId, g.subFacilitatorId, g.rgsfId, g.subFacilitator]
+        .flatMap(value => Array.isArray(value) ? value : [value])
+        .filter(Boolean)
+        .forEach(value => groupByBvsl.set(String(value).toLowerCase(), g.groupName || ''));
     }
 
     // Fetch preaching entries in date range
-    const dateFilter = reportType === 'daily'
+    const dateFilter = reportType === 'daily' || effectiveStart === effectiveEnd
       ? { entryDate: effectiveStart }
       : { entryDate: { gte: effectiveStart, lte: effectiveEnd } };
 
@@ -149,15 +168,20 @@ export default createEndpoint({
       offset += 2000;
     }
 
-    const filteredBvslDbIds = filteredBvslUsers.map(u => u.id);
+    const canonicalByAlias = new Map<string, string>();
+    filteredBvslUsers.forEach(user => {
+      bvUserAliases(user).forEach(alias => canonicalByAlias.set(alias, user.id));
+    });
 
     // Group entries by user
     const entriesByUser = new Map<string, any[]>();
     for (const e of allEntries) {
-      const uid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
-      if (!uid || !filteredBvslDbIds.includes(uid)) continue;
-      if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
-      entriesByUser.get(uid)!.push(e);
+      const entryAliases = (Array.isArray(e.user) ? e.user : [e.user])
+        .filter(Boolean).map((value: unknown) => String(value).toLowerCase());
+      const canonicalId = entryAliases.map(alias => canonicalByAlias.get(alias)).find(Boolean);
+      if (!canonicalId) continue;
+      if (!entriesByUser.has(canonicalId)) entriesByUser.set(canonicalId, []);
+      entriesByUser.get(canonicalId)!.push(e);
     }
 
     const bvslRows = filteredBvslUsers.map(u => {
@@ -181,7 +205,7 @@ export default createEndpoint({
         userId: u.userId || u.id,
         fullName: u.fullName || '',
         phone: (u as any).phone || '',
-        groupName: groupByBvsl.get(u.id) || '—',
+        groupName: bvUserAliases(u).map(alias => groupByBvsl.get(alias)).find(Boolean) || '—',
         submitted,
         callingTime: Number(callingTime) || 0,
         oneOnOneTime: Number(oneOnOneTime) || 0,

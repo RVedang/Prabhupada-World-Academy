@@ -79,7 +79,7 @@ export default function BvSection({ guideId, bvslMode, residencyIds }: Props) {
       {activeSubTab === 'bvmatrix'    && <BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} />}
-      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} />}
       {activeSubTab === 'improvement' && <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'management'  && !bvslMode && <BvslManagementTab guideId={guideId} />}

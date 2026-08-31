@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, Guides, BvslPreachingEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
+import { bvUserAliases, resolveBvGroupFacilitatorUsers } from '../lib/bvGroupMemberScope';
 
 const BV_FIELDS = [
   'prCallingTime', 'prOneOnOneTime', 'prBookDistTime', 'prRduaTime', 'prPlanTime',
@@ -20,12 +21,29 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
-    requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor: (context.user as any).isBvMentor });
+    requireGuideRole(context.user.role, {
+      isSadhanaMentor: context.user.isSadhanaMentor,
+      isBvsl: context.user.isBvsl,
+      isBvMentor: context.user.isBvMentor,
+      isBvSupervisor: context.user.isBvSupervisor,
+      isBvAdmin: context.user.isBvAdmin,
+      isBvSuperAdmin: context.user.isBvSuperAdmin,
+      isBvSubFacilitator: context.user.isBvSubFacilitator,
+    });
     const { guideId, startDate, endDate, bvslMode, residencyIds } = input;
 
     let bvslUsers: any[] = [];
 
-    if (bvslMode) {
+    const isSupervisorMode = !!bvslMode && !!(context.user.isBvSupervisor || context.user.isBvMentor);
+    if (isSupervisorMode) {
+      const rawSegment = String(context.user.segment || 'FOLK').toUpperCase();
+      const segment = rawSegment === 'PW' ? 'PW' : 'FOLK';
+      bvslUsers = await resolveBvGroupFacilitatorUsers(
+        context.user as any,
+        ['id', 'userId', 'email', 'fullName'],
+        { segment },
+      );
+    } else if (bvslMode) {
       // Show BVSLs from the current user's groups
       const { records: myGroups } = await BvGroups.findAll({
         filters: { bvslLeader: context.user.id, isActive: true } as any,
@@ -104,13 +122,19 @@ export default createEndpoint({
       return { dailyTrend: [], userSummaries: [], totalUsers: 0 };
     }
 
-    const bvslDbIds = bvslUsers.map(u => u.id);
+    const canonicalByAlias = new Map<string, string>();
+    bvslUsers.forEach(user => {
+      bvUserAliases(user).forEach(alias => canonicalByAlias.set(alias, user.id));
+    });
 
     let allEntries: any[] = [];
     let offset = 0;
+    const entryDateFilter = startDate === endDate
+      ? startDate
+      : { gte: startDate, lte: endDate };
     while (true) {
       const { records, hasMore } = await BvslPreachingEntries.findAll({
-        filters: { entryDate: { gte: startDate, lte: endDate } } as any,
+        filters: { entryDate: entryDateFilter } as any,
         limit: 2000,
         offset,
       });
@@ -119,9 +143,11 @@ export default createEndpoint({
       offset += 2000;
     }
 
-    const filteredEntries = allEntries.filter(e => {
-      const uid = Array.isArray(e.user) ? e.user[0] : e.user;
-      return uid && bvslDbIds.includes(uid as string);
+    const filteredEntries = allEntries.flatMap(entry => {
+      const entryAliases = (Array.isArray(entry.user) ? entry.user : [entry.user])
+        .filter(Boolean).map((value: unknown) => String(value).toLowerCase());
+      const canonicalId = entryAliases.map(alias => canonicalByAlias.get(alias)).find(Boolean);
+      return canonicalId ? [{ ...entry, __canonicalUserId: canonicalId }] : [];
     });
 
     // Daily trend
@@ -158,7 +184,7 @@ export default createEndpoint({
     // Per-user summaries
     const entriesByUser = new Map<string, any[]>();
     for (const e of filteredEntries) {
-      const uid = (Array.isArray(e.user) ? e.user[0] : e.user) as string;
+      const uid = e.__canonicalUserId as string;
       if (!uid) continue;
       if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
       entriesByUser.get(uid)!.push(e);

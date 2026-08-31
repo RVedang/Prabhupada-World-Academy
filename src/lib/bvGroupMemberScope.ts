@@ -52,6 +52,57 @@ function groupAliases(group: UserRecord): string[] {
   return refs([group.id, group.groupId]);
 }
 
+async function resolveCanonicalUsersByAliases(
+  targetAliases: Set<string>,
+  userFields: string[],
+): Promise<UserRecord[]> {
+  if (targetAliases.size === 0) return [];
+
+  const requestedFields = [...new Set([...userFields, ...IDENTITY_FIELDS, ...PROFILE_RESOLUTION_FIELDS])];
+  const { records: allUsers } = await Users.findAll({ fields: requestedFields, limit: 5000 });
+  const candidates = allUsers.filter(user =>
+    bvUserAliases(user).some(alias => targetAliases.has(alias))
+  );
+
+  // Treat every shared canonical identity alias as an edge. Connected
+  // components handle transitive legacy duplicates (A shares userId with B,
+  // while B shares auth UID with C) that greedy alias claiming can miss.
+  const parent = candidates.map((_, index) => index);
+  const find = (index: number): number => {
+    while (parent[index] !== index) {
+      parent[index] = parent[parent[index]];
+      index = parent[index];
+    }
+    return index;
+  };
+  const union = (left: number, right: number) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
+  };
+  const aliasOwner = new Map<string, number>();
+  candidates.forEach((user, index) => {
+    for (const alias of bvUserAliases(user)) {
+      const owner = aliasOwner.get(alias);
+      if (owner === undefined) aliasOwner.set(alias, index);
+      else union(index, owner);
+    }
+  });
+
+  const canonicalUsers = new Map<number, UserRecord>();
+  candidates.forEach((user, index) => {
+    // Alias-only placeholder documents can connect legacy identities, but
+    // must never become a visible report or 1:1 profile themselves.
+    if (!profileName(user) && !profileEmail(user)) return;
+    const root = find(index);
+    const current = canonicalUsers.get(root);
+    if (!current || profileQuality(user) > profileQuality(current)) {
+      canonicalUsers.set(root, user);
+    }
+  });
+  return [...canonicalUsers.values()];
+}
+
 /**
  * Resolve the active BV groups the caller is permitted to monitor.
  * Supervisors inherit groups from RGFs that report to them. RGF/RGSF behavior
@@ -199,47 +250,25 @@ export async function resolveBvGroupMemberUsers(
 
   // Membership is authoritative. Do not require one exact status spelling;
   // this keeps Sadhana reports consistent with the Group Members tab.
-  const requestedFields = [...new Set([...userFields, ...IDENTITY_FIELDS, ...PROFILE_RESOLUTION_FIELDS])];
-  const { records: allUsers } = await Users.findAll({ fields: requestedFields, limit: 5000 });
-  const candidates = allUsers.filter(user =>
-    bvUserAliases(user).some(alias => memberAliases.has(alias))
-  );
+  return resolveCanonicalUsersByAliases(memberAliases, userFields);
+}
 
-  // Treat every shared canonical identity alias as an edge. Connected
-  // components handle transitive legacy duplicates (A shares userId with B,
-  // while B shares auth UID with C) that greedy alias claiming can miss.
-  const parent = candidates.map((_, index) => index);
-  const find = (index: number): number => {
-    while (parent[index] !== index) {
-      parent[index] = parent[parent[index]];
-      index = parent[index];
-    }
-    return index;
-  };
-  const union = (left: number, right: number) => {
-    const leftRoot = find(left);
-    const rightRoot = find(right);
-    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
-  };
-  const aliasOwner = new Map<string, number>();
-  candidates.forEach((user, index) => {
-    for (const alias of bvUserAliases(user)) {
-      const owner = aliasOwner.get(alias);
-      if (owner === undefined) aliasOwner.set(alias, index);
-      else union(index, owner);
-    }
-  });
-
-  const canonicalUsers = new Map<number, UserRecord>();
-  candidates.forEach((user, index) => {
-    // Alias-only placeholder documents can connect legacy identities, but
-    // must never become a visible report or 1:1 profile themselves.
-    if (!profileName(user) && !profileEmail(user)) return;
-    const root = find(index);
-    const current = canonicalUsers.get(root);
-    if (!current || profileQuality(user) > profileQuality(current)) {
-      canonicalUsers.set(root, user);
-    }
-  });
-  return [...canonicalUsers.values()];
+/** Resolve canonical RGF/RGSF profiles attached to the caller's scoped groups. */
+export async function resolveBvGroupFacilitatorUsers(
+  contextUser: UserRecord,
+  userFields: string[],
+  options: BvGroupScopeOptions = {},
+): Promise<UserRecord[]> {
+  const groups = await resolveBvScopedGroups(contextUser, options);
+  const facilitatorAliases = new Set<string>();
+  for (const group of groups) {
+    refs([
+      group.record.bvslLeader,
+      group.record.bvslId,
+      group.record.subFacilitatorId,
+      group.record.rgsfId,
+      group.record.subFacilitator,
+    ]).forEach(alias => facilitatorAliases.add(alias));
+  }
+  return resolveCanonicalUsersByAliases(facilitatorAliases, userFields);
 }

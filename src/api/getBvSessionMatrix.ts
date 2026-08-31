@@ -3,6 +3,7 @@ import { createEndpoint, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizze
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 import { legacyQuizMatchesGroup, normalizeQuizDepartment, quizIsActivatedForGroup } from '../lib/bvQuizAccess';
+import { resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'BV attendance + quiz matrix — person × date grid for guides/bvsls (queries attendance directly by group+date)',
@@ -49,37 +50,19 @@ export default createEndpoint({
     }
     if (groupId) groupFilter.id = groupId;
 
-    let { records: groups } = await BvGroups.findAll({
-      filters: groupFilter,
-      fields: ['id', 'groupName', 'bvslLeader'],
-      limit: 200,
-    });
-
+    let groups: any[];
     if (bvslMode) {
-      const caller = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId', 'isBvSubFacilitator'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'email', 'bvReportingFacilitatorId', 'isBvSubFacilitator'] }).catch(() => undefined);
-      const normalize = (value: unknown) => String(value || '').trim().toLowerCase();
-      const callerAliases = new Set([context.user.id, context.user.userId, context.user.email, caller?.id, caller?.userId, caller?.email].filter(Boolean).map(normalize));
-      const parentAliases = new Set([context.user.bvReportingFacilitatorId, (caller as any)?.bvReportingFacilitatorId].filter(Boolean).map(normalize));
-      if (parentAliases.size > 0) {
-        const parentQueries = await Promise.all([
-          Users.findAll({ filters: { id: { in: Array.from(parentAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-          Users.findAll({ filters: { userId: { in: Array.from(parentAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-          Users.findAll({ filters: { email: { in: Array.from(parentAliases) } } as any, fields: ['id', 'userId', 'email'], limit: 20 }).catch(() => ({ records: [] })),
-        ]);
-        parentQueries.flatMap(result => result.records || []).forEach((parent: any) => [parent.id, parent.userId, parent.email].filter(Boolean)
-          .forEach((value: any) => parentAliases.add(normalize(value))));
-      }
-      const isRgsf = !!context.user.isBvSubFacilitator || !!(caller as any)?.isBvSubFacilitator || normalize(context.user.role).includes('rgsf');
-      const allGroups = await BvGroups.findAll({ filters: { isActive: true } as any, fields: ['id', 'groupName', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId'], limit: 500 });
-      groups = (allGroups.records || []).filter((group: any) => {
-        const ownerRefs = [group.bvslLeader, group.bvslId].flatMap((value: any) => Array.isArray(value) ? value : [value]).filter(Boolean).map(normalize);
-        const subRefs = [group.subFacilitatorId, group.rgsfId].flatMap((value: any) => Array.isArray(value) ? value : [value]).filter(Boolean).map(normalize);
-        return ownerRefs.some((ref: string) => callerAliases.has(ref)) ||
-          (isRgsf && ownerRefs.some((ref: string) => parentAliases.has(ref))) ||
-          subRefs.some((ref: string) => callerAliases.has(ref));
+      const rawSegment = String(context.user.segment || (context.user.isBvSupervisor ? 'FOLK' : '')).toUpperCase();
+      const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;
+      const scopedGroups = await resolveBvScopedGroups(context.user as any, { segment, groupId });
+      groups = scopedGroups.map(group => group.record);
+    } else {
+      const result = await BvGroups.findAll({
+        filters: groupFilter,
+        fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId'],
+        limit: 200,
       });
-      if (groupId) groups = groups.filter((group: any) => group.id === groupId);
+      groups = result.records;
     }
 
     if (groups.length === 0) {

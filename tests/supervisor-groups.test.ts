@@ -3,11 +3,15 @@ import test from 'node:test';
 
 import getBvAttendanceMatrix from '../src/api/getBvAttendanceMatrix';
 import getBvGroupDetail from '../src/api/getBvGroupDetail';
+import getBvPreachingReport from '../src/api/getBvPreachingReport';
+import getBvSessionMatrix from '../src/api/getBvSessionMatrix';
+import getBvStats from '../src/api/getBvStats';
 import getBvSupervisorOverview from '../src/api/getBvSupervisorOverview';
+import getGuideGroupStats from '../src/api/getGuideGroupStats';
 import getGuideDetailedReport from '../src/api/getGuideDetailedReport';
 import getSadhanaLeaderboard from '../src/api/getSadhanaLeaderboard';
 import getSadhanaStats from '../src/api/getSadhanaStats';
-import { BvAttendance, BvGroupMembers, BvGroups, BvQuizzes, SadhanaEntries, Users } from '../src/lib/app-backend-sdk';
+import { BvAttendance, BvGroupMembers, BvGroups, BvQuizzes, BvslPreachingEntries, SadhanaEntries, Users } from '../src/lib/app-backend-sdk';
 import { resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../src/lib/bvGroupMemberScope';
 import { getTodayIST } from '../src/lib/streakUtils';
 
@@ -96,6 +100,7 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
   const quizId = 'SUPERVISOR-GROUPS-QUIZ';
   const memberEntryId = 'SUPERVISOR-GROUPS-SADHANA';
   const outsideEntryId = 'SUPERVISOR-GROUPS-OUTSIDE-SADHANA';
+  const preachingEntryId = 'SUPERVISOR-GROUPS-PREACHING';
   const today = getTodayIST();
 
   for (const user of users) await Users.create({ record: user });
@@ -154,6 +159,23 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       submittedAt: `${today}T05:00:00.000Z`,
     },
   });
+  await BvslPreachingEntries.create({
+    record: {
+      id: preachingEntryId,
+      user: reportingRgf.userId,
+      entryDate: today,
+      prCallingTime: 30,
+      prOneOnOneTime: 20,
+      prBookDistTime: 10,
+      prRduaTime: 5,
+      prPlanTime: 5,
+      prBooksDistributed: 2,
+      prContactsCollected: 3,
+      prUniqueOneOnOnes: 1,
+      totalPreachingMinutes: 70,
+      submittedAt: `${today}T06:00:00.000Z`,
+    },
+  });
   await SadhanaEntries.create({
     record: {
       id: outsideEntryId,
@@ -197,6 +219,66 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     } as never);
     assert.deepEqual(matrix.dates, [getTodayIST()]);
     assert.equal(matrix.rows[0].weekTotal, 1);
+
+    const reportMatrix = await getBvSessionMatrix.execute({
+      input: {
+        guideId: supervisor.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.deepEqual(reportMatrix.groups.map((group: any) => group.id), [supervisedGroup.id]);
+    assert.deepEqual(reportMatrix.members.map((row: any) => row.fullName), [member.fullName]);
+
+    const facilitatorReport = await getBvPreachingReport.execute({
+      input: {
+        guideId: supervisor.userId,
+        date: today,
+        reportType: 'daily',
+        bvslMode: true,
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.deepEqual(facilitatorReport.bvsls.map((row: any) => row.fullName), [reportingRgf.fullName]);
+    assert.equal(facilitatorReport.bvsls[0].submitted, true);
+    assert.equal(facilitatorReport.bvsls[0].totalMinutes, 70);
+
+    const improvementReport = await getBvPreachingReport.execute({
+      input: {
+        guideId: supervisor.userId,
+        date: today,
+        startDate: today,
+        endDate: today,
+        reportType: 'weekly',
+        bvslMode: true,
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.deepEqual(improvementReport.bvsls.map((row: any) => row.fullName), [reportingRgf.fullName]);
+    assert.equal(improvementReport.bvsls[0].submitted, true);
+    assert.equal(improvementReport.bvsls[0].totalMinutes, 70);
+
+    const preachingStats = await getBvStats.execute({
+      input: {
+        guideId: supervisor.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+      },
+      context: { user: supervisor },
+    } as never);
+    assert.equal(preachingStats.totalUsers, 1);
+    assert.equal(preachingStats.totalSubmitted, 1);
+    assert.deepEqual(preachingStats.userSummaries.map((row: any) => row.fullName), [reportingRgf.fullName]);
+
+    const groupStats = await getGuideGroupStats.execute({
+      input: { guideId: supervisor.userId, bvslMode: true },
+      context: { user: supervisor },
+    } as never);
+    assert.deepEqual(groupStats.groups.map((group: any) => group.groupName), [supervisedGroup.groupName]);
+    assert.equal(groupStats.groups[0].memberCount, 1);
 
     const scopedGroups = await resolveBvScopedGroups(supervisor, { segment: 'FOLK' });
     assert.deepEqual(scopedGroups.map(group => group.groupId), [supervisedGroup.groupId]);
@@ -268,6 +350,7 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       /not assigned to your hierarchy/,
     );
   } finally {
+    await BvslPreachingEntries.delete({ id: preachingEntryId });
     await SadhanaEntries.delete({ id: memberEntryId });
     await SadhanaEntries.delete({ id: outsideEntryId });
     await BvQuizzes.delete({ id: quizId });

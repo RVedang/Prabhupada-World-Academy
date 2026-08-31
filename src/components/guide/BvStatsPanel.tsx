@@ -46,9 +46,14 @@ function getPeriodDates(period: Period): { start: string; end: string } {
   }
 }
 
-interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
+interface Props {
+  guideId: string;
+  bvslMode?: boolean;
+  residencyIds?: string[];
+  showIndividualStats?: boolean;
+}
 
-export default function BvStatsPanel({ guideId, bvslMode, residencyIds }: Props) {
+export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndividualStats }: Props) {
   const [period, setPeriod]               = useState<Period>('30d');
   const [groupStats, setGroupStats]       = useState<any>(null);
   const [groupLoading, setGroupLoading]   = useState(false);
@@ -138,7 +143,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds }: Props)
       </Card>
 
       {/* Individual RGF stats (Supervisor dashboard only) */}
-      {!bvslMode && (
+      {(showIndividualStats ?? !bvslMode) && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-3">

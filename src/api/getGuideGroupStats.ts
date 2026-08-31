@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Guides, Users } from '@/lib/backend-sdk';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
+import { resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'Get BV group stats for guide dashboard — member count, attendance rate per group',
@@ -13,11 +14,13 @@ export default createEndpoint({
     const isSuperGuide = context.user.role === 'Super Guide';
 
     const groupFilter: any = { isActive: true };
+    let hierarchyGroups: any[] | null = null;
 
     if (isBvslMode) {
-      const userRecord = await Users.findOne({ filters: { email: context.user.email }, fields: ['id'] });
-      if (!userRecord) return { groups: [] };
-      groupFilter.bvslLeader = userRecord.id;
+      const rawSegment = String(context.user.segment || (context.user.isBvSupervisor ? 'FOLK' : '')).toUpperCase();
+      const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;
+      hierarchyGroups = (await resolveBvScopedGroups(context.user as any, { segment }))
+        .map(group => group.record);
     } else {
       const isBvMentor = !!(context.user as any).isBvMentor;
       let guideDbId: string | null = null;
@@ -75,11 +78,11 @@ export default createEndpoint({
       }
     }
 
-    const { records: groups } = await BvGroups.findAll({
+    const groups = hierarchyGroups ?? (await BvGroups.findAll({
       filters: groupFilter,
-      fields: ['id', 'groupId', 'groupName', 'bvslLeader'],
+      fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId'],
       limit: 200,
-    });
+    })).records;
 
     if (groups.length === 0) return { groups: [] };
 
