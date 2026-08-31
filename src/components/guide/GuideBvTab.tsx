@@ -137,7 +137,6 @@ export default function GuideBvTab({ guideId, bvslMode, residencyIds, summaryOnl
       <div className="space-y-5">
         <div>
           <h3 className="text-base font-semibold mb-1">Group Attendance Summary</h3>
-          <p className="text-sm text-muted-foreground">A non-clickable performance summary. Open a group from Facilitators (RGF) &amp; Groups to view its members and attendance records.</p>
         </div>
 
         <Card>
