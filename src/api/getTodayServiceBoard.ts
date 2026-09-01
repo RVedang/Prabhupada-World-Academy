@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, ServiceAllocations, Services, Users, FolkResidencies } from '@/lib/backend-sdk';
+import { createEndpoint, ServiceAllocations, Users } from '@/lib/backend-sdk';
 import { getServiceWeekStartOf } from '../lib/serviceWeek';
+import { getCachedActiveServices, resolveCachedResidencyDbId } from '../lib/serviceReferenceData';
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
@@ -23,22 +24,21 @@ export default createEndpoint({
     // Current IST hour+minute as minutes-since-midnight for overdue calculation
     const istMinutes = nowIST.getUTCHours() * 60 + nowIST.getUTCMinutes();
 
-    // Resolve residency
-    let residencyDbId: string | undefined;
+    // Resolve residency while the independent service/allocation queries run.
     const rawResidency = input.residencyId || (Array.isArray(context.user.residency) ? context.user.residency[0] : context.user.residency);
+    const residencyPromise = resolveCachedResidencyDbId(rawResidency);
 
-    if (rawResidency) {
-      const byCustomId = await FolkResidencies.findOne({ filters: { residencyId: rawResidency }, fields: ['id'] });
-      if (byCustomId) {
-        residencyDbId = byCustomId.id;
-      } else {
-        const byDbId = await FolkResidencies.findOne({ id: rawResidency, fields: ['id'] });
-        residencyDbId = byDbId?.id;
-      }
-    }
+    const [residencyDbId, allServices, allocRes] = await Promise.all([
+      residencyPromise,
+      getCachedActiveServices(),
+      ServiceAllocations.findAll({
+        filters: { weekDate: weekStartSunday, dayOfWeek: todayDayName },
+        limit: 300,
+        fields: ['id', 'allocationId', 'service', 'user', 'dayOfWeek', 'status', 'completedAt', 'notes'],
+      }),
+    ]);
 
     // Fetch active services for this residency
-    const { records: allServices } = await Services.findAll({ filters: { isActive: true }, limit: 200 });
     const relevantServices = allServices.filter(s => {
       if (s.serviceScope === 'General') return true;
       const svcResidency = Array.isArray(s.residency) ? s.residency[0] : s.residency;
@@ -46,12 +46,6 @@ export default createEndpoint({
       return false;
     }).sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
 
-    // Fetch allocations for today (include notes for checklist progress)
-    const allocRes = await ServiceAllocations.findAll({
-      filters: { weekDate: weekStartSunday, dayOfWeek: todayDayName },
-      limit: 300,
-      fields: ['id', 'allocationId', 'service', 'user', 'dayOfWeek', 'status', 'completedAt', 'notes'],
-    });
     const allocations = allocRes.records;
 
     // Build user map

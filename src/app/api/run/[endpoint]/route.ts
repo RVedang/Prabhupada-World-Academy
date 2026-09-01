@@ -137,6 +137,81 @@ async function verifyToken(token: string): Promise<{ email: string; uid: string;
   throw new Error('Authentication verification not configured. Check process.env.FIREBASE_SERVICE_ACCOUNT.');
 }
 
+type VerifiedUser = Awaited<ReturnType<typeof verifyToken>>;
+
+// A dashboard commonly starts several endpoint requests together. Without a
+// burst cache, every request independently repeats the same UID lookup, email
+// fallback queries, and first-login linking work before its real endpoint can
+// even start. Keep this deliberately short so role/status revocations remain
+// effectively immediate while requests from one render share the lookup.
+const resolvedUserBurstCache = new Map<string, { user: ApiDatabaseUser | null; expiresAt: number }>();
+const resolvedUserInFlight = new Map<string, Promise<ApiDatabaseUser | null>>();
+const RESOLVED_USER_BURST_TTL_MS = 2_000;
+const MAX_RESOLVED_USER_CACHE_ENTRIES = 500;
+
+async function resolveDatabaseUser(decodedUser: VerifiedUser): Promise<ApiDatabaseUser | null> {
+  const cacheKey = `${decodedUser.uid}:${decodedUser.email.toLowerCase()}`;
+  const now = Date.now();
+  const cached = resolvedUserBurstCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.user;
+  if (cached) resolvedUserBurstCache.delete(cacheKey);
+
+  const existing = resolvedUserInFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const resolution = (async (): Promise<ApiDatabaseUser | null> => {
+    const emailLower = decodedUser.email.toLowerCase();
+    const uidRecord = await Users.findOne({ id: decodedUser.uid }).catch(() => null);
+    const uidRecordIsProfile = !!(uidRecord?.userId && uidRecord?.status);
+    let dbUser: ApiDatabaseUser | null = uidRecordIsProfile ? uidRecord : null;
+
+    if (!dbUser) {
+      dbUser = await Users.findOne({ filters: { firebaseUid: decodedUser.uid } }).catch(() => null);
+    }
+    if (!dbUser) {
+      const [exactEmailMatches, lowerEmailMatches] = await Promise.all([
+        Users.findAll({ filters: { email: decodedUser.email }, limit: 10 }).catch(() => ({ records: [] })),
+        Users.findAll({ filters: { email: emailLower }, limit: 10 }).catch(() => ({ records: [] })),
+      ]);
+      const emailCandidates = [...(exactEmailMatches.records || []), ...(lowerEmailMatches.records || [])]
+        .filter((record, index, records) => records.findIndex(item => item.id === record.id) === index);
+      dbUser = emailCandidates.find(record => record.userId && record.status) || emailCandidates[0] || uidRecord || null;
+    }
+
+    // Bulk-created profiles exist before the member's first Google login.
+    if (dbUser?.id && dbUser.id !== decodedUser.uid && (dbUser as any).firebaseUid !== decodedUser.uid) {
+      await Users.update({
+        id: dbUser.id,
+        record: { firebaseUid: decodedUser.uid, authLinkedAt: new Date().toISOString() },
+      });
+      (dbUser as any).firebaseUid = decodedUser.uid;
+
+      if (uidRecord?.id === decodedUser.uid && !uidRecordIsProfile && uidRecord.id !== dbUser.id) {
+        await Users.delete({ id: uidRecord.id }).catch(() => undefined);
+      }
+    }
+
+    if (resolvedUserBurstCache.size >= MAX_RESOLVED_USER_CACHE_ENTRIES) {
+      const oldestKey = resolvedUserBurstCache.keys().next().value;
+      if (oldestKey) resolvedUserBurstCache.delete(oldestKey);
+    }
+    resolvedUserBurstCache.set(cacheKey, {
+      user: dbUser,
+      expiresAt: Date.now() + RESOLVED_USER_BURST_TTL_MS,
+    });
+    return dbUser;
+  })();
+
+  resolvedUserInFlight.set(cacheKey, resolution);
+  try {
+    return await resolution;
+  } finally {
+    if (resolvedUserInFlight.get(cacheKey) === resolution) {
+      resolvedUserInFlight.delete(cacheKey);
+    }
+  }
+}
+
 function secretsMatch(provided: string, expected: string): boolean {
   const providedBuffer = Buffer.from(provided);
   const expectedBuffer = Buffer.from(expected);
@@ -183,6 +258,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ endpoint: string }> }
 ) {
+  const requestStartedAt = Date.now();
+  let authDurationMs = 0;
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   const rateLimitKey = token ? `token:${token.slice(-30)}` : `ip:${req.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1'}`;
@@ -241,50 +318,16 @@ export async function POST(
     const context: { user: ApiUserContext | null } = { user: null };
 
     if (token) {
+      const authStartedAt = Date.now();
       try {
         const decodedUser = await verifyToken(token);
         if (!decodedUser.emailVerified) {
           return NextResponse.json({ message: 'A verified email is required' }, { status: 403 });
         }
 
-        const emailLower = decodedUser.email.toLowerCase();
-        const uidRecord = await Users.findOne({ id: decodedUser.uid }).catch(() => null);
-        const uidRecordIsProfile = !!(uidRecord?.userId && uidRecord?.status);
-        let dbUser: ApiDatabaseUser | null = uidRecordIsProfile ? uidRecord : null;
-
-        if (!dbUser) {
-          dbUser = await Users.findOne({ filters: { firebaseUid: decodedUser.uid } }).catch(() => null);
-        }
-        if (!dbUser) {
-          const [exactEmailMatches, lowerEmailMatches] = await Promise.all([
-            Users.findAll({ filters: { email: decodedUser.email }, limit: 10 }).catch(() => ({ records: [] })),
-            Users.findAll({ filters: { email: emailLower }, limit: 10 }).catch(() => ({ records: [] })),
-          ]);
-          const emailCandidates = [...(exactEmailMatches.records || []), ...(lowerEmailMatches.records || [])]
-            .filter((record, index, records) => records.findIndex(item => item.id === record.id) === index);
-          dbUser = emailCandidates.find(record => record.userId && record.status) || emailCandidates[0] || uidRecord || null;
-        }
-
-        // Bulk-created profiles exist before the member's first Google login.
-        // Link the verified Firebase UID to the email-matched profile so every
-        // later request resolves directly, while preserving the existing user
-        // document ID referenced by assignments and BV records.
-        if (dbUser?.id && dbUser.id !== decodedUser.uid && (dbUser as any).firebaseUid !== decodedUser.uid) {
-          await Users.update({
-            id: dbUser.id,
-            record: { firebaseUid: decodedUser.uid, authLinkedAt: new Date().toISOString() },
-          });
-          (dbUser as any).firebaseUid = decodedUser.uid;
-
-          // Authentication sync may have created a bare UID document before
-          // this first API request. Once its verified email is linked to the
-          // complete imported profile, remove only that incomplete duplicate.
-          if (uidRecord?.id === decodedUser.uid && !uidRecordIsProfile && uidRecord.id !== dbUser.id) {
-            await Users.delete({ id: uidRecord.id }).catch(() => undefined);
-          }
-        }
-
+        const dbUser = await resolveDatabaseUser(decodedUser);
         context.user = buildApiUserContext(decodedUser, dbUser);
+        authDurationMs = Date.now() - authStartedAt;
       } catch (authError: unknown) {
         const authFailure = errorDetails(authError);
         console.error('[API Router] Authentication error:', authError);
@@ -317,10 +360,24 @@ export async function POST(
     }
 
     // 5. Execute endpoint handler
+    const endpointStartedAt = Date.now();
     const output = await endpointConfig.execute({ input: validatedInput, context });
+    const endpointDurationMs = Date.now() - endpointStartedAt;
+    const totalDurationMs = Date.now() - requestStartedAt;
 
     // 6. Return response
-    return NextResponse.json(output);
+    const response = NextResponse.json(output);
+    response.headers.set(
+      'Server-Timing',
+      `auth;dur=${authDurationMs}, endpoint;dur=${endpointDurationMs}, total;dur=${totalDurationMs}`,
+    );
+    if (totalDurationMs >= 1_000) {
+      console.warn(
+        `[API Performance] ${endpoint} took ${totalDurationMs}ms ` +
+        `(auth ${authDurationMs}ms, endpoint ${endpointDurationMs}ms)`,
+      );
+    }
+    return response;
 
   } catch (error: unknown) {
     const failure = errorDetails(error);

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, Services, ServiceAllocations, Users, FolkResidencies } from '@/lib/backend-sdk';
+import { createEndpoint, ServiceAllocations, Users } from '@/lib/backend-sdk';
+import { getCachedActiveServices, resolveCachedResidencyDbId } from '../lib/serviceReferenceData';
 
 export default createEndpoint({
   description: 'Get the service allocation board for a week',
@@ -26,18 +27,19 @@ export default createEndpoint({
     const weekStartMs = new Date(weekStartDate + 'T00:00:00').getTime();
     const nowMs = Date.now();
 
-    // Resolve custom residencyId (e.g. "RES-001") to the database UUID
-    let residencyDbId: string | undefined;
-    if (residencyId) {
-      const residencyRecord = await FolkResidencies.findOne({
-        filters: { residencyId },
-        fields: ['id'],
-      });
-      residencyDbId = residencyRecord?.id;
-    }
+    // Residency resolution, service definitions, and weekly allocations are
+    // independent reads. Run them together to remove two network waterfalls.
+    const [residencyDbId, allServices, allocRes] = await Promise.all([
+      resolveCachedResidencyDbId(residencyId),
+      getCachedActiveServices(),
+      ServiceAllocations.findAll({
+        filters: { weekDate: weekStartDate },
+        limit: 500,
+        fields: ['id', 'allocationId', 'service', 'user', 'backupUser', 'isBackup', 'dayOfWeek', 'status', 'completedAt'],
+      }),
+    ]);
 
     // Get active services
-    const { records: allServices } = await Services.findAll({ filters: { isActive: true }, limit: 200 });
     const relevantServices = allServices.filter(s => {
       if (s.serviceScope === 'General') return true;
       // Include any service linked to this residency regardless of whether serviceScope is set
@@ -50,12 +52,6 @@ export default createEndpoint({
       return { services: [], days, grid: {}, summary: { total: 0, completed: 0, overdue: 0, pending: 0 } };
     }
 
-    // Get allocations for this week
-    const allocRes = await ServiceAllocations.findAll({
-      filters: { weekDate: weekStartDate },
-      limit: 500,
-      fields: ['id', 'allocationId', 'service', 'user', 'backupUser', 'isBackup', 'dayOfWeek', 'status', 'completedAt'],
-    });
     const allocations = allocRes.records;
 
     // Get user info for all allocated + backup users

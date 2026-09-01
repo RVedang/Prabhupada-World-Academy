@@ -3,7 +3,18 @@
 // ══════════════════════════════════════════════════════════════════════════════
 import { auth } from './app-auth-sdk';
 const clientCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL_MS = 15000; // 15 seconds cache TTL for tab-switching speed
+const inFlightRequests = new Map<string, Promise<any>>();
+const CACHE_TTL_MS = 60_000;
+const MAX_CACHE_ENTRIES = 250;
+let cacheGeneration = 0;
+
+// These endpoints are reads even though their names do not begin with `get`.
+// Treating them as mutations used to clear every cached dashboard response.
+const READ_ONLY_ENDPOINTS = new Set([
+  'checkAllocationPublished',
+  'checkGuideEmail',
+  'checkEmailStatus',
+]);
 
 // Must stay in sync with endpoint configs that explicitly declare `public: true`.
 // Public callers receive no Firebase identity or database-backed capabilities.
@@ -26,67 +37,126 @@ export const PUBLIC_ENDPOINTS = new Set([
   'tagMangoWebhook',
 ]);
 
+function currentIdentity(): string {
+  const currentUser = auth?.currentUser;
+  return String(currentUser?.uid || currentUser?.email || 'public').toLowerCase();
+}
+
+function stableSerialize(value: any): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
+  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`).join(',')}}`;
+}
+
+function cacheableInput(input: any): any {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input || {};
+  const { bypassCache: _bypassCache, _nocache: _noCache, ...rest } = input;
+  return rest;
+}
+
+function queryCacheKey(name: string, input: any): string {
+  return `${currentIdentity()}:${name}:${stableSerialize(cacheableInput(input))}`;
+}
+
+function cloneResponse<T>(data: T): T {
+  if (typeof structuredClone === 'function') return structuredClone(data);
+  return JSON.parse(JSON.stringify(data));
+}
+
+function pruneClientCache(): void {
+  if (clientCache.size <= MAX_CACHE_ENTRIES) return;
+  const removeCount = clientCache.size - MAX_CACHE_ENTRIES;
+  const keys = clientCache.keys();
+  for (let i = 0; i < removeCount; i++) {
+    const key = keys.next().value;
+    if (key) clientCache.delete(key);
+  }
+}
+
+export function clearEndpointClientCache(): void {
+  cacheGeneration++;
+  clientCache.clear();
+  inFlightRequests.clear();
+}
+
 export function getClientCachedQuery(name: string, input: any): any | null {
-  const cacheKey = `${name}:${JSON.stringify(input || {})}`;
+  const cacheKey = queryCacheKey(name, input);
   const cached = clientCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-    return JSON.parse(JSON.stringify(cached.data));
+    return cloneResponse(cached.data);
   }
   return null;
 }
 
 async function invokeEndpoint(name: string, input: any): Promise<any> {
-  const isQuery = name.startsWith('get') || name.startsWith('load') || name.startsWith('list') || name.includes('Stats') || name.includes('Report') || name.includes('Analytics');
+  const isQuery = READ_ONLY_ENDPOINTS.has(name) || name.startsWith('get') || name.startsWith('load') || name.startsWith('list') || name.includes('Stats') || name.includes('Report') || name.includes('Analytics');
   const bypassCache = input && (input.bypassCache || input._nocache);
 
   // Bust cache on any mutation
   if (!isQuery) {
-    clientCache.clear();
+    clearEndpointClientCache();
   }
 
-  const cacheKey = `${name}:${JSON.stringify(input || {})}`;
+  const cacheKey = queryCacheKey(name, input);
   if (isQuery && !bypassCache) {
     const cached = clientCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-      return Promise.resolve(JSON.parse(JSON.stringify(cached.data)));
+      return Promise.resolve(cloneResponse(cached.data));
     }
   }
 
-  // Retrieve Firebase ID Token (auth header)
-  let idToken = '';
+  const generation = cacheGeneration;
+  const requestKey = `${generation}:${cacheKey}`;
+  const existingRequest = inFlightRequests.get(requestKey);
+  if (existingRequest) {
+    return existingRequest.then(cloneResponse);
+  }
 
+  const request = (async () => {
+    // Retrieve Firebase ID Token (auth header)
+    let idToken = '';
+    try {
+      const currentUser = auth?.currentUser;
+      if (!currentUser && !PUBLIC_ENDPOINTS.has(name)) {
+        throw new Error('User is not authenticated');
+      }
+      if (currentUser) idToken = await currentUser.getIdToken();
+    } catch (error) {
+      console.error('Failed to get Firebase ID token:', error);
+      throw error;
+    }
+
+    const res = await fetch(`/api/run/${name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+      },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || 'API request failed');
+    }
+    const data = await res.json();
+
+    // A mutation may have completed while this query was in flight. Never put
+    // a pre-mutation response back into the cache after that invalidation.
+    if (isQuery && generation === cacheGeneration) {
+      clientCache.set(cacheKey, { data, timestamp: Date.now() });
+      pruneClientCache();
+    }
+    return data;
+  })();
+
+  inFlightRequests.set(requestKey, request);
   try {
-    const currentUser = auth?.currentUser;
-
-    if (!currentUser && !PUBLIC_ENDPOINTS.has(name)) {
-      throw new Error('User is not authenticated');
+    return cloneResponse(await request);
+  } finally {
+    if (inFlightRequests.get(requestKey) === request) {
+      inFlightRequests.delete(requestKey);
     }
-
-    if (currentUser) idToken = await currentUser.getIdToken();
-  } catch (error) {
-    console.error('Failed to get Firebase ID token:', error);
-    throw error;
   }
-
-  const res = await fetch(`/api/run/${name}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
-    },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || 'API request failed');
-  }
-  const data = await res.json();
-
-  if (isQuery) {
-    clientCache.set(cacheKey, { data, timestamp: Date.now() });
-  }
-
-  return data;
 }
 
 import type acceptSwap_Type from '../api/acceptSwap';

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LayoutGrid, CalendarDays, CalendarCheck, Settings2, Building2, Brush, Heart, Sparkles, Star, Trophy, Bell } from 'lucide-react';
-import { toast } from 'sonner';
-import { checkAndMarkOverdue, autoGenerateAllocation, getWeeklySchedule, checkAllocationPublished } from '@/lib/endpoints-sdk';
+import { getWeeklySchedule, checkAllocationPublished } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 import UserAllocationBoardTab from './UserAllocationBoardTab';
 import ServiceCalendarTab from './ServiceCalendarTab';
@@ -29,52 +28,39 @@ export default function UserServicesTab({ userId, residencyId }: Props) {
   const [publishBanner, setPublishBanner] = useState<string | null>(null);
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
 
-  useEffect(() => { init(); }, [userId]);
+  useEffect(() => { init(); }, [userId, residencyId]);
 
   const init = async () => {
-    const isSunday = new Date().getDay() === 0;
     const currentWeek = getCurrentServiceWeekStart();
-    const availWeek = currentWeek; // Sunday IS the week start
 
-    try {
-      const overdueRes = await checkAndMarkOverdue({});
-      if (overdueRes.overdueCount > 0) {
-        toast.error(`🔴 ${overdueRes.overdueCount} service(s) overdue!`, { duration: 6000 });
+    // Display reads should not wait behind maintenance mutations. The board
+    // derives overdue state from dates, while allocation generation belongs to
+    // the guide workflow and must not run whenever a resident opens this tab.
+    const [pubRes, schedRes] = await Promise.all([
+      checkAllocationPublished({ weekStartDate: currentWeek, residencyId }).catch(() => null),
+      getWeeklySchedule({ weekStartDate: currentWeek }).catch(() => null),
+    ]);
+
+    if (pubRes?.published && pubRes.publishedAt) {
+      const seenKey = `svc_pub_seen_${currentWeek}`;
+      const seen = localStorage.getItem(seenKey);
+      if (seen !== pubRes.publishedAt) {
+        setPublishBanner(pubRes.publishedAt);
       }
-      if (isSunday) {
-        try {
-          const res = await autoGenerateAllocation({ weekStartDate: availWeek, scope: 'residency' });
-          if (!res.alreadyGenerated && res.allocationsCreated > 0) {
-            toast.success(`✨ ${res.allocationsCreated} services allocated for this week!`);
-          }
-        } catch {}
+    }
+
+    if (schedRes) {
+      const todayDow = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+      const todayServices = (schedRes.schedule ?? []).filter((s: any) => s.dayOfWeek === todayDow);
+      if (todayServices.length > 0) {
+        scheduleServiceReminders(todayServices.map((s: any) => ({
+          allocationId: s.allocationId,
+          serviceName: s.serviceName,
+          timeSlot: s.timeSlot || '',
+          status: s.status,
+        })));
       }
-
-      try {
-        const pubRes = await checkAllocationPublished({ weekStartDate: currentWeek, residencyId });
-        if (pubRes.published && pubRes.publishedAt) {
-          const seenKey = `svc_pub_seen_${currentWeek}`;
-          const seen = localStorage.getItem(seenKey);
-          if (seen !== pubRes.publishedAt) {
-            setPublishBanner(pubRes.publishedAt);
-          }
-        }
-      } catch {}
-
-      try {
-        const schedRes = await getWeeklySchedule({ weekStartDate: currentWeek });
-        const todayDow = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
-        const todayServices = (schedRes.schedule ?? []).filter((s: any) => s.dayOfWeek === todayDow);
-        if (todayServices.length > 0) {
-          scheduleServiceReminders(todayServices.map((s: any) => ({
-            allocationId: s.allocationId,
-            serviceName: s.serviceName,
-            timeSlot: s.timeSlot || '',
-            status: s.status,
-          })));
-        }
-      } catch {}
-    } catch {}
+    }
 
     if (new Date().getHours() >= 21) {
       const ratedKey = `svc_rated_${format(new Date(), 'yyyy-MM-dd')}`;

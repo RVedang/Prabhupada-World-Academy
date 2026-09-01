@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Services, AppError } from '@/lib/backend-sdk';
+import { invalidateServiceReferenceData } from '../lib/serviceReferenceData';
 
 export default createEndpoint({
   description: 'Soft delete (deactivate) a service',
@@ -14,6 +15,7 @@ export default createEndpoint({
     if (!service) throw new AppError({ code: 'NOT_FOUND', message: 'Service not found' });
 
     await Services.update({ id: input.serviceId, record: { isActive: false } });
+    invalidateServiceReferenceData();
 
     return { success: true };
   },

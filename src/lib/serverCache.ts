@@ -16,6 +16,8 @@ interface CacheEntry<T> {
 
 // Module-level Map — persists for the lifetime of the server process
 const store = new Map<string, CacheEntry<unknown>>();
+const inFlight = new Map<string, Promise<unknown>>();
+let cacheGeneration = 0;
 
 /** Read a cached value. Returns null if missing or expired. */
 export function serverCacheGet<T>(key: string): T | null {
@@ -38,12 +40,17 @@ export function serverCacheSet<T>(key: string, data: T, ttlMs = 60 * 60 * 1000):
  * Omit prefix to clear the entire cache.
  */
 export function serverCacheInvalidate(prefix?: string): void {
+  cacheGeneration++;
   if (!prefix) {
     store.clear();
+    inFlight.clear();
     return;
   }
   for (const key of Array.from(store.keys())) {
     if (key.startsWith(prefix)) store.delete(key);
+  }
+  for (const key of Array.from(inFlight.keys())) {
+    if (key.startsWith(prefix)) inFlight.delete(key);
   }
 }
 
@@ -62,9 +69,21 @@ export async function serverCacheGetOrFetch<T>(
 ): Promise<T> {
   const cached = serverCacheGet<T>(key);
   if (cached !== null) return cached;
-  const data = await fetcher();
-  serverCacheSet(key, data, ttlMs);
-  return data;
+  const pending = inFlight.get(key) as Promise<T> | undefined;
+  if (pending) return pending;
+
+  const generation = cacheGeneration;
+  const request = (async () => {
+    const data = await fetcher();
+    if (generation === cacheGeneration) serverCacheSet(key, data, ttlMs);
+    return data;
+  })();
+  inFlight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (inFlight.get(key) === request) inFlight.delete(key);
+  }
 }
 
 /** Returns a snapshot of all live cache keys (useful for debugging). */

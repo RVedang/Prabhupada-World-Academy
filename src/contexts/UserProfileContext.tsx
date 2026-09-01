@@ -181,12 +181,13 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     };
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The provider survives SPA navigation. Treat opening any dashboard/page as
-  // an opportunity to fetch fresh notice state without a browser refresh.
+  // The provider survives SPA navigation. Refresh when moving to another page,
+  // but not for hash-only dashboard tab changes. A hash refresh used to launch
+  // this expensive profile request beside every tab's own data request.
   useEffect(() => {
     if (!user?.email || !profileRef.current) return;
     void load(user.email, 0, true);
-  }, [location.pathname, location.search, location.hash]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time broadcast listener for immediate profile/role refreshes
   useEffect(() => {
@@ -200,11 +201,13 @@ export default function UserProfileProvider({ children }: { children: React.Reac
 
   // Safety-net: poll in the background so approval/rejection modals arrive
   // even if the push-events stream misses a reconnect window.
-  const BACKGROUND_POLL_MS = 10 * 1000;
+  const BACKGROUND_POLL_MS = 60 * 1000;
   useEffect(() => {
     if (!user?.email) return;
     const id = setInterval(() => {
-      load(user.email!, 0, true);
+      if (document.visibilityState === 'visible') {
+        void load(user.email!, 0, true);
+      }
     }, BACKGROUND_POLL_MS);
     return () => clearInterval(id);
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps

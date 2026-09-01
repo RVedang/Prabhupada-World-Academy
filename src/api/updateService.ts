@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Services, AppError } from '@/lib/backend-sdk';
+import { invalidateServiceReferenceData } from '../lib/serviceReferenceData';
 
 export default createEndpoint({
   description: 'Update a service',
@@ -43,6 +44,7 @@ export default createEndpoint({
     if (input.customFieldsJson !== undefined) updates.customFieldsJson = input.customFieldsJson;
 
     await Services.update({ id, record: updates });
+    invalidateServiceReferenceData();
 
     return { success: true };
   },

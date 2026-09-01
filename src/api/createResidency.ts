@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, FolkResidencies, AppError } from '@/lib/backend-sdk';
+import { invalidateServiceReferenceData } from '../lib/serviceReferenceData';
 
 export default createEndpoint({
   description: 'Create a new residency (Guide access required)',
@@ -26,6 +27,7 @@ export default createEndpoint({
         isActive: true,
       },
     });
+    invalidateServiceReferenceData();
 
     return { success: true, residencyId: record.id };
   },

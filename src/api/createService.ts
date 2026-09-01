@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Services, FolkResidencies, AppError } from '@/lib/backend-sdk';
+import { invalidateServiceReferenceData } from '../lib/serviceReferenceData';
 
 export default createEndpoint({
   description: 'Create a new service',
@@ -54,6 +55,7 @@ export default createEndpoint({
         isActive: input.isActive ?? true,
       },
     });
+    invalidateServiceReferenceData();
 
     return { success: true, serviceId: record.id };
   },

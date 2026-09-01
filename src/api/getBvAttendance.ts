@@ -4,12 +4,36 @@ import { createEndpoint, BvGroupMembers, BvAttendance, Users, FolkResidencies } 
 const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const USER_FIELDS = ['id', 'userId', 'email', 'fullName', 'displayName', 'name', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'residencyName', 'ashrayLevel', ...USER_IDENTITY_FIELDS.filter(field => !['id', 'userId', 'email'].includes(field))];
 
+function firstValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return String(value || '');
+}
+
 function userIdentityAliases(user: any): string[] {
   return [...new Set(USER_IDENTITY_FIELDS
     .map(field => user?.[field])
     .filter(Boolean)
     .map(value => String(value).trim())
     .filter(Boolean))];
+}
+
+async function findUsersForAliases(aliases: string[]): Promise<any[]> {
+  const uniqueAliases = [...new Set(aliases.filter(Boolean))];
+  const users = new Map<string, any>();
+
+  for (let i = 0; i < uniqueAliases.length; i += 30) {
+    const chunk = uniqueAliases.slice(i, i + 30);
+    const [byId, byUserId, byFirebaseUid] = await Promise.all([
+      Users.findAll({ filters: { id: { in: chunk } }, fields: USER_FIELDS, limit: 30 }),
+      Users.findAll({ filters: { userId: { in: chunk } }, fields: USER_FIELDS, limit: 30 }),
+      Users.findAll({ filters: { firebaseUid: { in: chunk } }, fields: USER_FIELDS, limit: 30 }),
+    ]);
+    for (const user of [...byId.records, ...byUserId.records, ...byFirebaseUid.records]) {
+      users.set(user.id, user);
+    }
+  }
+
+  return [...users.values()];
 }
 
 export default createEndpoint({
@@ -22,170 +46,169 @@ export default createEndpoint({
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
-    const uid = input.userId || context.user!.id;
+    if (!context.user) throw new Error('Unauthorized');
+    const lookupId = input.userId || context.user.id;
     const sinceDate = input.sinceDate || new Date(Date.now() - 90 * 86400_000).toISOString().split('T')[0];
 
-    // When a guide opens a member detail page, `input.userId` is often a
-    // legacy/custom ID. Attendance may instead be saved with Firebase Auth
-    // UID, so resolve the member and query every exact stored identity.
-    let requestedUser = null;
-    if (input.userId) {
-      if (/^USER-\d+$/i.test(input.userId)) {
-        const { records } = await Users.findAll({ filters: { userId: input.userId }, fields: USER_FIELDS });
-        requestedUser = records.find(r => r.id !== r.userId) || records[0];
-      }
-      if (!requestedUser) {
-        const byId = await Users.findOne({ id: input.userId, fields: USER_FIELDS }).catch(() => undefined);
-        if (byId) {
-          if (byId.id === byId.userId) {
-            const { records } = await Users.findAll({ filters: { userId: byId.userId }, fields: USER_FIELDS });
-            requestedUser = records.find(r => r.id !== r.userId) || byId;
-          } else {
-            requestedUser = byId;
-          }
-        }
-      }
-      if (!requestedUser) {
-        const { records } = await Users.findAll({ filters: { userId: input.userId }, fields: USER_FIELDS });
-        requestedUser = records.find(r => r.id !== r.userId) || records[0] || null;
-      }
-    }
-    const rawUserKeys = new Set<string>([
+    // Resolve the member once, then query only their group. Previously this
+    // endpoint fetched 90 days of attendance for the entire application and
+    // discarded almost all of those documents in memory.
+    const [byId, byUserId] = await Promise.all([
+      Users.findOne({ id: lookupId, fields: USER_FIELDS }).catch(() => null),
+      Users.findOne({ filters: { userId: lookupId }, fields: USER_FIELDS }).catch(() => null),
+    ]);
+    const requestedUser = byId || byUserId;
+    const identityAliases = [...new Set([
+      lookupId,
       ...userIdentityAliases(requestedUser),
-      ...(input.userId ? [] : userIdentityAliases(context.user)),
-      ...(uid ? [String(uid).trim()] : []),
-    ].filter(Boolean));
-    const userKeys = new Set([...rawUserKeys].map(key => key.toLowerCase()));
+      ...userIdentityAliases(context.user),
+    ].filter(Boolean).map(String))];
 
-    // Query only facilitator-recorded BV attendance directly by user ID (or
-    // other user keys). Sadhana submissions are deliberately unrelated to
-    // reading-group attendance.
-    const { records: allRecords } = await BvAttendance.findAll({
-      filters: { attendanceDate: { gte: sinceDate } } as any,
-      limit: 2000,
-    }).catch(() => ({ records: [] }));
-
-    let allAtt = allRecords.filter(a => {
-      const uStr = String(Array.isArray(a.user) ? a.user[0] : a.user || '').trim().toLowerCase();
-      return userKeys.has(uStr);
-    });
-
-    // Deduplicate attendance records by ID
-    const seenAttIds = new Set<string>();
-    allAtt = allAtt.filter(a => {
-      if (seenAttIds.has(a.id)) return false;
-      seenAttIds.add(a.id);
-      const groupId = Array.isArray(a.group) ? a.group[0] : a.group;
-      return !!groupId;
-    });
-
-    const formattedHistory = allAtt.map(a => ({
-      attendanceId: a.id,
-      attendanceDate: a.attendanceDate || '',
-      present: !!a.present,
-    })).sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate));
-
-    // Leaderboard — get all unique member user IDs
-    const memberIds = [...new Set(allAtt.map((a: any) => Array.isArray(a.user) ? a.user[0] : a.user).filter(Boolean))] as string[];
-    
-    // Ensure current user is always in the leaderboard list
-    const currentUserIdStr = requestedUser?.id || String(context.user!.id);
-    if (!memberIds.includes(currentUserIdStr)) {
-      memberIds.push(currentUserIdStr);
+    const [membershipByUser, membershipByUserId] = await Promise.all([
+      BvGroupMembers.findAll({
+        filters: { user: { in: identityAliases } },
+        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+        limit: 10,
+      }),
+      BvGroupMembers.findAll({
+        filters: { userId: { in: identityAliases } },
+        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+        limit: 10,
+      }),
+    ]);
+    const membership = membershipByUser.records[0] || membershipByUserId.records[0];
+    const groupId = firstValue(membership?.group || membership?.groupId);
+    if (!groupId) {
+      return { userHistory: [], leaderboard: [], userTotalPointsThisWeek: 0 };
     }
 
-    const userFields = USER_FIELDS;
-    const [userRecordsById, userRecordsByUserId] = await Promise.all([
-      memberIds.length > 0
-        ? Users.findAll({ filters: { id: { in: memberIds } }, fields: userFields })
-        : { records: [] },
-      memberIds.length > 0
-        ? Users.findAll({ filters: { userId: { in: memberIds } }, fields: userFields })
-        : { records: [] },
+    const [attendanceResult, groupMembersResult] = await Promise.all([
+      BvAttendance.findAll({
+        filters: { group: groupId },
+        fields: ['id', 'group', 'user', 'present', 'attendanceDate'],
+        limit: 5000,
+      }),
+      BvGroupMembers.findAll({
+        filters: { group: groupId },
+        fields: ['id', 'user', 'userId'],
+        limit: 1000,
+      }),
     ]);
 
-    // Fetch all residencies to resolve residency IDs to names
-    const { records: allResidencies } = await FolkResidencies.findAll({
-      fields: ['id', 'residencyName'],
-      limit: 1000,
-    }).catch(() => ({ records: [] }));
-    const residencyMap = new Map<string, string>();
-    allResidencies.forEach((r: any) => {
-      if (r.id && r.residencyName) {
-        residencyMap.set(String(r.id).toLowerCase(), r.residencyName);
-      }
-    });
+    const allAtt = attendanceResult.records.filter((record: any) =>
+      !!record.attendanceDate && String(record.attendanceDate) >= sinceDate
+    );
+    const memberAliases = [...new Set([
+      ...identityAliases,
+      ...groupMembersResult.records.flatMap((member: any) => [firstValue(member.user), firstValue(member.userId)]),
+      ...allAtt.map((record: any) => firstValue(record.user)),
+    ].filter(Boolean))];
+    const userRecords = await findUsersForAliases(memberAliases);
+    if (requestedUser && !userRecords.some(user => user.id === requestedUser.id)) {
+      userRecords.push(requestedUser);
+    }
 
-    const userDetailsMap = new Map<string, {
-      name: string;
+    const residencyIds = [...new Set(userRecords.flatMap(user => [
+      firstValue(user.residency),
+      firstValue(user.selectedFolkResidency),
+    ]).filter(Boolean))];
+    const residencyMap = new Map<string, string>();
+    for (let i = 0; i < residencyIds.length; i += 30) {
+      const chunk = residencyIds.slice(i, i + 30);
+      const [byDbId, byCustomId] = await Promise.all([
+        FolkResidencies.findAll({ filters: { id: { in: chunk } }, fields: ['id', 'residencyId', 'residencyName'], limit: 30 }),
+        FolkResidencies.findAll({ filters: { residencyId: { in: chunk } }, fields: ['id', 'residencyId', 'residencyName'], limit: 30 }),
+      ]);
+      for (const residency of [...byDbId.records, ...byCustomId.records]) {
+        if (residency.id) residencyMap.set(String(residency.id).toLowerCase(), residency.residencyName || '');
+        if (residency.residencyId) residencyMap.set(String(residency.residencyId).toLowerCase(), residency.residencyName || '');
+      }
+    }
+
+    type UserInfo = {
+      canonicalId: string;
       userId: string;
+      name: string;
       isResident: boolean;
       residencyName: string;
       ashrayLevel: string;
-    }>();
-    const addNameMap = (u: any) => {
-      const isApprovedResident = !!((u.residencyApproved || u.residencyGuideVerified) && (u.selectedFolkResidency || u.residency || u.residencyName));
-      const rawRes = u.residencyName || (Array.isArray(u.residency) ? u.residency[0] : u.residency) || '';
-      const resName = residencyMap.get(String(rawRes).toLowerCase()) || rawRes;
-      const details = {
-        name: u.fullName || u.displayName || u.name || u.userId || u.id,
-        userId: u.userId || u.id,
-        isResident: isApprovedResident,
-        residencyName: resName,
-        ashrayLevel: u.ashrayLevel || 'Jigyasa',
-      };
-      userDetailsMap.set(u.id, details);
-      if (u.userId) {
-        userDetailsMap.set(u.userId, details);
-      }
+      aliases: string[];
     };
-    userRecordsById.records.forEach(addNameMap);
-    userRecordsByUserId.records.forEach(addNameMap);
+    const infoByAlias = new Map<string, UserInfo>();
+    for (const user of userRecords) {
+      const aliases = userIdentityAliases(user);
+      const rawResidency = user.residencyName || firstValue(user.residency) || firstValue(user.selectedFolkResidency);
+      const info: UserInfo = {
+        canonicalId: user.id,
+        userId: user.userId || user.id,
+        name: user.fullName || user.displayName || user.name || user.userId || user.id,
+        isResident: !!((user.residencyApproved || user.residencyGuideVerified) && rawResidency),
+        residencyName: residencyMap.get(String(rawResidency).toLowerCase()) || rawResidency || '',
+        ashrayLevel: user.ashrayLevel || 'Jigyasa',
+        aliases,
+      };
+      for (const alias of aliases) infoByAlias.set(alias.toLowerCase(), info);
+    }
 
-    const dateMap = new Map<string, boolean>();
-    allAtt.forEach((a: any) => {
-      if (a.attendanceDate) dateMap.set(a.attendanceDate, a.present || false);
-    });
+    const currentAliasSet = new Set(identityAliases.map(alias => alias.toLowerCase()));
+    for (const alias of [...currentAliasSet]) {
+      const info = infoByAlias.get(alias);
+      info?.aliases.forEach(value => currentAliasSet.add(value.toLowerCase()));
+    }
 
-    const userHistory = Array.from(dateMap.entries()).map(([attendanceDate, present]) => ({
+    // De-duplicate repeated legacy rows by canonical user/date. If duplicate
+    // rows disagree, a present mark wins for that session.
+    const attendanceByUser = new Map<string, Map<string, boolean>>();
+    for (const record of allAtt) {
+      const rawAlias = firstValue(record.user);
+      if (!rawAlias) continue;
+      const info = infoByAlias.get(rawAlias.toLowerCase());
+      const canonicalId = info?.canonicalId || rawAlias.toLowerCase();
+      if (!attendanceByUser.has(canonicalId)) attendanceByUser.set(canonicalId, new Map());
+      const date = String(record.attendanceDate || '');
+      const previous = attendanceByUser.get(canonicalId)!.get(date) || false;
+      attendanceByUser.get(canonicalId)!.set(date, previous || !!record.present);
+    }
+
+    const sessionDates = [...new Set(allAtt.map((record: any) => String(record.attendanceDate || '')).filter(Boolean))];
+    const canonicalMembers = new Map<string, UserInfo | null>();
+    for (const alias of memberAliases) {
+      const info = infoByAlias.get(alias.toLowerCase());
+      canonicalMembers.set(info?.canonicalId || alias.toLowerCase(), info || null);
+    }
+    const currentInfo = [...currentAliasSet].map(alias => infoByAlias.get(alias)).find(Boolean);
+    const currentCanonicalId = currentInfo?.canonicalId || lookupId.toLowerCase();
+    canonicalMembers.set(currentCanonicalId, currentInfo || null);
+
+    const leaderboard = [...canonicalMembers.entries()].map(([canonicalId, info]) => {
+      const memberAttendance = attendanceByUser.get(canonicalId) || new Map<string, boolean>();
+      const presentCount = [...memberAttendance.values()].filter(Boolean).length;
+      return {
+        userId: info?.userId || canonicalId,
+        displayName: info?.name || canonicalId,
+        presentCount,
+        totalCount: sessionDates.length,
+        attendanceRate: sessionDates.length > 0 ? Math.round((presentCount / sessionDates.length) * 100) : 0,
+        isResident: info?.isResident ?? false,
+        residencyName: info?.residencyName ?? '',
+        ashrayLevel: info?.ashrayLevel ?? '',
+      };
+    }).sort((a, b) => b.presentCount - a.presentCount || a.displayName.localeCompare(b.displayName));
+
+    const myAttendance = attendanceByUser.get(currentCanonicalId) || new Map<string, boolean>();
+    const userHistory = [...myAttendance.entries()].map(([attendanceDate, present]) => ({
       attendanceDate,
       present,
       status: present ? 'P' : 'A',
       sessionTopic: '',
     })).sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate));
 
-    const myAttRecords = allAtt.filter((a: any) => {
-      const rawU = Array.isArray(a.user) ? a.user[0] : a.user;
-      const uStr = String(rawU || '').toLowerCase();
-      return userKeys.has(uStr);
-    });
-
-    // Count distinct attendance dates = total sessions
-    const totalSessionDates = new Set(allAtt.map((a: any) => a.attendanceDate).filter(Boolean)).size;
-
-    const leaderboard = memberIds.map(memberId => {
-      const memberAtt = allAtt.filter((a: any) => (Array.isArray(a.user) ? a.user[0] : a.user) === memberId);
-      const presentCount = memberAtt.filter((a: any) => a.present).length;
-      const info = userDetailsMap.get(memberId);
-      return {
-        userId: (info as any)?.userId || memberId,
-        displayName: (info as any)?.name || memberId,
-        presentCount,
-        totalCount: totalSessionDates,
-        attendanceRate: totalSessionDates > 0 ? Math.round((presentCount / totalSessionDates) * 100) : 0,
-        isResident: (info as any)?.isResident ?? false,
-        residencyName: (info as any)?.residencyName ?? '',
-        ashrayLevel: (info as any)?.ashrayLevel ?? '',
-      };
-    }).sort((a, b) => b.presentCount - a.presentCount);
-
-    // This week points (1 point per present session this week)
-    const weekStart = new Date(); weekStart.setHours(0,0,0,0);
+    const weekStart = new Date();
+    weekStart.setHours(0, 0, 0, 0);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const weekStartStr = weekStart.toISOString().split('T')[0];
+    const userTotalPointsThisWeek = userHistory.filter(entry => entry.present && entry.attendanceDate >= weekStartStr).length;
 
-    const thisWeekPresent = myAttRecords.filter((a: any) => a.present && a.attendanceDate >= weekStartStr).length;
-
-    return { userHistory, leaderboard, userTotalPointsThisWeek: thisWeekPresent };
+    return { userHistory, leaderboard, userTotalPointsThisWeek };
   },
 });

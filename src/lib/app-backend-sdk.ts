@@ -146,6 +146,23 @@ function applyFilters(ref: any, filters: any) {
   return q;
 }
 
+/**
+ * Apply a Firestore projection when callers request a field subset.
+ *
+ * Every record already receives its document ID from `doc.id`, so selecting a
+ * stored `id` field is unnecessary.  Firestore projections substantially cut
+ * response size for collections such as SadhanaEntries, whose documents also
+ * contain large JSON payloads that most dashboard queries never use.
+ */
+function applyFieldSelection(ref: any, fields: unknown): any {
+  if (!Array.isArray(fields)) return ref;
+  const selected = [...new Set(
+    fields.filter((field): field is string => typeof field === 'string' && field.length > 0 && field !== 'id')
+  )];
+  // `select()` with no field arguments is valid and returns document IDs only.
+  return ref.select(...selected);
+}
+
 function parseCSVText(text: string): Record<string, string>[] {
   const lines: string[] = [];
   let cur = '';
@@ -325,11 +342,22 @@ export class Table {
         const db = getFirestoreDb();
         if (db) {
           if (query.id) {
-            const doc = await db.collection(this.tableName).doc(query.id).get();
-            if (doc.exists) return { id: doc.id, ...doc.data() };
+            if (Array.isArray(query.fields) && query.fields.length > 0) {
+              let q = db.collection(this.tableName)
+                .where(FieldPath.documentId(), '==', query.id);
+              q = applyFieldSelection(q, query.fields);
+              const snapshot = await q.limit(1).get();
+              if (!snapshot.empty) {
+                return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+              }
+            } else {
+              const doc = await db.collection(this.tableName).doc(query.id).get();
+              if (doc.exists) return { id: doc.id, ...doc.data() };
+            }
           } else if (query.filters) {
             let q = db.collection(this.tableName);
             q = applyFilters(q, query.filters);
+            q = applyFieldSelection(q, query.fields);
             const snapshot = await q.limit(1).get();
             if (!snapshot.empty) {
               return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
@@ -372,6 +400,8 @@ export class Table {
               q = q.orderBy(s.field, s.dir.toLowerCase() as 'asc' | 'desc');
             });
           }
+
+          q = applyFieldSelection(q, query.fields);
 
           const limit = query.limit ? Number(query.limit) : null;
           const offset = query.offset ? Number(query.offset) : null;

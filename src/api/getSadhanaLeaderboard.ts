@@ -7,7 +7,7 @@ import { requireGuideRole } from '../lib/userUtils';
 
 const ENTRY_FIELDS = ['id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'maxScore', 'flagSick', 'flagOs', 'submittedAt'];
 const STREAK_ENTRY_FIELDS = ['id', 'user', 'entryDate', 'scorePercent'];
-const USER_FIELDS = ['id', 'fullName', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'guide', 'status', 'userId', 'role', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'fullName', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'guide', 'status', 'userId', 'role', 'currentStreak', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 
 /** Roles to exclude from the leaderboard — only administrative roles */
 const EXCLUDED_ROLES = new Set(['Guide', 'Super Guide']);
@@ -167,18 +167,25 @@ export default createEndpoint({
     // ── Streak entries (100-day window up to endStr) ──────────────────────
     const streakRefDate = endStr <= todayStr ? endStr : todayStr;
     const streakStart   = daysAgo(streakRefDate, 100);
+    // The current streak is maintained on Users whenever Sadhana is submitted.
+    // Normal/current leaderboards can use that O(1) value instead of scanning
+    // every Sadhana entry from every user for the previous 100 days. Historical
+    // reports still calculate the streak as it stood at their selected end date.
+    const needsHistoricalStreak = streakRefDate < todayStr;
     const streakEntries: any[] = [];
-    let streakOffset = 0;
-    while (true) {
-      const { records, hasMore } = await SadhanaEntries.findAll({
-        filters: { entryDate: { gte: streakStart, lte: streakRefDate } } as any,
-        fields: STREAK_ENTRY_FIELDS,
-        limit: 2000,
-        offset: streakOffset,
-      });
-      streakEntries.push(...records);
-      if (!hasMore) break;
-      streakOffset += 2000;
+    if (needsHistoricalStreak) {
+      let streakOffset = 0;
+      while (true) {
+        const { records, hasMore } = await SadhanaEntries.findAll({
+          filters: { entryDate: { gte: streakStart, lte: streakRefDate } } as any,
+          fields: STREAK_ENTRY_FIELDS,
+          limit: 2000,
+          offset: streakOffset,
+        });
+        streakEntries.push(...records);
+        if (!hasMore) break;
+        streakOffset += 2000;
+      }
     }
 
     // Build streak history per user
@@ -211,11 +218,16 @@ export default createEndpoint({
     )];
     const residencyNameMap: Record<string, string> = {};
     if (residencyIds.length > 0) {
-      const recs = await Promise.all(residencyIds.map(id => FolkResidencies.findOne({ id, fields: ['id', 'residencyName'] }).catch(() => null)));
-      recs.forEach(r => { if (r && r.id) residencyNameMap[r.id] = (r as any).residencyName || ''; });
+      for (let i = 0; i < residencyIds.length; i += 30) {
+        const { records } = await FolkResidencies.findAll({
+          filters: { id: { in: residencyIds.slice(i, i + 30) } },
+          fields: ['id', 'residencyName'],
+          limit: 30,
+        });
+        records.forEach(r => { if (r.id) residencyNameMap[r.id] = (r as any).residencyName || ''; });
+      }
     }
 
-    const userMap = new Map(allUsers.map(u => [u.id, u]));
     const currentUserRecord =
       allUsers.find((u: any) =>
         u.id === sessionUserId ||
@@ -277,7 +289,9 @@ export default createEndpoint({
 
         const residencyId  = Array.isArray(u.residency) ? u.residency[0] : u.residency;
         const isResident   = !!(u.residencyApproved && residencyId);
-        const currentStreak = computeStreak(streakByUser.get(u.id) || [], streakRefDate);
+        const currentStreak = needsHistoricalStreak
+          ? computeStreak(streakByUser.get(u.id) || [], streakRefDate)
+          : (Number(u.currentStreak) || 0);
 
         // Flags — for daily use entry's flag; for range use "any day" flags
         const flagSick = userEntries.some(e => e.flagSick);
