@@ -25,7 +25,6 @@ import { ASHRAY_LEVELS } from '@/types/enums';
 
 type Member = GetMentorMembersOutputType['members'][0];
 type SortKey = 'fullName' | 'latestScore' | 'currentStreak' | 'ashrayLevel' | 'residencyName' | 'performanceStatus';
-const NO_ASHRAY_LEVEL = '__NO_ASHRAY_LEVEL__';
 const PERF_ORDER: Record<string, number> = { needs_attention: 0, declining: 1, improving: 2, stable: 3 };
 
 function PerformanceBadge({ status }: { status: Member['performanceStatus'] }) {
@@ -58,7 +57,7 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('fullName');
   const [sortAsc, setSortAsc] = useState(true);
-  const [ashrayFilter, setAshrayFilter] = useState<string[]>(() => [...ASHRAY_LEVELS, NO_ASHRAY_LEVEL]);
+  const [ashrayFilter, setAshrayFilter] = useState<string[]>(() => [...ASHRAY_LEVELS]);
   const [ashrayFilterOpen, setAshrayFilterOpen] = useState(false);
   // Combined location filter: 'all' | 'non_residents' | residencyName
   const [locationFilter, setLocationFilter] = useState('all');
@@ -71,10 +70,9 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
   );
 
   // Keep every canonical Ashraya level available, even when a level currently
-  // has no members. Members without a level remain visible via "No Level".
+  // has no members.
   const ashrayFilterOptions = useMemo(() => [
     ...ASHRAY_LEVELS.map(level => ({ value: level, label: level })),
-    { value: NO_ASHRAY_LEVEL, label: 'No Level' },
   ], [validMembers]);
 
   // Location options: All + Non-Resident + each unique residency (FOLK only).
@@ -103,7 +101,7 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
       else if (locationFilter !== 'all') result = result.filter(m => m.isResident && m.residencyName === locationFilter);
     }
     if (ashrayFilter.length < ashrayFilterOptions.length) {
-      result = result.filter(m => ashrayFilter.includes(m.ashrayLevel || NO_ASHRAY_LEVEL));
+      result = result.filter(m => Boolean(m.ashrayLevel) && ashrayFilter.includes(m.ashrayLevel));
     }
     return result;
   }, [validMembers, search, locationFilter, ashrayFilter, ashrayFilterOptions.length, showResidency]);

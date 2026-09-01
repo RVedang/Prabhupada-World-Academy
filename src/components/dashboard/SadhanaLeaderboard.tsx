@@ -216,7 +216,10 @@ export default function SadhanaLeaderboard({
                         )}
                       </div>
                       <p className="text-[10px] text-muted-foreground truncate">
-                        {[entry.ashrayLevel, residencyLabel].filter(Boolean).join(' · ')}
+                        {[
+                          `Ashraya: ${entry.ashrayLevel || 'Not set'}`,
+                          residencyLabel,
+                        ].filter(Boolean).join(' · ')}
                       </p>
                     </div>
                     <div className="text-right shrink-0">

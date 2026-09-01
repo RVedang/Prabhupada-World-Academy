@@ -103,7 +103,9 @@ export default function EligibilityManageSheet({ open, onClose, onSaved, members
             </div>
             <Select value={curr.eligibility} onValueChange={v => setEligibility(m.userId, v)}>
               <SelectTrigger className="h-7 w-32 text-xs">
-                <SelectValue />
+                <SelectValue>
+                  {curr.eligibility === 'Guide' ? 'With Me' : curr.eligibility}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Guide">With Me</SelectItem>
