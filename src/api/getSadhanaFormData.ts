@@ -57,7 +57,7 @@ async function loadFormFields(isResident: boolean): Promise<FormField[]> {
       // Build static lookup for fallback values (options, criteria, contextTag)
       const staticMap = new Map(NON_RESIDENT_FIELDS.map(f => [f.fieldKey, f]));
 
-      return records
+      const databaseFields = records
         .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
         .map(r => {
           const stat = staticMap.get(r.fieldKey ?? '');
@@ -93,6 +93,18 @@ async function loadFormFields(isResident: boolean): Promise<FormField[]> {
             criteria,
           } satisfies FormField;
         });
+
+      // Older SadhanaFields records predate the informational Preaching
+      // Duration and Books Distributed fields. Database customisation may
+      // adjust existing fields, but it must not remove canonical fields from
+      // the current non-resident/PW form.
+      const configuredKeys = new Set(databaseFields.map(field => field.fieldKey));
+      const missingCanonicalFields = NON_RESIDENT_FIELDS
+        .filter(field => !configuredKeys.has(field.fieldKey))
+        .map(field => toFormField(field));
+
+      return [...databaseFields, ...missingCanonicalFields]
+        .sort((a, b) => a.displayOrder - b.displayOrder);
     },
     FIELDS_TTL_MS
   );

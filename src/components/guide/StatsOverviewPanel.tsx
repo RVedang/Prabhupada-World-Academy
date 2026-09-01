@@ -77,8 +77,10 @@ interface Props { guideId: string; bvslMode?: boolean; mentorMode?: boolean; }
 
 export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Props) {
   const { profile } = useUserProfile();
-  const userEmail = (profile?.userId || '').toLowerCase();
-  const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
+  const normalizedSegment = String(profile?.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+  // Only an explicit FOLK profile gets FOLK stats. This also handles legacy
+  // profiles that stored the department as "Prabhupada World".
+  const isPw = normalizedSegment !== 'FOLK';
 
   const [period, setPeriod] = useState<Period>('30d');
   // Reading-group dashboards must start with every member visible; a resident

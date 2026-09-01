@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, OneToOneMeetings, Guides, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, OneToOneMeetings, Guides, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Log or update a one-to-one meeting (upserts by guide×member×week)',
@@ -19,6 +19,25 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     let guideId = context.user!.id;
+    const callerRole = String(context.user!.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isSadhanaMentor = !!context.user!.isSadhanaMentor || callerRole === 'SADHANA_MENTOR';
+    const normalizedSegment = String(context.user!.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+    const isPwSadhanaMentor = isSadhanaMentor && normalizedSegment !== 'FOLK';
+
+    if (isPwSadhanaMentor) {
+      const mentor = await Users.findOne({ id: context.user!.id, fields: ['id', 'userId', 'email'] }).catch(() => null)
+        || await Users.findOne({ filters: { email: context.user!.email }, fields: ['id', 'userId', 'email'] }).catch(() => null);
+      const member = await Users.findOne({ id: input.memberId, fields: ['id', 'sadhanaMentor'] });
+      const mentorRefs = new Set(
+        [context.user!.id, mentor?.id, (mentor as any)?.userId, context.user!.email]
+          .map(value => String(value || '').trim().toLowerCase())
+          .filter(Boolean),
+      );
+      if (!member || !mentorRefs.has(String((member as any).sadhanaMentor || '').trim().toLowerCase())) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'You can only log meetings for members assigned to you' });
+      }
+      guideId = mentor?.id || context.user!.id;
+    }
 
     // Elevated roles (supervisors/admins/super-admins) can act on behalf of any RGF
     const isElevated = context.user!.isBvSupervisor ||
@@ -26,10 +45,10 @@ export default createEndpoint({
       context.user!.isBvSuperAdmin ||
       context.user!.role === 'SUPER_ADMIN';
 
-    if (input.guideId && isElevated) {
+    if (input.guideId && isElevated && !isPwSadhanaMentor) {
       // Admin acting on behalf of an RGF — use the provided guideId directly
       guideId = input.guideId;
-    } else if (input.guideId && context.user!.isSadhanaMentor) {
+    } else if (input.guideId && context.user!.isSadhanaMentor && !isPwSadhanaMentor) {
       // Sadhana Mentor: validate they belong to the specified guide
       const mentorGuideRef = Array.isArray(context.user!.guide) ? context.user!.guide[0] : context.user!.guide;
       const guide = await Guides.findOne({ id: mentorGuideRef || '', fields: ['id'] });

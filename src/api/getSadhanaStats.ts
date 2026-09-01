@@ -4,7 +4,7 @@ import { getGuideScope } from '../lib/guideScope';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
 import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'sadhanaMentor', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'templateMode',
   'roundsCount', 'spReadingMinutes', 'preachingMinutes', 'booksDistributed',
@@ -62,8 +62,20 @@ export default createEndpoint({
 
     const { guideId, startDate, endDate, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayLevel } = input;
 
-    let guideDbId: string | null = guideId;
-    if (bvslMode || mentorMode) {
+    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+    const isPwMentor = !!mentorMode && (input.segment === 'PW' || normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD');
+    const mentorUser = isPwMentor
+      ? (await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email'] }).catch(() => null)
+        || await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email'] }).catch(() => null))
+      : null;
+    const mentorReferences = new Set(
+      [context.user.id, (mentorUser as any)?.id, (mentorUser as any)?.userId, context.user.email]
+        .map(value => String(value || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    let guideDbId: string | null = isPwMentor ? null : guideId;
+    if ((bvslMode || mentorMode) && !isPwMentor) {
       const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'guide'] });
       const gid = Array.isArray(userRec?.guide) ? userRec!.guide[0] : userRec?.guide;
       guideDbId = gid ? (gid as string) : null;
@@ -71,7 +83,15 @@ export default createEndpoint({
     }
 
     let guideResidencyIds: string[] = [];
-    if (guideDbId) {
+    if (isPwMentor) {
+      // A PW Sadhana Mentor sees only members explicitly assigned through
+      // sadhanaMentor, never every member under the mentor's linked admin.
+      const { records } = await Users.findAll({ filters: { status: 'Active' }, fields: USER_FIELDS, limit: 2000 });
+      users = records.filter((user: any) => {
+        const assigned = Array.isArray(user.sadhanaMentor) ? user.sadhanaMentor : [user.sadhanaMentor];
+        return assigned.some(value => mentorReferences.has(String(value || '').trim().toLowerCase()));
+      });
+    } else if (guideDbId) {
       const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined);
       if (guide) {
         guideResidencyIds = Array.isArray(guide.folkResidencies)

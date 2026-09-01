@@ -26,16 +26,35 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
-    const isSuperGuide = context.user.role === 'Super Guide';
+    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isSuperGuide = callerRole === 'SUPER_GUIDE';
     const weeksBack = input.weeksBack || 8;
     const weeks = getWeeks(weeksBack);
     const startDate = weeks[0];
     const endDate = weeks[weeks.length - 1];
 
-    const isSadhanaMentor = !!context.user.isSadhanaMentor;
+    const isSadhanaMentor = !!context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR';
+    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+    const isPwSadhanaMentor = isSadhanaMentor && normalizedSegment !== 'FOLK';
+    const mentorUser = isPwSadhanaMentor
+      ? (await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email', 'oneToOneLink'] }).catch(() => null)
+        || await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email', 'oneToOneLink'] }).catch(() => null))
+      : null;
+
+    // PW mentors are scoped to the members explicitly assigned through the
+    // sadhanaMentor relationship. Ignore a client-supplied guideId in this
+    // mode, so it cannot broaden their view.
+    const mentorRefs = new Set(
+      [context.user.id, (mentorUser as any)?.id, (mentorUser as any)?.userId, context.user.email]
+        .map(value => String(value || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
     let guideDbId = input.guideId;
     let guideOneToOneLink: string | null = null;
-    if (!guideDbId && !isSuperGuide) {
+    if (isPwSadhanaMentor) {
+      guideDbId = (mentorUser as any)?.id || context.user.id;
+      guideOneToOneLink = (mentorUser as any)?.oneToOneLink || null;
+    } else if (!guideDbId && !isSuperGuide) {
       if (isSadhanaMentor && !context.user.role?.includes('Guide')) {
         // Sadhana Mentor: resolve guide from their linked guide record
         const mentorGuideId = Array.isArray(context.user.guide) ? context.user.guide[0] : context.user.guide;
@@ -64,9 +83,9 @@ export default createEndpoint({
 
     const [usersRes, bvslRes] = await Promise.all([
       Users.findAll({
-        filters: { guide: guideDbId, status: 'Active' },
-        fields: ['id', 'fullName', 'ashrayLevel', 'residencyApproved', 'oneToOneEligibility', 'oneToOneDelegate'],
-        limit: 500,
+        filters: isPwSadhanaMentor ? { status: 'Active' } : { guide: guideDbId, status: 'Active' },
+        fields: ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residencyApproved', 'oneToOneEligibility', 'oneToOneDelegate', 'sadhanaMentor'],
+        limit: 1000,
       }),
       Users.findAll({
         filters: { guide: guideDbId, isBvsl: true, status: 'Active' },
@@ -76,6 +95,10 @@ export default createEndpoint({
     ]);
 
     const users = usersRes.records.filter(u => {
+      if (isPwSadhanaMentor) {
+        const assignedMentor = String((u as any).sadhanaMentor || '').trim().toLowerCase();
+        if (!mentorRefs.has(assignedMentor)) return false;
+      }
       // Exclude the logged-in user from their own tracker
       if (context.user && (u.id === context.user.id || u.email === context.user.email)) {
         return false;

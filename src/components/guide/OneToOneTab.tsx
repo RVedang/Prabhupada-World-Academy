@@ -71,6 +71,8 @@ function BookingLinkSettings({ initialLink }: { initialLink: string }) {
 export default function OneToOneTab({ guideId }: Props) {
   const { profile } = useUserProfile();
   const isSuperGuide = profile?.role === 'SUPER_GUIDE';
+  const normalizedSegment = String(profile?.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+  const isFolk = normalizedSegment === 'FOLK';
 
   const [members, setMembers] = useState<Member[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -114,8 +116,8 @@ export default function OneToOneTab({ guideId }: Props) {
   // Apply filters
   const filteredMembers = members.filter(m => {
     if (ashrayFilter !== 'All' && m.ashrayLevel !== ashrayFilter) return false;
-    if (residencyFilter === 'Residents' && !m.isResident) return false;
-    if (residencyFilter === 'Non-residents' && m.isResident) return false;
+    if (isFolk && residencyFilter === 'Residents' && !m.isResident) return false;
+    if (isFolk && residencyFilter === 'Non-residents' && m.isResident) return false;
     return true;
   });
 
@@ -175,16 +177,18 @@ export default function OneToOneTab({ guideId }: Props) {
           </SelectContent>
         </Select>
 
-        <Select value={residencyFilter} onValueChange={(v) => setResidencyFilter(v || 'All')}>
-          <SelectTrigger className="h-8 w-40 text-xs">
-            <SelectValue placeholder="Residency" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All</SelectItem>
-            <SelectItem value="Residents">Residents</SelectItem>
-            <SelectItem value="Non-residents">Non-residents</SelectItem>
-          </SelectContent>
-        </Select>
+        {isFolk && (
+          <Select value={residencyFilter} onValueChange={(v) => setResidencyFilter(v || 'All')}>
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue placeholder="Residency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All</SelectItem>
+              <SelectItem value="Residents">Residents</SelectItem>
+              <SelectItem value="Non-residents">Non-residents</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
         <div className="ml-auto">
           {!isSuperGuide && (
@@ -235,7 +239,9 @@ export default function OneToOneTab({ guideId }: Props) {
                           <User className="w-4 h-4 text-muted-foreground" /> {member.fullName}
                         </CardTitle>
                         <CardDescription className="text-xs mt-0.5">
-                          {member.ashrayLevel || 'No level'} · {member.isResident ? 'Resident' : 'Non-Resident'}
+                          {[member.ashrayLevel || 'No level', isFolk ? (member.isResident ? 'Resident' : 'Non-Resident') : null]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </CardDescription>
                       </div>
                       <Button
