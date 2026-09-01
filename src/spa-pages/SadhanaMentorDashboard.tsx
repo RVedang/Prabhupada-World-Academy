@@ -4,7 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BookOpen, Users, BarChart3, Phone, MessageCircle, Flame, Search, LayoutDashboard, ArrowUpDown, MessageSquare, Video } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BookOpen, Users, BarChart3, Phone, MessageCircle, Flame, Search, LayoutDashboard, ArrowUpDown, MessageSquare, Video, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { getMentorMembers } from '@/lib/endpoints-sdk';
 import type { GetMentorMembersOutputType } from '@/lib/endpoints-sdk';
@@ -23,6 +25,7 @@ import { ASHRAY_LEVELS } from '@/types/enums';
 
 type Member = GetMentorMembersOutputType['members'][0];
 type SortKey = 'fullName' | 'latestScore' | 'currentStreak' | 'ashrayLevel' | 'residencyName' | 'performanceStatus';
+const NO_ASHRAY_LEVEL = '__NO_ASHRAY_LEVEL__';
 const PERF_ORDER: Record<string, number> = { needs_attention: 0, declining: 1, improving: 2, stable: 3 };
 
 function PerformanceBadge({ status }: { status: Member['performanceStatus'] }) {
@@ -55,7 +58,8 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('fullName');
   const [sortAsc, setSortAsc] = useState(true);
-  const [ashrayFilter, setAshrayFilter] = useState('all');
+  const [ashrayFilter, setAshrayFilter] = useState<string[]>(() => [...ASHRAY_LEVELS, NO_ASHRAY_LEVEL]);
+  const [ashrayFilterOpen, setAshrayFilterOpen] = useState(false);
   // Combined location filter: 'all' | 'non_residents' | residencyName
   const [locationFilter, setLocationFilter] = useState('all');
 
@@ -66,10 +70,12 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
     [members],
   );
 
-  // Derive distinct Ashraya levels. Residency is a FOLK-only concept.
-  const distinctAshray = useMemo(() =>
-    ASHRAY_LEVELS.filter(l => validMembers.some(m => m.ashrayLevel === l)),
-  [validMembers]);
+  // Keep every canonical Ashraya level available, even when a level currently
+  // has no members. Members without a level remain visible via "No Level".
+  const ashrayFilterOptions = useMemo(() => [
+    ...ASHRAY_LEVELS.map(level => ({ value: level, label: level })),
+    { value: NO_ASHRAY_LEVEL, label: 'No Level' },
+  ], [validMembers]);
 
   // Location options: All + Non-Resident + each unique residency (FOLK only).
   const locationOptions = useMemo(() => {
@@ -96,9 +102,11 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
       if (locationFilter === 'non_residents') result = result.filter(m => !m.isResident);
       else if (locationFilter !== 'all') result = result.filter(m => m.isResident && m.residencyName === locationFilter);
     }
-    if (ashrayFilter !== 'all') result = result.filter(m => m.ashrayLevel === ashrayFilter);
+    if (ashrayFilter.length < ashrayFilterOptions.length) {
+      result = result.filter(m => ashrayFilter.includes(m.ashrayLevel || NO_ASHRAY_LEVEL));
+    }
     return result;
-  }, [validMembers, search, locationFilter, ashrayFilter, showResidency]);
+  }, [validMembers, search, locationFilter, ashrayFilter, ashrayFilterOptions.length, showResidency]);
 
   const sorted = useMemo(() => [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -121,6 +129,21 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
     if (sortKey === key) setSortAsc(a => !a);
     else { setSortKey(key); setSortAsc(key !== 'latestScore' && key !== 'currentStreak'); }
   };
+
+  const toggleAshrayLevel = (value: string) => {
+    setAshrayFilter(current => current.includes(value)
+      ? current.filter(level => level !== value)
+      : [...current, value]);
+  };
+
+  const allAshraySelected = ashrayFilter.length === ashrayFilterOptions.length;
+  const ashrayFilterLabel = allAshraySelected
+    ? 'All Ashraya Levels'
+    : ashrayFilter.length === 0
+      ? 'No levels selected'
+      : ashrayFilter.length === 1
+        ? (ashrayFilterOptions.find(option => option.value === ashrayFilter[0])?.label || '1 level')
+        : `${ashrayFilter.length} levels selected`;
 
   const SortBtn = ({ k, label }: { k: SortKey; label: string }) => (
     <button
@@ -158,17 +181,34 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
           </Select>
         )}
 
-        {distinctAshray.length > 1 && (
-          <Select value={ashrayFilter} onValueChange={(v) => setAshrayFilter(v || 'all')}>
-            <SelectTrigger className="h-8 w-[150px] text-xs">
-              <SelectValue>{ashrayFilter === 'all' ? 'All Ashraya Levels' : ashrayFilter}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Ashraya</SelectItem>
-              {distinctAshray.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        )}
+        <Popover open={ashrayFilterOpen} onOpenChange={setAshrayFilterOpen}>
+          <PopoverTrigger className="h-8 w-[190px] rounded-lg border border-input bg-background px-2.5 text-left text-xs font-medium hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary/20">
+            <span className="flex items-center justify-between gap-2">
+              <span className="truncate">{ashrayFilterLabel}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </span>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-60 p-2">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <span className="text-xs font-semibold">Ashraya Levels</span>
+              <button
+                type="button"
+                className="text-[11px] font-medium text-primary hover:underline"
+                onClick={() => setAshrayFilter(allAshraySelected ? [] : ashrayFilterOptions.map(option => option.value))}
+              >
+                {allAshraySelected ? 'Clear all' : 'Select all'}
+              </button>
+            </div>
+            <div className="max-h-64 space-y-1 overflow-y-auto pt-2">
+              {ashrayFilterOptions.map(option => (
+                <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/60">
+                  <Checkbox checked={ashrayFilter.includes(option.value)} onCheckedChange={() => toggleAshrayLevel(option.value)} />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
           <Users className="w-3.5 h-3.5" />{sorted.length}/{validMembers.length} · <strong>{guideName}</strong>
@@ -177,7 +217,7 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
 
       {sorted.length === 0 ? (
         <p className="text-center text-muted-foreground py-8">
-          {search || locationFilter !== 'all' || ashrayFilter !== 'all'
+          {search || locationFilter !== 'all' || ashrayFilter.length < ashrayFilterOptions.length
             ? 'No members match your filters.'
             : 'No members found.'}
         </p>

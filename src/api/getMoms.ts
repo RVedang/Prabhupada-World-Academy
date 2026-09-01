@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { createEndpoint, MinutesOfMeeting, Meetings, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, MinutesOfMeeting, Meetings, Users, AppError } from '@/lib/backend-sdk';
+import { getMeetingViewer, isMeetingVisibleToViewer, normalizeMeetingDepartment } from '@/lib/meetingAccess';
+
+const VIEWER_FIELDS = ['id', 'userId', 'email', 'segment', 'role', 'isSadhanaMentor', 'isBvSuperAdmin', 'isBvAdmin', 'isPwAdmin', 'uid', 'authUid', 'firebaseUid'];
 
 export default createEndpoint({
   description: 'Get Minutes of Meeting (MoM) accessible to the current user',
@@ -38,28 +41,13 @@ export default createEndpoint({
   execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
-    const userEmail = (context.user.email || '').toLowerCase();
-    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const userId = context.user.id;
-
-    const isSuperAdminOrAdmin = !!(
-      context.user.isBvSuperAdmin ||
-      context.user.isBvAdmin ||
-      context.user.isPwAdmin ||
-      ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
-    );
-    // PW Sadhana Mentors can read only published minutes for meetings that
-    // invited them. This must take priority over stale legacy admin flags.
-    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
-    const isPwUser = normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD';
-    const isReadOnlySadhanaMentor = isPwUser && !!(
-      context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR'
-    );
-    const canViewAllMoms = isSuperAdminOrAdmin && !isReadOnlySadhanaMentor;
-
-    const storedSegment = String(context.user.segment || '').trim().toUpperCase();
-    const department = input.department || storedSegment || 'PW';
-    if (input.department && storedSegment && input.department !== storedSegment) {
+    const storedUser = (await Users.findOne({ id: context.user.id, fields: VIEWER_FIELDS }).catch(() => null))
+      || (context.user.email
+        ? await Users.findOne({ filters: { email: context.user.email }, fields: VIEWER_FIELDS }).catch(() => null)
+        : null);
+    const viewer = getMeetingViewer(context.user, storedUser);
+    const department = input.department || viewer.department || 'PW';
+    if (input.department && viewer.department && input.department !== viewer.department) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view minutes for another department' });
     }
 
@@ -70,27 +58,20 @@ export default createEndpoint({
 
     let filtered = allMoms.filter((mom: any) => {
       const meeting = meetingMap.get(mom.meetingId);
-      return meeting && String(meeting.segment || 'PW').toUpperCase() === department;
+      return meeting && normalizeMeetingDepartment(meeting.segment || 'PW') === department;
     });
 
     if (input.meetingId) {
       filtered = filtered.filter((mom: any) => mom.meetingId === input.meetingId);
     }
 
-    if (!canViewAllMoms) {
+    if (!viewer.canViewAllMeetings) {
       filtered = filtered.filter((mom: any) => {
         if (!mom.isPublished) return false;
-
         const meeting = meetingMap.get(mom.meetingId);
-        if (meeting) {
-          if ((meeting.inviteeUserIds || []).includes(userId) ||
-            (meeting.invitees || []).some((inv: any) => inv.userId === userId || (inv.email && inv.email.toLowerCase() === userEmail))
-          ) {
-            return true;
-          }
-        }
-
-        return false;
+        // Keep MoM visibility identical to getMeetings: no invite, no meeting;
+        // no visible meeting, no associated MoM.
+        return !!meeting && isMeetingVisibleToViewer(meeting, viewer);
       });
     }
 

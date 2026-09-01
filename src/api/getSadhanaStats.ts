@@ -4,7 +4,7 @@ import { getGuideScope } from '../lib/guideScope';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
 import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'sadhanaMentor', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'email', 'segment', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'sadhanaMentor', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'templateMode',
   'roundsCount', 'spReadingMinutes', 'preachingMinutes', 'booksDistributed',
@@ -23,8 +23,20 @@ function userIdentityAliases(user: any): string[] {
   return [...new Set(USER_IDENTITY_FIELDS
     .map(field => user?.[field])
     .filter(Boolean)
-    .map(value => String(value).trim())
+    .map(value => String(value).trim().toLowerCase())
     .filter(Boolean))];
+}
+
+function isPrabhupadaWorldSegment(segment: unknown): boolean {
+  const normalized = String(segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+  return normalized === 'PW' || normalized === 'PRABHUPADAWORLD';
+}
+
+/** Supports both the legacy NON_RESIDENT_TEMPLATE value and the current
+ * canonical NR_TEMPLATE value written by submitSadhana. */
+function isNonResidentEntry(templateMode: unknown): boolean {
+  const normalized = String(templateMode || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return normalized.includes('NON_RESIDENT') || normalized === 'NR_TEMPLATE' || normalized === 'NR';
 }
 
 interface DayAgg {
@@ -83,13 +95,15 @@ export default createEndpoint({
     }
 
     let guideResidencyIds: string[] = [];
+    let users: any[] = [];
     if (isPwMentor) {
       // A PW Sadhana Mentor sees only members explicitly assigned through
       // sadhanaMentor, never every member under the mentor's linked admin.
       const { records } = await Users.findAll({ filters: { status: 'Active' }, fields: USER_FIELDS, limit: 2000 });
       users = records.filter((user: any) => {
         const assigned = Array.isArray(user.sadhanaMentor) ? user.sadhanaMentor : [user.sadhanaMentor];
-        return assigned.some(value => mentorReferences.has(String(value || '').trim().toLowerCase()));
+        return isPrabhupadaWorldSegment(user.segment)
+          && assigned.some((value: any) => mentorReferences.has(String(value || '').trim().toLowerCase()));
       });
     } else if (guideDbId) {
       const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined);
@@ -103,8 +117,7 @@ export default createEndpoint({
       }
     }
 
-    let users: any[] = [];
-    if (guideDbId) {
+    if (!isPwMentor && guideDbId) {
       const promises = [
         Users.findAll({ filters: { guide: guideDbId, status: 'Active' }, fields: USER_FIELDS, limit: 2000 }),
         ...guideResidencyIds.map(rid => Users.findAll({ filters: { residency: rid, status: 'Active' }, fields: USER_FIELDS, limit: 500 })),
@@ -126,7 +139,7 @@ export default createEndpoint({
         }
       }
       users = Array.from(map.values());
-    } else {
+    } else if (!isPwMentor) {
       // ALL mode — fetch all active users, scoped by segment if provided
       const allUsersFilter: any = { status: 'Active' };
       if (input.segment) allUsersFilter.segment = input.segment;
@@ -201,7 +214,7 @@ export default createEndpoint({
     }
 
     const filteredEntries = allEntries.filter(e => {
-      const owner = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim();
+      const owner = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim().toLowerCase();
       return !!owner && userAliasToPrimaryId.has(owner);
     });
 
@@ -215,7 +228,7 @@ export default createEndpoint({
       const agg = byDate.get(date)!;
 
       const fv = parseFieldValues(e.fieldValuesJson as string);
-      const isNREntry = String(e.templateMode || '').toUpperCase().includes('NON_RESIDENT');
+      const isNREntry = isNonResidentEntry(e.templateMode);
 
       if (e.scorePercent != null) { agg.total += Number(e.scorePercent); agg.count++; }
 
@@ -289,7 +302,7 @@ export default createEndpoint({
     for (const key of ALL_KEYS) sums[key] = 0;
     for (const e of filteredEntries) {
       const fv = parseFieldValues(e.fieldValuesJson as string);
-      const isNREntry = String(e.templateMode || '').toUpperCase().includes('NON_RESIDENT');
+      const isNREntry = isNonResidentEntry(e.templateMode);
       sums.preachingMinutes += Number(e.preachingMinutes ?? 0);
       sums.booksDistributed += Number(e.booksDistributed ?? 0);
       if (!isNREntry) {
@@ -327,7 +340,7 @@ export default createEndpoint({
     // Per-user summaries
     const entriesByUser = new Map<string, any[]>();
     for (const e of filteredEntries) {
-      const owner = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim();
+      const owner = String(Array.isArray(e.user) ? e.user[0] : e.user || '').trim().toLowerCase();
       const primaryUserId = userAliasToPrimaryId.get(owner);
       if (!primaryUserId) continue;
       if (!entriesByUser.has(primaryUserId)) entriesByUser.set(primaryUserId, []);

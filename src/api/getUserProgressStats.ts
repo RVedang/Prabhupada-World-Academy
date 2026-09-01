@@ -16,6 +16,13 @@ function parseFieldValues(json: string | null | undefined): Record<string, any> 
   try { return JSON.parse(json); } catch { return {}; }
 }
 
+/** Accept records created before and after NR_TEMPLATE became the canonical
+ * non-resident template identifier. */
+function isNonResidentEntry(templateMode: unknown): boolean {
+  const normalized = String(templateMode || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return normalized.includes('NON_RESIDENT') || normalized === 'NR_TEMPLATE' || normalized === 'NR';
+}
+
 function userIdentityAliases(user: any): string[] {
   return [...new Set(USER_IDENTITY_FIELDS
     .map(field => user?.[field])
@@ -398,7 +405,7 @@ export default createEndpoint({
 
     const isNR = !effectiveIsResident;
     const allValues = trendSorted.map(e => {
-      const isNREntry = String(e.templateMode || '').toUpperCase().includes('NON_RESIDENT');
+      const isNREntry = isNonResidentEntry(e.templateMode);
       return {
         ...entryToValues(e, isNREntry || isNR),
         isSickOs: !!(e.flagSick || e.flagOs),
@@ -494,7 +501,7 @@ export default createEndpoint({
 
     // Map insight entries to values with sick/OS flag
     const insightValues = insightEntries.map(e => {
-      const isNREntry = String(e.templateMode || '').toUpperCase().includes('NON_RESIDENT');
+      const isNREntry = isNonResidentEntry(e.templateMode);
       return {
         ...entryToValues(e, isNREntry || isNR),
         isSickOs: !!(e.flagSick || e.flagOs),

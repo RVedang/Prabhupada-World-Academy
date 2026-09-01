@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { createEndpoint, Meetings, Users, AppError } from '@/lib/backend-sdk';
+import { getMeetingViewer, isMeetingVisibleToViewer, normalizeMeetingDepartment } from '@/lib/meetingAccess';
+
+const VIEWER_FIELDS = ['id', 'userId', 'email', 'segment', 'role', 'isSadhanaMentor', 'isBvSuperAdmin', 'isBvAdmin', 'isPwAdmin', 'uid', 'authUid', 'firebaseUid'];
 
 export default createEndpoint({
   description: 'Get Prabhupada World meetings',
@@ -40,43 +43,22 @@ export default createEndpoint({
   execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
-    const userEmail = (context.user.email || '').toLowerCase();
-    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const userId = context.user.id;
-
-    const isSuperAdminOrAdmin = !!(
-      context.user.isBvSuperAdmin ||
-      context.user.isBvAdmin ||
-      context.user.isPwAdmin ||
-      ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
-    );
-    // A Sadhana Mentor is an invited attendee, even when legacy profile data
-    // still carries an administrative flag from a previous assignment.
-    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
-    const isPwUser = normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD';
-    const isReadOnlySadhanaMentor = isPwUser && !!(
-      context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR'
-    );
-    const canViewAllMeetings = isSuperAdminOrAdmin && !isReadOnlySadhanaMentor;
-
-    const storedSegment = String(context.user.segment || '').trim().toUpperCase();
-    const department = input.department || storedSegment || 'PW';
-    if (input.department && storedSegment && input.department !== storedSegment) {
+    const storedUser = (await Users.findOne({ id: context.user.id, fields: VIEWER_FIELDS }).catch(() => null))
+      || (context.user.email
+        ? await Users.findOne({ filters: { email: context.user.email }, fields: VIEWER_FIELDS }).catch(() => null)
+        : null);
+    const viewer = getMeetingViewer(context.user, storedUser);
+    const department = input.department || viewer.department || 'PW';
+    if (input.department && viewer.department && input.department !== viewer.department) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view meetings for another department' });
     }
 
     const { records: allMeetings } = await Meetings.findAll({ limit: 1000 });
 
-    let filtered = allMeetings.filter((m: any) => String(m.segment || 'PW').toUpperCase() === department);
+    let filtered = allMeetings.filter((m: any) => normalizeMeetingDepartment(m.segment || 'PW') === department);
 
-    if (!canViewAllMeetings) {
-      filtered = filtered.filter((m: any) => {
-        // Supervisors and other non-admins see only meetings to which they are invited.
-        return (
-          (m.inviteeUserIds || []).includes(userId) ||
-          (m.invitees || []).some((inv: any) => inv.userId === userId || (inv.email && inv.email.toLowerCase() === userEmail))
-        );
-      });
+    if (!viewer.canViewAllMeetings) {
+      filtered = filtered.filter((meeting: any) => isMeetingVisibleToViewer(meeting, viewer));
     }
 
     if (input.status && input.status !== 'ALL') {

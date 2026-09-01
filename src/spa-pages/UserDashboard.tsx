@@ -119,6 +119,10 @@ export default function UserDashboard() {
   });
 
   const isResident = useMemo(() => !!(profile?.residencyGuideVerified && profile?.selectedFolkResidency), [profile]);
+  // Prabhupada World users do not have FOLK residency categories. The generic
+  // dashboard is used by both departments, so pass the department explicitly
+  // to keep the shared leaderboard from showing Resident/Non-Resident labels.
+  const isPwDashboard = String(profile?.segment || '').trim().toUpperCase() !== 'FOLK';
 
   const subtitle = useMemo(() => [
     profile?.ashrayLevel ? `Ashraya: ${profile.ashrayLevel}` : null,
@@ -214,6 +218,7 @@ export default function UserDashboard() {
                   leaderboardData={leaderboardData as any}
                   userId={profile.userId}
                   userResidencyName={profile.residencyName ?? undefined}
+                  isPw={isPwDashboard}
                 />
               </SectionErrorBoundary>
             </div>
