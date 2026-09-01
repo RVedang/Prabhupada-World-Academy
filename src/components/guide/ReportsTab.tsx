@@ -23,6 +23,7 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import { exportToCsv } from '@/utils/exportCsv';
 import { exportReportAsImage } from '@/utils/exportReportImage';
 import ScoringCriteriaPanel from '@/components/guide/ScoringCriteriaPanel';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 export interface SadhanaGroupOption {
   id: string;
@@ -810,8 +811,14 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                     className="h-8 text-xs px-3"
                     onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}
                   >Today</Button>
-                  <Input type="date" className="h-8 w-[140px]" value={selectedDate}
-                    onChange={e => setSelectedDate(e.target.value)} max={format(new Date(), 'yyyy-MM-dd')} />
+                  <DateTimePicker
+                    type="date"
+                    value={selectedDate}
+                    onChange={setSelectedDate}
+                    max={format(new Date(), 'yyyy-MM-dd')}
+                    placeholder="Select date"
+                    className="h-8 w-[140px] rounded-lg"
+                  />
                 </div>
               )}
 
