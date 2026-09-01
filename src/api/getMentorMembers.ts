@@ -60,7 +60,12 @@ export default createEndpoint({
     const currentUser = await Users.findOne({
       id: context.user!.id,
       fields: ['id', 'userId', 'fullName', 'guide', 'bvReportingAdminId', 'bvReportingAdminName', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'segment', 'isPrabhupadaWorldUser'],
-    });
+    }) || (context.user?.email
+      ? await Users.findOne({
+          filters: { email: context.user.email },
+          fields: ['id', 'userId', 'fullName', 'guide', 'bvReportingAdminId', 'bvReportingAdminName', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'segment', 'isPrabhupadaWorldUser'],
+        })
+      : null);
 
     const guideId = Array.isArray(currentUser?.guide)
       ? currentUser!.guide[0]

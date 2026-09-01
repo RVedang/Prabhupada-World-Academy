@@ -703,7 +703,9 @@ export default createEndpoint({
 
     // For BVSL/Mentor mode, resolve guide from authenticated user's guide field
     if (bvslMode || mentorMode) {
-      const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'guide'] });
+      const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'guide'] }) || (context.user?.email
+        ? await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'guide'] })
+        : null);
       const gid = Array.isArray(userRec?.guide) ? userRec!.guide[0] : userRec?.guide;
       if (gid) {
         guideDbId = gid as string;

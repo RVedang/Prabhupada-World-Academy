@@ -127,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('auth_email');
       localStorage.removeItem('auth_mock_mode');
+      localStorage.removeItem('auth_profile_email');
       delete (window as any).__firebase_id_token;
     }
     setUser(null);

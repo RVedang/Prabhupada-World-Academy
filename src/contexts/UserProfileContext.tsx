@@ -119,7 +119,7 @@ function buildProfile(userObj: any): ProfileData {
 const MAX_RETRIES = 4;
 
 export default function UserProfileProvider({ children }: { children: React.ReactNode }) {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, logout } = useAuth();
   const location = useLocation();
 
   const [profile, setProfile] = useState<ProfileData>(null);
@@ -127,6 +127,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
   const [isLoading, setIsLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const loadedEmailRef = useRef<string | null>(null);
+  const accountInvalidatedRef = useRef(false);
 
   const setAndCacheProfile = (p: ProfileData) => {
     profileRef.current = p;
@@ -255,9 +256,23 @@ export default function UserProfileProvider({ children }: { children: React.Reac
         built = buildProfile(res.user);
         setAndCacheProfile(built);
         loadedEmailRef.current = email;
+        accountInvalidatedRef.current = false;
+        try { localStorage.setItem('auth_profile_email', email.toLowerCase()); } catch { /* storage unavailable */ }
       } else {
+        // An authenticated user whose previously loaded profile has vanished
+        // was deleted or revoked. End the Firebase session and return to the
+        // sign-in page; first-time users (without this marker) may still register.
+        let hadConfirmedProfile = !!profileRef.current;
+        try {
+          hadConfirmedProfile = hadConfirmedProfile || localStorage.getItem('auth_profile_email') === email.toLowerCase();
+        } catch { /* storage unavailable */ }
         setAndCacheProfile(null);
         loadedEmailRef.current = null;
+        if (hadConfirmedProfile && !accountInvalidatedRef.current) {
+          accountInvalidatedRef.current = true;
+          await logout({ returnTo: '/login' });
+          return null;
+        }
       }
       if (!background) setIsLoading(false);
       else setIsLoading(false); // ensure loading clears even after initial
