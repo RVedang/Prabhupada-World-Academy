@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getSadhanaStats, getUserProgressStats } from '@/lib/endpoints-sdk';
-import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS, FieldConfig } from '@/components/stats/FieldTrendChart';
+import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS, PW_FIELD_CONFIGS, FieldConfig } from '@/components/stats/FieldTrendChart';
 import { scoreColor } from '@/lib/scoring';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { ASHRAY_LEVELS } from '@/types/enums';
@@ -147,10 +147,11 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
   }, [selectedUserId, period, start, end]);
 
   const groupFieldConfigs: FieldConfig[] = useMemo(() => {
+    if (isPw) return PW_FIELD_CONFIGS;
     if (residencyFilter === 'resident' || residencyFilter === 'scholar') return RESIDENT_FIELD_CONFIGS;
     if (residencyFilter === 'non_resident') return NR_FIELD_CONFIGS;
     return ALL_FIELD_CONFIGS;
-  }, [residencyFilter]);
+  }, [isPw, residencyFilter]);
 
   // Map dailyTrend → chart data (add scorePercent alias for avgScorePercent)
   const groupChartData = useMemo(() => {
@@ -284,7 +285,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
               defaultSelected="scorePercent"
               height={260}
               showThreshold
-              isResident={residencyFilter === 'resident' || residencyFilter === 'scholar' || residencyFilter === 'all'}
+              isResident={!isPw && (residencyFilter === 'resident' || residencyFilter === 'scholar' || residencyFilter === 'all')}
               loading={groupLoading && !groupStats}
             />
           ) : (
@@ -354,11 +355,11 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
           ) : userStats && userChartData.length > 0 ? (
             <FieldTrendChart
               data={userChartData}
-              fieldConfigs={userStats.isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS}
+              fieldConfigs={isPw ? PW_FIELD_CONFIGS : (userStats.isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS)}
               defaultSelected="scorePercent"
               height={240}
               showThreshold
-              isResident={userStats.isResident}
+              isResident={!isPw && userStats.isResident}
             />
           ) : (
             <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">

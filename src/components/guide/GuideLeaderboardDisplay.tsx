@@ -1,6 +1,7 @@
 /**
  * GuideLeaderboardDisplay — card-style leaderboard for the Guide dashboard (individual users).
- * Filters: "All FOLK Residents" | "All Non-Residents" + Ashray Level dropdown
+ * FOLK views can be filtered by residency. Prabhupada World has no residency
+ * concept, so it shows a single leaderboard filtered only by Ashraya level.
  */
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -117,9 +118,11 @@ export default function GuideLeaderboardDisplay({ leaderboard, dateLabel }: Prop
             <div className="divide-y">
               {pageEntries.map((entry, idx) => {
                 const globalRank = page * PAGE_SIZE + idx;
-                const residencyLabel = entry.isResident && entry.residencyName
-                  ? entry.residencyName.replace(/^FOLK\s+/i, '')
-                  : 'Non-Resident';
+                const residencyLabel = isFolk
+                  ? (entry.isResident && entry.residencyName
+                    ? entry.residencyName.replace(/^FOLK\s+/i, '')
+                    : 'Non-Resident')
+                  : null;
                 return (
                   <div key={entry.userId}
                     className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/30">

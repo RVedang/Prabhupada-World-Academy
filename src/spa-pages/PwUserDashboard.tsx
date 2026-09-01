@@ -175,6 +175,7 @@ export default function PwUserDashboard() {
                 leaderboardData={leaderboardData as any}
                 userId={profile.userId}
                 userResidencyName={profile.residencyName ?? undefined}
+                isPw
               />
             </SectionErrorBoundary>
           )}

@@ -36,6 +36,8 @@ interface Props {
   currentUserResidency: string;
   currentUserAshrayLevel: string;
   currentUserIsResident: boolean;
+  /** Prabhupada World has no residency categories or residency-based scoring views. */
+  isPw?: boolean;
 }
 
 function getDefaultFilter(isResident: boolean): FilterKey {
@@ -49,6 +51,7 @@ export default function SadhanaLeaderboard({
   currentUserAshrayLevel,
   currentUserResidency,
   currentUserIsResident,
+  isPw = false,
 }: Props) {
   const defaultFilter = getDefaultFilter(currentUserIsResident);
   const [activeFilter, setActiveFilter] = useState<FilterKey>(defaultFilter);
@@ -61,6 +64,11 @@ export default function SadhanaLeaderboard({
   const dateLabel = format(now, 'MMM dd, yyyy');
 
   const filtered = useMemo(() => {
+    if (isPw) {
+      return activeFilter === 'nr_my_ashray'
+        ? leaderboard.filter(e => e.ashrayLevel === currentUserAshrayLevel)
+        : leaderboard;
+    }
     switch (activeFilter) {
       case 'all_residents':
       case 'all_ashray':
@@ -76,7 +84,7 @@ export default function SadhanaLeaderboard({
       default:
         return leaderboard;
     }
-  }, [leaderboard, activeFilter, currentUserResidency, currentUserAshrayLevel]);
+  }, [leaderboard, activeFilter, currentUserResidency, currentUserAshrayLevel, isPw]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const pageEntries = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -110,7 +118,7 @@ export default function SadhanaLeaderboard({
     },
   ];
 
-  const isPrabhupadaWorld = !currentUserIsResident ||
+  const isPrabhupadaWorld = isPw || !currentUserIsResident ||
     String(currentUserGuideId || '').toUpperCase().includes('HIRANYAVARNA') ||
     String(currentUserGuideId || '').toUpperCase().includes('PW') ||
     String(currentUserGuideId || '') === 'MENTOR-PW-HIRANYAVARNA';
@@ -125,7 +133,7 @@ export default function SadhanaLeaderboard({
     },
   ];
 
-  const chips = currentUserIsResident ? residentChips : nrChips;
+  const chips = isPw ? nrChips : (currentUserIsResident ? residentChips : nrChips);
 
   return (
     <Card>
@@ -178,9 +186,11 @@ export default function SadhanaLeaderboard({
               {pageEntries.map((entry, idx) => {
                 const globalRank = page * PAGE_SIZE + idx;
                 const isMe = entry.userId === currentUserId;
-                const residencyLabel = entry.isResident && entry.residencyName
-                  ? entry.residencyName
-                  : 'Non-Resident';
+                const residencyLabel = isPw
+                  ? null
+                  : (entry.isResident && entry.residencyName
+                    ? entry.residencyName
+                    : 'Non-Resident');
                 return (
                   <div key={entry.userId}
                     className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
@@ -211,7 +221,7 @@ export default function SadhanaLeaderboard({
                     </div>
                     <div className="text-right shrink-0">
                       {entry.scorePercent != null ? (
-                        <div className={`text-sm font-bold ${scoreColor(entry.scorePercent, entry.isResident)}`}>{entry.scorePercent}%</div>
+                        <div className={`text-sm font-bold ${scoreColor(entry.scorePercent, !isPw && entry.isResident)}`}>{entry.scorePercent}%</div>
                       ) : entry.todayScore !== null ? (
                         <div className="text-sm font-bold text-primary">{entry.todayScore} pts</div>
                       ) : (

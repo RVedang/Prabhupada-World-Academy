@@ -47,10 +47,11 @@ function safeFormatDate(dateStr: string | null | undefined): string | null {
 interface MembersTableProps {
   members: Member[];
   guideName: string;
+  showResidency: boolean;
   onNavigate: (userId: string, from: string) => void;
 }
 
-function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
+function MembersTable({ members, guideName, showResidency, onNavigate }: MembersTableProps) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('fullName');
   const [sortAsc, setSortAsc] = useState(true);
@@ -65,18 +66,17 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
     [members],
   );
 
-  // Derive distinct ashray levels and residency options from members
+  // Derive distinct Ashraya levels. Residency is a FOLK-only concept.
   const distinctAshray = useMemo(() =>
     ASHRAY_LEVELS.filter(l => validMembers.some(m => m.ashrayLevel === l)),
   [validMembers]);
 
-  // Location options: All + Non-Resident + each unique residency
+  // Location options: All + Non-Resident + each unique residency (FOLK only).
   const locationOptions = useMemo(() => {
     const seen = new Set<string>();
-    const opts: { value: string; label: string }[] = [
-      { value: 'all', label: 'All Members' },
-      { value: 'non_residents', label: 'Non-Resident' },
-    ];
+    const opts: { value: string; label: string }[] = [{ value: 'all', label: 'All Members' }];
+    if (!showResidency) return opts;
+    opts.push({ value: 'non_residents', label: 'Non-Resident' });
     validMembers.forEach(m => {
       if (m.isResident && m.residencyName && !seen.has(m.residencyName)) {
         seen.add(m.residencyName);
@@ -84,7 +84,7 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
       }
     });
     return opts;
-  }, [validMembers]);
+  }, [validMembers, showResidency]);
 
   const filtered = useMemo(() => {
     let result = validMembers;
@@ -92,11 +92,13 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
       m.fullName.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase())
     );
-    if (locationFilter === 'non_residents') result = result.filter(m => !m.isResident);
-    else if (locationFilter !== 'all') result = result.filter(m => m.isResident && m.residencyName === locationFilter);
+    if (showResidency) {
+      if (locationFilter === 'non_residents') result = result.filter(m => !m.isResident);
+      else if (locationFilter !== 'all') result = result.filter(m => m.isResident && m.residencyName === locationFilter);
+    }
     if (ashrayFilter !== 'all') result = result.filter(m => m.ashrayLevel === ashrayFilter);
     return result;
-  }, [validMembers, search, locationFilter, ashrayFilter]);
+  }, [validMembers, search, locationFilter, ashrayFilter, showResidency]);
 
   const sorted = useMemo(() => [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -104,7 +106,7 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
     else if (sortKey === 'latestScore') cmp = (a.latestScore ?? -1) - (b.latestScore ?? -1);
     else if (sortKey === 'currentStreak') cmp = a.currentStreak - b.currentStreak;
     else if (sortKey === 'ashrayLevel') cmp = (a.ashrayLevel ?? '').localeCompare(b.ashrayLevel ?? '');
-    else if (sortKey === 'residencyName') {
+    else if (showResidency && sortKey === 'residencyName') {
       const ar = a.residencyName ?? (a.isResident ? '' : 'ZZZ');
       const br = b.residencyName ?? (b.isResident ? '' : 'ZZZ');
       cmp = ar.localeCompare(br);
@@ -113,7 +115,7 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
       cmp = (PERF_ORDER[a.performanceStatus] ?? 3) - (PERF_ORDER[b.performanceStatus] ?? 3);
     }
     return sortAsc ? cmp : -cmp;
-  }), [filtered, sortKey, sortAsc]);
+  }), [filtered, sortKey, sortAsc, showResidency]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(a => !a);
@@ -143,17 +145,18 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
           />
         </div>
 
-        {/* Single combined location filter */}
-        <Select value={locationFilter} onValueChange={(v) => setLocationFilter(v || 'all')}>
-          <SelectTrigger className="h-8 w-[150px] text-xs font-medium">
-            <SelectValue>{locationFilter === 'all' ? 'All Members' : (locationOptions.find(o => o.value === locationFilter)?.label || 'All Members')}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {locationOptions.map(opt => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {showResidency && (
+          <Select value={locationFilter} onValueChange={(v) => setLocationFilter(v || 'all')}>
+            <SelectTrigger className="h-8 w-[150px] text-xs font-medium">
+              <SelectValue>{locationFilter === 'all' ? 'All Members' : (locationOptions.find(o => o.value === locationFilter)?.label || 'All Members')}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {locationOptions.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {distinctAshray.length > 1 && (
           <Select value={ashrayFilter} onValueChange={(v) => setAshrayFilter(v || 'all')}>
@@ -185,7 +188,7 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
               <tr className="border-b">
                 <th className="text-left px-3 py-2.5 bg-muted"><SortBtn k="fullName" label="Name" /></th>
                 <th className="text-left px-3 py-2.5 hidden sm:table-cell bg-muted"><SortBtn k="ashrayLevel" label="Level" /></th>
-                <th className="text-left px-3 py-2.5 bg-muted"><SortBtn k="residencyName" label="Residency" /></th>
+                {showResidency && <th className="text-left px-3 py-2.5 bg-muted"><SortBtn k="residencyName" label="Residency" /></th>}
                 <th className="text-center px-3 py-2.5 bg-muted"><SortBtn k="latestScore" label="Score" /></th>
                 <th className="text-center px-3 py-2.5 font-medium text-muted-foreground hidden md:table-cell bg-muted">Last Entry</th>
                 <th className="text-center px-3 py-2.5 bg-muted"><SortBtn k="currentStreak" label="Streak" /></th>
@@ -212,11 +215,13 @@ function MembersTable({ members, guideName, onNavigate }: MembersTableProps) {
                         ? <Badge variant="outline" className="text-xs">{m.ashrayLevel}</Badge>
                         : <span className="text-muted-foreground">—</span>}
                     </td>
-                    <td className="px-3 py-2.5">
-                      {m.isResident
-                        ? <span className="text-xs text-primary font-medium">{residencyLabel}</span>
-                        : <span className="text-xs text-muted-foreground">{residencyLabel}</span>}
-                    </td>
+                    {showResidency && (
+                      <td className="px-3 py-2.5">
+                        {m.isResident
+                          ? <span className="text-xs text-primary font-medium">{residencyLabel}</span>
+                          : <span className="text-xs text-muted-foreground">{residencyLabel}</span>}
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-center">
                       {m.latestScore != null
                         ? <span className={`font-bold ${color}`}>{m.latestScore}%</span>
@@ -293,18 +298,21 @@ export default function SadhanaMentorDashboard() {
 
   if (!profile) return <LoadingPage />;
 
+  // Residency belongs exclusively to the FOLK department. Some older PW
+  // profiles stored their department as "Prabhupada World" rather than "PW",
+  // so make the FOLK check explicit instead of treating only "PW" as PW.
+  const normalizedSegment = String(profile.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+  const isFolkMentor = normalizedSegment === 'FOLK';
+  const isPwMentor = !isFolkMentor;
+
   const subtitle = [
     'Sadhana Mentor',
     profile.ashrayLevel ? `Ashraya: ${profile.ashrayLevel}` : null,
     profile.guideName ? `Guide: ${profile.guideName}` : null,
-    profile.residencyName ? `FOLK: ${profile.residencyName}` : null,
+    !isPwMentor && profile.residencyName ? `FOLK: ${profile.residencyName}` : null,
   ].filter(Boolean).join(' · ');
 
   const effectiveGuideId = profile.selectedGuideId || (profile as any).guideId || (profile as any).guide || profile.userId;
-
-  // Meetings & MoM are a PW-only mentor workflow. Use the resolved segment
-  // instead of the broader legacy PW flag so FOLK mentors never see this tab.
-  const isPwMentor = String(profile.segment || '').trim().toUpperCase() === 'PW';
 
   const tabs: TabConfig[] = [
     { value: 'reports', label: 'Sadhana Report', icon: BarChart3 },
@@ -315,7 +323,7 @@ export default function SadhanaMentorDashboard() {
 
   return (
     <DashboardLayout
-      title="FOLK Sadhana Mentor Dashboard"
+      title={isPwMentor ? 'Prabhupada World Sadhana Mentor Dashboard' : 'FOLK Sadhana Mentor Dashboard'}
       subtitle={subtitle}
       role="SADHANA_MENTOR"
       maxWidth="max-w-6xl"
@@ -338,7 +346,8 @@ export default function SadhanaMentorDashboard() {
               {activeTab === 'members' && (
                 <MembersTable
                   members={members}
-                  guideName={guideName || 'FOLK Guide'}
+                  guideName={guideName || (isPwMentor ? 'Prabhupada World Guide' : 'FOLK Guide')}
+                  showResidency={isFolkMentor}
                   onNavigate={(uid, from) => navigate(`/guide/users/${uid}`, { state: { from } })}
                 />
               )}

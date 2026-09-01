@@ -39,13 +39,18 @@ export default createEndpoint({
       context.user.isPwAdmin ||
       ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
     );
+    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+    const isPwUser = normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD';
+    const isReadOnlySadhanaMentor = isPwUser && !!(
+      context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR'
+    );
 
     const existing = await Meetings.findOne({ id: input.meetingId });
     if (!existing) {
       throw new AppError({ code: 'NOT_FOUND', message: 'Meeting not found' });
     }
 
-    if (!isSuperAdminOrAdmin) {
+    if (!isSuperAdminOrAdmin || isReadOnlySadhanaMentor) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Only Admins and Super Admins can edit meeting details' });
     }
 

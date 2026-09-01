@@ -46,13 +46,18 @@ export default createEndpoint({
       context.user.isPwAdmin ||
       ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
     );
+    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+    const isPwUser = normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD';
+    const isReadOnlySadhanaMentor = isPwUser && !!(
+      context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR'
+    );
 
     const meeting = await Meetings.findOne({ id: input.meetingId });
     if (!meeting) {
       throw new AppError({ code: 'NOT_FOUND', message: 'Associated meeting not found' });
     }
 
-    if (!isSuperAdminOrAdmin) {
+    if (!isSuperAdminOrAdmin || isReadOnlySadhanaMentor) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Only Admins and Super Admins can manage Minutes of Meeting' });
     }
 

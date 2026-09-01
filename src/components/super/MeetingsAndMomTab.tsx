@@ -380,6 +380,13 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                       !!(profile as any)?.isPwAdmin ||
                       ['ADMIN', 'PW_ADMIN'].includes(profileRole);
 
+  // Mentors attend only meetings they were invited to and can read published
+  // MoMs. This takes priority over any stale legacy admin flags on a profile.
+  const isReadOnlySadhanaMentor = department === 'PW' && !!(
+    profile?.isSadhanaMentor || profileRole === 'SADHANA_MENTOR'
+  );
+  const canManageMeetings = isAdminUser && !isReadOnlySadhanaMentor;
+
   const isSupervisor = !!profile?.isBvSupervisor ||
                        !!(profile as any)?.isBvMentor ||
                        (profile?.role as string)?.toUpperCase()?.includes('SUPERVISOR');
@@ -463,7 +470,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
   const [newActionAssigneeName, setNewActionAssigneeName] = useState('');
   const [newActionAssigneeEmail, setNewActionAssigneeEmail] = useState('');
   const activeMeetingForMom = selectedMeetingForMom || (editingMom ? meetings.find(m => m.id === editingMom.meeting_id) : null);
-  const canEditMom = !!(isSuperAdmin || isAdminUser);
+  const canEditMom = canManageMeetings;
 
   const loadData = async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -927,11 +934,10 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
   // Filtered Meetings
   const filteredMeetings = meetings.filter(m => {
     // Participant filter: non-super-admins and non-admins only see meetings in which they were participants
-    if (!isSuperAdmin && !isAdminUser) {
-      const isCreator = m.created_by_email === user?.id || (user?.email && m.created_by_email?.toLowerCase() === user.email.toLowerCase());
+    if (!canManageMeetings) {
       const isInvited = (m.inviteeUserIds || []).includes(user?.id || '') ||
                         (m.invitees || []).some((inv: any) => inv.userId === user?.id || (user?.email && inv.email?.toLowerCase() === user.email.toLowerCase()));
-      if (!isCreator && !isInvited) return false;
+      if (!isInvited) return false;
     }
 
     if (statusFilter !== 'all' && m.status !== statusFilter) return false;
@@ -948,17 +954,13 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
 
   // Filtered MoMs
   const filteredMoms = moms.filter(m => {
-    if (!isSuperAdmin && !isAdminUser) {
+    if (!canManageMeetings) {
       const associatedMeeting = meetings.find(meeting => meeting.id === m.meeting_id);
-      const isCreator = (associatedMeeting && (associatedMeeting.created_by_email === user?.id || (user?.email && associatedMeeting.created_by_email?.toLowerCase() === user.email.toLowerCase()))) ||
-                        (m as any).created_by_id === user?.id;
       const isInvited = (associatedMeeting && (
         (associatedMeeting.inviteeUserIds || []).includes(user?.id || '') ||
         (associatedMeeting.invitees || []).some((inv: any) => inv.userId === user?.id || (user?.email && inv.email?.toLowerCase() === user.email.toLowerCase()))
       ));
-      const isExplicit = (m as any).visibleToUserIds?.includes(user?.id || '') ||
-                         (m.action_items || []).some(item => (user?.email && item.assignedToName?.toLowerCase().includes(user.email.toLowerCase())) || item.assignedToName === profile?.fullName);
-      if (!isCreator && !isInvited && !isExplicit) return false;
+      if (!isInvited) return false;
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -979,13 +981,13 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
             <Video className="w-6 h-6 text-primary" />
             <h2 className="text-xl font-bold tracking-tight">Meetings & MoMs</h2>
           </div>
-          {isAdminUser && (
+          {canManageMeetings && (
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
               Schedule meetings, manage participants, capture Minutes of Meeting (MoM), and track action items.
             </p>
           )}
         </div>
-        {isAdminUser && (
+        {canManageMeetings && (
           <div className="flex flex-wrap gap-2.5">
             <button
               onClick={openNewMeetingModal}
@@ -1093,11 +1095,11 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
             <Video className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
             <h3 className="text-base font-semibold text-foreground">No meetings found</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-              {isAdminUser
+              {canManageMeetings
                 ? "No meetings match your selected filters. Schedule a new meeting to collaborate with team members."
                 : "No meetings found."}
             </p>
-            {isAdminUser && (
+            {canManageMeetings && (
               <button
                 onClick={openNewMeetingModal}
                 className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl hover:bg-primary/90 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
@@ -1153,7 +1155,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                         </div>
                         <h3 className="text-base font-bold mt-1.5 text-foreground leading-snug">{m.title}</h3>
                       </div>
-                      {(isSuperAdmin || isAdminUser) && (
+                      {canManageMeetings && (
                         <button
                           onClick={() => openEditMeetingModal(m)}
                           className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-accent"
@@ -1232,7 +1234,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     </div>
 
                     {(() => {
-                      const hasEditRights = isSuperAdmin || isAdminUser;
+                      const hasEditRights = canManageMeetings;
                       return hasEditRights ? (
                         <div className="flex items-center gap-2">
                           {m.status !== 'cancelled' && (
@@ -1280,11 +1282,11 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
             <FileText className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
             <h3 className="text-base font-semibold text-foreground">No Minutes of Meeting (MoM) saved</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-              {isAdminUser
+              {canManageMeetings
                 ? "Create an MoM for meetings to document key discussions, decisions, and action items."
                 : "No MoM records are available for your meetings."}
             </p>
-            {isAdminUser && (
+            {canManageMeetings && (
               <button
                 onClick={() => openNewMomModal()}
                 className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl hover:bg-primary/90 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
@@ -1300,7 +1302,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
               const pendingActions = (mom.action_items || []).filter(a => a.status !== 'completed').length;
               const totalActions = (mom.action_items || []).length;
               const associatedMeeting = meetings.find(m => m.id === mom.meeting_id);
-              const canEditThisMom = isSuperAdmin || isAdminUser;
+              const canEditThisMom = canManageMeetings;
               return (
                 <div key={mom.id} className="bg-card border rounded-2xl p-5 shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b">

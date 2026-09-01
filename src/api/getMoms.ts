@@ -48,6 +48,14 @@ export default createEndpoint({
       context.user.isPwAdmin ||
       ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
     );
+    // PW Sadhana Mentors can read only published minutes for meetings that
+    // invited them. This must take priority over stale legacy admin flags.
+    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+    const isPwUser = normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD';
+    const isReadOnlySadhanaMentor = isPwUser && !!(
+      context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR'
+    );
+    const canViewAllMoms = isSuperAdminOrAdmin && !isReadOnlySadhanaMentor;
 
     const storedSegment = String(context.user.segment || '').trim().toUpperCase();
     const department = input.department || storedSegment || 'PW';
@@ -69,7 +77,7 @@ export default createEndpoint({
       filtered = filtered.filter((mom: any) => mom.meetingId === input.meetingId);
     }
 
-    if (!isSuperAdminOrAdmin) {
+    if (!canViewAllMoms) {
       filtered = filtered.filter((mom: any) => {
         if (!mom.isPublished) return false;
 

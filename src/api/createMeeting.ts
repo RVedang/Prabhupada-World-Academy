@@ -33,7 +33,13 @@ export default createEndpoint({
       ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(callerRole)
     );
 
-    if (!isAuthorized) {
+    const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+    const isPwUser = normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD';
+    const isReadOnlySadhanaMentor = isPwUser && !!(
+      context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR'
+    );
+
+    if (!isAuthorized || isReadOnlySadhanaMentor) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Only Admins and Super Admins can create meetings' });
     }
 

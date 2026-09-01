@@ -84,6 +84,18 @@ export const NR_FIELD_CONFIGS: FieldConfig[] = [
   { key: 'bhaktiVriksha',   label: 'BV',            unit: 'Yes/No', yMax: 1 },
 ];
 
+// Prabhupada World uses the non-resident Sadhana form, but its report also
+// includes the informational preaching and book-distribution values.
+export const PW_FIELD_CONFIGS: FieldConfig[] = [
+  { key: 'scorePercent',     label: 'Overall %',      unit: '%',      yMax: 100 },
+  { key: 'rounds',           label: 'Rounds',         unit: '',       yMax: 32 },
+  { key: 'reading',          label: 'Reading',        unit: 'min',    yMax: 90 },
+  { key: 'hearing',          label: 'Hearing',        unit: 'min',    yMax: 90 },
+  { key: 'seva',             label: 'Seva',           unit: 'Yes/No', yMax: 1 },
+  { key: 'preachingMinutes', label: 'Preach',         unit: 'min',    yMax: 180 },
+  { key: 'booksDistributed', label: 'Books Dist',     unit: '',       yMax: 20 },
+];
+
 interface DataPoint {
   label: string;
   [key: string]: any;

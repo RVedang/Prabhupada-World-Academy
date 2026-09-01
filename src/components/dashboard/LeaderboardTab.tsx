@@ -55,9 +55,11 @@ interface Props {
   leaderboardData: LeaderboardData | null;
   userId: string;
   userResidencyName?: string;
+  /** Prabhupada World does not use FOLK residency classifications. */
+  isPw?: boolean;
 }
 
-export default function LeaderboardTab({ leaderboardData, userId, userResidencyName }: Props) {
+export default function LeaderboardTab({ leaderboardData, userId, userResidencyName, isPw = false }: Props) {
   const folkRankings = useMemo((): FolkRank[] => {
     if (!leaderboardData) return [];
     const residents = leaderboardData.leaderboard.filter(e => e.isResident && e.residencyName);
@@ -105,7 +107,7 @@ export default function LeaderboardTab({ leaderboardData, userId, userResidencyN
   return (
     <div className="space-y-6">
       {/* FOLK Residency Rankings */}
-      {folkRankings.length > 0 && (
+      {!isPw && folkRankings.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -169,6 +171,7 @@ export default function LeaderboardTab({ leaderboardData, userId, userResidencyN
           currentUserResidency={leaderboardData.currentUserResidency}
           currentUserAshrayLevel={leaderboardData.currentUserAshrayLevel}
           currentUserIsResident={leaderboardData.currentUserIsResident}
+          isPw={isPw}
         />
       </SectionErrorBoundary>
     </div>
