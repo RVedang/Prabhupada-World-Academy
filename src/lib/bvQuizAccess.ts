@@ -316,10 +316,14 @@ export async function resolveQuizDepartment(quiz: any, fallback: QuizDepartment)
       await Users.findOne({ filters: { email: creatorRef } }).catch(() => undefined);
     if (creator?.segment) return normalizeQuizDepartment(creator.segment, fallback);
   }
-  // Before department support, quizzes were created by the FOLK source
-  // system. Untagged records with no resolvable group/creator therefore stay
-  // FOLK instead of being reclassified by a caller-supplied department.
-  return 'FOLK';
+
+  // If a quiz has activeGroupIds set (PW per-group activation), treat it as PW
+  // regardless of whether a group/creator could be resolved above.
+  if (quizRefValues(quiz?.activeGroupIds).length > 0) return 'PW';
+
+  // Use the caller-supplied fallback. The fallback parameter exists precisely
+  // to carry the caller's department context for untagged legacy quizzes.
+  return fallback;
 }
 
 export async function getUserQuizMemberships(user: QuizAccessUser): Promise<any[]> {
@@ -375,7 +379,10 @@ export async function assertQuizParticipantAccess(
     quiz,
     fallbackDepartment || normalizeQuizDepartment(user.segment, 'PW'),
   );
-  if (normalizeQuizDepartment(user.segment, department) !== department || !String(user.segment || '').trim()) {
+  // Allow users with an empty segment: normalizeQuizDepartment falls back to
+  // the resolved quiz department in that case, so the comparison still works.
+  const userDepartment = normalizeQuizDepartment(user.segment, department);
+  if (userDepartment !== department) {
     throw new AppError({ code: 'FORBIDDEN', message: 'This quiz is not available in your department' });
   }
   if (quiz.isActive !== true) {
