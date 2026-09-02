@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, Suspense, lazy } from 'react';
+import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video, Brain } from 'lucide-react';
@@ -77,6 +77,7 @@ export default function PwAdminDashboard() {
   }, [activeTab]);
   const [approvalCount, setApprovalCount] = useState(0);
   const [bvRegCount, setBvRegCount] = useState(0);
+  const resolvedBvRegistrationIdsRef = useRef<Set<string>>(new Set());
 
   // Sync with browser back/forward buttons
   useEffect(() => {
@@ -110,11 +111,25 @@ export default function PwAdminDashboard() {
         getGuideRequests({ guideId: 'ALL' }),
         getPendingBvRegistrations({ segment: 'PW' }).catch(() => []),
       ]).then(([pending, requests, bvRegs]) => {
+        const registrations = Array.isArray(bvRegs) ? bvRegs : [];
+        const fetchedIds = new Set(registrations.map(reg => String(reg.id)));
+        for (const resolvedId of resolvedBvRegistrationIdsRef.current) {
+          if (!fetchedIds.has(resolvedId)) {
+            resolvedBvRegistrationIdsRef.current.delete(resolvedId);
+          }
+        }
         setApprovalCount(
           pending.length + (requests?.ashrayUpgrades || []).length
         );
-        setBvRegCount(Array.isArray(bvRegs) ? bvRegs.length : 0);
+        setBvRegCount(registrations.filter(
+          reg => !resolvedBvRegistrationIdsRef.current.has(String(reg.id)),
+        ).length);
       }).catch(() => {});
+  }, []);
+
+  const handleBvRegistrationResolved = useCallback((registrationId: string) => {
+    resolvedBvRegistrationIdsRef.current.add(registrationId);
+    setBvRegCount(current => Math.max(0, current - 1));
   }, []);
 
   // One initial scoped read, followed by event-driven updates from Firestore.
@@ -299,7 +314,7 @@ export default function PwAdminDashboard() {
                   <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') ? 'space-y-6 block' : 'hidden'}>
                     <SuperBvRegistrationsTab
                       segment="PW"
-                      onRegistrationResolved={() => setBvRegCount(current => Math.max(0, current - 1))}
+                      onRegistrationResolved={handleBvRegistrationResolved}
                     />
                     <hr className="my-6 border-t" />
                     <BvAdminManagementTab segment="PW" />

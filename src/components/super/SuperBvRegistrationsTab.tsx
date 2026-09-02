@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,7 +49,7 @@ export default function SuperBvRegistrationsTab({
   guideId?: string;
   isSuperGuide?: boolean;
   /** Updates the dashboard badge immediately after a successful decision. */
-  onRegistrationResolved?: () => void;
+  onRegistrationResolved?: (registrationId: string) => void;
 }) {
   const cachedRegs = getClientCachedQuery('getPendingBvRegistrations', { segment });
   const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
@@ -64,6 +64,10 @@ export default function SuperBvRegistrationsTab({
   const [assigning, setAssigning] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [showAllGroups, setShowAllGroups] = useState(false);
+  // A realtime/background request can already be in flight when an approval
+  // finishes. Keep successful decisions hidden until a fresh server response
+  // confirms that the registration has left the pending queue.
+  const resolvedRegistrationIdsRef = useRef<Set<string>>(new Set());
 
   // Start with the applicant's time-matched group, but the explicit
   // "Show all time slots" control must expose every active reading group.
@@ -122,7 +126,16 @@ export default function SuperBvRegistrationsTab({
           : (isSuperGuide ? getBvslGroups({ bvslId: 'ALL' }) : Promise.resolve({ groups: [] }))
               .catch(() => ({ groups: [] })),
       ]);
-      setRegistrations(regs || []);
+      const fetchedRegistrations = Array.isArray(regs) ? regs : [];
+      const fetchedIds = new Set(fetchedRegistrations.map(reg => String(reg.id)));
+      for (const resolvedId of resolvedRegistrationIdsRef.current) {
+        if (!fetchedIds.has(resolvedId)) {
+          resolvedRegistrationIdsRef.current.delete(resolvedId);
+        }
+      }
+      setRegistrations(fetchedRegistrations.filter(
+        reg => !resolvedRegistrationIdsRef.current.has(String(reg.id)),
+      ));
       setAllGroupsState(grpRes.groups || []);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load pending Bhakti Vriksha registrations');
@@ -140,8 +153,9 @@ export default function SuperBvRegistrationsTab({
       // Do not wait for the Firestore invalidation round-trip before updating
       // this active queue. The realtime listener still reconciles this with
       // the server in the background for every open dashboard session.
+      resolvedRegistrationIdsRef.current.add(String(reg.id));
       setRegistrations(current => current.filter(item => item.id !== reg.id));
-      onRegistrationResolved?.();
+      onRegistrationResolved?.(String(reg.id));
       toast.success(`Rejected registration for ${reg.fullName}`);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to reject registration');
@@ -161,8 +175,9 @@ export default function SuperBvRegistrationsTab({
         registrationId: selectedReg.id,
         groupId: targetGroupId,
       });
+      resolvedRegistrationIdsRef.current.add(String(selectedReg.id));
       setRegistrations(current => current.filter(item => item.id !== selectedReg.id));
-      onRegistrationResolved?.();
+      onRegistrationResolved?.(String(selectedReg.id));
       toast.success(`Approved & assigned ${selectedReg.fullName} to Reading Group`);
       setSelectedReg(null);
       setTargetGroupId('');
@@ -179,8 +194,9 @@ export default function SuperBvRegistrationsTab({
     setAssigning(true);
     try {
       await approveAndAssignBvMember({ registrationId: selectedReg.id });
+      resolvedRegistrationIdsRef.current.add(String(selectedReg.id));
       setRegistrations(current => current.filter(item => item.id !== selectedReg.id));
-      onRegistrationResolved?.();
+      onRegistrationResolved?.(String(selectedReg.id));
       toast.success(`Approved ${selectedReg.fullName}. Group assignment can be completed later.`);
       setSelectedReg(null);
       setTargetGroupId('');

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -86,6 +86,7 @@ export default function FolkGuideDashboard() {
   }, [activeTab]);
   const [approvalCount, setApprovalCount] = useState(0);
   const [bvRegCount, setBvRegCount] = useState(0);
+  const resolvedBvRegistrationIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const onPop = () => {
@@ -138,9 +139,22 @@ export default function FolkGuideDashboard() {
           setApprovalCount(totalUserApprovals);
 
           const bvRegsArr = Array.isArray(bvRegs) ? bvRegs : (bvRegs as any).records || [];
-          setBvRegCount(bvRegsArr.length);
+          const fetchedIds = new Set(bvRegsArr.map((reg: any) => String(reg.id)));
+          for (const resolvedId of resolvedBvRegistrationIdsRef.current) {
+            if (!fetchedIds.has(resolvedId)) {
+              resolvedBvRegistrationIdsRef.current.delete(resolvedId);
+            }
+          }
+          setBvRegCount(bvRegsArr.filter(
+            (reg: any) => !resolvedBvRegistrationIdsRef.current.has(String(reg.id)),
+          ).length);
         }).catch(() => {});
   }, [user?.email, guideId, isSuperAdmin]);
+
+  const handleBvRegistrationResolved = useCallback((registrationId: string) => {
+    resolvedBvRegistrationIdsRef.current.add(registrationId);
+    setBvRegCount(current => Math.max(0, current - 1));
+  }, []);
 
   useEffect(() => { void fetchCounts(); }, [fetchCounts]);
   useRealtimeRefresh(['users', 'groups'], fetchCounts, Boolean(user?.email && (isSuperAdmin || guideId)));
@@ -285,7 +299,7 @@ export default function FolkGuideDashboard() {
                   segment="FOLK"
                   guideId={guideId}
                   isSuperGuide={isSuperAdmin}
-                  onRegistrationResolved={() => setBvRegCount(current => Math.max(0, current - 1))}
+                  onRegistrationResolved={handleBvRegistrationResolved}
                 />
                 <div className="pt-6 border-t border-border">
                   <div className="mb-4">
