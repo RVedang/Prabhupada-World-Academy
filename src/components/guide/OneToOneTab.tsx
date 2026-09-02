@@ -180,10 +180,12 @@ export default function OneToOneTab({ guideId }: Props) {
         {isFolk && (
           <Select value={residencyFilter} onValueChange={(v) => setResidencyFilter(v || 'All')}>
             <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue placeholder="Residency" />
+              <SelectValue placeholder="Residency">
+                {residencyFilter === 'All' || residencyFilter === 'all' || residencyFilter === 'ALL' ? 'All Residencies' : residencyFilter}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="All">All</SelectItem>
+              <SelectItem value="All">All Residencies</SelectItem>
               <SelectItem value="Residents">Residents</SelectItem>
               <SelectItem value="Non-residents">Non-residents</SelectItem>
             </SelectContent>
