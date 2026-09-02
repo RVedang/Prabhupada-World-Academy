@@ -297,7 +297,10 @@ export default function PwAdminDashboard() {
 
                 {(visitedTabs.has('bhakti-vriksha') || visitedTabs.has('bv-registrations')) && (
                   <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') ? 'space-y-6 block' : 'hidden'}>
-                    <SuperBvRegistrationsTab segment="PW" />
+                    <SuperBvRegistrationsTab
+                      segment="PW"
+                      onRegistrationResolved={() => setBvRegCount(current => Math.max(0, current - 1))}
+                    />
                     <hr className="my-6 border-t" />
                     <BvAdminManagementTab segment="PW" />
                   </div>

@@ -39,7 +39,18 @@ const isTimeSlotMatch = (pref: string, groupTime: string) => {
   return false;
 };
 
-export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuperGuide = false }: { segment?: 'PW' | 'FOLK'; guideId?: string; isSuperGuide?: boolean }) {
+export default function SuperBvRegistrationsTab({
+  segment,
+  guideId = '',
+  isSuperGuide = false,
+  onRegistrationResolved,
+}: {
+  segment?: 'PW' | 'FOLK';
+  guideId?: string;
+  isSuperGuide?: boolean;
+  /** Updates the dashboard badge immediately after a successful decision. */
+  onRegistrationResolved?: () => void;
+}) {
   const cachedRegs = getClientCachedQuery('getPendingBvRegistrations', { segment });
   const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
   const hasCache = cachedRegs !== null && (isSuperGuide ? cachedGroups !== null : false);
@@ -126,8 +137,12 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
     setRejectingId(reg.id);
     try {
       await rejectBvRegistration({ registrationId: reg.id });
+      // Do not wait for the Firestore invalidation round-trip before updating
+      // this active queue. The realtime listener still reconciles this with
+      // the server in the background for every open dashboard session.
+      setRegistrations(current => current.filter(item => item.id !== reg.id));
+      onRegistrationResolved?.();
       toast.success(`Rejected registration for ${reg.fullName}`);
-      loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to reject registration');
     } finally {
@@ -146,11 +161,12 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
         registrationId: selectedReg.id,
         groupId: targetGroupId,
       });
+      setRegistrations(current => current.filter(item => item.id !== selectedReg.id));
+      onRegistrationResolved?.();
       toast.success(`Approved & assigned ${selectedReg.fullName} to Reading Group`);
       setSelectedReg(null);
       setTargetGroupId('');
       setShowAllGroups(false);
-      loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to approve registration');
     } finally {
@@ -163,11 +179,12 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
     setAssigning(true);
     try {
       await approveAndAssignBvMember({ registrationId: selectedReg.id });
+      setRegistrations(current => current.filter(item => item.id !== selectedReg.id));
+      onRegistrationResolved?.();
       toast.success(`Approved ${selectedReg.fullName}. Group assignment can be completed later.`);
       setSelectedReg(null);
       setTargetGroupId('');
       setShowAllGroups(false);
-      loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to approve registration');
     } finally {

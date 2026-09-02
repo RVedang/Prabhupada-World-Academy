@@ -91,6 +91,12 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'
   );
+  const isDepartmentAdmin = !!(
+    isSuperAdmin ||
+    profile?.isBvAdmin ||
+    normalizedProfileRole === 'ADMIN' ||
+    normalizedProfileRole === 'PW_ADMIN'
+  );
 
   const [users, setUsers] = useState<User[]>([]);
   const [guides, setGuides] = useState<GuideEntry[]>([]);
@@ -103,13 +109,16 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [guideFilter, setGuideFilter] = useState(() => (isSuperAdmin ? 'all' : myGuideId));
+  // Department admins own the complete department member directory. Starting
+  // them on a guide-specific filter silently hid approved users who had not
+  // yet been assigned to a Reading Group/guide.
+  const [guideFilter, setGuideFilter] = useState('all');
 
   useEffect(() => {
-    if (profile && !isSuperAdmin && myGuideId) {
+    if (profile && !isDepartmentAdmin && myGuideId) {
       setGuideFilter(myGuideId);
     }
-  }, [profile, isSuperAdmin, myGuideId]);
+  }, [profile, isDepartmentAdmin, myGuideId]);
 
   const [ashrayFilter, setAshrayFilter] = useState('all');
   const [residentFilter, setResidentFilter] = useState('all');
@@ -490,7 +499,6 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     r = r.filter(u => isUserInCurrentDepartment(u, isPwMode) && u.status === 'ACTIVE');
 
     // Operational roles below Admin (Supervisors, Mentors) filter to members under their direct supervision scope
-    const isDepartmentAdmin = isSuperAdmin || profile?.isBvAdmin || (profile?.role as string) === 'ADMIN';
     if (!isDepartmentAdmin) {
       const myEmail = ((profile as any)?.email || profile?.userId || userEmail || '').toLowerCase();
       const myName = (profile?.fullName || '').toLowerCase();
@@ -511,12 +519,15 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     }
 
     return r;
-  }, [users, profile, userEmail, isSuperAdmin, isPwMode, isUserInCurrentDepartment, myGuideId]);
+  }, [users, profile, userEmail, isDepartmentAdmin, isPwMode, isUserInCurrentDepartment, myGuideId]);
 
   const filtered = useMemo(() => {
     let r = baseUsers;
 
-    if (guideFilter !== 'all') r = r.filter(u => u._guideId === guideFilter);
+    // Never apply a stale/hidden guide filter to an Admin's department-wide
+    // directory. Group and guide assignment are optional for approved users.
+    const effectiveGuideFilter = isDepartmentAdmin ? 'all' : guideFilter;
+    if (effectiveGuideFilter !== 'all') r = r.filter(u => u._guideId === effectiveGuideFilter);
     if (ashrayFilter !== 'all') r = r.filter(u => u.ashrayLevel === ashrayFilter);
     if (!isPwAdmin) {
       if (residentFilter === 'residents') r = r.filter(isFolkResidentUser);
@@ -544,7 +555,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
       return sortDir === 'asc' ? av - bv : bv - av;
     });
-  }, [users, guideFilter, ashrayFilter, residentFilter, search, sortKey, sortDir, isPwAdmin, isSuperAdmin, myGuideId, profile, userEmail]);
+  }, [users, guideFilter, ashrayFilter, residentFilter, search, sortKey, sortDir, isPwAdmin, isDepartmentAdmin, myGuideId, profile, userEmail]);
 
   if (loading) return <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>;
 
