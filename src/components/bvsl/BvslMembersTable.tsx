@@ -115,17 +115,15 @@ export default function BvslMembersTable({ bvslId, detailBasePath = '/guide/user
               <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
             </div>
-            {distinctGroups.length > 1 && (
-              <div className="min-w-[140px]">
-                <Select value={groupFilter} onValueChange={(val) => setGroupFilter(val || 'all')}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="All Groups" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Groups</SelectItem>
-                    {distinctGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="min-w-[140px]">
+              <Select value={groupFilter} onValueChange={(val) => setGroupFilter(val || 'all')}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="All Groups" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Groups</SelectItem>
+                  {distinctGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             {isFolk && (
               <div className="min-w-[140px]">
                 <Select value={residencyFilter} onValueChange={(v: any) => setResidencyFilter(v)}>

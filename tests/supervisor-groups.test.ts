@@ -35,6 +35,7 @@ const reportingRgf = {
   status: 'Active',
   segment: 'FOLK',
   isBvFacilitator: true,
+  isBvsl: true,
   bvReportingSupervisorId: supervisor.id,
 };
 
@@ -101,6 +102,8 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
   const memberEntryId = 'SUPERVISOR-GROUPS-SADHANA';
   const outsideEntryId = 'SUPERVISOR-GROUPS-OUTSIDE-SADHANA';
   const preachingEntryId = 'SUPERVISOR-GROUPS-PREACHING';
+  const rgfSelfMembershipId = 'SUPERVISOR-GROUPS-RGF-SELF-MEMBERSHIP';
+  const memberPreachingEntryId = 'SUPERVISOR-GROUPS-MEMBER-PREACHING';
   const today = getTodayIST();
 
   for (const user of users) await Users.create({ record: user });
@@ -375,7 +378,91 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       } as never),
       /not assigned to your hierarchy/,
     );
+
+    // Even if a legacy membership row incorrectly includes the facilitator,
+    // an RGF report must contain only members of the groups they facilitate.
+    await BvGroupMembers.create({
+      record: {
+        id: rgfSelfMembershipId,
+        group: supervisedGroup.id,
+        groupId: supervisedGroup.groupId,
+        user: reportingRgf.id,
+        userId: reportingRgf.userId,
+        role: 'Member',
+      },
+    });
+    await BvslPreachingEntries.create({
+      record: {
+        id: memberPreachingEntryId,
+        user: member.id,
+        entryDate: today,
+        prCallingTime: 20,
+        prOneOnOneTime: 10,
+        prBookDistTime: 5,
+        prRduaTime: 5,
+        prPlanTime: 5,
+        prBooksDistributed: 1,
+        prContactsCollected: 2,
+        prUniqueOneOnOnes: 1,
+        totalPreachingMinutes: 45,
+        submittedAt: `${today}T07:00:00.000Z`,
+      },
+    });
+
+    const rgfMatrix = await getBvSessionMatrix.execute({
+      input: {
+        guideId: reportingRgf.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+      },
+      context: { user: reportingRgf },
+    } as never);
+    assert.deepEqual(rgfMatrix.members.map((row: any) => row.fullName), [member.fullName]);
+
+    const rgfPreachingReport = await getBvPreachingReport.execute({
+      input: {
+        guideId: reportingRgf.userId,
+        date: today,
+        reportType: 'daily',
+        bvslMode: true,
+      },
+      context: { user: reportingRgf },
+    } as never);
+    assert.deepEqual(rgfPreachingReport.bvsls.map((row: any) => row.fullName), [member.fullName]);
+    assert.equal(rgfPreachingReport.bvsls[0].groupName, supervisedGroup.groupName);
+    assert.equal(rgfPreachingReport.bvsls[0].totalMinutes, 45);
+
+    const rgfPreachingStats = await getBvStats.execute({
+      input: {
+        guideId: reportingRgf.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+      },
+      context: { user: reportingRgf },
+    } as never);
+    assert.deepEqual(rgfPreachingStats.userSummaries.map((row: any) => row.fullName), [member.fullName]);
+
+    const rgfSadhanaReport = await getGuideDetailedReport.execute({
+      input: {
+        guideId: reportingRgf.userId,
+        date: today,
+        reportType: 'daily',
+        bvslMode: true,
+        segment: 'FOLK',
+      },
+      context: { user: reportingRgf },
+    } as never);
+    assert.deepEqual(rgfSadhanaReport.users.map((row: any) => row.fullName), [member.fullName]);
+
+    const rgfGroupStats = await getGuideGroupStats.execute({
+      input: { guideId: reportingRgf.userId, bvslMode: true },
+      context: { user: reportingRgf },
+    } as never);
+    assert.equal(rgfGroupStats.groups[0].memberCount, 1);
   } finally {
+    await BvslPreachingEntries.delete({ id: memberPreachingEntryId });
     await BvslPreachingEntries.delete({ id: preachingEntryId });
     await SadhanaEntries.delete({ id: memberEntryId });
     await SadhanaEntries.delete({ id: outsideEntryId });
@@ -383,6 +470,7 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     await BvAttendance.delete({ id: attendanceId });
     await BvGroupMembers.delete({ id: membershipId });
     await BvGroupMembers.delete({ id: outsideMembershipId });
+    await BvGroupMembers.delete({ id: rgfSelfMembershipId });
     for (const group of groups) await BvGroups.delete({ id: group.id });
     for (const user of users) await Users.delete({ id: user.id });
   }

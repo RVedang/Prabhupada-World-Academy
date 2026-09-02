@@ -112,7 +112,6 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
   const [members, setMembers] = useState<Member[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [weeks, setWeeks] = useState<string[]>([]);
-  const [allAdminsList, setAllAdminsList] = useState<string[]>([]);
   const [bvslLink, setBvslLink] = useState('');
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<DialogState>({ open: false, memberId: '', memberName: '', weekDate: '', existing: null });
@@ -120,7 +119,7 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
 
   // Filter States (Default to 'ALL' with capital A)
   const [searchQuery, setSearchQuery] = useState('');
-  const [adminFilter, setAdminFilter] = useState('ALL');
+  const [groupFilter, setGroupFilter] = useState('ALL');
   const [ashrayFilter, setAshrayFilter] = useState('ALL');
 
   const loadData = useCallback(async () => {
@@ -130,7 +129,6 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
       setMembers(res.users || []);
       setMeetings(res.meetings || []);
       setWeeks(res.weeks || []);
-      if (res.allAdmins) setAllAdminsList(res.allAdmins || []);
       if (res.bvslLink !== undefined) setBvslLink(res.bvslLink || '');
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -138,21 +136,22 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Derived filter options — shows ALL Admins across system
-  const availableAdmins = useMemo(() => {
-    const set = new Set<string>(allAdminsList);
-    members.forEach(m => {
-      if ((m as any).adminName) set.add((m as any).adminName);
-    });
-    return Array.from(set).filter(Boolean).sort();
-  }, [allAdminsList, members]);
-
   const availableLevels = useMemo(() => {
     const set = new Set<string>();
     members.forEach(m => {
       if (m.ashrayLevel) set.add(m.ashrayLevel);
     });
     return Array.from(set).filter(Boolean).sort();
+  }, [members]);
+
+  const availableGroups = useMemo(() => {
+    const groups = new Map<string, string>();
+    members.forEach(member => {
+      if (member.groupId && member.groupName) groups.set(member.groupId, member.groupName);
+    });
+    return [...groups.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [members]);
 
   // Filtered members list
@@ -163,9 +162,9 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
         const q = searchQuery.toLowerCase().trim();
         if (!m.fullName.toLowerCase().includes(q)) return false;
       }
-      // 2. Admin Filter Match
-      if (adminFilter !== 'ALL' && adminFilter !== 'all') {
-        if ((m as any).adminName !== adminFilter) return false;
+      // 2. Reading Group Match
+      if (groupFilter !== 'ALL' && groupFilter !== 'all') {
+        if (m.groupId !== groupFilter) return false;
       }
       // 3. Ashraya Level Match
       if (ashrayFilter !== 'ALL' && ashrayFilter !== 'all') {
@@ -173,7 +172,7 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
       }
       return true;
     });
-  }, [members, searchQuery, adminFilter, ashrayFilter]);
+  }, [members, searchQuery, groupFilter, ashrayFilter]);
 
   const openDialog = (memberId: string, memberName: string, weekDate: string, existing: Meeting | null, guideId?: string) =>
     setDialog({ open: true, memberId, memberName, weekDate, existing, guideId });
@@ -232,7 +231,7 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
         </div>
       </div>
 
-      {/* Filter Control Bar (Search by Name, Admin, and Ashraya Level) */}
+      {/* Filter Control Bar (Search by Name, Reading Group, and Ashraya Level) */}
       {!loading && (
         <div className="bg-card border border-border rounded-xl p-4 shadow-xs space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -256,18 +255,20 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
               />
             </div>
 
-            {/* Filter by Admin */}
+            {/* Filter by Reading Group */}
             <div>
-              <Select value={adminFilter} onValueChange={(val: string | null) => setAdminFilter(val || 'ALL')}>
+              <Select value={groupFilter} onValueChange={(val: string | null) => setGroupFilter(val || 'ALL')}>
                 <SelectTrigger className="h-9 text-xs font-medium">
-                  <SelectValue placeholder="All Guides">
-                    {adminFilter === 'ALL' || adminFilter === 'all' ? 'All Guides' : adminFilter}
+                  <SelectValue placeholder="All Groups">
+                    {groupFilter === 'ALL' || groupFilter === 'all'
+                      ? 'All Groups'
+                      : availableGroups.find(group => group.id === groupFilter)?.name || 'All Groups'}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All Guides ({availableAdmins.length})</SelectItem>
-                  {availableAdmins.map(admin => (
-                    <SelectItem key={admin} value={admin}>{admin}</SelectItem>
+                  <SelectItem value="ALL">All Groups ({availableGroups.length})</SelectItem>
+                  {availableGroups.map(group => (
+                    <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -292,7 +293,7 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
           </div>
 
           {/* Active Filter Clear Indicator */}
-          {(searchQuery || (adminFilter !== 'ALL' && adminFilter !== 'all') || (ashrayFilter !== 'ALL' && ashrayFilter !== 'all')) && (
+          {(searchQuery || (groupFilter !== 'ALL' && groupFilter !== 'all') || (ashrayFilter !== 'ALL' && ashrayFilter !== 'all')) && (
             <div className="flex items-center justify-between pt-1 text-xs border-t border-border/50">
               <span className="text-muted-foreground">Active filters applied</span>
               <Button
@@ -300,7 +301,7 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
                 size="sm"
                 onClick={() => {
                   setSearchQuery('');
-                  setAdminFilter('ALL');
+                  setGroupFilter('ALL');
                   setAshrayFilter('ALL');
                 }}
                 className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10"
@@ -327,7 +328,7 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
             size="sm"
             onClick={() => {
               setSearchQuery('');
-              setAdminFilter('all');
+              setGroupFilter('ALL');
               setAshrayFilter('all');
             }}
             className="mt-2 text-xs"

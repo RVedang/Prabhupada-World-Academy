@@ -7,6 +7,8 @@ export interface Meeting { id: string; guideId: string; memberId: string; weekDa
 export interface Member {
   userId: string; fullName: string; ashrayLevel: string | null; isResident: boolean;
   eligibility: string; delegateId: string | null; delegateName: string | null;
+  groupId?: string | null;
+  groupName?: string | null;
   rgfName?: string | null;
   supervisorName?: string | null;
   adminName?: string | null;

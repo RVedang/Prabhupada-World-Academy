@@ -18,6 +18,11 @@ function getWeeks(weeksBack: number): string[] {
   return weeks;
 }
 
+function normalizedRefs(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(normalizedRefs);
+  return value == null ? [] : [String(value).trim().toLowerCase()].filter(Boolean);
+}
+
 export default createEndpoint({
   description: 'Get 1:1 meeting data for RGSF, RGF, Supervisor, Admin, Super Admin scoped strictly to users under them with hierarchy names.',
   authenticated: true,
@@ -206,26 +211,26 @@ export default createEndpoint({
     // Build hierarchy lookup maps for user cards
     const { records: allBvGroups } = await BvGroups.findAll({
       limit: 1000,
-      fields: ['id', 'bvslLeader', 'bvslId', 'bvslName', 'bvReportingSupervisorId', 'bvReportingSupervisorName', 'bvReportingAdminId', 'bvReportingAdminName'],
+      fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName', 'bvReportingSupervisorId', 'bvReportingSupervisorName', 'bvReportingAdminId', 'bvReportingAdminName'],
     }).catch(() => ({ records: [] }));
 
     const { records: allBvMemberships } = await BvGroupMembers.findAll({
       limit: 3000,
-      fields: ['id', 'user', 'group'],
+      fields: ['id', 'user', 'userId', 'memberId', 'group', 'groupId'],
     }).catch(() => ({ records: [] }));
 
     const groupMap = new Map<string, any>();
     allBvGroups.forEach((g: any) => {
-      if (g.id) groupMap.set(String(g.id), g);
+      normalizedRefs([g.id, g.groupId, g.groupName]).forEach(ref => groupMap.set(ref, g));
     });
 
     const userToGroupMap = new Map<string, any>();
     allBvMemberships.forEach((m: any) => {
-      const u = Array.isArray(m.user) ? m.user[0] : m.user;
-      const g = Array.isArray(m.group) ? m.group[0] : m.group;
-      if (u && g && groupMap.has(String(g))) {
-        userToGroupMap.set(String(u), groupMap.get(String(g)));
-      }
+      const group = normalizedRefs([m.group, m.groupId])
+        .map(ref => groupMap.get(ref))
+        .find(Boolean);
+      if (!group) return;
+      normalizedRefs([m.user, m.userId, m.memberId]).forEach(ref => userToGroupMap.set(ref, group));
     });
 
     const userNameMap = new Map<string, string>();
@@ -280,7 +285,9 @@ export default createEndpoint({
       bvslLink: (bvslUser as any)?.oneToOneLink || null,
       allAdmins,
       users: filteredUsers.map((u: any) => {
-        const uGrp = userToGroupMap.get(String(u.id)) || userToGroupMap.get(String(u.userId));
+        const uGrp = normalizedRefs([u.id, u.userId, u.email])
+          .map(ref => userToGroupMap.get(ref))
+          .find(Boolean);
 
         const rgfId = String(u.bvReportingFacilitatorId || uGrp?.bvslLeader || uGrp?.bvslId || '').toLowerCase();
         const rgfName = u.bvReportingFacilitatorName || uGrp?.bvslName || (rgfId ? userNameMap.get(rgfId) : null) || null;
@@ -299,6 +306,8 @@ export default createEndpoint({
           eligibility: 'Delegated',
           delegateId: Array.isArray(u.oneToOneDelegate) ? u.oneToOneDelegate[0] : (u.oneToOneDelegate || context.user.id),
           delegateName: null,
+          groupId: uGrp?.groupId || uGrp?.id || null,
+          groupName: uGrp?.groupName || null,
           rgfName,
           supervisorName,
           adminName,
