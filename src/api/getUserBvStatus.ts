@@ -30,10 +30,10 @@ export default createEndpoint({
     ]);
     const rawMembership = membershipByUser.records[0] || membershipByUserId.records[0];
     const rawGroupId = firstValue(rawMembership?.group || (rawMembership as any)?.groupId);
-    const profileGroupId = firstValue(userRecord?.bvGroupId);
-    const profileAllowsMembership = !!userRecord?.isBvMember &&
-      (!profileGroupId || !rawGroupId || profileGroupId === rawGroupId);
-    const membership = profileAllowsMembership ? rawMembership : null;
+    // A BvGroupMembers document is the authoritative membership record. A
+    // profile flag can be stale after an approval or group assignment; using
+    // it as a second gate hid valid PW members and their active quizzes.
+    const membership = rawMembership;
 
     const pending = pendingRes.records[0];
     const isUserRegPending = userRecord?.bvRegistrationStatus === 'Pending Approval' || userRecord?.bvRegistrationStatus === 'Pending';

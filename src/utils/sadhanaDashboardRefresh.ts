@@ -40,20 +40,31 @@ export function mergeSavedSadhanaIntoDashboardData<T>(data: T | undefined, paylo
   if (!data || typeof data !== 'object') return data;
 
   const dashboard = data as any;
+  // Every calendar lookup is date-only.  Keep the optimistic record in that
+  // exact form as well, including when a caller supplied an ISO timestamp.
+  const entryDate = String(payload.entryDate || '').slice(0, 10);
+  const totalScore = Number(payload.totalScore) || 0;
+  const maxScore = Number(payload.maxScore) || 0;
+  // The server normally returns scorePercent, but deriving it here prevents a
+  // successful save from rendering as an uncoloured calendar day if an older
+  // endpoint response omits that field.
+  const scorePercent = payload.scorePercent ?? (maxScore > 0
+    ? Math.round((totalScore / maxScore) * 100)
+    : null);
   const entry = {
     entryId: payload.entryId,
     rowId: '',
-    entryDate: payload.entryDate,
-    totalScore: payload.totalScore,
-    maxScore: payload.maxScore,
-    scorePercent: payload.scorePercent,
+    entryDate,
+    totalScore,
+    maxScore,
+    scorePercent,
     flagSick: !!payload.flagSick,
     flagOs: !!payload.flagOs,
     submittedAt: payload.submittedAt,
   };
 
   const recentEntries = Array.isArray(dashboard.recentEntries)
-    ? dashboard.recentEntries.filter((item: any) => String(item.entryDate || '').slice(0, 10) !== payload.entryDate)
+    ? dashboard.recentEntries.filter((item: any) => String(item.entryDate || '').slice(0, 10) !== entryDate)
     : [];
 
   // Only change the dashboard's "today" card when the saved entry is for
@@ -63,9 +74,9 @@ export function mergeSavedSadhanaIntoDashboardData<T>(data: T | undefined, paylo
     ...dashboard,
     metrics: {
       ...(dashboard.metrics || {}),
-      ...(payload.entryDate === todayIst ? {
-        todayScore: payload.totalScore,
-        todayPercent: payload.scorePercent,
+      ...(entryDate === todayIst ? {
+        todayScore: totalScore,
+        todayPercent: scorePercent,
         todaySubmitted: true,
         todayEntryId: payload.entryId,
         streakAtRisk: false,

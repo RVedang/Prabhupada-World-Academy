@@ -79,8 +79,11 @@ export default function DailySadhanaForm() {
   const isFolkUser = profile?.segment === 'FOLK' || (profile as any)?.isFolkUser === true;
   const [userRoleFromDb, setUserRoleFromDb] = useState<string | null>(null);
   const userRole = userRoleFromDb || profile?.role || 'USER';
-  // P1-003 FIX: also check isBvsl flag from profile
-  const isBvsl = userRole === 'BVSL' || !!(profile?.isBvsl);
+  // RGFs are the current Reading Group Facilitator role.  Their Bhakti
+  // Vriksha activity is saved alongside Sadhana, so they need the same BV
+  // activity tab that legacy BVSL accounts had.
+  const isBvsl = ['BVSL', 'RGF', 'FACILITATOR'].includes(userRole) ||
+    !!(profile?.isBvsl || (profile as any)?.isBvFacilitator);
   const residencyBucket = useMemo(() => getTimeBucket(userJoinDate, entryDate), [userJoinDate, entryDate]);
 
   const isSick = useMemo(() => {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -37,6 +37,10 @@ export default function PwUserDashboard() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [lbRequested, setLbRequested] = useState(initialTab === 'leaderboard');
   const [sadhanaRefreshVersion, setSadhanaRefreshVersion] = useState(0);
+  // A submission can navigate here before the initial dashboard response has
+  // arrived.  Retain that save until there is data to merge into, rather than
+  // consuming it against `undefined` and losing the calendar update.
+  const pendingSavedEntryRef = useRef<SavedSadhanaEntryPayload | null>(null);
 
   useEffect(() => {
     initReminderVisibilityCheck();
@@ -73,7 +77,11 @@ export default function PwUserDashboard() {
 
     const applySavedEntry = (payload: SavedSadhanaEntryPayload) => {
       if (payload.userId !== profile.userId) return;
-      setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
+      pendingSavedEntryRef.current = payload;
+      if (dashboardData) {
+        setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
+        pendingSavedEntryRef.current = null;
+      }
       setSadhanaRefreshVersion(version => version + 1);
       // Refresh once in response to this successful submission. The optimistic
       // merge paints the new result immediately; this silent fetch reconciles
@@ -90,6 +98,17 @@ export default function PwUserDashboard() {
     window.addEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
   }, [profile?.userId, dashboardData, setDashboardData, refetchDashboard]);
+
+  useEffect(() => {
+    const pending = pendingSavedEntryRef.current;
+    if (!dashboardData || !pending) return;
+
+    // This is the navigation-time path: the form saved successfully, but the
+    // dashboard had not yet loaded when the browser received the event.
+    setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, pending) as any);
+    pendingSavedEntryRef.current = null;
+    setSadhanaRefreshVersion(version => version + 1);
+  }, [dashboardData, setDashboardData]);
 
   const { data: leaderboardData } = useQuery({
     key: lbRequested && profile?.userId ? `lb:${profile.userId}:${format(new Date(), 'yyyy-MM-dd')}` : null,
