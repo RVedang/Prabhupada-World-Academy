@@ -73,11 +73,13 @@ export default createEndpoint({
         { segment, groupId },
       );
     } else if (bvslMode) {
-      // bvslMode: return only the current user's data
-      const me = await Users.findOne({
-        id: context.user.id,
-        fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'],
-      });
+      // An RGF may authenticate with an Auth UID while the legacy Users row is
+      // keyed by its application userId or email. Resolve all of those aliases
+      // so the report reads the same facilitator who submitted the activity.
+      const fields = ['id', 'userId', 'fullName', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'];
+      const me = await Users.findOne({ id: context.user.id, fields }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields }).catch(() => undefined) ||
+        await Users.findOne({ filters: { email: context.user.email }, fields }).catch(() => undefined);
       if (me) bvslUsers = [me];
     } else if (residencyIds && residencyIds.length > 0) {
       // Center-based scoping: get all BVSLs under all guides in these residencies

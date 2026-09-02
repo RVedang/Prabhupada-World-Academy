@@ -1,7 +1,7 @@
 /**
  * BvStatsPanel — BV preaching trend charts, mirrors StatsOverviewPanel.
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,6 +10,7 @@ import { getBvStats } from '@/lib/endpoints-sdk';
 import FieldTrendChart from '@/components/stats/FieldTrendChart';
 import type { FieldConfig } from '@/components/stats/FieldTrendChart';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type Period = '7d' | '30d' | '90d' | 'current_month' | 'prev_month';
 
@@ -65,20 +66,29 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
 
   const { start, end } = useMemo(() => getPeriodDates(period), [period]);
 
-  useEffect(() => {
-    setGroupLoading(true);
-    getBvStats({
-      guideId,
-      startDate: start,
-      endDate: end,
-      bvslMode,
-      residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
-      groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
-    })
-      .then(setGroupStats)
-      .catch(() => {})
-      .finally(() => setGroupLoading(false));
+  const loadGroupStats = useCallback(async (silent = false) => {
+    if (!silent) setGroupLoading(true);
+    try {
+      const result = await getBvStats({
+        guideId,
+        startDate: start,
+        endDate: end,
+        bvslMode,
+        residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
+        groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+      });
+      setGroupStats(result);
+    } catch {
+      // Keep the last successful trend visible if a background refresh fails.
+    } finally {
+      if (!silent) setGroupLoading(false);
+    }
   }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId]);
+
+  useEffect(() => { void loadGroupStats(); }, [loadGroupStats]);
+  // A Sadhana submission can include BV activity. Re-query on that event so
+  // the chart changes immediately, without a timer or a manual refresh.
+  useRealtimeRefresh(['sadhana'], () => loadGroupStats(true));
 
   useEffect(() => { setSelectedUserId(''); }, [period]);
 

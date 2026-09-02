@@ -7,6 +7,12 @@ function firstValue(value: unknown): string {
   return String(value || '');
 }
 
+function referenceValues(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(referenceValues);
+  if (value == null) return [];
+  return String(value).split(',').map(item => item.trim().toLowerCase()).filter(Boolean);
+}
+
 export default createEndpoint({
   description: 'Get current user BV group status, attendance streak, and available groups',
   authenticated: true,
@@ -16,20 +22,39 @@ export default createEndpoint({
     const uid = context.user!.id;
     const today = getTodayIST();
 
-    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'isBvMember', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => null);
+    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'fullName', 'email', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'isBvMember', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => null);
     const altUid = userRecord?.userId || uid;
 
     // A member exists only when a real BvGroupMembers document exists. Query
     // both identifier fields to support legacy custom user IDs without using a
     // stale bvGroupId profile field as a synthetic membership.
-    const identityKeys = [...new Set([uid, userRecord?.id, altUid].filter(Boolean).map(String))];
+    const identityKeys = new Set([
+      uid,
+      userRecord?.id,
+      altUid,
+      userRecord?.fullName,
+      userRecord?.email,
+    ].flatMap(referenceValues));
     const [membershipByUser, membershipByUserId, pendingRes] = await Promise.all([
-      BvGroupMembers.findAll({ filters: { user: { in: identityKeys } }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] }),
-      BvGroupMembers.findAll({ filters: { userId: { in: identityKeys } }, limit: 5, fields: ['id', 'group', 'groupId', 'role', 'joinedAt'] }),
+      BvGroupMembers.findAll({ filters: { user: { in: [...identityKeys] } }, limit: 5, fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId', 'role', 'joinedAt'] }),
+      BvGroupMembers.findAll({ filters: { userId: { in: [...identityKeys] } }, limit: 5, fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId', 'role', 'joinedAt'] }),
       BvGroupRequests.findAll({ filters: { user: uid, status: 'Pending' }, limit: 5, fields: ['id', 'group', 'requestedAt'] }),
     ]);
-    const rawMembership = membershipByUser.records[0] || membershipByUserId.records[0];
-    const rawGroupId = firstValue(rawMembership?.group || (rawMembership as any)?.groupId);
+    // The fast indexed lookups cover current records. Fall back to the small
+    // membership table only for legacy rows that saved a custom ID, email, or
+    // display name. Without this, an active member can have a real membership
+    // but never receive `myGroup`, which also hid their quiz section.
+    let rawMembership = membershipByUser.records[0] || membershipByUserId.records[0];
+    if (!rawMembership) {
+      const { records: memberships } = await BvGroupMembers.findAll({
+        limit: 5000,
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId', 'role', 'joinedAt'],
+      });
+      rawMembership = memberships.find(member =>
+        referenceValues([member.user, member.userId, (member as any).memberId])
+          .some(reference => identityKeys.has(reference))
+      );
+    }
     // A BvGroupMembers document is the authoritative membership record. A
     // profile flag can be stale after an approval or group assignment; using
     // it as a second gate hid valid PW members and their active quizzes.

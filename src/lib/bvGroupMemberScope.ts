@@ -3,6 +3,10 @@ import { AppError, BvGroups, BvGroupMembers, Users } from '@/lib/backend-sdk';
 const IDENTITY_FIELDS = [
   'id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId',
   'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id',
+  // Pre-migration BV groups and preaching entries stored the facilitator's
+  // display name rather than a Users document ID. Keep those historic rows
+  // visible in the current RGF reports while all new writes use canonical IDs.
+  'fullName', 'displayName', 'name',
 ];
 const PROFILE_RESOLUTION_FIELDS = ['fullName', 'displayName', 'name', 'status'];
 type UserRecord = Record<string, unknown>;
