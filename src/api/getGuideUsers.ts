@@ -79,13 +79,17 @@ export default createEndpoint({
       (isSuperGuide || isBvMentor)
         ? Promise.resolve(null)
         : getGuideScope(context.user.email || '').then(scope => scope ? { id: scope.guideId, folkResidencies: scope.residencyIds } : null),
-      SadhanaEntries.findAll({
+      input.minimal ? Promise.resolve({ records: [] }) : SadhanaEntries.findAll({
         filters: { entryDate: todayStr },
         fields: ENTRY_TODAY_FIELDS,
         limit: 2000,
       }).catch(() => ({ records: [] })),
-      BvGroups.findAll({ limit: 500, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName', 'guide'] }).catch(() => ({ records: [] })),
-      BvGroupMembers.findAll({ limit: 2000, fields: ['id', 'user', 'userId', 'group', 'groupId'] }).catch(() => ({ records: [] })),
+      input.minimal
+        ? Promise.resolve({ records: [] })
+        : BvGroups.findAll({ limit: 500, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName', 'guide'] }).catch(() => ({ records: [] })),
+      input.minimal
+        ? Promise.resolve({ records: [] })
+        : BvGroupMembers.findAll({ limit: 2000, fields: ['id', 'user', 'userId', 'group', 'groupId'] }).catch(() => ({ records: [] })),
     ]);
 
     const todayEntries: any[] = sadhanaRes?.records || [];
@@ -192,17 +196,32 @@ export default createEndpoint({
     if (!input.minimal) {
       const cutoffStr = daysAgo(todayStr, 100);
       const entries: any[] = [];
-      let entryOffset = 0;
-      while (true) {
-        const { records, hasMore } = await SadhanaEntries.findAll({
-          filters: { entryDate: { gte: cutoffStr } } as any,
+      const scopedEntryUserIds = Array.from(new Set(users.map(user => user.id).filter(Boolean)));
+      if (scopedEntryUserIds.length > 0 && scopedEntryUserIds.length <= 300) {
+        const chunks = Array.from({ length: Math.ceil(scopedEntryUserIds.length / 30) }, (_, index) =>
+          scopedEntryUserIds.slice(index * 30, index * 30 + 30)
+        );
+        const batches = await Promise.all(chunks.map(ids => SadhanaEntries.findAll({
+          filters: { user: { in: ids }, entryDate: { gte: cutoffStr } } as any,
           fields: ['id', 'user', 'entryDate', 'scorePercent', 'submittedAt'],
           limit: 2000,
-          offset: entryOffset,
-        }).catch(() => ({ records: [], hasMore: false }));
-        entries.push(...records);
-        if (!hasMore || entries.length > 6000) break;
-        entryOffset += 2000;
+        }).catch(() => ({ records: [] }))));
+        batches.forEach(batch => entries.push(...(batch.records || [])));
+      } else {
+        // A full super-admin catalogue is cheaper as one paged query than many
+        // dozens of small `in` queries. It remains bounded to the last 100 days.
+        let entryOffset = 0;
+        while (true) {
+          const { records, hasMore } = await SadhanaEntries.findAll({
+            filters: { entryDate: { gte: cutoffStr } } as any,
+            fields: ['id', 'user', 'entryDate', 'scorePercent', 'submittedAt'],
+            limit: 2000,
+            offset: entryOffset,
+          }).catch(() => ({ records: [], hasMore: false }));
+          entries.push(...records);
+          if (!hasMore || entries.length > 6000) break;
+          entryOffset += 2000;
+        }
       }
 
       for (const e of entries) {

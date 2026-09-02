@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { scoreColor } from '@/lib/scoring';
 import { normalizePhoneForLinks } from '@/lib/userUtils';
 import { ASHRAY_LEVELS } from '@/types/enums';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type Member = GetMentorMembersOutputType['members'][0];
 type SortKey = 'fullName' | 'latestScore' | 'currentStreak' | 'ashrayLevel' | 'residencyName' | 'performanceStatus';
@@ -333,6 +334,7 @@ export default function SadhanaMentorDashboard() {
       setLoading(false);
     }
   };
+  useRealtimeRefresh(['users', 'sadhana'], loadMembers, Boolean(profile?.userId));
 
   if (!profile) return <LoadingPage />;
 
@@ -369,7 +371,7 @@ export default function SadhanaMentorDashboard() {
       {loading ? (
         <LoadingPage rows={2} />
       ) : (
-        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={tabs.length}>
+        <TabRouter tabs={tabs} defaultTab="reports" desktopCols={tabs.length} preloadTabs={['members']}>
           {(activeTab) => (
             <>
               {activeTab === 'reports' && (

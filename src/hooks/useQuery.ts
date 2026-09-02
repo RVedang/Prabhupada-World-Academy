@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getCachedStale, setCached } from '@/utils/cache';
+import { getCachedStale, invalidateCache, setCached } from '@/utils/cache';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import type { RealtimeChannel } from '@/lib/realtimeChannels';
 
 interface UseQueryOptions<T> {
   /** Unique cache key — falsy value disables fetching */
@@ -14,8 +16,8 @@ interface UseQueryOptions<T> {
   ttl?: number;
   /** Ignored — kept for API compat */
   refetchOnFocus?: boolean;
-  /** Polling interval in ms (0 = off) */
-  pollInterval?: number;
+  /** Realtime data domains that silently refresh this active query. */
+  realtimeChannels?: RealtimeChannel[];
   /** Initial / placeholder data shown before first fetch */
   initialData?: T;
   /** Max retry attempts on failure (default 3) */
@@ -42,7 +44,7 @@ export function useQuery<T>({
   key,
   fetcher,
   ttl = 60_000,
-  pollInterval = 0,
+  realtimeChannels = [],
   initialData,
   maxRetries = 3,
 }: UseQueryOptions<T>): UseQueryResult<T> {
@@ -110,39 +112,46 @@ export function useQuery<T>({
 
   // Main effect: run on mount and key changes
   useEffect(() => {
-    if (!key) { setLoading(false); return; }
-
-    if (ttl > 0) {
-      const cached = getCachedStale<T>(key);
-      if (cached) {
-        // Show stale data immediately, revalidate silently if expired
-        setDataState(cached.data);
+    let cancelled = false;
+    // Defer state synchronization to a microtask. This avoids an extra
+    // synchronous render while React is committing the key-change effect.
+    queueMicrotask(() => {
+      if (cancelled || !mountedRef.current) return;
+      if (!key) {
+        setDataState(initialData);
         setLoading(false);
-        if (cached.isStale) doFetch(true); // Silent background revalidation
         return;
       }
-    }
 
-    // No cache — full fetch with loading state
-    setLoading(true);
-    doFetch(false);
+      if (ttl > 0) {
+        const cached = getCachedStale<T>(key);
+        if (cached) {
+          // Show stale data immediately, revalidate silently if expired.
+          setDataState(cached.data);
+          setLoading(false);
+          if (cached.isStale) void doFetch(true);
+          return;
+        }
+      }
+
+      // No cache — full fetch with loading state.
+      setLoading(true);
+      void doFetch(false);
+    });
+    return () => { cancelled = true; };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Polling — silent background update (no loading flash)
-  useEffect(() => {
-    if (!pollInterval || !key) return;
-    const id = setInterval(() => {
-      if (!isFetchingRef.current) doFetch(true);
-    }, pollInterval);
-    return () => clearInterval(id);
-  }, [pollInterval, key, doFetch]);
+  useRealtimeRefresh(realtimeChannels, () => doFetch(true), Boolean(key && realtimeChannels.length));
 
   const refetch = useCallback(() => {
-    if (key) setCached(key, undefined as any, 0); // Bust cache
+    if (key) invalidateCache(key);
     return doFetch(false);
   }, [key, doFetch]);
 
-  const setData = useCallback((newData: T) => setDataState(newData), []);
+  const setData = useCallback((newData: T) => {
+    setDataState(newData);
+    if (key && ttl > 0) setCached(key, newData, ttl);
+  }, [key, ttl]);
 
   return { data, loading, error, refetch, setData };
 }

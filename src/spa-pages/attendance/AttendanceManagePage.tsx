@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { ArrowLeft, Plus, Copy, Users, Settings, Flame, Link2, ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -29,6 +30,7 @@ export default function AttendanceManagePage() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+  useRealtimeRefresh(['attendance'], reload);
 
   return (
     <div className="min-h-screen bg-background">

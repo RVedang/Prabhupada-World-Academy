@@ -1,8 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, Meetings, Users, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Meetings, AppError } from '@/lib/backend-sdk';
 import { getMeetingViewer, isMeetingVisibleToViewer, normalizeMeetingDepartment } from '@/lib/meetingAccess';
-
-const VIEWER_FIELDS = ['id', 'userId', 'email', 'segment', 'role', 'isSadhanaMentor', 'isBvSuperAdmin', 'isBvAdmin', 'isPwAdmin', 'uid', 'authUid', 'firebaseUid'];
 
 export default createEndpoint({
   description: 'Get Prabhupada World meetings',
@@ -43,17 +41,22 @@ export default createEndpoint({
   execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
-    const storedUser = (await Users.findOne({ id: context.user.id, fields: VIEWER_FIELDS }).catch(() => null))
-      || (context.user.email
-        ? await Users.findOne({ filters: { email: context.user.email }, fields: VIEWER_FIELDS }).catch(() => null)
-        : null);
-    const viewer = getMeetingViewer(context.user, storedUser);
+    // The API router already resolved a fresh database-backed user context.
+    // Re-querying Users here duplicated that lookup on every tab refresh.
+    const viewer = getMeetingViewer(context.user, context.user);
     const department = input.department || viewer.department || 'PW';
     if (input.department && viewer.department && input.department !== viewer.department) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view meetings for another department' });
     }
 
-    const { records: allMeetings } = await Meetings.findAll({ limit: 1000 });
+    const meetingFilters = {
+      ...(department === 'FOLK' ? { segment: 'FOLK' } : {}),
+      ...(input.status && input.status !== 'ALL' ? { status: input.status } : {}),
+    };
+    const { records: allMeetings } = await Meetings.findAll({
+      ...(Object.keys(meetingFilters).length ? { filters: meetingFilters } : {}),
+      limit: 1000,
+    });
 
     let filtered = allMeetings.filter((m: any) => normalizeMeetingDepartment(m.segment || 'PW') === department);
 
@@ -68,27 +71,7 @@ export default createEndpoint({
     // Sort by scheduledAt descending (newest / upcoming first)
     filtered.sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
-    // Resolve creator display names by checking the Users database
-    const creatorIds = Array.from(new Set(filtered.map((m: any) => m.createdByUserId).filter(Boolean))) as string[];
-    const creatorUsersList = await Promise.all(
-      creatorIds.map(uid =>
-        Users.findOne({ id: uid })
-          .catch(() => null)
-          .then(u => u || null)
-      )
-    );
-    const creatorMap = new Map<string, string>();
-    for (const u of creatorUsersList) {
-      if (u && u.id && u.fullName) {
-        creatorMap.set(u.id, u.fullName);
-      }
-    }
-
     const meetings = filtered.map((m: any) => {
-      let displayName = m.createdByName || 'Admin';
-      if (m.createdByUserId && creatorMap.has(m.createdByUserId)) {
-        displayName = creatorMap.get(m.createdByUserId)!;
-      }
       return {
         id: m.id,
         title: m.title || 'Untitled Meeting',
@@ -99,7 +82,9 @@ export default createEndpoint({
         locationOrLink: m.locationOrLink || '',
         description: m.description || '',
         createdByUserId: m.createdByUserId || '',
-        createdByName: displayName,
+        // New and edited meetings denormalize this display value. Avoid an
+        // N+1 Users lookup every time the meeting list opens.
+        createdByName: m.createdByName || 'Admin',
         createdByRole: m.createdByRole || '',
         inviteeUserIds: m.inviteeUserIds || [],
         invitees: m.invitees || [],

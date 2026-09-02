@@ -8,6 +8,7 @@ import { getGuides } from '@/lib/endpoints-sdk';
 import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { BarChart3, TrendingUp } from 'lucide-react';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type SubTab = 'overview' | 'preaching';
 
@@ -41,6 +42,9 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
   useEffect(() => {
     getGuides({ segment: effectiveSegment }).then(r => setGuides(r.guides)).catch(() => {});
   }, [effectiveSegment]);
+  useRealtimeRefresh(['users', 'groups'], () => {
+    return getGuides({ segment: effectiveSegment }).then(result => setGuides(result.guides));
+  });
 
   useEffect(() => {
     if (profile && !isSuperAdmin) {

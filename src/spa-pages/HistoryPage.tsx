@@ -89,6 +89,7 @@ export default function HistoryPage() {
   const { data: historyResult, loading } = useQuery({
     key: profile?.userId ? `history90:${profile.userId}:${page}` : null,
     fetcher: () => getUserHistory({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+    realtimeChannels: ['sadhana'],
   });
 
   const entries = useMemo(() => {

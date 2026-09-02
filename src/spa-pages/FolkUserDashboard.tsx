@@ -60,10 +60,11 @@ export default function FolkUserDashboard() {
     if (tab === 'leaderboard') setLbRequested(true);
   }, []);
 
-  const { data: dashboardData, loading: dashLoading, refetch: refetchDashboard, setData: setDashboardData } = useQuery({
+  const { data: dashboardData, loading: dashLoading, setData: setDashboardData } = useQuery({
     key: profile?.userId ? `dashboard:${profile.userId}` : null,
     fetcher: () => getUserDashboardData({ userId: profile!.userId, days: 30 }),
     ttl: 60_000,
+    realtimeChannels: ['sadhana', 'attendance', 'groups', 'quizzes'],
   });
 
   useEffect(() => {
@@ -72,7 +73,6 @@ export default function FolkUserDashboard() {
     const applySavedEntry = (payload: SavedSadhanaEntryPayload) => {
       if (payload.userId !== profile.userId) return;
       setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
-      refetchDashboard();
     };
 
     const pending = consumePendingSadhanaEntrySaved(profile.userId);
@@ -83,12 +83,13 @@ export default function FolkUserDashboard() {
     };
     window.addEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
-  }, [profile?.userId, dashboardData, setDashboardData, refetchDashboard]);
+  }, [profile?.userId, dashboardData, setDashboardData]);
 
   const { data: leaderboardData } = useQuery({
     key: lbRequested && profile?.userId ? `lb:${profile.userId}:${format(new Date(), 'yyyy-MM-dd')}` : null,
     fetcher: () => getSadhanaLeaderboard({ userId: profile!.userId }),
     ttl: 60_000,
+    realtimeChannels: ['sadhana'],
   });
 
   const isResident = useMemo(() => !!(profile?.residencyGuideVerified && profile?.selectedFolkResidency), [profile]);

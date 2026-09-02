@@ -14,6 +14,7 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface ProposedByDropdownProps {
   value: string;
@@ -477,9 +478,11 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
     setError(null);
     try {
       const [mRes, momRes, usersRes] = await Promise.all([
-        getMeetings({ department, ...(options?.silent ? { _nocache: true } : {}) }),
-        getMoms({ department, ...(options?.silent ? { _nocache: true } : {}) }),
-        getGuideUsers({ guideId: 'ALL', statusFilter: 'all', minimal: true, ...(options?.silent ? { _nocache: true } : {}) }).catch(() => ({ users: [] })),
+        getMeetings({ department }),
+        getMoms({ department }),
+        canManageMeetings
+          ? getGuideUsers({ guideId: 'ALL', statusFilter: 'all', minimal: true }).catch(() => ({ users: [] }))
+          : Promise.resolve({ users: [] }),
       ]);
       const now = Date.now();
       const mappedMeetings = (mRes.meetings || []).map((m: any) => {
@@ -560,12 +563,9 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
   };
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(() => {
-      loadData({ silent: true });
-    }, 15000);
-    return () => clearInterval(interval);
+    void loadData();
   }, [department]);
+  useRealtimeRefresh(['meetings', 'users'], () => loadData({ silent: true }));
 
   const openNewMeetingModal = () => {
     setEditingMeeting(null);
@@ -1888,7 +1888,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     const participants = activeM?.invitees || [];
                     const participantNames = participants.map((p: any) => p.fullName || p.name).filter(Boolean);
                     
-                    const creatorName = activeM?.created_by_name || activeM?.createdByName || '';
+                    const creatorName = activeM?.created_by_name || '';
                     const allOptionsSet = new Set<string>();
                     if (creatorName) allOptionsSet.add(creatorName);
                     participantNames.forEach((n: string) => allOptionsSet.add(n));

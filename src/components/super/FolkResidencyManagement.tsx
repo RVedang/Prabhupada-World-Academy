@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Check, X } from 'lucide-react';
 import { getGuideResidencyAssignmentRequests, reviewGuideResidencyAssignment } from '@/lib/endpoints-sdk';
 
@@ -23,6 +24,7 @@ export default function FolkResidencyManagement() {
   };
 
   useEffect(() => { if (user) loadRequests(); }, [user]);
+  useRealtimeRefresh(['users'], loadRequests, Boolean(user));
 
   const review = async (requestId: string, action: 'approve' | 'reject') => {
     try {

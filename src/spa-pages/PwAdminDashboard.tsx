@@ -1,8 +1,7 @@
-import React, { useEffect, useState, Suspense, lazy } from 'react';
+import React, { useCallback, useEffect, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video, Brain } from 'lucide-react';
-import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { DashboardLayout } from '@/layouts';
@@ -10,6 +9,7 @@ import { LoadingPage } from '@/shared';
 import TabTransition from '@/components/TabTransition';
 import TabErrorBoundary from '@/components/TabErrorBoundary';
 import { motion } from 'framer-motion';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const SuperBvReportTab = lazy(() => import('@/components/super/SuperBvReportTab'));
 const SuperUsersPanel = lazy(() => import('@/components/super/SuperUsersPanel'));
@@ -25,6 +25,7 @@ const SuperBvRegistrationsTab = lazy(() => import('@/components/super/SuperBvReg
 const BvAdminManagementTab = lazy(() => import('@/components/super/BvAdminManagementTab'));
 const MeetingsAndMomTab = lazy(() => import('@/components/super/MeetingsAndMomTab'));
 const PwQuizManagementPanel = lazy(() => import('@/components/super/PwQuizManagementPanel'));
+const BvslOneToOneTab = lazy(() => import('@/components/bvsl/BvslOneToOneTab'));
 import {
   getCurrentGuide, getPushSubscriptionStats, GetPushSubscriptionStatsOutputType,
   getPendingApprovals, getGuideRequests, getResidencyTransferRequests, getCleanlinessReviews,
@@ -103,26 +104,23 @@ export default function PwAdminDashboard() {
     }
   }, [user?.email]);
 
-  // Fetch pending approvals total count & BV registrations count for badges
-  useEffect(() => {
-    const fetchCounts = () => {
+  const fetchCounts = useCallback(() => {
       Promise.all([
-        getPendingApprovals({ guideId: 'ALL', _nocache: true }),
-        getGuideRequests({ guideId: 'ALL', _nocache: true }),
-        getResidencyTransferRequests({ guideId: 'ALL', _nocache: true } as any),
-        getPendingBvRegistrations({ segment: 'PW', _nocache: true }).catch(() => []),
+        getPendingApprovals({ guideId: 'ALL' }),
+        getGuideRequests({ guideId: 'ALL' }),
+        getResidencyTransferRequests({ guideId: 'ALL' } as any),
+        getPendingBvRegistrations({ segment: 'PW' }).catch(() => []),
       ]).then(([pending, requests, resTrans, bvRegs]) => {
         setApprovalCount(
           pending.length + (requests?.guideTransfers || []).length + (requests?.ashrayUpgrades || []).length + resTrans.length
         );
         setBvRegCount(Array.isArray(bvRegs) ? bvRegs.length : 0);
       }).catch(() => {});
-    };
-
-    fetchCounts();
-    const interval = setInterval(fetchCounts, 15000);
-    return () => clearInterval(interval);
   }, []);
+
+  // One initial scoped read, followed by event-driven updates from Firestore.
+  useEffect(() => { void fetchCounts(); }, [fetchCounts]);
+  useRealtimeRefresh(['users', 'groups'], fetchCounts);
 
   const navItems = [
     { value: 'sadhana', label: 'Sadhana Report', icon: Database },

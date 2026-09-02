@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { fmt } from '@/lib/fmt';
 import { EmptyState, ConfirmDialog, AsyncButton } from '@/shared';
 import { ASHRAY_LEVELS } from '@/types/enums';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type PendingUser = GetPendingApprovalsOutputType[0];
 type GuideRequest = any;
@@ -68,13 +69,13 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
     try {
       const residencyFetchId = guideId === 'ALL' ? (reviewerGuideId || guideId) : guideId;
       const [pendingRes, residencyRes, requestsRes, residencyTransferRes, guidesRes, cleanReviews, sadhanaMentorsRes] = await Promise.all([
-        getPendingApprovals({ guideId, _nocache: true } as any),
-        getResidenciesForGuide({ guideId: residencyFetchId, _nocache: true } as any),
-        getGuideRequests({ guideId, _nocache: true } as any),
-        getResidencyTransferRequests({ guideId, _nocache: true } as any),
-        getGuides({ _nocache: true } as any),
-        !isPwAdmin ? getCleanlinessReviews({ guideId, _nocache: true } as any).catch(() => []) : Promise.resolve([]),
-        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW', _nocache: true } as any).catch(() => []) : Promise.resolve([]),
+        getPendingApprovals({ guideId } as any),
+        getResidenciesForGuide({ guideId: residencyFetchId } as any),
+        getGuideRequests({ guideId } as any),
+        getResidencyTransferRequests({ guideId } as any),
+        getGuides({} as any),
+        !isPwAdmin ? getCleanlinessReviews({ guideId } as any).catch(() => []) : Promise.resolve([]),
+        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW' } as any).catch(() => []) : Promise.resolve([]),
       ]);
       setPendingUsers(pendingRes);
       setResidencies(residencyRes);
@@ -94,18 +95,8 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
 
   useEffect(() => {
     void loadAll();
-
-    // Keep the open approval lists in sync with the dashboard badge. The
-    // request can be submitted by a devotee in another session, so no local
-    // mutation is available to trigger a refresh here.
-    const refreshInBackground = () => { void loadAll({ background: true }); };
-    const interval = window.setInterval(refreshInBackground, 10_000);
-    window.addEventListener('focus', refreshInBackground);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshInBackground);
-    };
   }, [guideId, reviewerGuideId, isPwAdmin]);
+  useRealtimeRefresh(['users', 'groups'], () => loadAll({ background: true }));
 
   const openEdit = (user: PendingUser) => {
     setEditUser(user);

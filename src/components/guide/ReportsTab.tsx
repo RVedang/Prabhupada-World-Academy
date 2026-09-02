@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getGuideDetailedReport, GetGuideDetailedReportOutputType, recalculateScoresForDate } from '@/lib/endpoints-sdk';
 import { useDebouncedCallback } from 'use-debounce';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { format, subDays, startOfMonth, endOfMonth, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear } from 'date-fns';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { scoreColor } from '@/lib/scoring';
@@ -327,6 +328,16 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
     });
   }, [debouncedFetch, guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, isPw, selectedGroupId]);
+  useRealtimeRefresh(['sadhana', 'users', 'groups'], () => fetchReport({
+    guideId,
+    date: selectedDate,
+    reportType,
+    computedStart,
+    computedEnd,
+    bvslMode,
+    mentorMode,
+    groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+  }));
 
   const residencies = rawReportData?.availableResidencies ?? [];
   const availableGuides: { guideId: string; guideName: string }[] = (rawReportData as any)?.availableGuides ?? [];

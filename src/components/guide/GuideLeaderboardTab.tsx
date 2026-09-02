@@ -11,6 +11,7 @@ import GuideLeaderboardDisplay from '@/components/guide/GuideLeaderboardDisplay'
 import { getFolkSadhanaReport, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type ReportType = 'daily' | 'weekly' | 'monthly';
 
@@ -112,8 +113,8 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = 
     }
   }, [groupOptions, selectedGroupId]);
 
-  const loadFolk = useCallback(async (s: string, e: string) => {
-    setFolkLoading(true);
+  const loadFolk = useCallback(async (s: string, e: string, silent = false) => {
+    if (!silent) setFolkLoading(true);
     try {
       setFolkData(await getFolkSadhanaReport({
         date: s,
@@ -123,11 +124,11 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = 
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
       }));
     }
-    catch {/* ignore */} finally { setFolkLoading(false); }
+    catch {/* ignore */} finally { if (!silent) setFolkLoading(false); }
   }, [bvslMode, selectedGroupId]);
 
-  const loadLb = useCallback(async (s: string, e: string) => {
-    setLbLoading(true);
+  const loadLb = useCallback(async (s: string, e: string, silent = false) => {
+    if (!silent) setLbLoading(true);
     try {
       setLbData(await getSadhanaLeaderboard({
         date: s,
@@ -138,13 +139,19 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = 
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
       }));
     }
-    catch {/* ignore */} finally { setLbLoading(false); }
+    catch {/* ignore */} finally { if (!silent) setLbLoading(false); }
   }, [guideId, bvslMode, selectedGroupId]);
 
   useEffect(() => {
     loadFolk(startDate, endDate);
     loadLb(startDate, endDate);
   }, [startDate, endDate, loadFolk, loadLb]);
+  useRealtimeRefresh(['sadhana', 'users', 'groups'], async () => {
+    await Promise.all([
+      loadFolk(startDate, endDate, true),
+      loadLb(startDate, endDate, true),
+    ]);
+  });
 
   const handleRefresh = () => { loadFolk(startDate, endDate); loadLb(startDate, endDate); };
 

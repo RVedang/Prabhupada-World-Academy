@@ -302,9 +302,6 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 }
 
 export async function registerServiceWorker(): Promise<void> {
-  // Always run page-level long-polling stream for real-time notification delivery when the tab is open
-  connectToNotificationStream();
-
   const reg = await ensureSwRegistered();
   if (!reg) return;
 
@@ -347,23 +344,15 @@ export async function registerServiceWorker(): Promise<void> {
     syncSwSettings();
   });
 
-  // Periodically check if user changed email/settings and sync with SW
-  let lastSyncedEmail = localStorage.getItem('auth_email') || '';
-  let lastSyncedDisabled = localStorage.getItem('push_notifications_disabled') === 'true';
-  setInterval(() => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      const currentEmail = localStorage.getItem('auth_email') || '';
-      const currentDisabled = localStorage.getItem('push_notifications_disabled') === 'true';
-      if (currentEmail !== lastSyncedEmail) {
-        syncSwUser();
-        lastSyncedEmail = currentEmail;
-      }
-      if (currentDisabled !== lastSyncedDisabled) {
-        syncSwSettings();
-        lastSyncedDisabled = currentDisabled;
-      }
-    }
-  }, 3000);
+  // Browser events replace the former 3-second localStorage polling loop.
+  const syncFromStorage = (event?: StorageEvent) => {
+    if (!event || event.key === 'auth_email' || event.key === 'auth_user_id') syncSwUser();
+    if (!event || event.key === 'push_notifications_disabled') syncSwSettings();
+  };
+  window.addEventListener('storage', syncFromStorage);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncFromStorage();
+  });
 
   // Fire-and-forget: sync push subscription with DB if permission is granted
   const perm = getNotificationPermission();
@@ -372,57 +361,6 @@ export async function registerServiceWorker(): Promise<void> {
       subscribeToPush().catch(() => {});
     }
   }
-}
-
-/**
- * Long-poll /api/push-events for real-time Super Admin push broadcasts.
- */
-export function connectToNotificationStream(): void {
-  if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
-  let lastId = '';
-  let isConnecting = false;
-
-  async function poll(): Promise<void> {
-    if (isConnecting) return;
-    isConnecting = true;
-
-    try {
-      const userId = localStorage.getItem('auth_user_id') || '';
-      const email = localStorage.getItem('auth_email') || '';
-
-      const url = `/api/push-events?lastId=${encodeURIComponent(lastId)}&email=${encodeURIComponent(email)}&userId=${encodeURIComponent(userId)}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) {
-        isConnecting = false;
-        await new Promise<void>((r) => setTimeout(r, 4000));
-        poll();
-        return;
-      }
-
-      const data = await res.json();
-      if (data?.id) {
-        lastId = data.id;
-      }
-      if (data?.type === 'PUSH_RECEIVED') {
-        triggerInAppOrNativeNotification({
-          ...data,
-          suppressNative: typeof document !== 'undefined' && document.visibilityState !== 'visible',
-        });
-        if (data.slot === 'role_changed' || data.slot === 'guide_changed') {
-          window.dispatchEvent(new CustomEvent('pwa_profile_refresh_needed'));
-        }
-      }
-      isConnecting = false;
-      // Immediately reconnect
-      poll();
-    } catch {
-      isConnecting = false;
-      await new Promise<void>((r) => setTimeout(r, 4000));
-      poll();
-    }
-  }
-
-  poll();
 }
 
 // ── Push subscription ──

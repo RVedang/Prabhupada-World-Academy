@@ -2,19 +2,27 @@
 // app-endpoints-sdk.ts — Auto-generated client-side SDK for calling API routes.
 // ══════════════════════════════════════════════════════════════════════════════
 import { auth } from './app-auth-sdk';
+import {
+  isReadOnlyEndpoint,
+  realtimeChannelsForEndpoint,
+  type RealtimeChannel,
+} from './realtimeChannels';
 const clientCache = new Map<string, { data: any; timestamp: number }>();
 const inFlightRequests = new Map<string, Promise<any>>();
+const queryMetadata = new Map<string, { name: string; input: any; channels: RealtimeChannel[]; lastAccessedAt: number }>();
 const CACHE_TTL_MS = 60_000;
 const MAX_CACHE_ENTRIES = 250;
 let cacheGeneration = 0;
 
-// These endpoints are reads even though their names do not begin with `get`.
-// Treating them as mutations used to clear every cached dashboard response.
-const READ_ONLY_ENDPOINTS = new Set([
-  'checkAllocationPublished',
-  'checkGuideEmail',
-  'checkEmailStatus',
-]);
+type EndpointPerformanceSample = {
+  endpoint: string;
+  source: 'cache' | 'network' | 'deduplicated';
+  durationMs: number;
+  serverTiming?: string;
+  at: number;
+};
+const performanceSamples: EndpointPerformanceSample[] = [];
+const MAX_PERFORMANCE_SAMPLES = 200;
 
 // Must stay in sync with endpoint configs that explicitly declare `public: true`.
 // Public callers receive no Firebase identity or database-backed capabilities.
@@ -69,38 +77,86 @@ function pruneClientCache(): void {
   const keys = clientCache.keys();
   for (let i = 0; i < removeCount; i++) {
     const key = keys.next().value;
-    if (key) clientCache.delete(key);
+    if (key) {
+      clientCache.delete(key);
+      queryMetadata.delete(key);
+    }
   }
+}
+
+function pruneQueryMetadata(): void {
+  if (queryMetadata.size <= MAX_CACHE_ENTRIES) return;
+  const ordered = [...queryMetadata.entries()].sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt);
+  ordered.slice(0, queryMetadata.size - MAX_CACHE_ENTRIES).forEach(([key]) => queryMetadata.delete(key));
 }
 
 export function clearEndpointClientCache(): void {
   cacheGeneration++;
   clientCache.clear();
   inFlightRequests.clear();
+  queryMetadata.clear();
+}
+
+export function invalidateEndpointClientCacheForChannels(channels: RealtimeChannel[]): void {
+  if (channels.length === 0) return;
+  const changed = new Set(channels);
+  cacheGeneration++;
+  for (const [key, metadata] of queryMetadata) {
+    if (metadata.channels.some(channel => changed.has(channel)) || changed.has('general')) {
+      clientCache.delete(key);
+      inFlightRequests.delete(key);
+    }
+  }
+}
+
+export function getEndpointPerformanceSnapshot(): EndpointPerformanceSample[] {
+  return performanceSamples.map(sample => ({ ...sample }));
+}
+
+function recordPerformance(sample: EndpointPerformanceSample): void {
+  performanceSamples.push(sample);
+  if (performanceSamples.length > MAX_PERFORMANCE_SAMPLES) performanceSamples.shift();
+  if (process.env.NODE_ENV !== 'production' && sample.durationMs >= 500) {
+    console.debug(`[Client Performance] ${sample.endpoint} ${sample.source} ${Math.round(sample.durationMs)}ms`, sample.serverTiming || '');
+  }
 }
 
 export function getClientCachedQuery(name: string, input: any): any | null {
   const cacheKey = queryCacheKey(name, input);
   const cached = clientCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+  // This is an initial-render hint, so stale data is intentionally useful:
+  // callers render it immediately and refresh silently in the background.
+  if (cached) {
+    const metadata = queryMetadata.get(cacheKey);
+    if (metadata) metadata.lastAccessedAt = Date.now();
+    clientCache.delete(cacheKey);
+    clientCache.set(cacheKey, cached);
     return cloneResponse(cached.data);
   }
   return null;
 }
 
 async function invokeEndpoint(name: string, input: any): Promise<any> {
-  const isQuery = READ_ONLY_ENDPOINTS.has(name) || name.startsWith('get') || name.startsWith('load') || name.startsWith('list') || name.includes('Stats') || name.includes('Report') || name.includes('Analytics');
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const isQuery = isReadOnlyEndpoint(name);
   const bypassCache = input && (input.bypassCache || input._nocache);
 
-  // Bust cache on any mutation
-  if (!isQuery) {
-    clearEndpointClientCache();
-  }
-
   const cacheKey = queryCacheKey(name, input);
+  if (isQuery) {
+    queryMetadata.set(cacheKey, {
+      name,
+      input: cacheableInput(input),
+      channels: realtimeChannelsForEndpoint(name),
+      lastAccessedAt: Date.now(),
+    });
+    pruneQueryMetadata();
+  }
   if (isQuery && !bypassCache) {
     const cached = clientCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      clientCache.delete(cacheKey);
+      clientCache.set(cacheKey, cached);
+      recordPerformance({ endpoint: name, source: 'cache', durationMs: 0, at: Date.now() });
       return Promise.resolve(cloneResponse(cached.data));
     }
   }
@@ -109,7 +165,11 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
   const requestKey = `${generation}:${cacheKey}`;
   const existingRequest = inFlightRequests.get(requestKey);
   if (existingRequest) {
-    return existingRequest.then(cloneResponse);
+    return existingRequest.then(data => {
+      const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      recordPerformance({ endpoint: name, source: 'deduplicated', durationMs: endedAt - startedAt, at: Date.now() });
+      return cloneResponse(data);
+    });
   }
 
   const request = (async () => {
@@ -145,7 +205,20 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
     if (isQuery && generation === cacheGeneration) {
       clientCache.set(cacheKey, { data, timestamp: Date.now() });
       pruneClientCache();
+    } else if (!isQuery) {
+      // Invalidate only related cached domains after a successful mutation.
+      // The Firestore metadata listener will trigger silent active-query
+      // refreshes for this and other signed-in browser sessions.
+      invalidateEndpointClientCacheForChannels(realtimeChannelsForEndpoint(name));
     }
+    const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    recordPerformance({
+      endpoint: name,
+      source: 'network',
+      durationMs: endedAt - startedAt,
+      serverTiming: res.headers.get('Server-Timing') || undefined,
+      at: Date.now(),
+    });
     return data;
   })();
 

@@ -22,6 +22,7 @@ import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
 import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
 import { Toaster } from '@/components/ui/sonner';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function BvslDashboard() {
   const { profile } = useUserProfile();
@@ -50,18 +51,19 @@ export default function BvslDashboard() {
     }
   }, [authUser?.email, isSuperAdmin]);
 
-  const loadGroups = useCallback(async () => {
+  const loadGroups = useCallback(async (silent = false) => {
     const bvslId = profile?.userId;
     if (!bvslId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const res = await getBvslGroups({ bvslId, viewRole: isSubFacilitatorOnly ? 'RGSF' : 'RGF' });
       setGroups(res.groups);
     } catch { toast.error('Failed to load groups'); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, [profile?.userId, isSubFacilitatorOnly]);
 
   useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId, loadGroups]);
+  useRealtimeRefresh(['groups', 'users'], () => loadGroups(true), Boolean(profile?.userId));
 
   if (!profile) return <LoadingPage />;
 
@@ -101,7 +103,7 @@ export default function BvslDashboard() {
     >
       <Toaster />
       {loading ? <LoadingPage rows={2} /> : (
-        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={canView1on1 ? 9 : 8}>
+        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={canView1on1 ? 9 : 8} preloadTabs={['groups', 'session', 'members']}>
           {(activeTab) => (
             <>
               {activeTab === 'weekplan' && <BvslWeeklyPlanTab userEmail={authUser?.email || ''} />}

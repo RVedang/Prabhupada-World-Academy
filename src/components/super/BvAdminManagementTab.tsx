@@ -12,6 +12,7 @@ import { Loader2, Plus, Users, ShieldCheck, Clock, BookOpen, ChevronRight } from
 import { createBvGroup, getBvslGroups, getAllBvGroupsAdmin, getGuideUsers, updateBvGroup, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const TIME_PREFERENCES = [
   '7:45 PM – 8:15 PM (Everyday)',
@@ -43,7 +44,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const segment = propSegment || profile?.segment || 'PW';
 
   const cachedGroups = getClientCachedQuery('getBvslGroups', { bvslId: 'ALL' });
-  const cachedRgfUsers = getClientCachedQuery('getGuideUsers', { guideId: 'ALL', statusFilter: 'active' });
+  const cachedRgfUsers = getClientCachedQuery('getGuideUsers', { guideId: 'ALL', statusFilter: 'active', minimal: true });
   const hasCache = cachedGroups !== null && cachedRgfUsers !== null;
 
   const [groups, setGroups] = useState<any[]>(isSuperAdmin ? (cachedGroups?.groups || []) : []);
@@ -66,8 +67,8 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const [timeSelectionMode, setTimeSelectionMode] = useState<'select' | 'custom'>('select');
   const [creatingGroup, setCreatingGroup] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       if (!isSuperAdmin) {
         if (!guideId) {
@@ -99,7 +100,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
       } else {
         const [grpRes, rgfUsersRes] = await Promise.all([
           getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
-          getGuideUsers({ guideId: 'ALL', statusFilter: 'active', _nocache: true } as any).catch(() => ({ users: [] })),
+          getGuideUsers({ guideId: 'ALL', statusFilter: 'active', minimal: true } as any).catch(() => ({ users: [] })),
         ]);
         const allGroups = grpRes.groups || [];
         setGroups(segment ? allGroups.filter((g: any) => g.segment === segment) : allGroups);
@@ -116,9 +117,10 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
     } catch {
       toast.error('Failed to load BV management data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [guideId, isSuperAdmin, segment, setGroups, setGuides, setLoading]);
+  useRealtimeRefresh(['groups', 'users'], () => loadData(true), Boolean(isSuperAdmin || guideId));
 
   useEffect(() => {
     let cancelled = false;
@@ -264,13 +266,20 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
                             e.stopPropagation();
                             const action = group.isActive === false ? 'activate' : 'deactivate';
                             if (!window.confirm(`Are you sure you want to ${action} "${group.groupName}"?`)) return;
+                            const groupKey = group.groupId || group.id;
+                            const nextActive = group.isActive === false;
+                            setGroups(current => current.map(item =>
+                              (item.groupId || item.id) === groupKey ? { ...item, isActive: nextActive } : item
+                            ));
                             const loadToast = toast.loading(`${action === 'activate' ? 'Activating' : 'Deactivating'} group...`);
                             try {
-                              await updateBvGroup({ groupId: group.groupId || group.id, isActive: group.isActive === false });
+                              await updateBvGroup({ groupId: groupKey, isActive: nextActive });
                               toast.dismiss(loadToast);
                               toast.success(`Group successfully ${action}d`);
-                              loadData();
                             } catch (err: any) {
+                              setGroups(current => current.map(item =>
+                                (item.groupId || item.id) === groupKey ? { ...item, isActive: group.isActive } : item
+                              ));
                               toast.dismiss(loadToast);
                               toast.error(err?.message || `Failed to ${action} group`);
                             }

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Download, Upload, Save, FileSpreadsheet, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { exportServiceAllocation, importServiceAllocation, getResidenciesForGuide } from '@/lib/endpoints-sdk';
 import { exportToCsv } from '@/utils/exportCsv';
 import { getCurrentServiceWeekStart } from '@/lib/serviceWeek';
@@ -65,16 +66,17 @@ export default function ServiceManagementPage() {
     }).catch(() => {});
   }, [authLoading, user]);
 
-  const load = () => {
+  const load = (silent = false) => {
     if (!residencyId || !weekDate) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     exportServiceAllocation({ serviceType, residencyId, weekDate })
       .then((d: any) => { setData(d); setEdits({}); })
       .catch(() => toast.error('Failed to load allocation data'))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   };
 
   useEffect(() => { load(); }, [serviceType, residencyId, weekDate]);
+  useRealtimeRefresh(['services'], () => load(true), Boolean(residencyId && weekDate));
 
   const handleEdit = (serviceId: string, wDate: string, userId: string, dayOfWeek: string) => {
     setEdits(prev => ({

@@ -154,3 +154,4 @@ export function useAuth() {
 }
 
 export { auth };
+export const firebaseApp = app;

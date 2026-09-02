@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Loader2, Users, CheckCircle2, Clock, Leaf, Phone, HeartHandshake, BookOpen, Calendar, Building } from 'lucide-react';
 import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, getAllBvGroupsAdmin, rejectBvRegistration, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
@@ -92,8 +93,8 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
 
   useEffect(() => { loadData(); }, [segment, guideId, isSuperGuide]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [regs, grpRes] = await Promise.all([
         getPendingBvRegistrations({ segment }),
@@ -115,9 +116,10 @@ export default function SuperBvRegistrationsTab({ segment, guideId = '', isSuper
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load pending Bhakti Vriksha registrations');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefresh(['groups', 'users'], () => loadData(true));
 
   const handleReject = async (reg: any) => {
     if (!window.confirm(`Are you sure you want to reject the Bhakti Vriksha registration for ${reg.fullName}?`)) return;

@@ -1,31 +1,34 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Building2, CalendarClock } from 'lucide-react';
-import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { DashboardLayout } from '@/layouts';
-import SuperBvReportTab from '@/components/super/SuperBvReportTab';
-import SuperUsersPanel from '@/components/super/SuperUsersPanel';
-import SuperStatsPanel from '@/components/super/SuperStatsPanel';
-import SendRemindersPanel from '@/components/super/SendRemindersPanel';
-import ReportsTab from '@/components/guide/ReportsTab';
-import MissingSadhanaTab from '@/components/guide/MissingSadhanaTab';
-import TagMangoConfigTab from '@/components/super/TagMangoConfigTab';
-import SuperAttendanceTab from '@/components/super/SuperAttendanceTab';
-import JigyasaTrackerTab from '@/components/jigyasa/JigyasaTrackerTab';
 import TabTransition from '@/components/TabTransition';
 import { motion } from 'framer-motion';
-import ApprovalsTab from '@/components/guide/ApprovalsTab';
-import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
-import BvAdminManagementTab from '@/components/super/BvAdminManagementTab';
-import FolkResidencyManagement from '@/components/super/FolkResidencyManagement';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { LoadingPage } from '@/shared';
 import {
   getCurrentGuide, getPushSubscriptionStats, GetPushSubscriptionStatsOutputType,
   getPendingApprovals, getGuideRequests, getResidencyTransferRequests, getCleanlinessReviews, getPendingBvRegistrations,
 } from '@/lib/endpoints-sdk';
+
+const BvslOneToOneTab = lazy(() => import('@/components/bvsl/BvslOneToOneTab'));
+const SuperBvReportTab = lazy(() => import('@/components/super/SuperBvReportTab'));
+const SuperUsersPanel = lazy(() => import('@/components/super/SuperUsersPanel'));
+const SuperStatsPanel = lazy(() => import('@/components/super/SuperStatsPanel'));
+const SendRemindersPanel = lazy(() => import('@/components/super/SendRemindersPanel'));
+const ReportsTab = lazy(() => import('@/components/guide/ReportsTab'));
+const MissingSadhanaTab = lazy(() => import('@/components/guide/MissingSadhanaTab'));
+const TagMangoConfigTab = lazy(() => import('@/components/super/TagMangoConfigTab'));
+const SuperAttendanceTab = lazy(() => import('@/components/super/SuperAttendanceTab'));
+const JigyasaTrackerTab = lazy(() => import('@/components/jigyasa/JigyasaTrackerTab'));
+const ApprovalsTab = lazy(() => import('@/components/guide/ApprovalsTab'));
+const SuperBvRegistrationsTab = lazy(() => import('@/components/super/SuperBvRegistrationsTab'));
+const BvAdminManagementTab = lazy(() => import('@/components/super/BvAdminManagementTab'));
+const FolkResidencyManagement = lazy(() => import('@/components/super/FolkResidencyManagement'));
 
 export default function FolkGuideDashboard() {
   const { user } = useAuth();
@@ -113,13 +116,17 @@ export default function FolkGuideDashboard() {
         if (resolvedGuideId) setGuideId(resolvedGuideId);
       }).catch(() => {});
 
-      const fetchCounts = () => {
-        Promise.all([
-          getPendingApprovals({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => []),
-          getGuideRequests({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
-          getResidencyTransferRequests({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true } as any).catch(() => []),
-          getCleanlinessReviews({ guideId: isSuperAdmin ? 'ALL' : guideId, _nocache: true }).catch(() => []),
-          getPendingBvRegistrations({ segment: 'FOLK', ...(!isSuperAdmin && guideId ? { guideId } : {}), _nocache: true }).catch(() => []),
+    }
+  }, [user?.email]);
+
+  const fetchCounts = useCallback(() => {
+    if (!user?.email || (!isSuperAdmin && !guideId)) return Promise.resolve();
+    return Promise.all([
+          getPendingApprovals({ guideId: isSuperAdmin ? 'ALL' : guideId }).catch(() => []),
+          getGuideRequests({ guideId: isSuperAdmin ? 'ALL' : guideId }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
+          getResidencyTransferRequests({ guideId: isSuperAdmin ? 'ALL' : guideId } as any).catch(() => []),
+          getCleanlinessReviews({ guideId: isSuperAdmin ? 'ALL' : guideId }).catch(() => []),
+          getPendingBvRegistrations({ segment: 'FOLK', ...(!isSuperAdmin && guideId ? { guideId } : {}) }).catch(() => []),
         ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
           const pendingArr = Array.isArray(pending) ? pending : (pending as any).records || [];
           const guideTransfers = Array.isArray(requests?.guideTransfers) ? requests.guideTransfers : [];
@@ -133,13 +140,10 @@ export default function FolkGuideDashboard() {
           const bvRegsArr = Array.isArray(bvRegs) ? bvRegs : (bvRegs as any).records || [];
           setBvRegCount(bvRegsArr.length);
         }).catch(() => {});
-      };
+  }, [user?.email, guideId, isSuperAdmin]);
 
-      fetchCounts();
-      const interval = setInterval(fetchCounts, 15000);
-      return () => clearInterval(interval);
-    }
-  }, [user, guideId, isSuperAdmin]);
+  useEffect(() => { void fetchCounts(); }, [fetchCounts]);
+  useRealtimeRefresh(['users', 'groups'], fetchCounts, Boolean(user?.email && (isSuperAdmin || guideId)));
 
   const navItems = [
     { id: 'sadhana', label: 'Sadhana Report', icon: BookOpen },
@@ -253,6 +257,7 @@ export default function FolkGuideDashboard() {
         </aside>
 
         <main className="flex-1 min-w-0">
+          <Suspense fallback={<LoadingPage rows={2} />}>
           <TabTransition activeTab={activeTab}>
             {visitedTabs.has('sadhana') && (
               <div className={activeTab === 'sadhana' ? 'block' : 'hidden'}>
@@ -327,6 +332,7 @@ export default function FolkGuideDashboard() {
               </div>
             )}
           </TabTransition>
+          </Suspense>
         </main>
       </div>
     </DashboardLayout>

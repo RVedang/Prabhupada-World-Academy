@@ -47,16 +47,18 @@ export default createEndpoint({
 
     // If Facilitators meeting, automatically fetch all active PW facilitators / BVSLs
     if (input.type === 'FACILITATOR') {
-      const { records: allUsers } = await Users.findAll({ limit: 2000 });
-      const pwFacilitators = allUsers.filter((u: any) => {
+      const facilitatorQueries = await Promise.all([
+        Users.findAll({ filters: { isBvFacilitator: true }, limit: 500 }),
+        Users.findAll({ filters: { isBvsl: true }, limit: 500 }),
+        Users.findAll({ filters: { role: 'BVSL' }, limit: 500 }),
+        Users.findAll({ filters: { role: 'FACILITATOR' }, limit: 500 }),
+      ]);
+      const candidates = Array.from(new Map(
+        facilitatorQueries.flatMap(result => result.records || []).map(user => [user.id, user])
+      ).values());
+      const pwFacilitators = candidates.filter((u: any) => {
         const seg = (u.segment || '').toUpperCase();
-        const r = (u.role || '').toUpperCase();
-        return (seg === 'PW' || !seg) && (
-          u.isBvFacilitator ||
-          u.isBvsl ||
-          r === 'BVSL' ||
-          r === 'FACILITATOR'
-        );
+        return (seg === 'PW' || !seg) && String(u.status || 'Active').toUpperCase() === 'ACTIVE';
       });
 
       pwFacilitators.forEach(f => finalInviteeIds.add(f.id));
@@ -67,11 +69,13 @@ export default createEndpoint({
     // Fetch details of all invitees
     let invitees: any[] = [];
     if (inviteeIdsArray.length > 0) {
-      const { records: inviteeUsers } = await Users.findAll({
-        filters: { id: { in: inviteeIdsArray } },
-        fields: ['id', 'fullName', 'email', 'role'],
-        limit: 2000,
-      });
+      const inviteeChunks = Array.from({ length: Math.ceil(inviteeIdsArray.length / 30) }, (_, index) =>
+        inviteeIdsArray.slice(index * 30, index * 30 + 30)
+      );
+      const inviteeBatches = await Promise.all(inviteeChunks.map(ids => Users.findAll({
+        filters: { id: { in: ids } }, fields: ['id', 'fullName', 'email', 'role'], limit: ids.length,
+      })));
+      const inviteeUsers = inviteeBatches.flatMap(batch => batch.records || []);
       invitees = inviteeUsers.map(u => ({
         userId: u.id,
         fullName: u.fullName || u.email || 'Devotee',
@@ -80,13 +84,7 @@ export default createEndpoint({
       }));
     }
 
-    let creatorName = context.user.fullName || context.user.email || 'Admin';
-    if (context.user.id) {
-      const creatorUser = await Users.findOne({ id: context.user.id }).catch(() => null);
-      if (creatorUser && creatorUser.fullName) {
-        creatorName = creatorUser.fullName;
-      }
-    }
+    const creatorName = context.user.fullName || context.user.email || 'Admin';
 
     const meetingDoc = {
       title: input.title.trim(),

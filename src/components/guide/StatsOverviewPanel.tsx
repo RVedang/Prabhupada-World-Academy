@@ -3,7 +3,7 @@
  * Own period + residency filters. FOLK residencies persist across re-fetches.
  * Group trend chart + individual user stats, single-select field chips.
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,6 +16,7 @@ import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { ASHRAY_LEVELS } from '@/types/enums';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type Period = '7d' | '30d' | '90d' | 'current_month' | 'prev_month';
 type ResidencyFilter = 'all' | 'resident' | 'non_resident' | 'scholar';
@@ -101,24 +102,28 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
 
   const { start, end } = useMemo(() => getPeriodDates(period), [period]);
 
-  // Fetch group stats — don't clear groupStats on re-fetch to avoid FOLK dropdown flash
-  useEffect(() => {
-    setGroupLoading(true);
-    getSadhanaStats({
+  const loadGroupStats = useCallback(async (silent = false) => {
+    if (!silent) setGroupLoading(true);
+    try {
+      const data = await getSadhanaStats({
       guideId, startDate: start, endDate: end,
       bvslMode, mentorMode,
       residencyFilter: (residencyFilter === 'all' ? undefined : residencyFilter) as any,
       folkResidencyId: folkResidencyId === 'all' ? undefined : folkResidencyId,
       ashrayLevel: ashrayFilter === 'all' ? undefined : ashrayFilter,
       segment: isPw ? 'PW' : 'FOLK',
-    }).then(data => {
+      });
       setGroupStats(data);
       // Only update residencies when we actually get some (don't clear on filtered fetches)
       if ((data.availableResidencies ?? []).length > 0) {
         setResidencies(data.availableResidencies);
       }
-    }).catch(() => {}).finally(() => setGroupLoading(false));
+    } catch { /* keep cached stats visible */ }
+    finally { if (!silent) setGroupLoading(false); }
   }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter, isPw]);
+
+  useEffect(() => { void loadGroupStats(); }, [loadGroupStats]);
+  useRealtimeRefresh(['sadhana', 'users', 'groups'], () => loadGroupStats(true));
 
   // Reset user when filters change
   useEffect(() => { setSelectedUserId(''); setUserStats(null); setUserError(''); }, [residencyFilter, folkResidencyId, ashrayFilter, period]);

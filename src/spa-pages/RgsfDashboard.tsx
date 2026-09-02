@@ -17,6 +17,7 @@ import BvslQuizPanel from '@/components/bvsl/BvslQuizPanel';
 import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
 import RgsfCallHistoryTab from '@/components/bvsl/RgsfCallHistoryTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function RgsfDashboard() {
   const { profile } = useUserProfile();
@@ -27,19 +28,20 @@ export default function RgsfDashboard() {
 
   useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId]);
 
-  const loadGroups = useCallback(async () => {
+  const loadGroups = useCallback(async (silent = false) => {
     const bvslId = profile?.userId;
     if (!bvslId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const res = await getBvslGroups({ bvslId, viewRole: 'RGSF' });
       setGroups(res.groups);
     } catch {
       toast.error('Failed to load sub-facilitator groups');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [profile?.userId]);
+  useRealtimeRefresh(['groups', 'users'], () => loadGroups(true), Boolean(profile?.userId));
 
   if (!profile) return <LoadingPage />;
 
@@ -75,7 +77,7 @@ export default function RgsfDashboard() {
       maxWidth="max-w-6xl"
     >
       {loading ? <LoadingPage rows={2} /> : (
-        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={8}>
+        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={8} preloadTabs={['groups', 'session', 'members']}>
           {(activeTab) => (
             <>
               {activeTab === 'weekplan' && <BvslWeeklyPlanTab userEmail={authUser?.email || ''} />}

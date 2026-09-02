@@ -1,12 +1,13 @@
 // FOLK Sadhana Tracker — App Router (pure routing, zero logic)
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { registerServiceWorker } from './utils/sadhanaNotification';
 import { toast } from 'sonner';
 
 import { Toaster } from '@/components/ui/sonner';
 import UserProfileProvider, { useUserProfile } from './contexts/UserProfileContext';
 import RoleAcknowledgementHandler from '@/components/dashboard/RoleAcknowledgementHandler';
+import RealtimeSyncProvider from '@/components/RealtimeSyncProvider';
 import { Skeleton } from '@/components/ui/skeleton';
 import ErrorBoundary from './layouts/ErrorBoundary';
 import ProtectedRoute from './layouts/ProtectedRoute';
@@ -17,52 +18,49 @@ import { GuestOnlyRoute, StatusRoute, AuthCallbackGuard } from './layouts/RouteG
 import LandingPage from './spa-pages/LandingPage';
 import LoginPage from './spa-pages/LoginPage';
 import AuthCallbackPage from './spa-pages/AuthCallbackPage';
-import GuideLoginPage from './spa-pages/GuideLoginPage';
-import RegistrationPage from './spa-pages/RegistrationPage';
-import PendingApprovalPage from './spa-pages/PendingApprovalPage';
-import RejectedPage from './spa-pages/RejectedPage';
-import InactivePage from './spa-pages/InactivePage';
-import BvslEntryPage from './spa-pages/BvslEntryPage';
+const GuideLoginPage = lazy(() => import('./spa-pages/GuideLoginPage'));
+const RegistrationPage = lazy(() => import('./spa-pages/RegistrationPage'));
+const PendingApprovalPage = lazy(() => import('./spa-pages/PendingApprovalPage'));
+const RejectedPage = lazy(() => import('./spa-pages/RejectedPage'));
+const InactivePage = lazy(() => import('./spa-pages/InactivePage'));
+const BvslEntryPage = lazy(() => import('./spa-pages/BvslEntryPage'));
 
-// ── User pages ──
-import UserDashboard from './spa-pages/UserDashboard';
-import FolkUserDashboard from './spa-pages/FolkUserDashboard';
-import PwUserDashboard from './spa-pages/PwUserDashboard';
-import DailySadhanaForm from './spa-pages/DailySadhanaForm';
-import HistoryPage from './spa-pages/HistoryPage';
-import BhaktiVrikshaPage from './spa-pages/BhaktiVrikshaPage';
-import ProfilePage from './spa-pages/ProfilePage';
-
-// ── Guide pages ──
-import GuideFieldSetupPage from './spa-pages/GuideFieldSetupPage';
-import GuideUserDetailPage from './spa-pages/GuideUserDetailPage';
-import BvGroupDetailPage from './spa-pages/BvGroupDetailPage';
+// Route-level chunks keep unrelated departments and dashboards out of the
+// first bundle. Their frequently used inner tabs preload after dashboard idle.
+const UserDashboard = lazy(() => import('./spa-pages/UserDashboard'));
+const FolkUserDashboard = lazy(() => import('./spa-pages/FolkUserDashboard'));
+const PwUserDashboard = lazy(() => import('./spa-pages/PwUserDashboard'));
+const DailySadhanaForm = lazy(() => import('./spa-pages/DailySadhanaForm'));
+const HistoryPage = lazy(() => import('./spa-pages/HistoryPage'));
+const BhaktiVrikshaPage = lazy(() => import('./spa-pages/BhaktiVrikshaPage'));
+const ProfilePage = lazy(() => import('./spa-pages/ProfilePage'));
+const GuideFieldSetupPage = lazy(() => import('./spa-pages/GuideFieldSetupPage'));
+const GuideUserDetailPage = lazy(() => import('./spa-pages/GuideUserDetailPage'));
+const BvGroupDetailPage = lazy(() => import('./spa-pages/BvGroupDetailPage'));
 
 import { useAuth } from '@/lib/auth-sdk';
 
 // ── Super Guide & Admin pages ──
-import PwAdminDashboard from './spa-pages/PwAdminDashboard';
-import FolkGuideDashboard from './spa-pages/FolkGuideDashboard';
+const PwAdminDashboard = lazy(() => import('./spa-pages/PwAdminDashboard'));
+const FolkGuideDashboard = lazy(() => import('./spa-pages/FolkGuideDashboard'));
 
 // ── BVSL, RGF & RGSF pages ──
-import BvslDashboard from './spa-pages/BvslDashboard';
-import RgfDashboard from './spa-pages/RgfDashboard';
-import RgsfDashboard from './spa-pages/RgsfDashboard';
-import JoinGroupPage from './spa-pages/JoinGroupPage';
-import BvJoinPage from './spa-pages/BvJoinPage';
+const RgfDashboard = lazy(() => import('./spa-pages/RgfDashboard'));
+const RgsfDashboard = lazy(() => import('./spa-pages/RgsfDashboard'));
+const JoinGroupPage = lazy(() => import('./spa-pages/JoinGroupPage'));
+const BvJoinPage = lazy(() => import('./spa-pages/BvJoinPage'));
 
 // ── Sadhana Mentor pages ──
-import SadhanaMentorDashboard from './spa-pages/SadhanaMentorDashboard';
+const SadhanaMentorDashboard = lazy(() => import('./spa-pages/SadhanaMentorDashboard'));
 
 // ── BV Mentor pages ──
-import BvMentorDashboard from './spa-pages/BvMentorDashboard';
-import BvSupervisorDashboard from './spa-pages/BvSupervisorDashboard';
-import ServiceManagementPage from './spa-pages/ServiceManagementPage';
+const BvSupervisorDashboard = lazy(() => import('./spa-pages/BvSupervisorDashboard'));
+const ServiceManagementPage = lazy(() => import('./spa-pages/ServiceManagementPage'));
 
 // ── Attendance pages ──
-import PublicAttendPage from './spa-pages/attendance/PublicAttendPage';
-import AttendanceManagePage from './spa-pages/attendance/AttendanceManagePage';
-import AttendanceDashboardPage from './spa-pages/attendance/AttendanceDashboardPage';
+const PublicAttendPage = lazy(() => import('./spa-pages/attendance/PublicAttendPage'));
+const AttendanceManagePage = lazy(() => import('./spa-pages/attendance/AttendanceManagePage'));
+const AttendanceDashboardPage = lazy(() => import('./spa-pages/attendance/AttendanceDashboardPage'));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTO VERSION DETECTION
@@ -159,7 +157,9 @@ export default function App() {
         <SwRegistrar />
         <InstallBanner />
         <UserProfileProvider>
+          <RealtimeSyncProvider />
           <RoleAcknowledgementHandler />
+          <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
             {/* Auth — guarded to prevent active users from re-visiting */}
             <Route path="/" element={<LandingPage />} />
@@ -233,14 +233,25 @@ export default function App() {
 
             {/* API docs page removed from production */}
           </Routes>
+          </Suspense>
         </UserProfileProvider>
       </Router>
     </ErrorBoundary>
   );
 }
 
+function RouteLoadingFallback() {
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-4 p-6" aria-label="Loading page">
+      <Skeleton className="h-10 w-72 max-w-full" />
+      <Skeleton className="h-28 w-full" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// VersionChecker — runs on mount + every 5 minutes in background
+// VersionChecker — one delayed check plus a check when the app becomes visible.
 // Fully automatic: works for every future publish with ZERO manual changes
 // ─────────────────────────────────────────────────────────────────────────────
 function VersionChecker() {
@@ -253,9 +264,6 @@ function VersionChecker() {
     // Delay initial check so the app fully loads first (was 2s — too aggressive)
     const initTimer = setTimeout(() => checkAndRefreshIfStale(false), 10_000);
 
-    // Re-check every 20 minutes — version updates aren't urgent enough to check more often
-    const interval = setInterval(() => checkAndRefreshIfStale(true), 20 * 60 * 1000);
-
     // Also re-check when the user returns to the tab after being away
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') checkAndRefreshIfStale(true);
@@ -264,7 +272,6 @@ function VersionChecker() {
 
     return () => {
       clearTimeout(initTimer);
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);

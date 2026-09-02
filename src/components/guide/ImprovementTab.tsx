@@ -18,6 +18,7 @@ import { TrendingDown, Users, RefreshCw, ChevronRight, Lightbulb, CheckCircle2, 
 import { scoreColor } from '@/lib/scoring';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { NON_RESIDENT_FIELDS, RESIDENT_FIELDS } from '@/config/sadhanaFields';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type ReportUser = GetGuideDetailedReportOutputType['users'][0];
 type FieldDef = GetGuideDetailedReportOutputType['fieldDefs'][0];
@@ -317,9 +318,9 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
   // Dialog for "who lost points on this field"
   const [fieldDialog, setFieldDialog] = useState<FieldLossRow | null>(null);
 
-  const load = () => {
+  const load = (silent = false) => {
     const { start, end, reportType } = getPeriodDates(period);
-    setLoading(true);
+    if (!silent) setLoading(true);
     getGuideDetailedReport({
       guideId,
       date: end,
@@ -332,10 +333,11 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
     })
       .then(res => setData(res as any))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   };
 
   useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode, isFolk]);
+  useRealtimeRefresh(['sadhana', 'users', 'groups'], () => load(true));
 
   const filteredUsers = useMemo(() => {
     if (!data) return [];
@@ -392,7 +394,7 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
             <div className="ml-auto flex items-center gap-3">
               <span className="text-xs text-muted-foreground hidden sm:block">{periodRangeLabel}</span>
               <span className="text-xs text-muted-foreground">{submittedCount}/{totalCount} submitted</span>
-              <button onClick={load} disabled={loading}
+              <button onClick={() => load()} disabled={loading}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 Refresh

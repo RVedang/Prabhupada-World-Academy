@@ -1,11 +1,11 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, BookOpen, Users, Award, Network, Compass, ShieldAlert } from 'lucide-react';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import TransferNoticeModal from '@/components/TransferNoticeModal';
-import { getMeetings, sendMeetingReminder } from '@/lib/endpoints-sdk';
+import { useMeetingReminderScheduler } from '@/hooks/useMeetingReminderScheduler';
 
 import { motion } from 'framer-motion';
 
@@ -66,6 +66,15 @@ export default function DashboardLayout({
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'
   );
+  const canManageMeetings = !!(
+    profile?.isBvSuperAdmin ||
+    profile?.isBvAdmin ||
+    profile?.role === 'SUPER_ADMIN' ||
+    profile?.role === 'SUPER_GUIDE' ||
+    (profile?.role as string) === 'ADMIN'
+  );
+  const resolvedMeetingDepartment = meetingDepartment || (isFolkUser ? 'FOLK' : 'PW');
+  useMeetingReminderScheduler(resolvedMeetingDepartment, canManageMeetings);
 
   const effectiveRole = isSuperAdminUser ? 'SUPER_ADMIN' : (role || profile?.role);
   const showRoleBadge = !!(effectiveRole && ROLE_BADGE_LABELS[effectiveRole]);
@@ -169,77 +178,6 @@ export default function DashboardLayout({
       });
     }
   }
-  useEffect(() => {
-    if (!profile) return;
-
-    const checkUpcomingMeetings = async () => {
-      try {
-        const department = meetingDepartment ||
-          (String(profile.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW');
-        const { meetings } = await getMeetings({ department });
-        const scheduled = (meetings || []).filter((m: any) => {
-          const statusLower = (m.status || '').toLowerCase();
-          return statusLower === 'scheduled';
-        });
-        
-        for (const m of scheduled) {
-          const scheduledDateStr = m.scheduledAt.includes('T') && !m.scheduledAt.endsWith('Z') && !m.scheduledAt.includes('+')
-            ? `${m.scheduledAt}+05:30`
-            : m.scheduledAt;
-          const diffMs = new Date(scheduledDateStr).getTime() - Date.now();
-          const diffMins = diffMs / (60 * 1000);
-          
-          // 1. Trigger 10-minute reminder (starts in 9 to 11 mins)
-          if (diffMins > 9 && diffMins <= 11 && !m.notification10mSent) {
-            const meetingKey = `${m.id}-${m.scheduledAt}`;
-            const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders_10m') || '{}');
-            if (!localSentObj[meetingKey]) {
-              localSentObj[meetingKey] = true;
-              localStorage.setItem('sent_meeting_reminders_10m', JSON.stringify(localSentObj));
-
-              console.log(`[Meeting Scheduler] Triggering 10m reminder for: ${m.title}`);
-              try {
-                await sendMeetingReminder({ meetingId: m.id, reminderType: 'TEN_MINUTES' });
-              } catch (err) {
-                console.error('[Meeting Scheduler] Error triggering 10m reminder:', err);
-              }
-            }
-          }
-
-          // 2. Trigger 1-minute reminder (starts in 0.1 to 2 mins)
-          if (diffMins > 0.05 && diffMins <= 2 && !m.notification1mSent) {
-            const meetingKey = `${m.id}-${m.scheduledAt}`;
-            const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders_1m') || '{}');
-            if (!localSentObj[meetingKey]) {
-              localSentObj[meetingKey] = true;
-              localStorage.setItem('sent_meeting_reminders_1m', JSON.stringify(localSentObj));
-
-              console.log(`[Meeting Scheduler] Triggering 1m reminder for: ${m.title}`);
-              try {
-                await sendMeetingReminder({ meetingId: m.id, reminderType: 'ONE_MINUTE' });
-              } catch (err) {
-                console.error('[Meeting Scheduler] Error triggering 1m reminder:', err);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[Meeting Scheduler] Error querying meetings:', err);
-      }
-    };
-
-    // Run initial check after 2 seconds delay
-    const initialTimeout = setTimeout(checkUpcomingMeetings, 2000);
-
-    // Run every 30 seconds for precise timing
-    const interval = setInterval(checkUpcomingMeetings, 30000);
-
-    return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
-    };
-  }, [meetingDepartment, profile]);
-
   return (
     <div className="min-h-screen bg-background">
       <TransferNoticeModal />

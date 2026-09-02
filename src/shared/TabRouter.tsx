@@ -1,9 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Menu, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import TabTransition from '@/components/TabTransition';
 
 export interface TabConfig {
@@ -22,12 +21,11 @@ interface TabRouterProps {
   ignoreUrlHash?: boolean;
   /** Keep previously visited tab panels mounted. Disable when hidden panels perform network requests. */
   keepAlive?: boolean;
+  /** Scoped, high-use tabs to mount during browser idle time. */
+  preloadTabs?: string[];
 }
 
-/** Number of tabs shown inline on desktop before collapsing the rest into "More" */
-const VISIBLE_COUNT = 7;
-
-export default function TabRouter({ tabs, defaultTab, children, desktopCols, ignoreUrlHash, keepAlive = true }: TabRouterProps) {
+export default function TabRouter({ tabs, defaultTab, children, ignoreUrlHash, keepAlive = true, preloadTabs = [] }: TabRouterProps) {
   const fallbackTab = defaultTab || tabs[0]?.value || '';
   const initialTab = (() => {
     if (ignoreUrlHash || typeof window === 'undefined') return fallbackTab;
@@ -37,15 +35,30 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
   const [activeTab, setActiveTab] = useState(initialTab);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
+  const tabChangeStartedAt = useRef<Map<string, number>>(new Map());
+  const preloadKey = preloadTabs.join('|');
+  const tabsKey = tabs.map(tab => tab.value).join('|');
 
   useEffect(() => {
-    setVisitedTabs(prev => {
-      if (prev.has(activeTab)) return prev;
+    if (!keepAlive || !preloadKey || typeof window === 'undefined') return;
+    const validTabValues = new Set(tabsKey.split('|'));
+    const validPreloads = preloadKey.split('|').filter(value => validTabValues.has(value));
+    const preload = () => setVisitedTabs(prev => {
       const next = new Set(prev);
-      next.add(activeTab);
-      return next;
+      validPreloads.forEach(value => next.add(value));
+      return next.size === prev.size ? prev : next;
     });
-  }, [activeTab]);
+    const browser = window as typeof window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (browser.requestIdleCallback) {
+      const id = browser.requestIdleCallback(preload, { timeout: 1_500 });
+      return () => browser.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(preload, 500);
+    return () => window.clearTimeout(id);
+  }, [keepAlive, preloadKey, tabsKey]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showRightFade, setShowRightFade] = useState(false);
   const [showLeftFade, setShowLeftFade] = useState(false);
@@ -84,37 +97,58 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
   useEffect(() => {
     if (ignoreUrlHash) return;
     
-    // Sync hash on initial mount to fix client-side hydration state mismatch
-    const hash = window.location.hash.slice(1);
-    const initialTab = tabs.find(t => t.value === hash);
-    if (initialTab) {
-      setActiveTab(initialTab.value);
-    }
-
+    const validTabs = new Set(tabsKey.split('|'));
     const onPop = () => {
       const currentHash = window.location.hash.slice(1);
-      const validTab = tabs.find(t => t.value === currentHash);
-      if (validTab) setActiveTab(validTab.value);
+      if (!validTabs.has(currentHash)) return;
+      setActiveTab(currentHash);
+      if (keepAlive) {
+        setVisitedTabs(previous => previous.has(currentHash)
+          ? previous
+          : new Set([...previous, currentHash]));
+      }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [tabs, ignoreUrlHash]);
+  }, [tabsKey, ignoreUrlHash, keepAlive]);
 
-  const handleChange = useCallback((value: string) => {
+  const selectTab = useCallback((value: string) => {
     setActiveTab(value);
+    if (keepAlive) {
+      setVisitedTabs(previous => previous.has(value)
+        ? previous
+        : new Set([...previous, value]));
+    }
     setMobileOpen(false);
     if (!ignoreUrlHash) {
       window.history.pushState(null, '', `#${value}`);
     }
-  }, [ignoreUrlHash]);
+  }, [ignoreUrlHash, keepAlive]);
+
+  const handleNavigation = useCallback((value: string) => {
+    if (typeof performance !== 'undefined') tabChangeStartedAt.current.set(value, performance.now());
+    selectTab(value);
+  }, [selectTab]);
+
+  useEffect(() => {
+    const startedAt = tabChangeStartedAt.current.get(activeTab);
+    if (startedAt == null || typeof window === 'undefined') return;
+    const frame = window.requestAnimationFrame(() => {
+      const durationMs = performance.now() - startedAt;
+      tabChangeStartedAt.current.delete(activeTab);
+      performance.measure(`dashboard-tab:${activeTab}`, { start: startedAt, end: performance.now() });
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(`[Tab Performance] ${activeTab} rendered in ${durationMs.toFixed(1)}ms`);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab]);
 
   const activeLabel = tabs.find(t => t.value === activeTab)?.label || 'Menu';
   const ActiveIcon = tabs.find(t => t.value === activeTab)?.icon;
 
-  const visibleTabs = tabs;
-
   return (
-    <Tabs value={activeTab} onValueChange={handleChange} className="w-full">
+    <Tabs value={activeTab} onValueChange={handleNavigation} className="w-full">
       {/* Desktop Navigation */}
       <div className="hidden md:block relative mb-6 no-print">
         {/* Left fade */}
@@ -185,7 +219,7 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
                       variant={isActive ? 'default' : 'outline'}
                       size="sm"
                       className="justify-start h-10 text-xs"
-                      onClick={() => handleChange(tab.value)}
+                      onClick={() => handleNavigation(tab.value)}
                     >
                       {Icon && <Icon className="w-4 h-4 mr-1.5 shrink-0" />}
                       <span className="truncate">{tab.label}</span>
@@ -206,7 +240,7 @@ export default function TabRouter({ tabs, defaultTab, children, desktopCols, ign
       <TabTransition activeTab={activeTab}>
         {(keepAlive ? Array.from(visitedTabs) : [activeTab]).map(tabVal => (
           <div key={tabVal} className={activeTab === tabVal ? 'block' : 'hidden'}>
-            {children(tabVal, handleChange)}
+            {children(tabVal, selectTab)}
           </div>
         ))}
       </TabTransition>

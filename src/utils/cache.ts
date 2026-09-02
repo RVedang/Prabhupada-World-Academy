@@ -18,6 +18,7 @@ interface CacheEntry<T> {
 }
 
 const store = new Map<string, CacheEntry<unknown>>();
+const MAX_CACHE_ENTRIES = 250;
 
 // Purge any legacy pwac_* sessionStorage keys from previous versions
 try {
@@ -48,12 +49,20 @@ export function getCached<T>(key: string): T | null {
 export function getCachedStale<T>(key: string): { data: T; isStale: boolean } | null {
   const entry = store.get(key);
   if (!entry) return null;
+  store.delete(key);
+  store.set(key, entry);
   return { data: entry.data as T, isStale: Date.now() > entry.expiresAt };
 }
 
 /** Write a value to the cache. Default TTL = 60 seconds. */
 export function setCached<T>(key: string, data: T, ttlMs = 60_000): void {
+  store.delete(key);
   store.set(key, { data, expiresAt: Date.now() + ttlMs });
+  while (store.size > MAX_CACHE_ENTRIES) {
+    const oldest = store.keys().next().value;
+    if (!oldest) break;
+    store.delete(oldest);
+  }
 }
 
 /** Delete a specific key. Omit key to clear everything. */

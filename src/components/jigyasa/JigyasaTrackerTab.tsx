@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileText, CheckCircle2, Download, Search, ChevronLeft, ChevronRight, Loader2, AlertCircle, Clock, Users, BarChart3, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useDebouncedCallback } from 'use-debounce';
 import { getJigyasaTracker, processJigyasaRegistration, processJigyasaAttendance } from '@/lib/endpoints-sdk';
 import type { GetJigyasaTrackerOutputType } from '@/lib/endpoints-sdk';
@@ -54,8 +55,8 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
   const regInputRef = useRef<HTMLInputElement>(null);
   const attInputRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await getJigyasaTracker({
         tab: activeTab,
@@ -74,10 +75,11 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
     } catch (e: any) {
       toast.error(e.message || 'Failed to load tracker');
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [activeTab, centre, affiliate, search, offset]);
 
   useEffect(() => { load(); }, [load]);
+  useRealtimeRefresh(['attendance', 'users'], () => load(true));
 
   const debouncedSearch = useDebouncedCallback((v: string) => { setSearch(v); setOffset(0); }, 400);
 

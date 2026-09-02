@@ -8,6 +8,7 @@ import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Users, CheckCircle2, Brain, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { getBvGroupDetail, getBvAttendanceMatrix, getBvQuizSubmissions } from '@/lib/endpoints-sdk';
 import type { GetBvGroupDetailOutputType, GetBvAttendanceMatrixOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
@@ -386,18 +387,19 @@ export default function BvGroupDetailPage() {
     return () => { cancelled = true; };
   }, [groupId, dateRange]);
 
-  const load = async () => {
+  const load = async (silent = false) => {
     if (!groupId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const detailRes = await getBvGroupDetail({ groupId });
       setDetail(detailRes);
     } catch {
       toast.error('Failed to load group details');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefresh(['groups', 'users', 'attendance', 'quizzes'], () => load(true), Boolean(groupId));
 
   const overallRate = useMemo(() => {
     if (!detail || detail.members.length === 0) return 0;

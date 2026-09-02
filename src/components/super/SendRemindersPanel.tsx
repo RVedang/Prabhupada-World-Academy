@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Mail, CheckCircle2, Clock, AlertTriangle, Zap, ShieldCheck, Settings, Plus, Trash2, Save, Sparkles, BellRing, Send, RefreshCw, Loader2 } from 'lucide-react';
-import { sendPushNotifications, getPushSubscriptionStats, getMeetings, sendMeetingReminder, type GetPushSubscriptionStatsOutputType } from '@/lib/endpoints-sdk';
+import { sendPushNotifications, getPushSubscriptionStats, type GetPushSubscriptionStatsOutputType } from '@/lib/endpoints-sdk';
 import { TimePicker } from '@/components/ui/time-picker';
 import { toast } from 'sonner';
 import {
@@ -100,7 +100,6 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
   const [results, setResults] = useState<Record<number, RoundResult>>({});
 
   const [config, setConfig] = useState<PwSadhanaNotificationConfig>(DEFAULT_PW_NOTIFICATION_CONFIG);
-  const [sentCustomTimes, setSentCustomTimes] = useState<Set<string>>(new Set());
   const [newTimeInput, setNewTimeInput] = useState('21:20');
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
   const [loadingPushStats, setLoadingPushStats] = useState(true);
@@ -125,116 +124,59 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
     }).catch(() => {});
   }, [activeSegment]);
 
-  // Background monitor for custom reminder times and meetings (Admin dispatcher)
+  // Exact one-shot timers replace the old 15-second database polling loop.
+  // The existing cron-capable endpoint remains the production delivery path;
+  // this preserves the open-dashboard custom schedule without repeated reads.
   useEffect(() => {
-    const timer = setInterval(async () => {
-      // 1. Fetch and dispatch meeting reminders (10 minutes before start)
+    if (!config.enabled || !config.times?.length) return;
+    const timers: number[] = [];
+    const offsetMs = 5.5 * 60 * 60 * 1000;
+    const allowedDays = new Set(config.customDays || [0, 1, 2, 3, 4, 5, 6]);
+
+    const nextOccurrence = (time: string): number => {
+      const [hour, minute] = time.split(':').map(Number);
+      const istNow = new Date(Date.now() + offsetMs);
+      for (let add = 0; add < 8; add++) {
+        const candidateDay = new Date(Date.UTC(
+          istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() + add,
+          hour, minute, 0, 0,
+        ));
+        if (!allowedDays.has(candidateDay.getUTCDay())) continue;
+        const utcTime = candidateDay.getTime() - offsetMs;
+        if (utcTime > Date.now()) return utcTime;
+      }
+      return Date.now() + 24 * 60 * 60 * 1000;
+    };
+
+    const dispatch = async (time: string) => {
       try {
-        const { meetings } = await getMeetings({});
-        const scheduled = (meetings || []).filter((m: any) => m.status === 'SCHEDULED' && !m.notificationSent);
-        for (const m of scheduled) {
-          const diffMs = new Date(m.scheduledAt).getTime() - Date.now();
-          const diffMins = diffMs / (60 * 1000);
-          
-          // Trigger reminder if meeting is starting in approx 10 minutes (9.5 to 10.5 mins)
-          if (diffMins > 9.5 && diffMins <= 10.5) {
-            const meetingKey = m.id;
-            
-            // Check local tracking state to prevent double-sends in the same minute window
-            const localSentObj = JSON.parse(localStorage.getItem('sent_meeting_reminders') || '{}');
-            if (localSentObj[meetingKey]) continue;
-
-            // Mark immediately
-            localSentObj[meetingKey] = true;
-            localStorage.setItem('sent_meeting_reminders', JSON.stringify(localSentObj));
-
-            console.log(`[Meeting Scheduler] Triggering 10m reminder for: ${m.title}`);
-            sendMeetingReminder({ meetingId: m.id }).then((res: any) => {
-              if (res.success && res.sent > 0) {
-                toast.success(`⏰ 10-minute meeting reminder dispatched for "${m.title}" to ${res.sent} devices!`);
-              }
-            }).catch((err: any) => {
-              console.error('[Meeting Scheduler] Failed to send meeting reminder:', err);
-            });
-          }
-        }
-      } catch (err: any) {
-        console.error('[Meeting Scheduler] Error querying meetings:', err);
+        const stats = await getPushSubscriptionStats({ segment: activeSegment });
+        setPushStats(stats);
+        if (stats.totalSubscriptions === 0) return;
+        const res = await sendPushNotifications({
+          reminderSlot: 'night-1', customTitle: config.title, customBody: config.body,
+          segment: activeSegment, forceSend: true,
+        });
+        if (res.sent > 0) toast.success(`⏰ Sadhana reminder sent at ${time} to ${res.sent} device${res.sent === 1 ? '' : 's'}.`);
+      } catch (error) {
+        console.error('[Custom Reminder Scheduler] Error sending push:', error);
       }
+    };
 
-      if (!config.enabled) return;
-      const now = new Date();
-      // IST offset
-      const istOffset = 5.5 * 60 * 60 * 1000;
-      const istNow = new Date(now.getTime() + istOffset);
-      const istHour = istNow.getUTCHours();
-      const istMinute = istNow.getUTCMinutes();
-      const istDateStr = istNow.toISOString().slice(0, 10);
-
-      const hourStr = String(istHour).padStart(2, '0');
-      const minStr = String(istMinute).padStart(2, '0');
-      const timeStr = `${hourStr}:${minStr}`; // e.g. "13:12"
-
-      if (config.times && config.times.includes(timeStr)) {
-        const sentKey = `${istDateStr}_${timeStr}`;
-        if (!sentCustomTimes.has(sentKey)) {
-          // Mark as sent immediately to avoid duplicates in the same minute
-          setSentCustomTimes(prev => {
-            const next = new Set(prev);
-            next.add(sentKey);
-            return next;
-          });
-
-          try {
-            // 1. Instantly calculate subscriber count from DB
-            const stats = await getPushSubscriptionStats({ segment: activeSegment });
-            setPushStats(stats);
-            
-            // If there are 0 subscriber devices active, do not send and do not toast
-            if (stats.totalSubscriptions === 0) {
-              console.log('[Custom Reminder Scheduler] Skipping: 0 active subscribers');
-              return;
-            }
-
-            // 2. Trigger push notification
-            const res = await sendPushNotifications({
-              reminderSlot: 'night-1',
-              customTitle: config.title,
-              customBody: config.body,
-              segment: activeSegment,
-              forceSend: true,
-            });
-
-            // 3. Show toast only when at least 1 notification was actually delivered
-            if (res.sent > 0) {
-              const notifWord = res.sent === 1 ? 'notification' : 'notifications';
-              const deviceWord = res.sent === 1 ? 'device' : 'devices';
-              toast.success(
-                <div className="flex flex-col text-[15px] sm:text-base leading-relaxed">
-                  <span className="font-bold">⏰ Sadhana reminder sent at {timeStr}.</span>
-                  <div className="mt-2 font-semibold text-neutral-800 dark:text-neutral-200">
-                    <div>{res.sent} web push {notifWord} successfully delivered</div>
-                    <div>to {res.sent} subscribed user {deviceWord}.</div>
-                  </div>
-                </div>,
-                { duration: Infinity }
-              );
-            } else if (stats.totalSubscriptions > 0) {
-              // Subscriptions exist but delivery failed — likely stale endpoint
-              toast.warning(
-                `⚠️ Custom reminder at ${timeStr}: ${stats.totalSubscriptions} subscriber(s) found, but 0 notifications were delivered. Subscriptions may be stale or the user has already submitted today.`,
-                { duration: Infinity }
-              );
-            }
-          } catch (err) {
-            console.error('[Custom Reminder Scheduler] Error sending push:', err);
-          }
-        }
-      }
-    }, 15000); // Check every 15 seconds
-
-    return () => clearInterval(timer);
-  }, [config.enabled, config.times, config.title, config.body, sentCustomTimes]);
+    const scheduleTime = (time: string) => {
+      const scheduleNext = () => {
+        const delay = nextOccurrence(time) - Date.now();
+        const timer = window.setTimeout(async () => {
+          await dispatch(time);
+          scheduleNext();
+        }, Math.max(0, delay));
+        timers.push(timer);
+      };
+      scheduleNext();
+    };
+    config.times.forEach(scheduleTime);
+    return () => timers.forEach(timer => window.clearTimeout(timer));
+  }, [activeSegment, config.body, config.customDays, config.enabled, config.times, config.title]);
 
   const handleSaveConfig = async () => {
     try {

@@ -61,15 +61,15 @@ export default createEndpoint({
       return { totalSubscriptions: 0, subscribers: [] };
     }
 
-    // Fetch user details — use direct doc lookups by ID to avoid index requirements
-    const userRecordsList = await Promise.all(
-      userIds.map(uid =>
-        Users.findOne({ id: uid })
-          .catch(() => null)
-          .then(u => u || null)
-      )
+    // Firestore `in` supports bounded batches. This replaces one database read
+    // request per subscription owner with a small number of parallel queries.
+    const idChunks = Array.from({ length: Math.ceil(userIds.length / 30) }, (_, index) =>
+      userIds.slice(index * 30, index * 30 + 30)
     );
-    const users = userRecordsList.filter(Boolean);
+    const userBatches = await Promise.all(idChunks.map(ids =>
+      Users.findAll({ filters: { id: { in: ids } }, limit: ids.length }).catch(() => ({ records: [] }))
+    ));
+    const users = userBatches.flatMap(batch => batch.records || []);
 
     const isPwTarget = targetSegment === 'PW';
 

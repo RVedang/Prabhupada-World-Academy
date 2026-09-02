@@ -9,6 +9,7 @@ import { CheckSquare, Users, CheckCircle2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import GroupSelect from '@/components/bvsl/GroupSelect';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { format } from 'date-fns';
 import { getAttendanceForDate, conductBvSession } from '@/lib/endpoints-sdk';
 import type { GetAttendanceForDateOutputType, GetBvslGroupsOutputType } from '@/lib/endpoints-sdk';
@@ -33,9 +34,9 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const loadAttendance = useCallback(async (groupId: string, date: string) => {
+  const loadAttendance = useCallback(async (groupId: string, date: string, silent = false) => {
     if (!groupId || !date) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const res = await getAttendanceForDate({ groupId, date });
       setMembers(res.members);
@@ -63,12 +64,13 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
         setPresentIds(new Set(res.members.map((m: AttendanceMember) => m.userDbId)));
       }
     } catch { toast.error('Failed to load members'); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => {
     if (selectedGroupId && sessionDate) loadAttendance(selectedGroupId, sessionDate);
   }, [selectedGroupId, sessionDate, loadAttendance]);
+  useRealtimeRefresh(['attendance', 'groups'], () => loadAttendance(selectedGroupId, sessionDate, true), Boolean(selectedGroupId && sessionDate));
 
   const togglePresent = (userDbId: string) => {
     setPresentIds(prev => {
@@ -127,8 +129,7 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
         presentUserIds: Array.from(presentIds),
       } as any);
       toast.success(res.message || 'Attendance saved!');
-      // Reload to confirm saved state
-      await loadAttendance(selectedGroupId, sessionDate);
+      setSessionExists(true);
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save attendance');
     } finally { setSaving(false); }

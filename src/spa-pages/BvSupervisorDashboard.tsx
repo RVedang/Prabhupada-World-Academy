@@ -13,6 +13,7 @@ import SadhanaSection from '@/components/guide/SadhanaSection';
 import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 import TabRouter, { TabConfig } from '@/shared/TabRouter';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface SupervisorGroup {
   id: string;
@@ -76,17 +77,18 @@ export default function BvSupervisorDashboard() {
     loadOverview();
   }, []);
 
-  const loadOverview = async () => {
-    setLoading(true);
+  const loadOverview = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await getBvSupervisorOverview({});
       setData(res);
     } catch {
       toast.error('Failed to load BV Supervisor data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefresh(['groups', 'users'], () => loadOverview(true));
 
   const isFolk = String(profile?.segment || '').trim().toUpperCase() === 'FOLK';
 
@@ -124,7 +126,7 @@ export default function BvSupervisorDashboard() {
           <Skeleton className="h-64" />
         </div>
       ) : (
-        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={7} keepAlive={false}>
+        <TabRouter tabs={tabs} defaultTab="overview" desktopCols={7} keepAlive preloadTabs={['rgfs']}>
           {(activeTab) => (
             <>
               {activeTab === 'overview' && (

@@ -12,6 +12,8 @@ import {
   type ApiDatabaseUser,
   type ApiUserContext,
 } from '@/lib/apiAuthorization';
+import { isReadOnlyEndpoint } from '@/lib/realtimeChannels';
+import { publishEndpointInvalidation } from '@/lib/realtimeInvalidationServer';
 
 interface EndpointSchema {
   safeParse(input: unknown):
@@ -179,12 +181,12 @@ async function resolveDatabaseUser(decodedUser: VerifiedUser): Promise<ApiDataba
     }
 
     // Bulk-created profiles exist before the member's first Google login.
-    if (dbUser?.id && dbUser.id !== decodedUser.uid && (dbUser as any).firebaseUid !== decodedUser.uid) {
+    if (dbUser?.id && dbUser.id !== decodedUser.uid && dbUser.firebaseUid !== decodedUser.uid) {
       await Users.update({
         id: dbUser.id,
         record: { firebaseUid: decodedUser.uid, authLinkedAt: new Date().toISOString() },
       });
-      (dbUser as any).firebaseUid = decodedUser.uid;
+      dbUser.firebaseUid = decodedUser.uid;
 
       if (uidRecord?.id === decodedUser.uid && !uidRecordIsProfile && uidRecord.id !== dbUser.id) {
         await Users.delete({ id: uidRecord.id }).catch(() => undefined);
@@ -260,6 +262,7 @@ export async function POST(
 ) {
   const requestStartedAt = Date.now();
   let authDurationMs = 0;
+  let realtimeDurationMs = 0;
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   const rateLimitKey = token ? `token:${token.slice(-30)}` : `ip:${req.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1'}`;
@@ -363,13 +366,26 @@ export async function POST(
     const endpointStartedAt = Date.now();
     const output = await endpointConfig.execute({ input: validatedInput, context });
     const endpointDurationMs = Date.now() - endpointStartedAt;
+
+    if (!isReadOnlyEndpoint(endpoint)) {
+      const realtimeStartedAt = Date.now();
+      try {
+        await publishEndpointInvalidation(endpoint, validatedInput, context.user);
+      } catch (realtimeError) {
+        // The business mutation already succeeded. Realtime invalidation is a
+        // performance enhancement and must never turn that success into an
+        // error response.
+        console.warn(`[Realtime] Failed to publish ${endpoint} invalidation`, realtimeError);
+      }
+      realtimeDurationMs = Date.now() - realtimeStartedAt;
+    }
     const totalDurationMs = Date.now() - requestStartedAt;
 
     // 6. Return response
     const response = NextResponse.json(output);
     response.headers.set(
       'Server-Timing',
-      `auth;dur=${authDurationMs}, endpoint;dur=${endpointDurationMs}, total;dur=${totalDurationMs}`,
+      `auth;dur=${authDurationMs}, endpoint;dur=${endpointDurationMs}, realtime;dur=${realtimeDurationMs}, total;dur=${totalDurationMs}`,
     );
     if (totalDurationMs >= 1_000) {
       console.warn(

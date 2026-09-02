@@ -1,8 +1,6 @@
 import { z } from 'zod';
-import { createEndpoint, MinutesOfMeeting, Meetings, Users, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, MinutesOfMeeting, Meetings, AppError } from '@/lib/backend-sdk';
 import { getMeetingViewer, isMeetingVisibleToViewer, normalizeMeetingDepartment } from '@/lib/meetingAccess';
-
-const VIEWER_FIELDS = ['id', 'userId', 'email', 'segment', 'role', 'isSadhanaMentor', 'isBvSuperAdmin', 'isBvAdmin', 'isPwAdmin', 'uid', 'authUid', 'firebaseUid'];
 
 export default createEndpoint({
   description: 'Get Minutes of Meeting (MoM) accessible to the current user',
@@ -41,39 +39,43 @@ export default createEndpoint({
   execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
-    const storedUser = (await Users.findOne({ id: context.user.id, fields: VIEWER_FIELDS }).catch(() => null))
-      || (context.user.email
-        ? await Users.findOne({ filters: { email: context.user.email }, fields: VIEWER_FIELDS }).catch(() => null)
-        : null);
-    const viewer = getMeetingViewer(context.user, storedUser);
+    const viewer = getMeetingViewer(context.user, context.user);
     const department = input.department || viewer.department || 'PW';
     if (input.department && viewer.department && input.department !== viewer.department) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view minutes for another department' });
     }
 
-    const { records: allMoms } = await MinutesOfMeeting.findAll({ limit: 1000 });
-    const { records: allMeetings } = await Meetings.findAll({ limit: 1000 });
-
-    const meetingMap = new Map(allMeetings.map((m: any) => [m.id, m]));
-
-    let filtered = allMoms.filter((mom: any) => {
-      const meeting = meetingMap.get(mom.meetingId);
-      return meeting && normalizeMeetingDepartment(meeting.segment || 'PW') === department;
+    const { records: departmentMeetings } = await Meetings.findAll({
+      ...(department === 'FOLK' ? { filters: { segment: 'FOLK' } } : {}),
+      limit: 1000,
     });
+    const accessibleMeetings = departmentMeetings.filter((meeting: any) =>
+      normalizeMeetingDepartment(meeting.segment || 'PW') === department &&
+      (!input.meetingId || meeting.id === input.meetingId) &&
+      (viewer.canViewAllMeetings || isMeetingVisibleToViewer(meeting, viewer))
+    );
+    const meetingMap = new Map(accessibleMeetings.map((meeting: any) => [meeting.id, meeting]));
+    const accessibleIds = [...meetingMap.keys()];
 
-    if (input.meetingId) {
-      filtered = filtered.filter((mom: any) => mom.meetingId === input.meetingId);
-    }
+    if (accessibleIds.length === 0) return { moms: [] };
 
-    if (!viewer.canViewAllMeetings) {
-      filtered = filtered.filter((mom: any) => {
-        if (!mom.isPublished) return false;
-        const meeting = meetingMap.get(mom.meetingId);
-        // Keep MoM visibility identical to getMeetings: no invite, no meeting;
-        // no visible meeting, no associated MoM.
-        return !!meeting && isMeetingVisibleToViewer(meeting, viewer);
+    // Invitees generally have only a handful of visible meetings. Query just
+    // those MoMs. For admins with a large catalogue, one bounded collection
+    // read is cheaper than dozens of `in` batches.
+    let allMoms: any[];
+    if (accessibleIds.length <= 30) {
+      const result = await MinutesOfMeeting.findAll({
+        filters: { meetingId: { in: accessibleIds } },
+        limit: Math.max(100, accessibleIds.length * 5),
       });
+      allMoms = result.records || [];
+    } else {
+      const result = await MinutesOfMeeting.findAll({ limit: 1000 });
+      allMoms = result.records || [];
     }
+
+    let filtered = allMoms.filter((mom: any) => meetingMap.has(mom.meetingId));
+    if (!viewer.canViewAllMeetings) filtered = filtered.filter((mom: any) => mom.isPublished !== false);
 
     filtered.sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
 

@@ -16,6 +16,7 @@ import {
 } from '@/lib/endpoints-sdk';
 import type { GetGuideUsersOutputType, GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { fmt } from '@/lib/fmt';
 import { scoreColor } from '@/lib/scoring';
@@ -143,8 +144,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   const [assigningGuide, setAssigningGuide] = useState<string | null>(null);
   const [sadhanaMentors, setSadhanaMentors] = useState<any[]>([]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { guides: guideList } = await getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' });
       setGuides(guideList);
@@ -192,11 +193,12 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     } catch {
       toast.error('Failed to load users');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [isPwAdmin]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(['users', 'groups'], () => loadData(true));
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');

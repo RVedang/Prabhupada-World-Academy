@@ -3,12 +3,13 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import BvslQuizPanel from '@/components/bvsl/BvslQuizPanel';
 import { getBvslGroups } from '@/lib/endpoints-sdk';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function PwQuizManagementPanel() {
   const [groups, setGroups] = useState<{ id: string; groupName: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadGroups = () => {
     getBvslGroups({ bvslId: 'ALL' })
       .then(response => {
         const unique = new Map<string, { id: string; groupName: string }>();
@@ -20,7 +21,9 @@ export default function PwQuizManagementPanel() {
       })
       .catch((error: any) => toast.error(error.message || 'Failed to load Prabhupada World reading groups'))
       .finally(() => setLoading(false));
-  }, []);
+  };
+  useEffect(() => { loadGroups(); }, []);
+  useRealtimeRefresh(['groups'], loadGroups);
 
   if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;

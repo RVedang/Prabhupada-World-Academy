@@ -16,6 +16,7 @@ import {
   BookOpen, ArrowLeft, BarChart2, Users, Loader2, GripVertical, FileDown, Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   createBvQuiz,
   deleteBvQuiz,
@@ -438,15 +439,23 @@ function QuizResultsPanel({
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getBvQuizSubmissions({ quizId: quiz.id, department, groupId })
-      .then(r => {
-        setSubs(r.submissions);
-        setAnalytics(r.analytics);
-      })
-      .catch(() => toast.error('Failed to load submissions'))
-      .finally(() => setLoading(false));
+  const loadResults = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const result = await getBvQuizSubmissions({ quizId: quiz.id, department, groupId });
+      setSubs(result.submissions);
+      setAnalytics(result.analytics);
+    } catch {
+      if (!silent) toast.error('Failed to load submissions');
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [department, groupId, quiz.id]);
+
+  useEffect(() => {
+    void loadResults();
+  }, [loadResults]);
+  useRealtimeRefresh(['quizzes'], () => loadResults(true));
 
   const handleExportCsv = () => {
     if (subs.length === 0) return toast.error('No submissions to export');
@@ -595,9 +604,9 @@ export default function BvslQuizPanel({
   const [editingQuiz, setEditingQuiz] = useState<QuizListItem | null>(null);
   const [viewingQuiz, setViewingQuiz] = useState<QuizListItem | null>(null);
 
-  const loadQuizzes = useCallback(async (gId: string) => {
+  const loadQuizzes = useCallback(async (gId: string, silent = false) => {
     if (!gId && !(department === 'PW' && canManageContent)) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const r = await getBvQuizzes({
         department,
@@ -606,12 +615,13 @@ export default function BvslQuizPanel({
       setQuizzes(r.quizzes);
       setPermissions(r.permissions);
     } catch { toast.error('Failed to load quizzes'); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, [canManageContent, department]);
 
   useEffect(() => {
     if (selectedGroupId || (department === 'PW' && canManageContent)) loadQuizzes(selectedGroupId);
   }, [selectedGroupId, loadQuizzes]);
+  useRealtimeRefresh(['quizzes'], () => loadQuizzes(selectedGroupId, true), Boolean(selectedGroupId || (department === 'PW' && canManageContent)));
 
   const handleDelete = async (quizId: string) => {
     try {
@@ -623,12 +633,14 @@ export default function BvslQuizPanel({
 
   const handleGroupActivation = async (quizId: string, isActive: boolean) => {
     if (!selectedGroupId || selectedGroupId === 'ALL') return;
+    const previous = quizzes;
+    setQuizzes(current => current.map(quiz => quiz.id === quizId ? { ...quiz, isActiveForGroup: isActive } : quiz));
     setTogglingQuizId(quizId);
     try {
       await setBvQuizGroupActivation({ quizId, groupId: selectedGroupId, isActive });
       toast.success(isActive ? 'Quiz turned on for this group' : 'Quiz turned off for this group');
-      await loadQuizzes(selectedGroupId);
     } catch (error: any) {
+      setQuizzes(previous);
       toast.error(error.message || 'Failed to update quiz availability');
     } finally {
       setTogglingQuizId(null);

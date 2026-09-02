@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/auth-sdk';
 import { getUserProfile, updateLastLogin } from '@/lib/endpoints-sdk';
 import type { ProfileSummary } from '@/types/models';
 import { toast } from 'sonner';
-import { useLocation } from 'react-router-dom';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 // Re-export for backward compatibility — NEW CODE should import from '@/types/models'
 export type ProfileData = ProfileSummary | null;
@@ -120,7 +120,6 @@ const MAX_RETRIES = 4;
 
 export default function UserProfileProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading, logout } = useAuth();
-  const location = useLocation();
 
   const [profile, setProfile] = useState<ProfileData>(null);
   const profileRef = useRef<ProfileData>(null);
@@ -158,38 +157,6 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     }
   }, [authLoading, user?.email]);
 
-  // Refresh immediately whenever the user returns to the app. Role changes and
-  // approval decisions are external mutations, so the in-memory profile is no
-  // longer authoritative after a focus/visibility transition.
-  useEffect(() => {
-    if (!user?.email) return;
-    let lastImmediateRefresh = 0;
-    const refreshWhenVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      // `focus` and `visibilitychange` often fire together. Coalesce that pair
-      // while still ensuring every genuine return performs a fresh API read.
-      if (Date.now() - lastImmediateRefresh < 750) return;
-      lastImmediateRefresh = Date.now();
-      void load(user.email!, 0, true);
-    };
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    window.addEventListener('focus', refreshWhenVisible);
-    window.addEventListener('pageshow', refreshWhenVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-      window.removeEventListener('focus', refreshWhenVisible);
-      window.removeEventListener('pageshow', refreshWhenVisible);
-    };
-  }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // The provider survives SPA navigation. Refresh when moving to another page,
-  // but not for hash-only dashboard tab changes. A hash refresh used to launch
-  // this expensive profile request beside every tab's own data request.
-  useEffect(() => {
-    if (!user?.email || !profileRef.current) return;
-    void load(user.email, 0, true);
-  }, [location.pathname, location.search]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Real-time broadcast listener for immediate profile/role refreshes
   useEffect(() => {
     if (!user?.email) return;
@@ -200,18 +167,11 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     return () => window.removeEventListener('pwa_profile_refresh_needed', handleRefreshEvent);
   }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Safety-net: poll in the background so approval/rejection modals arrive
-  // even if the push-events stream misses a reconnect window.
-  const BACKGROUND_POLL_MS = 60 * 1000;
-  useEffect(() => {
-    if (!user?.email) return;
-    const id = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void load(user.email!, 0, true);
-      }
-    }, BACKGROUND_POLL_MS);
-    return () => clearInterval(id);
-  }, [user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Roles, approvals, and account deletion now arrive through the scoped
+  // Firestore invalidation stream; no focus/navigation/database polling.
+  useRealtimeRefresh(['users'], async () => {
+    if (user?.email) await load(user.email, 0, true);
+  }, Boolean(user?.email));
 
 
   /**

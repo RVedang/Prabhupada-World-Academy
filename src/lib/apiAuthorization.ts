@@ -30,6 +30,8 @@ export interface ApiDatabaseUser {
   segment?: string;
   fullName?: string;
   name?: string;
+  firebaseUid?: string;
+  authLinkedAt?: string;
   isBvAdmin?: boolean;
   isBvSuperAdmin?: boolean;
   isBvSupervisor?: boolean;
