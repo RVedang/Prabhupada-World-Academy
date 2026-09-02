@@ -82,6 +82,10 @@ export default function BvTab({ userId, segment }: Props) {
     (profile as any)?.bvRegistrationStatus === 'Awaiting Approval' ||
     status?.pendingRequest
   );
+  // A BV registration can be approved before an administrator assigns a
+  // Reading Group. This is an approved state, not a fresh registration.
+  const isApprovedAwaitingAssignment = !status?.myGroup && !isPending &&
+    String((profile as any)?.bvRegistrationStatus || '').trim().toLowerCase() === 'approved';
 
   const attendanceRate = status?.totalSessions && status.totalSessions > 0
     ? Math.round((status.presentCount / status.totalSessions) * 100)
@@ -125,6 +129,25 @@ export default function BvTab({ userId, segment }: Props) {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+      ) : isApprovedAwaitingAssignment ? (
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-base">Not Assigned Yet</span>
+                  <Badge className="bg-green-500 text-xs">Approved</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Reading Group: <span className="font-medium">Not Assigned Yet</span>
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Your Bhakti Vriksha registration has been approved. An administrator will assign your Reading Group soon; your attendance will appear here once it is marked.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

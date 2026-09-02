@@ -93,6 +93,11 @@ export default function PwUserDashboard() {
   });
 
   const isResident = useMemo(() => !!(profile?.residencyGuideVerified && profile?.selectedFolkResidency), [profile]);
+  // Approval and group assignment are separate admin actions. An approved
+  // member must be able to open Attendance while waiting for a group, even
+  // though `isBvMember` remains false until a BvGroupMembers record exists.
+  const hasApprovedBvRegistration = String(profile?.bvRegistrationStatus || '').trim().toLowerCase() === 'approved';
+  const canViewBvAttendance = !!profile?.isBvMember || hasApprovedBvRegistration;
 
   if (dashLoading || !profile) return <LoadingPage rows={3} />;
 
@@ -143,7 +148,7 @@ export default function PwUserDashboard() {
             <span className="sm:hidden">BV</span>
             <span className="hidden sm:inline">Bhakti Vriksha</span>
           </TabsTrigger>
-          {!!profile.isBvMember && (
+          {canViewBvAttendance && (
             <TabsTrigger value="attendance" className="flex items-center gap-1.5">
               <ClipboardCheck className="w-4 h-4" />Attendance
             </TabsTrigger>
@@ -185,7 +190,7 @@ export default function PwUserDashboard() {
               <BvTab userId={profile.userId} segment="PW" />
             </SectionErrorBoundary>
           )}
-          {activeTab === 'attendance' && !!profile.isBvMember && (
+          {activeTab === 'attendance' && canViewBvAttendance && (
             <SectionErrorBoundary sectionName="Attendance Tab">
               <AttendanceTab userId={profile.userId} />
             </SectionErrorBoundary>
