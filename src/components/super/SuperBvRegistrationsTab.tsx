@@ -14,6 +14,13 @@ const normalizeTimeSlot = (str: string) => {
   return str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
 };
 
+const normalizeSegment = (value: unknown): 'PW' | 'FOLK' | undefined => {
+  const normalized = String(value || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+  if (normalized === 'FOLK') return 'FOLK';
+  if (normalized === 'PW' || normalized === 'PRABHUPADAWORLD') return 'PW';
+  return undefined;
+};
+
 const isTimeSlotMatch = (pref: string, groupTime: string) => {
   if (!pref || pref === 'flexible' || pref === 'none') return true;
   if (!groupTime) return false;
@@ -174,6 +181,7 @@ export default function SuperBvRegistrationsTab({
       await approveAndAssignBvMember({
         registrationId: selectedReg.id,
         groupId: targetGroupId,
+        segment: normalizeSegment(selectedReg.segment || segment),
       });
       resolvedRegistrationIdsRef.current.add(String(selectedReg.id));
       setRegistrations(current => current.filter(item => item.id !== selectedReg.id));
@@ -193,7 +201,10 @@ export default function SuperBvRegistrationsTab({
     if (!selectedReg) return;
     setAssigning(true);
     try {
-      await approveAndAssignBvMember({ registrationId: selectedReg.id });
+      await approveAndAssignBvMember({
+        registrationId: selectedReg.id,
+        segment: normalizeSegment(selectedReg.segment || segment),
+      });
       resolvedRegistrationIdsRef.current.add(String(selectedReg.id));
       setRegistrations(current => current.filter(item => item.id !== selectedReg.id));
       onRegistrationResolved?.(String(selectedReg.id));

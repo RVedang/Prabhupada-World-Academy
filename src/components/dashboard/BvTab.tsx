@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -18,6 +18,7 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvQuizSection from '@/components/bv/BvQuizSection';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface Props { userId: string; segment?: 'PW' | 'FOLK'; }
 
@@ -32,10 +33,7 @@ export default function BvTab({ userId, segment }: Props) {
   const [leavingGroup, setLeavingGroup] = useState(false);
   const [regModalOpen, setRegModalOpen] = useState(false);
 
-  useEffect(() => { if (userId) load(); }, [userId]);
-
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
     try {
       const localDate = format(new Date(), 'yyyy-MM-dd');
       const [statusRes, attendanceRes] = await Promise.all([
@@ -45,11 +43,24 @@ export default function BvTab({ userId, segment }: Props) {
       setStatus(statusRes);
       setAttendance(attendanceRes);
     } catch {
-      toast.error('Failed to load Bhakti Vriksha details');
+      if (!silent) toast.error('Failed to load Bhakti Vriksha details');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId) {
+      // The state updates occur after the endpoint promises settle; this is an
+      // initial async synchronization, not a synchronous derived-state effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void load();
+    }
+  }, [userId, load]);
+  // Approval and group assignment are performed in another signed-in browser.
+  // Reconcile this open tab through the existing scoped Firestore invalidation
+  // stream without replacing its contents with another loading screen.
+  useRealtimeRefresh(['users', 'groups'], () => load(true), Boolean(userId));
 
   const handleLeave = async () => {
     if (!status?.myGroup) return;
@@ -76,16 +87,17 @@ export default function BvTab({ userId, segment }: Props) {
     );
   }
 
-  const isPending = !!(
-    (profile as any)?.bvRegistrationStatus === 'Pending Approval' ||
-    (profile as any)?.bvRegistrationStatus === 'Pending' ||
-    (profile as any)?.bvRegistrationStatus === 'Awaiting Approval' ||
+  const normalizedRegistrationStatus = String(profile?.bvRegistrationStatus || '').trim().toLowerCase();
+  const isApproved = normalizedRegistrationStatus === 'approved';
+  const isPending = !isApproved && !!(
+    profile?.bvRegistrationStatus === 'Pending Approval' ||
+    profile?.bvRegistrationStatus === 'Pending' ||
+    profile?.bvRegistrationStatus === 'Awaiting Approval' ||
     status?.pendingRequest
   );
   // A BV registration can be approved before an administrator assigns a
   // Reading Group. This is an approved state, not a fresh registration.
-  const isApprovedAwaitingAssignment = !status?.myGroup && !isPending &&
-    String((profile as any)?.bvRegistrationStatus || '').trim().toLowerCase() === 'approved';
+  const isApprovedAwaitingAssignment = !status?.myGroup && isApproved;
 
   const attendanceRate = status?.totalSessions && status.totalSessions > 0
     ? Math.round((status.presentCount / status.totalSessions) * 100)

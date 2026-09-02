@@ -79,6 +79,9 @@ export default createEndpoint({
   requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     registrationId: z.string(),
+    // Used by the shared realtime publisher to notify only the affected
+    // department's open dashboards.
+    segment: z.enum(['PW', 'FOLK']).optional(),
     // Group assignment is intentionally optional.  Approval and BV membership
     // are separate steps so the first RGF/group can be created after users are
     // approved (breaking the guide -> RGF -> group -> approval deadlock).
@@ -240,9 +243,8 @@ export default createEndpoint({
       });
       serverCacheInvalidate(profileCacheKey(targetUser.id));
     } else {
-      // Approval without a group is still a completed approval. The user gets
-      // Attendance access immediately, while membership remains false until a
-      // real BvGroupMembers record is created.
+      // Approval without a group is still a completed approval. Attendance
+      // remains unavailable until a real BvGroupMembers record is created.
       await Users.update({
         id: targetUser.id,
         record: {

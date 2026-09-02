@@ -9,6 +9,7 @@ import { getGuideScope } from '../lib/guideScope';
 const GUIDE_FIELDS = ['id', 'email', 'isActive', 'role', 'folkResidencies'];
 // Minimal fields for user listing — avoids fetching large linked-record arrays
 const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'status', 'segment',
+  'isPrabhupadaWorldUser',
   'ashrayLevel', 'residency', 'residencyApproved', 'residencyClaimed', 'residencyGuideVerified',
   'guide', 'isBvsl', 'isBvMember', 'isSadhanaMentor', 'isServiceAllocator', 'isBvMentor',
   'isFolkLead', 'isTripCoordinator', 'isOtherCenter', 'isCleanlinessManager', 'createdAt',
@@ -351,6 +352,7 @@ export default createEndpoint({
           role: normalizeRole(u.role || 'User'),
           status: normalizeStatus(u.status || 'Pending Approval'),
           segment: u.segment || null,
+          isPrabhupadaWorldUser: u.isPrabhupadaWorldUser === true,
           isBvsl: u.isBvsl || false,
           bvRegistrationStatus: u.bvRegistrationStatus || null,
           isBvSupervisor: u.isBvSupervisor || false,

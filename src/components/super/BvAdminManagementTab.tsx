@@ -26,6 +26,20 @@ const isRgfUser = (user: any) => {
   return user?.isBvFacilitator === true || user?.isBvsl === true || role === 'BVSL' || role === 'FACILITATOR' || role === 'RGF';
 };
 
+// Older RGF profiles may predate the segment field. Prefer the explicit PW
+// flag when available, while keeping legacy RGFs visible to the department
+// admin so they can still be assigned to a new group.
+const belongsToSegment = (user: any, targetSegment?: string) => {
+  if (!targetSegment) return true;
+  const userSegment = String(user?.segment || '').trim().toUpperCase();
+  if (userSegment) return userSegment === targetSegment.toUpperCase();
+  if (user?.isPrabhupadaWorldUser === true) return targetSegment.toUpperCase() === 'PW';
+  if (user?.isPrabhupadaWorldUser === false) return targetSegment.toUpperCase() === 'FOLK';
+  // Legacy records without either field are retained for compatibility. They
+  // are already restricted to active RGFs by getGuideUsers.
+  return true;
+};
+
 interface BvAdminManagementTabProps {
   segment?: 'PW' | 'FOLK';
   guideId?: string;
@@ -50,7 +64,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const [groups, setGroups] = useState<any[]>(isSuperAdmin ? (cachedGroups?.groups || []) : []);
   const [guides, setGuides] = useState<any[]>(isSuperAdmin ? ((cachedRgfUsers?.users || [])
     .filter((u: any) => isRgfUser(u))
-    .filter((u: any) => !segment || u.segment === segment)
+    .filter((u: any) => belongsToSegment(u, segment))
     .map((u: any) => ({
       guideId: u.userId || u.id,
       name: u.fullName || u.email || 'Unnamed RGF',
@@ -106,7 +120,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
         setGroups(segment ? allGroups.filter((g: any) => g.segment === segment) : allGroups);
         setGuides((rgfUsersRes.users || [])
           .filter((u: any) => isRgfUser(u))
-          .filter((u: any) => !segment || u.segment === segment)
+          .filter((u: any) => belongsToSegment(u, segment))
           .map((u: any) => ({
             guideId: u.userId || u.id,
             name: u.fullName || u.email || 'Unnamed RGF',
