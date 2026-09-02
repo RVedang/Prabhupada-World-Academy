@@ -215,7 +215,11 @@ export default function BvTab({ userId, segment }: Props) {
 
       {/* Leaderboard (only if in a group) */}
       {status?.myGroup && attendance && attendance.leaderboard.length > 0 && (
-        <BvLeaderboard leaderboard={attendance.leaderboard} currentUserId={userId} />
+        <BvLeaderboard
+          leaderboard={attendance.leaderboard}
+          currentUserId={userId}
+          isPw={String(segment || profile?.segment || '').trim().toUpperCase() !== 'FOLK'}
+        />
       )}
 
       {/* Registration Modal */}

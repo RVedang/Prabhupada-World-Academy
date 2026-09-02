@@ -18,6 +18,8 @@ const RANK_STYLES = [
 interface Props {
   leaderboard: LeaderboardEntry[];
   currentUserId: string;
+  /** Prabhupada World has no resident/non-resident or hostel classification. */
+  isPw?: boolean;
 }
 
 function getWeekRangeLabel(): string {
@@ -29,8 +31,9 @@ function getWeekRangeLabel(): string {
   return `${startStr} – ${endStr}`;
 }
 
-export default function BvLeaderboard({ leaderboard, currentUserId }: Props) {
+export default function BvLeaderboard({ leaderboard, currentUserId, isPw }: Props) {
   const { profile } = useUserProfile();
+  const isPwDashboard = isPw ?? (String(profile?.segment || '').trim().toUpperCase() !== 'FOLK');
   const [ashrayFilter, setAshrayFilter] = useState<'all' | 'mine'>('all');
   const [residencyFilter, setResidencyFilter] = useState<'all' | 'mine'>('all');
   const [page, setPage] = useState(0);
@@ -51,10 +54,10 @@ export default function BvLeaderboard({ leaderboard, currentUserId }: Props) {
     let base = sorted;
     if (ashrayFilter === 'mine' && currentUserAshrayLevel)
       base = base.filter(e => e.ashrayLevel === currentUserAshrayLevel);
-    if (residencyFilter === 'mine' && currentUserResidency)
+    if (!isPwDashboard && residencyFilter === 'mine' && currentUserResidency)
       base = base.filter(e => e.residencyName === currentUserResidency);
     return base;
-  }, [sorted, ashrayFilter, residencyFilter, currentUserAshrayLevel, currentUserResidency]);
+  }, [sorted, ashrayFilter, residencyFilter, currentUserAshrayLevel, currentUserResidency, isPwDashboard]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const pageEntries = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -132,35 +135,36 @@ export default function BvLeaderboard({ leaderboard, currentUserId }: Props) {
               )}
             </div>
 
-            {/* Residency Filter Group */}
-            <div className="flex items-center gap-1.5 bg-muted p-0.5 rounded-lg border">
-              <Button
-                size="sm"
-                variant="ghost"
-                className={`text-[11px] h-6 px-2.5 rounded-md transition-all ${
-                  residencyFilter === 'all'
-                    ? 'bg-background text-foreground shadow-sm font-semibold'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => setResidency('all')}
-              >
-                All Hostels
-              </Button>
-              {currentUserIsResident && currentUserResidency && (
+            {!isPwDashboard && (
+              <div className="flex items-center gap-1.5 bg-muted p-0.5 rounded-lg border">
                 <Button
                   size="sm"
                   variant="ghost"
                   className={`text-[11px] h-6 px-2.5 rounded-md transition-all ${
-                    residencyFilter === 'mine'
+                    residencyFilter === 'all'
                       ? 'bg-background text-foreground shadow-sm font-semibold'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
-                  onClick={() => setResidency('mine')}
+                  onClick={() => setResidency('all')}
                 >
-                  My Hostel ({currentUserResidency.replace('FOLK ', '')})
+                  All Hostels
                 </Button>
-              )}
-            </div>
+                {currentUserIsResident && currentUserResidency && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={`text-[11px] h-6 px-2.5 rounded-md transition-all ${
+                      residencyFilter === 'mine'
+                        ? 'bg-background text-foreground shadow-sm font-semibold'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => setResidency('mine')}
+                  >
+                    My Hostel ({currentUserResidency.replace('FOLK ', '')})
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -174,9 +178,11 @@ export default function BvLeaderboard({ leaderboard, currentUserId }: Props) {
               {pageEntries.map((entry, idx) => {
                 const globalRank = page * PAGE_SIZE + idx;
                 const isCurrentUser = entry.userId === currentUserId;
-                const residencyLabel = entry.isResident && entry.residencyName
-                  ? entry.residencyName
-                  : 'Non-Resident';
+                const residencyLabel = isPwDashboard
+                  ? null
+                  : (entry.isResident && entry.residencyName
+                    ? entry.residencyName
+                    : 'Non-Resident');
                 return (
                   <div key={entry.userId} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${isCurrentUser ? 'bg-primary/5 border-l-2 border-primary' : 'hover:bg-muted/30'}`}>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border shrink-0 ${globalRank < 3 ? RANK_STYLES[globalRank] : 'bg-muted text-muted-foreground border-border'}`}>{globalRank + 1}</div>
