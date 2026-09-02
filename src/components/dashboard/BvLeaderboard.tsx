@@ -183,13 +183,16 @@ export default function BvLeaderboard({ leaderboard, currentUserId, isPw }: Prop
                   : (entry.isResident && entry.residencyName
                     ? entry.residencyName
                     : 'Non-Resident');
+                const formattedDisplayName = entry.displayName && entry.displayName.includes('@')
+                  ? entry.displayName.split('@')[0].replace(/[._-]+/g, ' ').trim().split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                  : (entry.displayName || 'Member');
                 return (
                   <div key={entry.userId} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${isCurrentUser ? 'bg-primary/5 border-l-2 border-primary' : 'hover:bg-muted/30'}`}>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border shrink-0 ${globalRank < 3 ? RANK_STYLES[globalRank] : 'bg-muted text-muted-foreground border-border'}`}>{globalRank + 1}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className={`text-sm font-medium truncate ${isCurrentUser ? 'text-primary' : ''}`}>
-                          {entry.displayName}{isCurrentUser && <span className="text-xs font-normal ml-1">(You)</span>}
+                          {formattedDisplayName}{isCurrentUser && <span className="text-xs font-normal ml-1">(You)</span>}
                         </span>
                       </div>
                       <p className="text-[10px] text-muted-foreground truncate">

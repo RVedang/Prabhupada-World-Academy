@@ -17,18 +17,28 @@ function userIdentityAliases(user: any): string[] {
     .filter(Boolean))];
 }
 
+function formatDisplayName(str: string): string {
+  if (!str) return 'Member';
+  const trimmed = str.trim();
+  if (!trimmed.includes('@')) return trimmed;
+  const username = trimmed.split('@')[0].replace(/[._-]+/g, ' ').trim();
+  if (!username) return trimmed;
+  return username.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 async function findUsersForAliases(aliases: string[]): Promise<any[]> {
   const uniqueAliases = [...new Set(aliases.filter(Boolean))];
   const users = new Map<string, any>();
 
   for (let i = 0; i < uniqueAliases.length; i += 30) {
     const chunk = uniqueAliases.slice(i, i + 30);
-    const [byId, byUserId, byFirebaseUid] = await Promise.all([
-      Users.findAll({ filters: { id: { in: chunk } }, fields: USER_FIELDS, limit: 30 }),
-      Users.findAll({ filters: { userId: { in: chunk } }, fields: USER_FIELDS, limit: 30 }),
-      Users.findAll({ filters: { firebaseUid: { in: chunk } }, fields: USER_FIELDS, limit: 30 }),
+    const [byId, byUserId, byFirebaseUid, byEmail] = await Promise.all([
+      Users.findAll({ filters: { id: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
+      Users.findAll({ filters: { userId: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
+      Users.findAll({ filters: { firebaseUid: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
+      Users.findAll({ filters: { email: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
     ]);
-    for (const user of [...byId.records, ...byUserId.records, ...byFirebaseUid.records]) {
+    for (const user of [...byId.records, ...byUserId.records, ...byFirebaseUid.records, ...byEmail.records]) {
       users.set(user.id, user);
     }
   }
@@ -138,10 +148,15 @@ export default createEndpoint({
     for (const user of userRecords) {
       const aliases = userIdentityAliases(user);
       const rawResidency = user.residencyName || firstValue(user.residency) || firstValue(user.selectedFolkResidency);
+      const rawName = String(user.fullName || user.displayName || user.name || '').trim();
+      const resolvedName = (rawName && !rawName.includes('@'))
+        ? rawName
+        : (user.email ? formatDisplayName(user.email) : formatDisplayName(user.userId || user.id));
+
       const info: UserInfo = {
         canonicalId: user.id,
         userId: user.userId || user.id,
-        name: user.fullName || user.displayName || user.name || user.userId || user.id,
+        name: resolvedName,
         isResident: !!((user.residencyApproved || user.residencyGuideVerified) && rawResidency),
         residencyName: residencyMap.get(String(rawResidency).toLowerCase()) || rawResidency || '',
         ashrayLevel: user.ashrayLevel || 'Jigyasa',
@@ -183,9 +198,11 @@ export default createEndpoint({
     const leaderboard = [...canonicalMembers.entries()].map(([canonicalId, info]) => {
       const memberAttendance = attendanceByUser.get(canonicalId) || new Map<string, boolean>();
       const presentCount = [...memberAttendance.values()].filter(Boolean).length;
+      const nameCandidate = info?.name || canonicalId;
+      const displayName = nameCandidate.includes('@') ? formatDisplayName(nameCandidate) : nameCandidate;
       return {
         userId: info?.userId || canonicalId,
-        displayName: info?.name || canonicalId,
+        displayName,
         presentCount,
         totalCount: sessionDates.length,
         attendanceRate: sessionDates.length > 0 ? Math.round((presentCount / sessionDates.length) * 100) : 0,
