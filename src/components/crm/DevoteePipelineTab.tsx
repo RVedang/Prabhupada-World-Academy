@@ -74,7 +74,9 @@ export default function DevoteePipelineTab({ devotees, onStageChange }: Props) {
         <div className="flex items-center gap-2">
           <Select value={stageFilter} onValueChange={(v) => v && setStageFilter(v)}>
             <SelectTrigger className="h-8 text-xs w-[160px]">
-              <SelectValue placeholder="All Stages" />
+              <SelectValue placeholder="All Stages">
+                {stageFilter === 'all' ? 'All Stages' : (CRM_STAGES.find(s => s.id === stageFilter)?.title || stageFilter)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Stages</SelectItem>

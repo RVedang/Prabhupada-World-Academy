@@ -117,7 +117,11 @@ export default function BvslMembersTable({ bvslId, detailBasePath = '/guide/user
             </div>
             <div className="min-w-[140px]">
               <Select value={groupFilter} onValueChange={(val) => setGroupFilter(val || 'all')}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All Groups" /></SelectTrigger>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All Groups">
+                    {groupFilter === 'all' || groupFilter === 'ALL' ? 'All Groups' : groupFilter}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Groups</SelectItem>
                   {distinctGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}

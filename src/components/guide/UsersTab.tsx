@@ -332,7 +332,7 @@ export default function UsersTab({ guideId }: UsersTabProps) {
             <div className="flex-1 min-w-[130px]">
               <label className="text-sm font-medium mb-2 block">Status</label>
               <Select value={statusFilter} onValueChange={(v: StatusFilter) => setStatusFilter(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue>{statusFilter === 'all' ? 'All' : statusFilter === 'active' ? 'Active' : 'Inactive'}</SelectValue></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
@@ -343,7 +343,7 @@ export default function UsersTab({ guideId }: UsersTabProps) {
             <div className="flex-1 min-w-[140px]">
               <label className="text-sm font-medium mb-2 block">Ashray Level</label>
               <Select value={ashrayFilter} onValueChange={setAshrayFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue>{ashrayFilter === 'all' ? 'All Levels' : ashrayFilter}</SelectValue></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
                   {ASHRAY_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
@@ -354,7 +354,7 @@ export default function UsersTab({ guideId }: UsersTabProps) {
               <label className="text-sm font-medium mb-2 block">Residency</label>
               <Select value={residencyFilter} onValueChange={(v: any) => setResidencyFilter(v)}>
                 <SelectTrigger>
-                  {residencyFilter === 'all' ? 'All Users' : residencyFilter === 'residents' ? 'FOLK Residents' : 'Non-Residents'}
+                  <SelectValue>{residencyFilter === 'all' ? 'All Users' : residencyFilter === 'residents' ? 'FOLK Residents' : 'Non-Residents'}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Users</SelectItem>
@@ -366,7 +366,11 @@ export default function UsersTab({ guideId }: UsersTabProps) {
             <div className="flex-1 min-w-[140px]">
               <label className="text-sm font-medium mb-2 block">Role</label>
               <Select value={roleFilter} onValueChange={(v: any) => setRoleFilter(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue>
+                    {roleFilter === 'all' ? 'All Users' : roleFilter === 'bvsl' ? 'RGF Only' : roleFilter === 'mentor' ? 'Sadhana Mentor Only' : roleFilter === 'regular' ? 'Regular Users' : roleFilter === 'bv_mentor' ? 'Supervisor' : roleFilter === 'folk_lead' ? 'FOLK Lead' : roleFilter === 'trip_coordinator' ? 'Trip Coordinator' : roleFilter === 'b' ? "B's Only" : roleFilter === 'other_center' ? 'Other Center' : roleFilter === 'cleanliness_manager' ? 'Cleanliness Manager' : roleFilter}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Users</SelectItem>
                   <SelectItem value="bvsl">RGF Only</SelectItem>
