@@ -93,11 +93,12 @@ export default function PwUserDashboard() {
   });
 
   const isResident = useMemo(() => !!(profile?.residencyGuideVerified && profile?.selectedFolkResidency), [profile]);
-  // Approval and group assignment are separate admin actions. An approved
-  // member must be able to open Attendance while waiting for a group, even
-  // though `isBvMember` remains false until a BvGroupMembers record exists.
-  const hasApprovedBvRegistration = String(profile?.bvRegistrationStatus || '').trim().toLowerCase() === 'approved';
-  const canViewBvAttendance = !!profile?.isBvMember || hasApprovedBvRegistration;
+  // Approval alone makes the Bhakti Vriksha area available, but Attendance is
+  // meaningful only after a real Reading Group membership has been created.
+  const canViewBvAttendance = !!profile?.isBvMember && !!profile?.bvGroupId;
+  // Old bookmarks may still point to #attendance. Render the BV status page
+  // instead of leaving an unauthorized/empty tab selected.
+  const visibleActiveTab = activeTab === 'attendance' && !canViewBvAttendance ? 'bv' : activeTab;
 
   if (dashLoading || !profile) return <LoadingPage rows={3} />;
 
@@ -135,7 +136,7 @@ export default function PwUserDashboard() {
       subtitle={`Prabhupada World${profile.guideName ? ` · Guide: ${profile.guideName}` : ''}`}
     >
       <PushNotificationBanner />
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs value={visibleActiveTab} onValueChange={handleTabChange}>
         <TabsList className="mb-6 w-full md:w-auto flex-wrap h-auto gap-1">
           <TabsTrigger value="sadhana" className="flex items-center gap-1.5">
             <BookOpen className="w-4 h-4" />Sadhana
@@ -169,13 +170,13 @@ export default function PwUserDashboard() {
             </TabsTrigger>
           )}
         </TabsList>
-        <TabTransition activeTab={activeTab}>
-          {activeTab === 'sadhana' && (
+        <TabTransition activeTab={visibleActiveTab}>
+          {visibleActiveTab === 'sadhana' && (
             <SectionErrorBoundary sectionName="Sadhana Tab">
               <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
             </SectionErrorBoundary>
           )}
-          {activeTab === 'leaderboard' && (
+          {visibleActiveTab === 'leaderboard' && (
             <SectionErrorBoundary sectionName="Leaderboard Tab">
               <LeaderboardTab
                 leaderboardData={leaderboardData as any}
@@ -185,17 +186,17 @@ export default function PwUserDashboard() {
               />
             </SectionErrorBoundary>
           )}
-          {activeTab === 'bv' && (
+          {visibleActiveTab === 'bv' && (
             <SectionErrorBoundary sectionName="Bhakti Vriksha Tab">
               <BvTab userId={profile.userId} segment="PW" />
             </SectionErrorBoundary>
           )}
-          {activeTab === 'attendance' && canViewBvAttendance && (
+          {visibleActiveTab === 'attendance' && canViewBvAttendance && (
             <SectionErrorBoundary sectionName="Attendance Tab">
               <AttendanceTab userId={profile.userId} />
             </SectionErrorBoundary>
           )}
-          {activeTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (
+          {visibleActiveTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (
             <SectionErrorBoundary sectionName="Cleanliness Tab">
               {(profile as any).isCleanlinessManager ? (
                 <CleanlinessManagerDashboard residencyId={profile.selectedFolkResidency!} residencyName={profile.residencyName ?? undefined} />
@@ -204,12 +205,12 @@ export default function PwUserDashboard() {
               )}
             </SectionErrorBoundary>
           )}
-          {activeTab === 'services' && FEATURES.SERVICE_ALLOCATION && isResident && !!profile.selectedFolkResidency && (
+          {visibleActiveTab === 'services' && FEATURES.SERVICE_ALLOCATION && isResident && !!profile.selectedFolkResidency && (
             <SectionErrorBoundary sectionName="Services Tab">
               <UserServicesTab userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
             </SectionErrorBoundary>
           )}
-          {activeTab === 'folk-mgmt' && FEATURES.SERVICE_ALLOCATION && !!profile.isServiceAllocator && (
+          {visibleActiveTab === 'folk-mgmt' && FEATURES.SERVICE_ALLOCATION && !!profile.isServiceAllocator && (
             <SectionErrorBoundary sectionName="FOLK Mgmt Tab">
               <GuideServicesTab residencyId={(profile as any).folkResidencyCustomId ?? undefined} />
             </SectionErrorBoundary>
