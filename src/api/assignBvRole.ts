@@ -1,6 +1,13 @@
 import { z } from 'zod';
-import { createEndpoint, Users, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Users, BvGroups, BvGroupMembers, AppError } from '@/lib/backend-sdk';
 import { serverCacheInvalidate } from '../lib/serverCache';
+
+const referenceValues = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.flatMap(referenceValues);
+  return value == null
+    ? []
+    : String(value).split(',').map(item => item.trim().toLowerCase()).filter(Boolean);
+};
 
 export default createEndpoint({
   description: 'Assign or update Bhakti Vriksha roles for a user (Supervisor, Facilitator/RGF, Sub-Facilitator/RGSF, Admin). Requires a parentId for hierarchy roles.',
@@ -235,6 +242,100 @@ export default createEndpoint({
         updates.bvReportingAdminId = parentUser?.bvReportingAdminId || updates.bvReportingSupervisorId;
         updates.bvReportingAdminName = parentUser?.bvReportingAdminName || updates.bvReportingSupervisorName;
         updates.guide = updates.bvReportingAdminId;
+      } else if (input.role === 'MEMBER' && targetParentId) {
+        const parentRole = String(parentUser?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+        const parentIsFacilitator = !!(
+          parentUser?.isBvFacilitator ||
+          parentUser?.isBvsl ||
+          ['RGF', 'BVSL', 'FACILITATOR'].includes(parentRole)
+        );
+        if (!parentUser || !parentIsFacilitator) {
+          throw new AppError({
+            code: 'BAD_REQUEST',
+            message: 'Members can only be assigned to a Reading Group Facilitator (RGF).',
+          });
+        }
+
+        const parentKeys = new Set([
+          ...referenceValues(targetParentId),
+          ...referenceValues(parentUser.id),
+          ...referenceValues(parentUser.userId),
+          ...referenceValues(parentUser.email),
+        ]);
+        const targetSegment = String(targetUser.segment || parentUser.segment || '').trim().toUpperCase();
+        const { records: allGroups } = await BvGroups.findAll({
+          fields: ['id', 'groupId', 'groupName', 'isActive', 'segment', 'bvslLeader', 'bvslId', 'guide'],
+          limit: 500,
+        });
+        const facilitatorGroups = allGroups.filter((group: any) => {
+          const groupSegment = String(group.segment || '').trim().toUpperCase();
+          const sameDepartment = !groupSegment || !targetSegment || groupSegment === targetSegment;
+          const groupOwners = [group.bvslLeader, group.bvslId]
+            .flatMap(referenceValues);
+          return group.isActive !== false && sameDepartment && groupOwners.some(owner => parentKeys.has(owner));
+        });
+
+        if (facilitatorGroups.length === 0) {
+          throw new AppError({
+            code: 'NOT_FOUND',
+            message: `${pName} does not have an active Reading Group to assign members to.`,
+          });
+        }
+        if (facilitatorGroups.length > 1) {
+          throw new AppError({
+            code: 'CONFLICT',
+            message: `${pName} has multiple active Reading Groups. Assign the member from the specific group management screen.`,
+          });
+        }
+
+        const group = facilitatorGroups[0];
+        const memberKeys = new Set([
+          ...referenceValues(targetUser.id),
+          ...referenceValues(targetUser.userId),
+          ...referenceValues(targetUser.email),
+        ]);
+        const [membersByUser, membersByUserId] = await Promise.all([
+          BvGroupMembers.findAll({ filters: { user: { in: [...memberKeys] } } as any, fields: ['id', 'user', 'userId', 'group', 'groupId'], limit: 20 }),
+          BvGroupMembers.findAll({ filters: { userId: { in: [...memberKeys] } } as any, fields: ['id', 'user', 'userId', 'group', 'groupId'], limit: 20 }),
+        ]);
+        const memberships = [...(membersByUser.records || []), ...(membersByUserId.records || [])]
+          .filter((membership: any, index: number, list: any[]) => list.findIndex(item => item.id === membership.id) === index);
+        const currentGroupIds = new Set([String(group.id), String(group.groupId || '')]);
+        const targetMemberships = memberships.filter((membership: any) =>
+          referenceValues([membership.group, membership.groupId]).some(groupId => currentGroupIds.has(groupId))
+        );
+
+        // A member belongs to one reading group at a time. Keep a single
+        // target membership, remove obsolete memberships, then sync the user.
+        await Promise.all(memberships
+          .filter((membership: any) => !targetMemberships.includes(membership) || membership !== targetMemberships[0])
+          .map((membership: any) => BvGroupMembers.delete({ id: membership.id })));
+        if (targetMemberships.length === 0) {
+          await BvGroupMembers.create({
+            record: {
+              id: `BVMEM-${dbId}-${group.id}`,
+              user: dbId,
+              userId: targetUser.userId || dbId,
+              group: group.id,
+              groupId: group.groupId || group.id,
+              role: 'Member',
+              joinedAt: new Date().toISOString(),
+            },
+          });
+        }
+
+        updates.isBvMember = true;
+        updates.bvRegistrationStatus = 'Approved';
+        updates.bvGroupId = group.id;
+        updates.bvGroupName = group.groupName || '';
+        updates.bvReportingFacilitatorId = parentUser.userId || parentUser.id;
+        updates.bvReportingFacilitatorName = pName;
+        updates.bvReportingSupervisorId = parentUser.bvReportingSupervisorId || '';
+        updates.bvReportingSupervisorName = parentUser.bvReportingSupervisorName || '';
+        updates.bvReportingAdminId = parentUser.bvReportingAdminId || '';
+        updates.bvReportingAdminName = parentUser.bvReportingAdminName || '';
+        updates.supervisorName = pName;
+        if (updates.bvReportingAdminId) updates.guide = updates.bvReportingAdminId;
       }
     }
 

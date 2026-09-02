@@ -480,11 +480,11 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
         parentName: (user as any).bvReportingFacilitatorName || def.name,
       });
     } else {
-      const opts = bvFacilitatorsList.length > 0 ? bvFacilitatorsList : bvSupervisorsList;
+      const opts = bvFacilitatorsList;
       const def = opts[0] || { id: '', name: '' };
       setHierarchyDialog({
         user, newRole: 'MEMBER', roleLabel: 'Member',
-        parentLabel: 'Reporting Facilitator / Supervisor',
+        parentLabel: 'Reading Group Facilitator (will assign their group)',
         parentOptions: opts,
         parentId: (user as any).bvReportingFacilitatorId || def.id,
         parentName: (user as any).bvReportingFacilitatorName || def.name,
@@ -1064,9 +1064,11 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
               </AlertDialogTitle>
               <AlertDialogDescription className="text-xs text-muted-foreground space-y-1">
                 <span className="block">Please select who <span className="font-semibold text-foreground">{hierarchyDialog.user.fullName}</span> will report to.</span>
-                <span className="block text-amber-600 dark:text-amber-400 font-medium">
-                  ℹ️ Changing the reporting authority will also change the user's group.
-                </span>
+                {hierarchyDialog.newRole === 'MEMBER' && (
+                  <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                    ℹ️ The member will be assigned to this RGF's active Reading Group.
+                  </span>
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
 
