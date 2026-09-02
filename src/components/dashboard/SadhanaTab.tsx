@@ -30,6 +30,8 @@ interface Props {
   metrics: Metrics; history: HistoryEntry[];
   userId: string;
   residencyId?: string;
+  /** Increments after this user saves Sadhana, triggering derived charts to refresh. */
+  refreshVersion?: number;
 }
 
 type Period = 'daily' | 'weekly' | 'monthly';
@@ -232,7 +234,7 @@ function ImprovementInsights({ insights, isResident, isScholar, period, onPeriod
   );
 }
 
-export default function SadhanaTab({ metrics, history, userId, residencyId }: Props) {
+export default function SadhanaTab({ metrics, history, userId, residencyId, refreshVersion = 0 }: Props) {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -258,7 +260,7 @@ export default function SadhanaTab({ metrics, history, userId, residencyId }: Pr
       .then(res => setProgressData(res as any))
       .catch(() => {})
       .finally(() => setProgressLoading(false));
-  }, [userId, trendPeriod]);
+  }, [userId, trendPeriod, refreshVersion]);
 
   // Load insight data — entry-count based (insightMode: true)
   useEffect(() => {
@@ -268,7 +270,7 @@ export default function SadhanaTab({ metrics, history, userId, residencyId }: Pr
       .then(res => setInsightData(res as any))
       .catch(() => {})
       .finally(() => setInsightLoading(false));
-  }, [userId, insightPeriod]);
+  }, [userId, insightPeriod, refreshVersion]);
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const todayHistoryEntry = history.find(e => e.entryDate === todayStr);

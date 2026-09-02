@@ -12,7 +12,7 @@ export default function RoleAcknowledgementHandler() {
   const [groupInfo, setGroupInfo] = useState<{ groupName?: string; bvslName?: string; rgsfName?: string } | null>(null);
 
   // Determine what type of popup to show
-  let popupType: 'ashray_notice_approved' | 'ashray_notice_rejected' | 'bv_approval_notice' | 'bv_rejection_notice' | 'bv_role_notice' | null = null;
+  let popupType: 'ashray_notice_approved' | 'ashray_notice_rejected' | 'bv_approval_notice' | 'bv_rejection_notice' | 'bv_group_assignment_notice' | 'bv_role_notice' | null = null;
 
   // This handler is mounted at the application root, so authenticated users
   // see pending account/approval notices as soon as they open any page. Do not
@@ -24,6 +24,8 @@ export default function RoleAcknowledgementHandler() {
       popupType = 'bv_approval_notice';
     } else if ((profile as any).pendingBvRejectionNotice) {
       popupType = 'bv_rejection_notice';
+    } else if ((profile as any).pendingBvGroupAssignmentNotice && !(profile as any).roleNoticeAcknowledged) {
+      popupType = 'bv_group_assignment_notice';
     } else if ((profile as any).pendingRoleNotice && !(profile as any).roleNoticeAcknowledged) {
       popupType = 'bv_role_notice';
     } else if (profile.pendingAshrayNoticeStatus === 'approved' && !profile.ashrayNoticeAcknowledged) {
@@ -70,7 +72,7 @@ export default function RoleAcknowledgementHandler() {
         await acknowledgeBvApprovalNotice({});
       } else if (popupType === 'bv_rejection_notice') {
         await acknowledgeBvRejectionNotice({});
-      } else if (popupType === 'bv_role_notice') {
+      } else if (popupType === 'bv_role_notice' || popupType === 'bv_group_assignment_notice') {
         await acknowledgeBvRoleNotice({});
       }
       await refreshProfile();
@@ -111,6 +113,11 @@ export default function RoleAcknowledgementHandler() {
       description = 'Hare Krishna, Prabhu! Unfortunately, your recent registration for a Bhakti Vriksha reading group was not approved at this time. Please contact your guide for more information.';
       icon = <XCircle className="w-12 h-12 text-destructive mx-auto" />;
       break;
+    case 'bv_group_assignment_notice':
+      title = 'Added to a Bhakti Vriksha Reading Group!';
+      description = 'Hare Krishna, Prabhu! You have been added to the following Reading Group.';
+      icon = <CheckCircle className="w-12 h-12 text-primary mx-auto animate-bounce" />;
+      break;
     case 'bv_role_notice': {
       title = 'Account Updates Notice';
       description = 'Please review the latest update to your account permissions and responsibilities.';
@@ -136,6 +143,13 @@ export default function RoleAcknowledgementHandler() {
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-left my-1">
             <p className="font-semibold text-amber-700 dark:text-amber-400">Role updated:</p>
             <p className="mt-1">{(profile as any).pendingRoleNotice || 'Your account role has been updated.'}</p>
+          </div>
+        )}
+
+        {popupType === 'bv_group_assignment_notice' && (
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm text-left my-1">
+            <p className="font-semibold text-primary">Reading Group:</p>
+            <p className="mt-1">{(profile as any).bvGroupName || 'Your assigned Reading Group'}</p>
           </div>
         )}
 

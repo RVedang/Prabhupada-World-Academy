@@ -136,6 +136,9 @@ export default createEndpoint({
     const updates: any = {
       // Role change notice
       pendingRoleNotice: ROLE_LABELS[input.role] || input.role,
+      // A group assignment has its own, more useful acknowledgement. Clear a
+      // previous group-assignment notice for ordinary role changes below.
+      pendingBvGroupAssignmentNotice: false,
       roleNoticeAcknowledged: false,
       // Clear reporting fields first, then populate below
       bvReportingAdminId: targetUser.bvReportingAdminId || '',
@@ -328,6 +331,12 @@ export default createEndpoint({
         updates.bvRegistrationStatus = 'Approved';
         updates.bvGroupId = group.id;
         updates.bvGroupName = group.groupName || '';
+        // This is not a role change from the member's perspective. Surface a
+        // dedicated notice naming the reading group instead of the generic
+        // "Regular Member" account-update dialog.
+        updates.pendingRoleNotice = null;
+        updates.pendingBvGroupAssignmentNotice = true;
+        updates.roleNoticeAcknowledged = false;
         updates.bvReportingFacilitatorId = parentUser.userId || parentUser.id;
         updates.bvReportingFacilitatorName = pName;
         updates.bvReportingSupervisorId = parentUser.bvReportingSupervisorId || '';

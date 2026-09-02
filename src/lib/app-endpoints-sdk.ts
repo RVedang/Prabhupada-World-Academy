@@ -4,6 +4,7 @@
 import { auth } from './app-auth-sdk';
 import {
   isReadOnlyEndpoint,
+  REALTIME_INVALIDATION_EVENT,
   realtimeChannelsForEndpoint,
   type RealtimeChannel,
 } from './realtimeChannels';
@@ -109,6 +110,22 @@ export function invalidateEndpointClientCacheForChannels(channels: RealtimeChann
   }
 }
 
+/**
+ * Notify mounted views about a mutation made by this browser immediately.
+ *
+ * Cache invalidation alone only affects a later query; it does not cause a
+ * currently mounted, hidden dashboard tab to reload its derived counters.
+ * The Firestore invalidation listener remains responsible for other browser
+ * sessions. This local event makes the initiating admin's UI reactive without
+ * polling or waiting for the network listener round trip.
+ */
+function notifyLocalRealtimeMutation(channels: RealtimeChannel[]): void {
+  if (typeof window === 'undefined' || channels.length === 0) return;
+  window.dispatchEvent(new CustomEvent(REALTIME_INVALIDATION_EVENT, {
+    detail: { department: 'local', channels },
+  }));
+}
+
 export function getEndpointPerformanceSnapshot(): EndpointPerformanceSample[] {
   return performanceSamples.map(sample => ({ ...sample }));
 }
@@ -208,8 +225,11 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
     } else if (!isQuery) {
       // Invalidate only related cached domains after a successful mutation.
       // The Firestore metadata listener will trigger silent active-query
-      // refreshes for this and other signed-in browser sessions.
-      invalidateEndpointClientCacheForChannels(realtimeChannelsForEndpoint(name));
+      // refreshes for other signed-in browser sessions. Notify this browser
+      // now so open dashboard tabs update without a page reload.
+      const changedChannels = realtimeChannelsForEndpoint(name);
+      invalidateEndpointClientCacheForChannels(changedChannels);
+      notifyLocalRealtimeMutation(changedChannels);
     }
     const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
     recordPerformance({

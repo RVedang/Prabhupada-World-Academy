@@ -646,7 +646,6 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Parent</th>
                   {isPwAdmin ? (
                     <>
-                      <Th col="guideName" label="Admin" />
                       <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Sadhana Mentor</th>
                       <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Assign Sadhana Mentor Role</th>
                     </>
@@ -671,7 +670,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={isPwAdmin ? 9 : 11}>
+                    <td colSpan={isPwAdmin ? 8 : 11}>
                       <EmptyState icon={Users} title="No users found" description="Try adjusting your filters." />
                     </td></tr>
                 ) : filtered.map(u => {
@@ -829,31 +828,34 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           </td>
                         );
                       })()}
-                      {/* 4. Admin / Guide */}
-                      <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                        {(() => {
-                          const currentGid = u.selectedGuideId || u._guideId || '';
-                          const matchedGuide = guides.find(g =>
-                            g.guideId === currentGid ||
-                            (g as any).id === currentGid ||
-                            (g as any).userId === currentGid
-                          );
-                          const displayName = matchedGuide
-                            ? matchedGuide.name
-                            : (u._guideName && !u._guideName.includes('-') ? u._guideName : 'Unassigned');
+                      {/* The Guide dropdown belongs only to FOLK. PW BV ownership
+                          is derived from the selected RGF/group hierarchy. */}
+                      {!isPwAdmin && (
+                        <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                          {(() => {
+                            const currentGid = u.selectedGuideId || u._guideId || '';
+                            const matchedGuide = guides.find(g =>
+                              g.guideId === currentGid ||
+                              (g as any).id === currentGid ||
+                              (g as any).userId === currentGid
+                            );
+                            const displayName = matchedGuide
+                              ? matchedGuide.name
+                              : (u._guideName && !u._guideName.includes('-') ? u._guideName : 'Unassigned');
 
-                          return (
-                            <Select value={matchedGuide?.guideId || currentGid || ''} onValueChange={gid => gid && handleAssignGuide(u.userId, gid)} disabled={assigningGuide === u.userId || isSelf || (!isSuperAdmin && currentBvRole === 'ADMIN')}>
-                              <SelectTrigger className="h-7 text-xs w-44">
-                                <span className="truncate">{displayName}</span>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          );
-                        })()}
-                      </td>
+                            return (
+                              <Select value={matchedGuide?.guideId || currentGid || ''} onValueChange={gid => gid && handleAssignGuide(u.userId, gid)} disabled={assigningGuide === u.userId || isSelf || (!isSuperAdmin && currentBvRole === 'ADMIN')}>
+                                <SelectTrigger className="h-7 text-xs w-44">
+                                  <span className="truncate">{displayName}</span>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {guides.map(g => <SelectItem key={g.guideId} value={g.guideId}>{g.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            );
+                          })()}
+                        </td>
+                      )}
                       {isPwAdmin && (
                         <>
                           <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>

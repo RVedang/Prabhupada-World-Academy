@@ -10,7 +10,7 @@ const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'stat
   'isBvMentor', 'bvMentorGuideId', 'isCleanlinessManager', 'isFolkLead', 'isTripCoordinator',
   'acknowledgedFolkLead', 'acknowledgedTripCoordinator', 'acknowledgedSadhanaMentor',
   'isBvSuperAdmin', 'isBvAdmin', 'isBvSupervisor', 'isBvFacilitator', 'isBvSubFacilitator',
-  'pendingRoleNotice', 'roleNoticeAcknowledged', 'bvRegistrationStatus', 'bvGroupId', 'bvGroupName', 'isBvMember', 'isPrabhupadaWorldUser', 'pendingBvRejectionNotice', 'segment', 'pendingBvApprovalNotice',
+  'pendingRoleNotice', 'pendingBvGroupAssignmentNotice', 'roleNoticeAcknowledged', 'bvRegistrationStatus', 'bvGroupId', 'bvGroupName', 'isBvMember', 'isPrabhupadaWorldUser', 'pendingBvRejectionNotice', 'segment', 'pendingBvApprovalNotice',
   'pendingAshrayNoticeStatus', 'pendingAshrayNoticeLevel', 'ashrayNoticeAcknowledged'];
 const GUIDE_FIELDS = ['id', 'fullName', 'abbr'];
 const RESIDENCY_FIELDS = ['id', 'residencyName', 'residencyId'];
@@ -298,6 +298,7 @@ function buildProfileResult({
       acknowledgedTripCoordinator: !!(userRecord.acknowledgedTripCoordinator),
       acknowledgedSadhanaMentor: !!(userRecord.acknowledgedSadhanaMentor),
       pendingRoleNotice: userRecord.pendingRoleNotice || null,
+      pendingBvGroupAssignmentNotice: !!(userRecord.pendingBvGroupAssignmentNotice),
       roleNoticeAcknowledged: !!(userRecord.roleNoticeAcknowledged),
       bvRegistrationStatus: userRecord.bvRegistrationStatus || null,
       bvGroupId: userRecord.bvGroupId || null,

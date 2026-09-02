@@ -93,6 +93,8 @@ export interface ProfileSummary {
   pendingBvRejectionNotice?: boolean;
   pendingBvApprovalNotice?: boolean;
   pendingRoleNotice?: string | null;
+  /** Acknowledge that an existing BV member was added to a Reading Group. */
+  pendingBvGroupAssignmentNotice?: boolean;
   roleNoticeAcknowledged?: boolean;
   bvRegistrationStatus?: string | null;
   bvGroupId?: string | null;

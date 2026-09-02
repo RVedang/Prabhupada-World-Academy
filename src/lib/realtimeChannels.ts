@@ -56,6 +56,17 @@ export function realtimeChannelsForEndpoint(name: string): RealtimeChannel[] {
   const lower = name.toLowerCase();
   const channels = new Set<RealtimeChannel>();
 
+  // This aggregate is the data source for the PW user's Sadhana homepage.
+  // Its endpoint name alone does not mention Sadhana, so classify it
+  // explicitly. Otherwise a submitted entry can leave its cached dashboard
+  // response intact until the cache expires.
+  if (lower === 'getuserdashboarddata') {
+    channels.add('sadhana');
+    channels.add('attendance');
+    channels.add('groups');
+    channels.add('quizzes');
+  }
+
   if (/sadhana|ashray|preach/.test(lower)) channels.add('sadhana');
   if (/quiz/.test(lower)) channels.add('quizzes');
   if (/attendance|session|availability/.test(lower)) channels.add('attendance');

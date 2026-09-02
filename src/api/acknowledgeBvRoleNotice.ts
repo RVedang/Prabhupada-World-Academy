@@ -16,6 +16,7 @@ export default createEndpoint({
       id: context.user.id,
       record: {
         roleNoticeAcknowledged: true,
+        pendingBvGroupAssignmentNotice: false,
       },
     }).catch(() => {});
 

@@ -105,6 +105,7 @@ function buildProfile(userObj: any): ProfileData {
     pendingBvRejectionNotice: !!(userObj.pendingBvRejectionNotice),
     pendingBvApprovalNotice: !!(userObj.pendingBvApprovalNotice),
     pendingRoleNotice: userObj.pendingRoleNotice ?? null,
+    pendingBvGroupAssignmentNotice: !!(userObj.pendingBvGroupAssignmentNotice),
     roleNoticeAcknowledged: !!userObj.roleNoticeAcknowledged,
     bvRegistrationStatus: userObj.bvRegistrationStatus ?? null,
     bvGroupId: userObj.bvGroupId ?? null,

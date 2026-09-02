@@ -36,6 +36,7 @@ export default function PwUserDashboard() {
   const initialTab = window.location.hash.slice(1) || 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [lbRequested, setLbRequested] = useState(initialTab === 'leaderboard');
+  const [sadhanaRefreshVersion, setSadhanaRefreshVersion] = useState(0);
 
   useEffect(() => {
     initReminderVisibilityCheck();
@@ -60,7 +61,7 @@ export default function PwUserDashboard() {
     if (tab === 'leaderboard') setLbRequested(true);
   }, []);
 
-  const { data: dashboardData, loading: dashLoading, setData: setDashboardData } = useQuery({
+  const { data: dashboardData, loading: dashLoading, setData: setDashboardData, refetch: refetchDashboard } = useQuery({
     key: profile?.userId ? `dashboard:${profile.userId}` : null,
     fetcher: () => getUserDashboardData({ userId: profile!.userId, days: 30 }),
     ttl: 60_000,
@@ -73,6 +74,11 @@ export default function PwUserDashboard() {
     const applySavedEntry = (payload: SavedSadhanaEntryPayload) => {
       if (payload.userId !== profile.userId) return;
       setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
+      setSadhanaRefreshVersion(version => version + 1);
+      // Refresh once in response to this successful submission. The optimistic
+      // merge paints the new result immediately; this silent fetch reconciles
+      // derived values such as streak and weekly average without polling.
+      void refetchDashboard();
     };
 
     const pending = consumePendingSadhanaEntrySaved(profile.userId);
@@ -83,7 +89,7 @@ export default function PwUserDashboard() {
     };
     window.addEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
-  }, [profile?.userId, dashboardData, setDashboardData]);
+  }, [profile?.userId, dashboardData, setDashboardData, refetchDashboard]);
 
   const { data: leaderboardData } = useQuery({
     key: lbRequested && profile?.userId ? `lb:${profile.userId}:${format(new Date(), 'yyyy-MM-dd')}` : null,
@@ -173,7 +179,7 @@ export default function PwUserDashboard() {
         <TabTransition activeTab={visibleActiveTab}>
           {visibleActiveTab === 'sadhana' && (
             <SectionErrorBoundary sectionName="Sadhana Tab">
-              <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
+              <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} refreshVersion={sadhanaRefreshVersion} />
             </SectionErrorBoundary>
           )}
           {visibleActiveTab === 'leaderboard' && (
