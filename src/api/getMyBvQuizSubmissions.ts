@@ -12,7 +12,9 @@ import {
 export default createEndpoint({
   description: 'Get the current user department-scoped BV quiz history and pending quizzes',
   authenticated: true,
-  inputSchema: z.object({}),
+  // `_nocache` is consumed by the browser endpoint SDK. Accept it here so the
+  // quiz view can always revalidate group availability when it is opened.
+  inputSchema: z.object({ _nocache: z.boolean().optional() }),
   outputSchema: z.any(),
   execute: async ({ context }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
@@ -62,8 +64,8 @@ export default createEndpoint({
           submittedDate: submission.submittedAt ? String(submission.submittedAt).split('T')[0] : '',
         };
       })
-      .filter(Boolean)
-      .sort((a: any, b: any) => String(b.submittedAt).localeCompare(String(a.submittedAt))) as any[];
+      .filter((submission): submission is NonNullable<typeof submission> => submission !== null)
+      .sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
     const submittedQuizIds = new Set(submissions.map(submission => String(submission.quizId).toLowerCase()));
 
     const pendingQuizzes = departmentQuizzes

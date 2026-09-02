@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getMyBvQuizSubmissions } from '@/lib/endpoints-sdk';
-import type { GetMyBvQuizSubmissionsOutputType } from '@/lib/endpoints-sdk';
 import BvQuizTaker from './BvQuizTaker';
 import { format } from 'date-fns';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
@@ -15,7 +14,25 @@ interface Props {
   userId: string;
 }
 
-type QuizData = GetMyBvQuizSubmissionsOutputType;
+type PendingQuiz = {
+  id: string;
+  title: string;
+  questionCount: number;
+  createdAt?: string;
+};
+
+type QuizSubmission = {
+  id: string;
+  quizTitle: string;
+  percentage: number;
+  submittedAt?: string;
+};
+
+type QuizData = {
+  pendingQuizzes: PendingQuiz[];
+  submissions: QuizSubmission[];
+  stats: { totalTaken: number; avgPercent: number };
+};
 
 export default function BvQuizSection({ userId }: Props) {
   const [data, setData] = useState<QuizData | null>(null);
@@ -25,19 +42,41 @@ export default function BvQuizSection({ userId }: Props) {
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
   const [reviewQuizTitle, setReviewQuizTitle] = useState('');
 
-  const load = async (showLoading = true) => {
+  const load = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const r = await getMyBvQuizSubmissions({});
+      // Quiz publication and group activation can be changed from another
+      // signed-in browser. Never reuse an earlier empty result when this view
+      // is opened or reconciled after an availability event.
+      const r = await getMyBvQuizSubmissions({ _nocache: true });
       setData(r as QuizData);
     } catch { toast.error('Failed to load quizzes'); }
     finally { if (showLoading) setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, [userId]);
+  // The request settles asynchronously; this effect only starts the initial
+  // synchronization for the currently authenticated member.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [userId, load]);
   // A facilitator activating a centrally published PW quiz should make it
   // available to active group members immediately, without polling.
   useRealtimeRefresh(['quizzes', 'groups'], () => { void load(false); }, Boolean(userId));
+
+  // Reconcile after the user returns to this browser/app. This covers a quiz
+  // toggle made while the tab was suspended, without introducing polling.
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return;
+    const refreshVisibleView = () => { void load(false); };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshVisibleView();
+    };
+    window.addEventListener('focus', refreshVisibleView);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('focus', refreshVisibleView);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [userId, load]);
 
   if (loading) return (
     <Card><CardContent className="py-4 flex justify-center">
@@ -69,7 +108,7 @@ export default function BvQuizSection({ userId }: Props) {
       {data.pendingQuizzes.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ready to take</p>
-        {data.pendingQuizzes.map((q: any) => (
+        {data.pendingQuizzes.map(q => (
           <Card
             key={q.id}
             className="border-l-4 border-l-primary cursor-pointer hover:shadow-sm transition-shadow"
@@ -98,7 +137,7 @@ export default function BvQuizSection({ userId }: Props) {
       {data.submissions.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Completed quizzes</p>
-          {data.submissions.map((submission: any) => (
+          {data.submissions.map(submission => (
             <Card
               key={submission.id}
               className="border-l-4 border-l-emerald-500 cursor-pointer hover:shadow-sm transition-shadow"

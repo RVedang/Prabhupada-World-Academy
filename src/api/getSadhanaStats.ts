@@ -151,6 +151,7 @@ export default createEndpoint({
       users = await resolveBvGroupMemberUsers(context.user, USER_FIELDS, {
         groupId: input.groupId,
         segment: input.segment,
+        excludeCaller: true,
       });
     }
 

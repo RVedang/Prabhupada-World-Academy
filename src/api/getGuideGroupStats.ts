@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Guides, Users } from '@/lib/backend-sdk';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'Get BV group stats for guide dashboard — member count, attendance rate per group',
@@ -86,6 +86,8 @@ export default createEndpoint({
 
     if (groups.length === 0) return { groups: [] };
 
+    const callerAliases = new Set(bvUserAliases(context.user as any));
+
     const bvslIds = [...new Set(groups.map((g: any) => Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader).filter(Boolean))] as string[];
     const bvslMap = new Map<string, string>();
     if (bvslIds.length > 0) {
@@ -95,17 +97,29 @@ export default createEndpoint({
 
     const stats = await Promise.all(groups.map(async (g: any) => {
       const [membersRes, attRes] = await Promise.all([
-        BvGroupMembers.findAll({ filters: { group: g.id }, fields: ['id'], limit: 500 }),
+        BvGroupMembers.findAll({ filters: { group: g.id }, fields: ['id', 'user', 'userId', 'memberId'], limit: 500 }),
         // Query attendance directly by group (new approach)
         BvAttendance.findAll({
           filters: { group: g.id },
-          fields: ['id', 'present', 'attendanceDate'],
+          fields: ['id', 'user', 'present', 'attendanceDate'],
           limit: 2000,
         }),
       ]);
 
-      const attRecords = attRes.records;
-      const memberCount = membersRes.records.length;
+      const isCaller = (value: unknown) => {
+        const values = (Array.isArray(value) ? value : [value])
+          .flatMap(item => Array.isArray(item) ? item : String(item || '').split(','));
+        return values.some(item => callerAliases.has(String(item || '').trim().toLowerCase()));
+      };
+      const memberRecords = isBvslMode
+        ? membersRes.records.filter(member => !isCaller([member.user, member.userId, member.memberId]))
+        : membersRes.records;
+      const attRecords = isBvslMode
+        ? attRes.records.filter(attendance => !isCaller(attendance.user))
+        : attRes.records;
+      const memberCount = new Set(memberRecords.map(member =>
+        String(member.user || member.userId || member.memberId || member.id),
+      )).size;
 
       // Count distinct session dates
       const distinctDates = new Set(attRecords.map((a: any) => a.attendanceDate).filter(Boolean));

@@ -119,6 +119,7 @@ export default createEndpoint({
       ? await resolveBvGroupMemberUsers(context.user, MEMBER_USER_FIELDS, {
           groupId: input.groupId,
           segment: 'FOLK',
+          excludeCaller: true,
         })
       : allUsers;
     const residents = scopedUsers.filter(u => {

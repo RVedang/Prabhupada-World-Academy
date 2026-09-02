@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 function isFolkMemberLevelFacilitator(user: any): boolean {
   const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
@@ -73,14 +73,17 @@ export default createEndpoint({
         { segment, groupId },
       );
     } else if (bvslMode) {
-      // An RGF may authenticate with an Auth UID while the legacy Users row is
-      // keyed by its application userId or email. Resolve all of those aliases
-      // so the report reads the same facilitator who submitted the activity.
-      const fields = ['id', 'userId', 'fullName', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'];
-      const me = await Users.findOne({ id: context.user.id, fields }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields }).catch(() => undefined) ||
-        await Users.findOne({ filters: { email: context.user.email }, fields }).catch(() => undefined);
-      if (me) bvslUsers = [me];
+      // RGF reports belong to the facilitated groups and their members, not
+      // to the signed-in RGF's own Sadhana/preaching record.
+      const rawSegment = String(context.user.segment || '').toUpperCase();
+      const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;
+      hierarchyGroups = (await resolveBvScopedGroups(context.user as any, { segment, groupId }))
+        .map(group => group.record);
+      bvslUsers = await resolveBvGroupMemberUsers(
+        context.user as any,
+        ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone'],
+        { segment, groupId, excludeCaller: true },
+      );
     } else if (residencyIds && residencyIds.length > 0) {
       // Center-based scoping: get all BVSLs under all guides in these residencies
       const allGuideIds = await getGuideIdsForResidencies(residencyIds);
@@ -145,7 +148,11 @@ export default createEndpoint({
     }
 
     const groupByBvsl = new Map<string, string>();
+    const groupNameById = new Map<string, string>();
     for (const g of groups) {
+      [g.id, g.groupId]
+        .filter(Boolean)
+        .forEach(value => groupNameById.set(String(value).toLowerCase(), g.groupName || ''));
       [g.bvslLeader, g.bvslId, g.subFacilitatorId, g.rgsfId, g.subFacilitator]
         .flatMap(value => Array.isArray(value) ? value : [value])
         .filter(Boolean)
@@ -207,7 +214,9 @@ export default createEndpoint({
         userId: u.userId || u.id,
         fullName: u.fullName || '',
         phone: (u as any).phone || '',
-        groupName: bvUserAliases(u).map(alias => groupByBvsl.get(alias)).find(Boolean) || '—',
+        groupName: ((u as any).__bvScopedGroupIds || [])
+          .map((id: unknown) => groupNameById.get(String(id).toLowerCase()))
+          .find(Boolean) || bvUserAliases(u).map(alias => groupByBvsl.get(alias)).find(Boolean) || '—',
         submitted,
         callingTime: Number(callingTime) || 0,
         oneOnOneTime: Number(oneOnOneTime) || 0,

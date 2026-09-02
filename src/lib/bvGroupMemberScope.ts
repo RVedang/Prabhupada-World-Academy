@@ -14,6 +14,8 @@ type UserRecord = Record<string, unknown>;
 export interface BvGroupScopeOptions {
   groupId?: string;
   segment?: 'FOLK' | 'PW';
+  /** Report screens should show people under the caller, not the caller. */
+  excludeCaller?: boolean;
 }
 
 export interface BvScopedGroup {
@@ -246,15 +248,33 @@ export async function resolveBvGroupMemberUsers(
     limit: 5000,
   });
   const memberAliases = new Set<string>();
+  const groupRefsByMemberAlias = new Map<string, Set<string>>();
   for (const membership of memberships) {
-    if (!refs([membership.group, membership.groupId]).some(ref => scopedGroupAliases.has(ref))) continue;
-    refs([membership.user, membership.userId, membership.memberId]).forEach(ref => memberAliases.add(ref));
+    const membershipGroupRefs = refs([membership.group, membership.groupId]);
+    if (!membershipGroupRefs.some(ref => scopedGroupAliases.has(ref))) continue;
+    const membershipMemberRefs = refs([membership.user, membership.userId, membership.memberId]);
+    membershipMemberRefs.forEach(memberRef => {
+      memberAliases.add(memberRef);
+      const assignedGroups = groupRefsByMemberAlias.get(memberRef) || new Set<string>();
+      membershipGroupRefs.forEach(groupRef => assignedGroups.add(groupRef));
+      groupRefsByMemberAlias.set(memberRef, assignedGroups);
+    });
   }
   if (memberAliases.size === 0) return [];
 
   // Membership is authoritative. Do not require one exact status spelling;
   // this keeps Sadhana reports consistent with the Group Members tab.
-  return resolveCanonicalUsersByAliases(memberAliases, userFields);
+  const users = await resolveCanonicalUsersByAliases(memberAliases, userFields);
+  const callerAliases = new Set(bvUserAliases(contextUser));
+  return users
+    .filter(user => !options.excludeCaller || !bvUserAliases(user).some(alias => callerAliases.has(alias)))
+    .map(user => {
+      const scopedGroupIds = new Set<string>();
+      bvUserAliases(user).forEach(alias => {
+        groupRefsByMemberAlias.get(alias)?.forEach(groupRef => scopedGroupIds.add(groupRef));
+      });
+      return { ...user, __bvScopedGroupIds: [...scopedGroupIds] };
+    });
 }
 
 /** Resolve canonical RGF/RGSF profiles attached to the caller's scoped groups. */

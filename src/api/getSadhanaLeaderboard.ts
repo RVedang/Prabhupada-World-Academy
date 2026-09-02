@@ -161,6 +161,7 @@ export default createEndpoint({
       allUsers = await resolveBvGroupMemberUsers(context.user, USER_FIELDS, {
         groupId: input.groupId,
         segment: String(context.user.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW',
+        excludeCaller: true,
       });
     }
 

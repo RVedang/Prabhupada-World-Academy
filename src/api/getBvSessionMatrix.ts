@@ -3,7 +3,7 @@ import { createEndpoint, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizze
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 import { legacyQuizMatchesGroup, normalizeQuizDepartment, quizIsActivatedForGroup } from '../lib/bvQuizAccess';
-import { resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'BV attendance + quiz matrix — person × date grid for guides/bvsls (queries attendance directly by group+date)',
@@ -112,10 +112,14 @@ export default createEndpoint({
     // Get user details
     const { records: users } = await Users.findAll({
       filters: { id: { in: memberUserIds } } as any,
-      fields: ['id', 'userId', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved'],
+      fields: ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved'],
       limit: 1000,
     });
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const callerAliases = new Set(bvUserAliases(context.user as any));
+    const scopedUsers = bvslMode
+      ? users.filter(user => !bvUserAliases(user as any).some(alias => callerAliases.has(alias)))
+      : users;
+    const userMap = new Map(scopedUsers.map(u => [u.id, u]));
 
     // Build member list
     const seenUserIds = new Set<string>();

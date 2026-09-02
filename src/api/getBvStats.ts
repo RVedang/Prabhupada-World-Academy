@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, BvslPreachingEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
+import { createEndpoint, Users, Guides, BvslPreachingEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
-import { bvUserAliases, resolveBvGroupFacilitatorUsers } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 
 const BV_FIELDS = [
   'prCallingTime', 'prOneOnOneTime', 'prBookDistTime', 'prRduaTime', 'prPlanTime',
@@ -45,14 +45,15 @@ export default createEndpoint({
         { segment, groupId },
       );
     } else if (bvslMode) {
-      // An RGF's BV activity is recorded against the facilitator who
-      // submitted it, not against their group members. The old query used
-      // group members here, so the chart showed "0 entries" even after the
-      // RGF submitted a preaching section with their Sadhana report.
-      const me = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined);
-      if (me) bvslUsers = [me];
+      // An RGF monitors the members of their facilitated groups. Their own
+      // Sadhana/preaching entry must not become the group report subject.
+      const rawSegment = String(context.user.segment || '').toUpperCase();
+      const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;
+      bvslUsers = await resolveBvGroupMemberUsers(
+        context.user as any,
+        ['id', 'userId', 'email', 'fullName'],
+        { segment, groupId, excludeCaller: true },
+      );
     } else if (residencyIds && residencyIds.length > 0) {
       // Center-based scoping from explicit residencyIds (BV Mentor context)
       const { getGuideIdsForResidencies } = await import('../lib/guideScope');
