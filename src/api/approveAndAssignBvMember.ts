@@ -6,6 +6,73 @@ import { serverCacheInvalidate } from '../lib/serverCache';
 const isSyntheticId = (id: string) => id.startsWith('BVREG-');
 import { profileCacheKey } from './getUserProfile';
 
+function firstValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] || '').trim();
+  return String(value || '').trim();
+}
+
+function phoneDigits(value: unknown): string {
+  return firstValue(value).replace(/\D/g, '');
+}
+
+/** Resolve every legacy identity shape before approving the registration.
+ * `userDbId` is not always the canonical document ID in older registrations,
+ * so checking only that one value can leave Users.bvRegistrationStatus pending.
+ */
+async function resolveRegistrationUser(registration: any, registrationId: string) {
+  const registrationIdSuffix = registrationId.replace(/^BVREG-/, '');
+  const identityKeys = [...new Set([
+    registration?.userDbId,
+    registration?.userId,
+    registration?.user,
+    registration?.uid,
+    registration?.authUid,
+    registrationIdSuffix,
+  ].flatMap(value => Array.isArray(value) ? value : [value])
+    .map(firstValue)
+    .filter(Boolean))];
+
+  for (const key of identityKeys) {
+    const user = await Users.findOne({ id: key }).catch(() => null) ||
+      await Users.findOne({ filters: { userId: key } }).catch(() => null);
+    if (user) return user;
+  }
+
+  const email = firstValue(registration?.email).toLowerCase();
+  if (email) {
+    const user = await Users.findOne({ filters: { email } }).catch(() => null) ||
+      await Users.findOne({ filters: { email: firstValue(registration?.email) } }).catch(() => null);
+    if (user) return user;
+  }
+
+  const phoneCandidates = [...new Set([
+    registration?.phoneE164,
+    registration?.phone,
+    `${firstValue(registration?.phoneCountryCode)}${firstValue(registration?.phone)}`,
+  ].map(phoneDigits).filter(Boolean))];
+
+  // Final legacy fallback: compare normalized aliases locally. This is used
+  // only when indexed ID/email lookups fail during this admin mutation.
+  const { records: users } = await Users.findAll({
+    fields: ['id', 'userId', 'uid', 'authUid', 'email', 'phone', 'fullName'],
+    limit: 5000,
+  }).catch(() => ({ records: [] }));
+  const normalizedKeys = new Set(identityKeys.map(key => key.toLowerCase()));
+  return users.find((user: any) => {
+    const aliases = [user.id, user.userId, user.uid, user.authUid]
+      .map(firstValue)
+      .filter(Boolean)
+      .map(alias => alias.toLowerCase());
+    const matchesAlias = aliases.some(alias => normalizedKeys.has(alias));
+    const matchesEmail = !!email && firstValue(user.email).toLowerCase() === email;
+    const userPhone = phoneDigits(user.phone);
+    const matchesPhone = !!userPhone && phoneCandidates.some(phone =>
+      phone === userPhone || phone.endsWith(userPhone) || userPhone.endsWith(phone)
+    );
+    return matchesAlias || matchesEmail || matchesPhone;
+  }) || null;
+}
+
 export default createEndpoint({
   description: 'Approve a Bhakti Vriksha registration, optionally assigning a Reading Group — Admin or Supervisor access',
   authenticated: true,
@@ -63,36 +130,19 @@ export default createEndpoint({
 
     const now = new Date().toISOString();
 
-    // 1. Mark registration approved (only for real BvMemberRegistrations documents)
-    if (!synthetic && reg.id) {
-      await BvMemberRegistrations.update({
-        id: reg.id,
-        record: {
-          status: 'Approved',
-          ...(group ? {
-            assignedGroupId: group.id,
-            assignedGroupName: group.groupName || '',
-          } : {
-            assignedGroupId: null,
-            assignedGroupName: '',
-          }),
-          approvedBy: context.user.id,
-          approvedAt: now,
-        },
+    // Resolve the applicant once. reg.userId may be either a userId or a user
+    // DB id. This is also used for approval-only (unassigned) registrations.
+    const targetUser = await resolveRegistrationUser(reg, input.registrationId);
+    if (!targetUser) {
+      // Never report a successful approval if the profile that powers the
+      // fallback pending queue could not be updated.
+      throw new AppError({
+        code: 'NOT_FOUND',
+        message: 'The user profile for this registration could not be resolved. Please refresh and try again.',
       });
     }
 
-    // Resolve the applicant once. reg.userId may be either a userId or a user
-    // DB id. This is also used for approval-only (unassigned) registrations.
-    const memberUserId = reg.userDbId || reg.userId || input.registrationId.replace(/^BVREG-/, '');
-    let targetUser = await Users.findOne({ id: memberUserId }).catch(() => null);
-    if (!targetUser) {
-      targetUser = await Users.findOne({ filters: { userId: memberUserId } }).catch(() => null) ||
-                   await Users.findOne({ filters: { email: reg.email } }).catch(() => null) ||
-                   await Users.findOne({ filters: { email: (reg.email || '').toLowerCase() } }).catch(() => null);
-    }
-
-    if (targetUser) {
+    {
       const relatedRegistrationIds = [
         input.registrationId,
         `BVREG-${targetUser.id}`,
@@ -120,7 +170,7 @@ export default createEndpoint({
       }
     }
 
-    if (targetUser && group) {
+    if (group) {
       const targetUserDbId = targetUser.id;
       const targetUserLegacyId = targetUser.userId || targetUser.id;
 
@@ -189,9 +239,10 @@ export default createEndpoint({
         },
       });
       serverCacheInvalidate(profileCacheKey(targetUser.id));
-    } else if (targetUser) {
-      // Approval without a group deliberately does not make the user a BV
-      // member. Attendance and group reports remain hidden until assignment.
+    } else {
+      // Approval without a group is still a completed approval. The user gets
+      // Attendance access immediately, while membership remains false until a
+      // real BvGroupMembers record is created.
       await Users.update({
         id: targetUser.id,
         record: {
@@ -206,7 +257,9 @@ export default createEndpoint({
       serverCacheInvalidate(profileCacheKey(targetUser.id));
     }
 
-    serverCacheInvalidate(profileCacheKey(reg.userId));
+    for (const identity of [targetUser.id, targetUser.userId, reg.userId, reg.userDbId]) {
+      if (identity) serverCacheInvalidate(profileCacheKey(String(identity)));
+    }
 
     return { success: true };
   },

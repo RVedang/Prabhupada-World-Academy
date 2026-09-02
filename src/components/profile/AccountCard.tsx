@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 interface Props {
   createdAt?: string;
   lastLoginAt?: string;
+  deleteReturnTo?: string;
 }
 
 function safeDate(val: unknown, includeTime = false): string {
@@ -23,7 +24,7 @@ function safeDate(val: unknown, includeTime = false): string {
   return includeTime ? format(d, 'MMM dd, yyyy, h:mm a') : format(d, 'MMM dd, yyyy');
 }
 
-export default function AccountCard({ createdAt, lastLoginAt }: Props) {
+export default function AccountCard({ createdAt, lastLoginAt, deleteReturnTo = '/' }: Props) {
   const { user, logout } = useAuth();
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -34,7 +35,7 @@ export default function AccountCard({ createdAt, lastLoginAt }: Props) {
     try {
       await deleteAccount({ email: user.email, confirmText: 'DELETE' });
       toast.success('Account deleted. You will be logged out.');
-      setTimeout(() => logout({ returnTo: '/' }), 2000);
+      setTimeout(() => logout({ returnTo: deleteReturnTo }), 2000);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to delete account');
       setDeleting(false);

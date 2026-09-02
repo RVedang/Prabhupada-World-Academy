@@ -170,7 +170,11 @@ export default function ProfilePage() {
               isPendingResidencyLeave={(profile as any).isPendingResidencyLeave}
               onProfileChanged={handleProfileChanged} />
           )}
-          <AccountCard createdAt={profile.createdAt ?? undefined} lastLoginAt={profile.lastLoginAt ?? undefined} />
+          <AccountCard
+            createdAt={profile.createdAt ?? undefined}
+            lastLoginAt={profile.lastLoginAt ?? undefined}
+            deleteReturnTo={isPwUser ? '/pw' : '/'}
+          />
           <NotificationCard />
         </div>
 
