@@ -51,8 +51,11 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const navigate = useNavigate();
   const isSuperAdmin = isSuperGuideProp ?? !!(
     profile?.isBvSuperAdmin ||
-    profile?.role === 'SUPER_ADMIN' ||
-    profile?.role === 'SUPER_GUIDE'
+    profile?.isBvAdmin ||
+    (profile?.role as string) === 'SUPER_ADMIN' ||
+    (profile?.role as string) === 'SUPER_GUIDE' ||
+    (profile?.role as string) === 'ADMIN' ||
+    (profile?.role as string) === 'PW_ADMIN'
   );
 
   const segment = propSegment || profile?.segment || 'PW';

@@ -317,7 +317,7 @@ export default function PwAdminDashboard() {
                       onRegistrationResolved={handleBvRegistrationResolved}
                     />
                     <hr className="my-6 border-t" />
-                    <BvAdminManagementTab segment="PW" />
+                    <BvAdminManagementTab segment="PW" isSuperGuide={isBvAdminUser} />
                   </div>
                 )}
 
