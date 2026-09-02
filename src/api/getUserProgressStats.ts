@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries } from '@/lib/backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, BvAttendance } from '@/lib/backend-sdk';
+import { fillingSameDayApplies } from '@/lib/userUtils';
 
-const USER_FIELDS = ['id', 'userId', 'email', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'userId', 'email', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'roundsCount', 'spReadingMinutes',
@@ -95,6 +96,30 @@ function nrFillingSameDayPts(entryDate: string, submittedAt: string | null | und
   } catch { return 0; }
 }
 
+/** Form values may be stored as booleans, 0/1, or legacy Yes/No text. */
+function toBinaryValue(value: unknown): number {
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'number') return value > 0 ? 1 : 0;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return ['1', 'true', 'yes', 'y', 'present', 'attended'].includes(normalized) ? 1 : 0;
+}
+
+function resolvedFillingSameDayPoints(
+  fieldValues: Record<string, any>,
+  entryDate: string,
+  submittedAt: string | null | undefined,
+  ashrayLevel: string | null | undefined,
+): number {
+  if (!fillingSameDayApplies(ashrayLevel)) return 0;
+  const stored = fieldValues._pts_fillingSameDay ??
+    fieldValues._nr_pts_fillingSameDay ??
+    fieldValues._per_field?.fillingSameDay;
+  if (stored != null && stored !== '') return Math.max(0, Number(stored) || 0);
+  // Older records predate the persisted field points. This criterion is based
+  // on the actual save time, not the old checkbox value.
+  return nrFillingSameDayPts(entryDate, submittedAt);
+}
+
 interface EntryValues {
   label: string;
   date: string;
@@ -133,7 +158,12 @@ interface EntryValues {
   nrBhaktiVrikshaPts: number;
 }
 
-function entryToValues(e: any, isNR: boolean): EntryValues {
+function entryToValues(
+  e: any,
+  isNR: boolean,
+  attendanceByDate: ReadonlyMap<string, boolean> = new Map(),
+  ashrayLevel?: string | null,
+): EntryValues {
   const fv = parseFieldValues(e.fieldValuesJson as string);
   const rounds = isNR
     ? Number(fv.chanting ?? fv.rounds ?? e.roundsCount ?? 0)
@@ -141,10 +171,18 @@ function entryToValues(e: any, isNR: boolean): EntryValues {
   const sleepMins = Number(e.sleepMinutes ?? 0);
   const reading = isNR ? Number(fv.reading ?? 0) : 0;
   const hearing = isNR ? Number(fv.hearing ?? 0) : 0;
-  const sevaRaw = isNR ? Number(fv.seva ?? 0) : 0;
-  const bvRaw = isNR ? Number(fv.bhaktiVriksha ?? 0) : 0;
   const entryDate = (e.entryDate as string || '').slice(0, 10);
   const submittedAt = e.submittedAt as string | undefined;
+  const sevaRaw = isNR ? toBinaryValue(fv.seva) : 0;
+  // Attendance is authoritative for this value. Preserve a legacy/form value
+  // as a fallback, but never show zero when the group marked the user present.
+  const bvRaw = isNR ? Math.max(
+    toBinaryValue(fv.bhaktiVriksha),
+    attendanceByDate.get(entryDate) ? 1 : 0,
+  ) : 0;
+  const fillingSameDay = isNR
+    ? resolvedFillingSameDayPoints(fv, entryDate, submittedAt, e.ashrayLevelUsed || ashrayLevel)
+    : 0;
 
   let adjustedScorePercent = e.scorePercent ?? null;
   if (!isNR) {
@@ -188,7 +226,7 @@ function entryToValues(e: any, isNR: boolean): EntryValues {
     studyMinutes: isNR ? 0 : Number(fv.study_minutes ?? 0),
     reading,
     hearing,
-    fillingSameDay: isNR ? Number(fv.fillingSameDay ?? 0) : 0,
+    fillingSameDay,
     seva: sevaRaw,
     bhaktiVriksha: bvRaw,
     booksDistributed: Number(e.booksDistributed ?? 0),
@@ -374,6 +412,26 @@ export default createEndpoint({
       return dedupeEntries(results);
     };
 
+    const loadAttendanceByDate = async (): Promise<Map<string, boolean>> => {
+      const results = await Promise.all(entryOwnerIds.map(user =>
+        BvAttendance.findAll({
+          filters: { user },
+          fields: ['id', 'attendanceDate', 'present', 'status'],
+          limit: 500,
+        }).catch(() => ({ records: [] }))
+      ));
+      const byDate = new Map<string, boolean>();
+      for (const attendance of results.flatMap(result => result.records)) {
+        const date = String(attendance.attendanceDate || '').slice(0, 10);
+        if (!date) continue;
+        const present = attendance.present === true ||
+          ['present', 'p', 'true', '1'].includes(String((attendance as any).status ?? attendance.present ?? '').trim().toLowerCase());
+        // A present record takes precedence over any older duplicate record.
+        byDate.set(date, byDate.get(date) === true || present);
+      }
+      return byDate;
+    };
+
     // Scholars use resident scoring template
     const effectiveIsResident = isResident || isScholar;
 
@@ -398,6 +456,7 @@ export default createEndpoint({
     }
 
     const trendEntries = await loadEntries({ entryDate: { gte: startDate, lte: endDate } });
+    const attendanceByDate = await loadAttendanceByDate();
 
     const trendSorted = [...trendEntries].sort((a, b) =>
       (a.entryDate as string).localeCompare(b.entryDate as string)
@@ -407,7 +466,7 @@ export default createEndpoint({
     const allValues = trendSorted.map(e => {
       const isNREntry = isNonResidentEntry(e.templateMode);
       return {
-        ...entryToValues(e, isNREntry || isNR),
+        ...entryToValues(e, isNREntry || isNR, attendanceByDate, targetUser.ashrayLevel),
         isSickOs: !!(e.flagSick || e.flagOs),
       };
     });
@@ -503,7 +562,7 @@ export default createEndpoint({
     const insightValues = insightEntries.map(e => {
       const isNREntry = isNonResidentEntry(e.templateMode);
       return {
-        ...entryToValues(e, isNREntry || isNR),
+        ...entryToValues(e, isNREntry || isNR, attendanceByDate, targetUser.ashrayLevel),
         isSickOs: !!(e.flagSick || e.flagOs),
       };
     });
