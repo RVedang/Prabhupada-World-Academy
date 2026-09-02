@@ -45,29 +45,14 @@ export default createEndpoint({
         { segment, groupId },
       );
     } else if (bvslMode) {
-      // Show BVSLs from the current user's groups
-      const { records: myGroups } = await BvGroups.findAll({
-        filters: { bvslLeader: context.user.id, isActive: true } as any,
-        fields: ['id'],
-        limit: 100,
-      });
-      if (myGroups.length > 0) {
-        const groupIds = myGroups.map((g: any) => g.id);
-        const { records: memberships } = await BvGroupMembers.findAll({
-          filters: { group: { in: groupIds } } as any,
-          fields: ['id', 'user'],
-          limit: 2000,
-        });
-        const memberIds = [...new Set(memberships.map((m: any) => Array.isArray(m.user) ? m.user[0] : m.user).filter(Boolean))];
-        if (memberIds.length > 0) {
-          const { records } = await Users.findAll({
-            filters: { id: { in: memberIds as any }, status: 'Active' } as any,
-            fields: ['id', 'userId', 'fullName'],
-            limit: 500,
-          });
-          bvslUsers = records;
-        }
-      }
+      // An RGF's BV activity is recorded against the facilitator who
+      // submitted it, not against their group members. The old query used
+      // group members here, so the chart showed "0 entries" even after the
+      // RGF submitted a preaching section with their Sadhana report.
+      const me = await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { userId: context.user.userId || context.user.id }, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined) ||
+        await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'fullName', 'email'] }).catch(() => undefined);
+      if (me) bvslUsers = [me];
     } else if (residencyIds && residencyIds.length > 0) {
       // Center-based scoping from explicit residencyIds (BV Mentor context)
       const { getGuideIdsForResidencies } = await import('../lib/guideScope');

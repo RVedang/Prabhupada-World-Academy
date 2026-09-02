@@ -177,7 +177,9 @@ function QuizAnalyticsCard({ quiz, groupId, memberCount }: {
     let cancelled = false;
     setLoading(true);
     setError('');
-    getBvQuizSubmissions({ quizId: quiz.quizId, department: 'FOLK', groupId })
+    // The server resolves the quiz department from the quiz itself. Passing
+    // FOLK here incorrectly rejected centrally published PW quizzes.
+    getBvQuizSubmissions({ quizId: quiz.quizId, groupId })
       .then(data => { if (!cancelled) setResult(data); })
       .catch((requestError: any) => {
         if (!cancelled) setError(requestError?.message || 'Unable to load quiz analytics.');

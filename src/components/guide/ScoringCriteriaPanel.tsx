@@ -137,7 +137,7 @@ function CriteriaTable({ title, rows }: { title: string; rows: typeof RESIDENT_C
   );
 }
 
-export default function ScoringCriteriaPanel({ isResident, mode }: { isResident?: boolean; mode?: 'resident' | 'non_resident' | 'all' }) {
+export default function ScoringCriteriaPanel({ isResident, mode }: { isResident?: boolean; mode?: 'resident' | 'non_resident' | 'all' | 'pw' }) {
   const [open, setOpen] = useState(false);
 
   const effectiveMode = mode || (isResident ? 'resident' : 'non_resident');
@@ -155,6 +155,8 @@ export default function ScoringCriteriaPanel({ isResident, mode }: { isResident?
             <CriteriaTable title="Resident Scoring Criteria" rows={RESIDENT_CRITERIA} />
             <CriteriaTable title="Non-Resident Scoring Criteria" rows={NR_CRITERIA} />
           </div>
+        ) : effectiveMode === 'pw' ? (
+          <CriteriaTable title="Sadhana Scoring Criteria" rows={NR_CRITERIA} />
         ) : effectiveMode === 'resident' ? (
           <CriteriaTable title="Resident Scoring Criteria" rows={RESIDENT_CRITERIA} />
         ) : (

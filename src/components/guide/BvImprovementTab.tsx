@@ -108,7 +108,9 @@ function computeLowPerformers(submitted: BvslRow[]): LowPerformer[] {
 interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
 
 export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Props) {
-  const [period, setPeriod]   = useState<Period>('prev_week');
+  // Show the current work by default. "Previous Week" made a newly submitted
+  // entry appear missing until the user manually changed the period.
+  const [period, setPeriod]   = useState<Period>('this_month');
   const [loading, setLoading] = useState(false);
   const [data, setData]       = useState<GetBvPreachingReportOutputType | null>(null);
 

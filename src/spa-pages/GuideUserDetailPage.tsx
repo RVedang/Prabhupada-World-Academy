@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { subDays } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,7 @@ function isRequired(req: string): boolean {
 export default function GuideUserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
   const { user: viewerUser } = useAuth();
+  const { profile: viewerProfile } = useUserProfile();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -66,7 +68,7 @@ export default function GuideUserDetailPage() {
         getAshrayUpgradePath({}),
         getBvAttendance({ userId, localDate }).catch(() => null),
         getAshrayChecklist({ userId }).catch(() => null),
-        getUserProgressStats({ userId, days: 45, period: 'daily' }).catch(() => null),
+        getUserProgressStats({ userId, days: 45, period: 'daily', includeToday: true }).catch(() => null),
         getUserCrmData({ userId }).catch(() => null),
       ]);
       setData(result);
@@ -88,7 +90,7 @@ export default function GuideUserDetailPage() {
     if (!userId || !data) return;
     setTrendLoading(true);
     const days = trendPeriod === 'monthly' ? 365 : trendPeriod === 'weekly' ? 84 : 45;
-    getUserProgressStats({ userId, days, period: trendPeriod })
+    getUserProgressStats({ userId, days, period: trendPeriod, includeToday: true })
       .then(res => setProgressStats(res as any))
       .catch(() => {})
       .finally(() => setTrendLoading(false));
@@ -172,8 +174,9 @@ export default function GuideUserDetailPage() {
     ? Math.round(recentScores.reduce((s: number, d: number) => s + d, 0) / recentScores.length)
     : 0;
 
+  const isPw = String(viewerProfile?.segment || '').toUpperCase() === 'PW';
   const isResident = data.user.isResident;
-  const fieldConfigs = isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS;
+  const fieldConfigs = isPw ? NR_FIELD_CONFIGS : (isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS);
   const trendEntries = progressStats?.entries ?? [];
 
   return (
@@ -190,13 +193,13 @@ export default function GuideUserDetailPage() {
             <p className="text-muted-foreground">{data.user.email}</p>
             <div className="flex flex-wrap gap-2 mt-2">
               <Badge>{data.user.status}</Badge>
-              {data.user.isResident ? (
+              {!isPw && (data.user.isResident ? (
                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
                   🏠 {data.user.residencyName || 'FOLK Resident'}
                 </Badge>
               ) : (
                 <Badge variant="outline">🌐 Non-Resident</Badge>
-              )}
+              ))}
               <div className="flex items-center gap-1.5">
                 <span className="text-sm text-muted-foreground">📿 Ashray:</span>
                 <Badge variant="outline" className="text-sm font-semibold">{data.user.ashrayLevel || 'Jigyasa'}</Badge>
@@ -236,7 +239,7 @@ export default function GuideUserDetailPage() {
             <p className="text-base font-bold mb-2 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />Sadhana Entries
             </p>
-            <MiniCalendar entries={calendarEntries} onDayClick={(date) => setSelectedEntryDate(date)} isResident={isResident} />
+            <MiniCalendar entries={calendarEntries} onDayClick={(date) => setSelectedEntryDate(date)} isResident={isPw ? false : isResident} />
           </div>
           <div>
             <p className="text-base font-bold mb-2 flex items-center gap-2">
@@ -302,7 +305,7 @@ export default function GuideUserDetailPage() {
             <FieldTrendChart
               data={trendEntries}
               fieldConfigs={fieldConfigs}
-              isResident={isResident}
+              isResident={isPw ? false : isResident}
               defaultSelected="scorePercent"
               height={220}
               loading={trendLoading}

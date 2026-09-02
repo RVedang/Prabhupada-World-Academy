@@ -185,7 +185,7 @@ export default function BvslMembersTable({ bvslId, detailBasePath = '/guide/user
                           <div className="flex flex-wrap gap-1 mt-1">
                             {m.groupName && <Badge variant="secondary" className="text-xs">{m.groupName}</Badge>}
                             {m.ashrayLevel && <Badge variant="outline" className="text-xs">{m.ashrayLevel}</Badge>}
-                            {m.isResident && <Badge className="text-xs bg-primary/10 text-primary border-primary/30">{m.residencyName || 'Resident'}</Badge>}
+                            {isFolk && m.isResident && <Badge className="text-xs bg-primary/10 text-primary border-primary/30">{m.residencyName || 'Resident'}</Badge>}
                           </div>
                         </div>
                         <div className="flex gap-1 shrink-0">
@@ -218,7 +218,7 @@ export default function BvslMembersTable({ bvslId, detailBasePath = '/guide/user
                       <th className="text-left p-2 font-medium bg-card">Name</th>
                       <th className="text-left p-2 font-medium bg-card">Group</th>
                       <th className="text-left p-2 font-medium bg-card">Ashray Level</th>
-                      <th className="text-left p-2 font-medium bg-card">Type</th>
+                      {isFolk && <th className="text-left p-2 font-medium bg-card">Type</th>}
                       <th className="text-left p-2 font-medium bg-card">Contact</th>
                       {canManageGroups && <th className="text-left p-2 font-medium bg-card">Actions</th>}
                     </tr>
@@ -244,11 +244,13 @@ export default function BvslMembersTable({ bvslId, detailBasePath = '/guide/user
                           {m.groupName ? <Badge variant="secondary" className="text-xs">{m.groupName}</Badge> : '—'}
                         </td>
                         <td className="p-2 text-muted-foreground">{m.ashrayLevel || '—'}</td>
-                        <td className="p-2">
-                          {m.isResident
-                            ? <span className="text-primary font-medium text-xs">{m.residencyName || 'Resident'}</span>
-                            : <span className="text-muted-foreground text-xs">Non-Resident</span>}
-                        </td>
+                        {isFolk && (
+                          <td className="p-2">
+                            {m.isResident
+                              ? <span className="text-primary font-medium text-xs">{m.residencyName || 'Resident'}</span>
+                              : <span className="text-muted-foreground text-xs">Non-Resident</span>}
+                          </td>
+                        )}
                         <td className="p-2" onClick={e => e.stopPropagation()}>
                           <div className="flex gap-1">
                             {m.phone && (

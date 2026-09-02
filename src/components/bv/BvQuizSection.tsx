@@ -9,6 +9,7 @@ import { getMyBvQuizSubmissions } from '@/lib/endpoints-sdk';
 import type { GetMyBvQuizSubmissionsOutputType } from '@/lib/endpoints-sdk';
 import BvQuizTaker from './BvQuizTaker';
 import { format } from 'date-fns';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface Props {
   userId: string;
@@ -34,6 +35,9 @@ export default function BvQuizSection({ userId }: Props) {
   };
 
   useEffect(() => { load(); }, [userId]);
+  // A facilitator activating a centrally published PW quiz should make it
+  // available to active group members immediately, without polling.
+  useRealtimeRefresh(['quizzes', 'groups'], () => { void load(false); }, Boolean(userId));
 
   if (loading) return (
     <Card><CardContent className="py-4 flex justify-center">

@@ -69,8 +69,19 @@ export default createEndpoint({
       return { members: [], allDates: [], sessionDates: [], groups: [], attendance: {}, quizScores: {} };
     }
 
-    const groupIds = groups.map(g => g.id);
-    const groupNameMap = new Map(groups.map(g => [g.id, (g.groupName || '') as string]));
+    // Older PW documents mix the Firestore record id and public groupId in
+    // memberships and attendance. Treat both as aliases of the same group.
+    const groupIds = [...new Set(groups.flatMap(g => [g.id, g.groupId]).filter(Boolean))] as string[];
+    const groupNameMap = new Map<string, string>();
+    const groupCanonicalId = new Map<string, string>();
+    for (const group of groups) {
+      const canonical = String(group.id);
+      for (const reference of [group.id, group.groupId].filter(Boolean)) {
+        const key = String(reference);
+        groupNameMap.set(key, (group.groupName || '') as string);
+        groupCanonicalId.set(key, canonical);
+      }
+    }
 
     // Get all members for these groups
     const { records: memberships } = await BvGroupMembers.findAll({
@@ -112,7 +123,8 @@ export default createEndpoint({
     for (const m of memberships) {
       const uid = (Array.isArray(m.user) ? m.user[0] : m.user) as string;
       const gid = (Array.isArray(m.group) ? m.group[0] : m.group) as string;
-      if (uid && gid && !memberGroupMap.has(uid)) memberGroupMap.set(uid, gid);
+      const canonicalGroupId = groupCanonicalId.get(String(gid)) || String(gid);
+      if (uid && canonicalGroupId && !memberGroupMap.has(uid)) memberGroupMap.set(uid, canonicalGroupId);
     }
 
     // Build residency name map
@@ -197,7 +209,8 @@ export default createEndpoint({
     for (const a of allAttendance) {
       const uid = (Array.isArray(a.user) ? a.user[0] : a.user) as string;
       const date = String(a.attendanceDate || '').slice(0, 10);
-      const gid = (Array.isArray(a.group) ? a.group[0] : a.group) as string;
+      const rawGroupId = (Array.isArray(a.group) ? a.group[0] : a.group) as string;
+      const gid = groupCanonicalId.get(String(rawGroupId)) || String(rawGroupId || '');
       if (!uid || !date) continue;
 
       if (!attendanceMap[uid]) attendanceMap[uid] = {};

@@ -1015,7 +1015,9 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
         {/* Scoring Criteria Reference */}
         <ScoringCriteriaPanel
           mode={
-            residencyFilter === 'resident' || residencyFilter === 'scholar'
+            isPw
+              ? 'pw'
+              : residencyFilter === 'resident' || residencyFilter === 'scholar'
               ? 'resident'
               : residencyFilter === 'non_resident'
               ? 'non_resident'
