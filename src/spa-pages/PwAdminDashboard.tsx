@@ -28,7 +28,7 @@ const PwQuizManagementPanel = lazy(() => import('@/components/super/PwQuizManage
 const BvslOneToOneTab = lazy(() => import('@/components/bvsl/BvslOneToOneTab'));
 import {
   getCurrentGuide, getPushSubscriptionStats, GetPushSubscriptionStatsOutputType,
-  getPendingApprovals, getGuideRequests, getResidencyTransferRequests, getCleanlinessReviews,
+  getPendingApprovals, getGuideRequests, getCleanlinessReviews,
   getPendingBvRegistrations,
 } from '@/lib/endpoints-sdk';
 
@@ -108,11 +108,10 @@ export default function PwAdminDashboard() {
       Promise.all([
         getPendingApprovals({ guideId: 'ALL' }),
         getGuideRequests({ guideId: 'ALL' }),
-        getResidencyTransferRequests({ guideId: 'ALL' } as any),
         getPendingBvRegistrations({ segment: 'PW' }).catch(() => []),
-      ]).then(([pending, requests, resTrans, bvRegs]) => {
+      ]).then(([pending, requests, bvRegs]) => {
         setApprovalCount(
-          pending.length + (requests?.guideTransfers || []).length + (requests?.ashrayUpgrades || []).length + resTrans.length
+          pending.length + (requests?.ashrayUpgrades || []).length
         );
         setBvRegCount(Array.isArray(bvRegs) ? bvRegs.length : 0);
       }).catch(() => {});
@@ -289,8 +288,8 @@ export default function PwAdminDashboard() {
                 {visitedTabs.has('approvals') && (
                   <div className={activeTab === 'approvals' ? 'block' : 'hidden'}>
                     <div className="space-y-1 mb-4">
-                      <h2 className="text-lg font-bold">Ashraya Requests & Approvals</h2>
-                      <p className="text-sm text-muted-foreground">Review and approve Ashraya upgrade requests for Prabhupada World members</p>
+                      <h2 className="text-lg font-bold">Registrations & Ashraya Approvals</h2>
+                      <p className="text-sm text-muted-foreground">Review new registrations and Ashraya upgrade requests for Prabhupada World members</p>
                     </div>
                     <ApprovalsTab guideId="ALL" isSuperGuide={true} isPwAdmin={true} />
                   </div>
