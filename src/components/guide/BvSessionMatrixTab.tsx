@@ -19,6 +19,7 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { EmptyState } from '@/shared';
 import { exportToCsv } from '@/utils/exportCsv';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type ReportType = 'weekly' | 'monthly';
 type MemberRow = GetBvSessionMatrixOutputType['members'][0];
@@ -131,6 +132,15 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
       toast.dismiss(BV_REPORT_LOAD_TOAST_ID);
     };
   }, [debouncedFetch, guideId, start, end, groupId, bvslMode, residencyIds]);
+
+  // Keep an already-open report synchronized when an RGF conducts a session,
+  // changes attendance, or changes group membership. The invalidation stream
+  // contains no business data and is event-driven (no polling).
+  useRealtimeRefresh(
+    ['attendance', 'groups', 'users', 'quizzes'],
+    fetchData,
+    Boolean(guideId),
+  );
 
   const groups: { id: string; name: string }[] = (data as any)?.groups ?? [];
 
