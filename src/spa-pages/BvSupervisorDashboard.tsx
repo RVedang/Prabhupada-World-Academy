@@ -103,7 +103,7 @@ export default function BvSupervisorDashboard() {
 
   return (
     <DashboardLayout
-      title="FOLK Bhakti Vriksha Supervisor Dashboard"
+      title={`${isFolk ? 'FOLK' : 'Prabhupada World'} Bhakti Vriksha Supervisor Dashboard`}
       subtitle={[
         `Hare Krishna ${profile?.fullName || 'Supervisor'}!`,
         (profile as any)?.bvReportingAdminName
@@ -113,7 +113,7 @@ export default function BvSupervisorDashboard() {
       role="SUPERVISOR"
       maxWidth="max-w-6xl"
       showProfile={true}
-      meetingDepartment="FOLK"
+      meetingDepartment={isFolk ? "FOLK" : "PW"}
     >
       {loading ? (
         <div className="space-y-4 py-8">
@@ -228,7 +228,7 @@ export default function BvSupervisorDashboard() {
                   guideId={profile?.userId || 'ALL'}
                   bvslMode
                   summaryOnlyGroups
-                  groupOptions={(data?.groups || []).map(group => ({
+                  groupOptions={(data?.groups || []).map((group: any) => ({
                     id: group.id,
                     groupId: group.id,
                     groupName: group.groupName,
@@ -240,7 +240,7 @@ export default function BvSupervisorDashboard() {
                 <SadhanaSection
                   guideId={profile?.userId || ''}
                   bvslMode
-                  groupOptions={(data?.groups || []).map(group => ({
+                  groupOptions={(data?.groups || []).map((group: any) => ({
                     id: group.id,
                     groupId: group.groupId,
                     groupName: group.groupName,
@@ -249,11 +249,11 @@ export default function BvSupervisorDashboard() {
               )}
 
               {activeTab === 'callreports' && (
-                <BvslOneToOneTab department="FOLK" />
+                <BvslOneToOneTab department={isFolk ? "FOLK" : "PW"} />
               )}
 
               {activeTab === 'meetings' && (
-                <MeetingsAndMomTab department="FOLK" />
+                <MeetingsAndMomTab department={isFolk ? "FOLK" : "PW"} />
               )}
             </>
           )}
