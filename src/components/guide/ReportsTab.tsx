@@ -422,7 +422,12 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
             common_rounds:    (u as any).chantingRaw ?? null,
             common_reading:   (u as any).readingRaw ?? null,
             common_hearing:   (u as any).hearingRaw ?? null,
-            common_seva:      u.isResident ? (fs['daily_service'] ?? null) : (fs['seva'] ?? null),
+            // PW/RGF/RGSF reports force real values in the shared All view.
+            // Seva is leaderboard-only for some NR levels, so its scored value
+            // can legitimately be 0 even when the member entered Yes/true.
+            common_seva:      u.isResident
+              ? (u.fieldRawValues?.['daily_service'] ?? fs['daily_service'] ?? null)
+              : (u.fieldRawValues?.['seva'] ?? fs['seva'] ?? null),
             common_preaching: u.isResident ? (fs['preaching_raw'] ?? null) : (fs['nr_preaching'] ?? null),
             common_books:     u.isResident ? (fs['distribution_raw'] ?? null) : (fs['nr_books'] ?? null),
           };
@@ -990,23 +995,25 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                   </div>
                 )}
 
-                {/* Show Real Values — displays actual user inputs instead of scored points */}
-                <div className="flex items-center gap-1.5">
-                  <Checkbox
-                    id="show-real-values"
-                    checked={effectiveShowRealValues}
-                    onCheckedChange={(v) => setShowRealValues(!!v)}
-                    className="w-4 h-4"
-                    disabled={realValuesForced}
-                  />
-                  <Label
-                    htmlFor="show-real-values"
-                    className={`text-sm font-medium whitespace-nowrap ${realValuesForced ? 'cursor-not-allowed text-muted-foreground' : 'cursor-pointer'}`}
-                    title={realValuesForced ? 'Raw values are always shown in this grouped view.' : 'Show actual submitted values instead of scored points.'}
-                  >
-                    Show Real Values
-                  </Label>
-                </div>
+                {/* Raw values are mandatory in grouped/NR reports. Since the
+                    control cannot be changed in that state, do not render it. */}
+                {!realValuesForced && (
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      id="show-real-values"
+                      checked={effectiveShowRealValues}
+                      onCheckedChange={(v) => setShowRealValues(!!v)}
+                      className="w-4 h-4"
+                    />
+                    <Label
+                      htmlFor="show-real-values"
+                      className="text-sm font-medium whitespace-nowrap cursor-pointer"
+                      title="Show actual submitted values instead of scored points."
+                    >
+                      Show Real Values
+                    </Label>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>

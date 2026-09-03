@@ -15,7 +15,7 @@ import BvslMembersTable from '@/components/bvsl/BvslMembersTable';
 import BvslSadhanaReportPanel from '@/components/bvsl/BvslSadhanaReportPanel';
 import BvslQuizPanel from '@/components/bvsl/BvslQuizPanel';
 import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
-import RgsfCallHistoryTab from '@/components/bvsl/RgsfCallHistoryTab';
+import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
@@ -97,7 +97,7 @@ export default function RgsfDashboard() {
                   groups={groups.map((g: any) => ({ id: g.id, groupName: g.groupName }))}
                 />
               )}
-              {activeTab === 'onetone' && <RgsfCallHistoryTab />}
+              {activeTab === 'onetone' && <BvslOneToOneTab />}
               {activeTab === 'meetings' && <MeetingsAndMomTab />}
             </>
           )}

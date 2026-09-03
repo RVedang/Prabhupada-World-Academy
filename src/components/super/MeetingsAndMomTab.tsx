@@ -933,12 +933,9 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
 
   // Filtered Meetings
   const filteredMeetings = meetings.filter(m => {
-    // Participant filter: non-super-admins and non-admins only see meetings in which they were participants
-    if (!canManageMeetings) {
-      const isInvited = (m.inviteeUserIds || []).includes(user?.id || '') ||
-                        (m.invitees || []).some((inv: any) => inv.userId === user?.id || (user?.email && inv.email?.toLowerCase() === user.email.toLowerCase()));
-      if (!isInvited) return false;
-    }
+    // getMeetings already applies the authoritative invitation filter on the
+    // server. Do not repeat it here with only the auth UID: meetings can carry
+    // a database ID, custom user ID, UID, or email after an identity migration.
 
     if (statusFilter !== 'all' && m.status !== statusFilter) return false;
     if (categoryFilter !== 'all' && m.type !== categoryFilter) return false;
@@ -954,14 +951,8 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
 
   // Filtered MoMs
   const filteredMoms = moms.filter(m => {
-    if (!canManageMeetings) {
-      const associatedMeeting = meetings.find(meeting => meeting.id === m.meeting_id);
-      const isInvited = (associatedMeeting && (
-        (associatedMeeting.inviteeUserIds || []).includes(user?.id || '') ||
-        (associatedMeeting.invitees || []).some((inv: any) => inv.userId === user?.id || (user?.email && inv.email?.toLowerCase() === user.email.toLowerCase()))
-      ));
-      if (!isInvited) return false;
-    }
+    // getMoms returns only MoMs whose meeting is in the server-authorized
+    // invited meeting set, so an MoM cannot leak through for another meeting.
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchTitle = m.title.toLowerCase().includes(q);

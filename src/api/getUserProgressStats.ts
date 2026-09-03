@@ -84,14 +84,30 @@ function nrMinutePts(minutes: number): number {
   return 0;
 }
 
+// Return the calendar date in India for a timestamp. Sadhana dates are user
+// calendar dates, so comparing UTC dates can incorrectly mark late-night IST
+// submissions as backdated.
+function istDateOnly(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
 // Compute NR filling-same-day pts from submittedAt vs entryDate
 function nrFillingSameDayPts(entryDate: string, submittedAt: string | null | undefined): number {
   if (!submittedAt) return 0;
   try {
-    const entryD = new Date(entryDate + 'T00:00:00');
-    const subD = new Date(submittedAt);
-    subD.setHours(0, 0, 0, 0);
-    const dayDelay = Math.max(0, Math.round((subD.getTime() - entryD.getTime()) / 86400000));
+    const entryDateOnly = entryDate.slice(0, 10);
+    const submittedDateOnly = istDateOnly(submittedAt);
+    if (!entryDateOnly || !submittedDateOnly) return 0;
+    const entryD = new Date(`${entryDateOnly}T00:00:00Z`);
+    const submittedD = new Date(`${submittedDateOnly}T00:00:00Z`);
+    const dayDelay = Math.max(0, Math.round((submittedD.getTime() - entryD.getTime()) / 86400000));
     return Math.max(0, 4 - dayDelay * 2);
   } catch { return 0; }
 }
@@ -111,13 +127,17 @@ function resolvedFillingSameDayPoints(
   ashrayLevel: string | null | undefined,
 ): number {
   if (!fillingSameDayApplies(ashrayLevel)) return 0;
+  // The actual save timestamp is authoritative. In particular, do not let a
+  // stale persisted 0 mask a same-day submission after an entry was edited or
+  // migrated from the older schema.
+  if (submittedAt) return nrFillingSameDayPts(entryDate, submittedAt);
+
+  // Older records may not have submittedAt. Fall back to persisted points for
+  // those records because there is no timestamp from which to recalculate.
   const stored = fieldValues._pts_fillingSameDay ??
     fieldValues._nr_pts_fillingSameDay ??
     fieldValues._per_field?.fillingSameDay;
-  if (stored != null && stored !== '') return Math.max(0, Number(stored) || 0);
-  // Older records predate the persisted field points. This criterion is based
-  // on the actual save time, not the old checkbox value.
-  return nrFillingSameDayPts(entryDate, submittedAt);
+  return stored != null && stored !== '' ? Math.max(0, Number(stored) || 0) : 0;
 }
 
 interface EntryValues {

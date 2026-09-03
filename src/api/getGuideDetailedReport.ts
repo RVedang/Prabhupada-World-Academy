@@ -199,6 +199,14 @@ function numAvgInt(vals: (number | null | undefined)[]): number | null {
   return Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
 }
 
+/** Form values may be stored as booleans, numbers, or legacy Yes/No text. */
+function isAffirmative(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value > 0;
+  return ['1', 'true', 'yes', 'y', 'present', 'attended']
+    .includes(String(value ?? '').trim().toLowerCase());
+}
+
 const FIELD_DEFS = [
   // Resident fields
   { key: 'quotes_tulasi',    shortLabel: 'Quotes/Pranam', maxPoints: 1,    isScoring: true,  forResident: true,  forNR: false },
@@ -500,14 +508,14 @@ function aggregateEntries(entries: any[], isResident: boolean, ashrayLevel?: str
       })(),
       seva: (() => {
         if (isNA_Seva) return null;
-        if (entries.length === 1) return (allFv[0].seva === true || allFv[0].seva === 1) ? 'Yes' : 'No';
-        const yc = allFv.filter(fv => fv.seva === true || fv.seva === 1).length;
+        if (entries.length === 1) return isAffirmative(allFv[0].seva) ? 'Yes' : 'No';
+        const yc = allFv.filter(fv => isAffirmative(fv.seva)).length;
         return `${yc}/${entries.length}d`;
       })(),
       bhaktiVriksha: (() => {
         if (isNA_BV) return null;
-        if (entries.length === 1) return (allFv[0].bhaktiVriksha === true || allFv[0].bhaktiVriksha === 1) ? 'Yes' : 'No';
-        const yc = allFv.filter(fv => fv.bhaktiVriksha === true || fv.bhaktiVriksha === 1).length;
+        if (entries.length === 1) return isAffirmative(allFv[0].bhaktiVriksha) ? 'Yes' : 'No';
+        const yc = allFv.filter(fv => isAffirmative(fv.bhaktiVriksha)).length;
         return `${yc}/${entries.length}d`;
       })(),
       nr_preaching: entries.length === 1
