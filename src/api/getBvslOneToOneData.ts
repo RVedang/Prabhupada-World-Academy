@@ -190,15 +190,12 @@ export default createEndpoint({
       const scopeOptions: { segment: 'FOLK' | 'PW' } = {
         segment: callerSegment === 'FOLK' ? 'FOLK' : 'PW',
       };
-      const [groupFacilitators, groupMembers] = await Promise.all([
-        resolveBvGroupFacilitatorUsers(context.user, userFields, scopeOptions),
-        resolveBvGroupMemberUsers(context.user, userFields, scopeOptions),
-      ]);
+      const groupMembers = await resolveBvGroupMemberUsers(context.user, userFields, scopeOptions);
       const callerAliases = new Set([dbUserId, customUserId, context.user.email]
         .filter(Boolean)
         .map(value => String(value).toLowerCase()));
       const seenAliases = new Set<string>();
-      filteredUsers = [...filteredUsers, ...groupFacilitators, ...groupMembers].filter((user: any) => {
+      filteredUsers = [...filteredUsers, ...groupMembers].filter((user: any) => {
         const aliases = [user.id, user.userId, user.email]
           .filter(Boolean)
           .map(value => String(value).toLowerCase());
@@ -321,14 +318,19 @@ export default createEndpoint({
         const adminId = String(u.bvReportingAdminId || uGrp?.bvReportingAdminId || '').toLowerCase();
         const adminName = u.bvReportingAdminName || uGrp?.bvReportingAdminName || (adminId ? userNameMap.get(adminId) : null) || null;
 
+        const rawDelegate = Array.isArray(u.oneToOneDelegate) ? u.oneToOneDelegate[0] : u.oneToOneDelegate;
+        const hasDelegate = !!rawDelegate && String(rawDelegate).toLowerCase() !== String(u.id || '').toLowerCase();
+        const delegateId = hasDelegate ? String(rawDelegate) : null;
+        const delegateName = delegateId ? (userNameMap.get(delegateId.toLowerCase()) || null) : null;
+
         return {
           userId: u.id,
-          fullName: u.fullName || '',
+          fullName: u.fullName || u.name || u.displayName || 'Unnamed Member',
           ashrayLevel: u.ashrayLevel || null,
           isResident: u.residencyApproved || false,
-          eligibility: 'Delegated',
-          delegateId: Array.isArray(u.oneToOneDelegate) ? u.oneToOneDelegate[0] : (u.oneToOneDelegate || context.user.id),
-          delegateName: null,
+          eligibility: hasDelegate ? 'Delegated' : 'Guide',
+          delegateId,
+          delegateName,
           groupId: uGrp?.groupId || uGrp?.id || null,
           groupName: uGrp?.groupName || null,
           rgfName,
