@@ -2,8 +2,38 @@ import * as React from "react"
 import { Input as InputPrimitive } from "@base-ui/react/input"
 
 import { cn } from "@/lib/utils"
+import { DateTimePicker } from "./date-time-picker"
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  // Use the app-wide calendar for controlled date fields. This keeps report,
+  // attendance, admin, and CRM date controls consistent instead of exposing a
+  // browser-specific native calendar popup.
+  if (type === "date") {
+    const { value, onChange, disabled, min, max, placeholder } = props
+    const dateValue = typeof value === "string" ? value : value == null ? "" : String(value)
+    return (
+      <DateTimePicker
+        type="date"
+        value={dateValue}
+        onChange={(nextValue) => {
+          if (!onChange) return
+          onChange({
+            target: { value: nextValue },
+            currentTarget: { value: nextValue },
+          } as React.ChangeEvent<HTMLInputElement>)
+        }}
+        disabled={disabled}
+        min={typeof min === "string" ? min : undefined}
+        max={typeof max === "string" ? max : undefined}
+        placeholder={placeholder || "Select date"}
+        className={cn(
+          "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none md:text-sm",
+          className,
+        )}
+      />
+    )
+  }
+
   return (
     <InputPrimitive
       type={type}

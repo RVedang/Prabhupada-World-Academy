@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -407,14 +408,13 @@ export default function RegistrationPage() {
               {formData.residencyUserClaim && (
                 <div className="space-y-1.5 animate-in fade-in duration-200">
                   <label htmlFor="residencyJoinDate" className="text-sm font-medium text-gray-700 block mb-1">Residency Join Date <span className="text-red-500 font-bold">*</span></label>
-                  <input
+                  <DateTimePicker
                     id="residencyJoinDate"
                     type="date"
                     value={formData.residencyJoinDate}
-                    onChange={(e) => setFormData({ ...formData, residencyJoinDate: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, residencyJoinDate: value })}
                     max={new Date().toISOString().split('T')[0]}
-                    required
-                    className="w-full h-8 px-4 border border-gray-200 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] transition-all shadow-sm"
+                    className="h-9 rounded-lg"
                   />
                 </div>
               )}

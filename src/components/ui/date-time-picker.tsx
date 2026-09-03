@@ -15,6 +15,7 @@ interface DateTimePickerProps {
   min?: string;
   max?: string;
   className?: string;
+  id?: string;
 }
 
 const MONTH_NAMES = [
@@ -33,6 +34,7 @@ export function DateTimePicker({
   min,
   max,
   className,
+  id,
 }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -204,7 +206,7 @@ export function DateTimePicker({
     if (type === 'date') {
       return parsedDate.toLocaleDateString(undefined, {
         year: 'numeric',
-        month: 'long',
+        month: 'short',
         day: 'numeric',
       });
     }
@@ -215,11 +217,11 @@ export function DateTimePicker({
       hour12: true,
     });
     const dateStr = parsedDate.toLocaleDateString(undefined, {
-      month: 'long',
+      month: 'short',
       day: 'numeric',
       year: 'numeric',
     });
-    return `${dateStr} ${timeStr}`;
+    return `${dateStr} · ${timeStr}`;
   }, [parsedDate, type, placeholder]);
 
   const hourContainerRef = React.useRef<HTMLDivElement>(null);
@@ -247,6 +249,7 @@ export function DateTimePicker({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger
+        id={id}
         disabled={disabled}
         className={cn(
           "w-full flex items-center justify-start text-left font-normal h-10 px-3 py-2 bg-card border rounded-xl hover:bg-accent/40 focus:outline-hidden focus:ring-1 focus:ring-primary shadow-xs gap-2",
@@ -373,14 +376,14 @@ export function DateTimePicker({
             <button
               type="button"
               onClick={handleClear}
-            className="text-xs font-medium text-muted-foreground hover:text-destructive cursor-pointer focus:outline-none"
+              className="text-xs font-medium text-muted-foreground hover:text-destructive cursor-pointer focus:outline-none"
             >
               Clear
             </button>
             <button
               type="button"
               onClick={handleToday}
-            className="text-xs font-semibold text-primary hover:text-primary/80 cursor-pointer focus:outline-none"
+              className="text-xs font-semibold text-primary hover:text-primary/80 cursor-pointer focus:outline-none"
             >
               Today
             </button>
