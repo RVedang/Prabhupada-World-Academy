@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { Button } from './button';
-import { Calendar as CalendarIcon, Clock, ChevronUp } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface DateTimePickerProps {
@@ -117,8 +117,9 @@ export function DateTimePicker({
       });
     }
 
-    // Padding for next month to make complete 6 rows (42 cells)
-    const totalCells = 42;
+    // Keep the calendar compact: use five rows whenever the month fits, and
+    // add a sixth only for months whose first week plus days require it.
+    const totalCells = cells.length <= 35 ? 35 : 42;
     const nextMonthPadding = totalCells - cells.length;
     for (let i = 1; i <= nextMonthPadding; i++) {
       const nextMonth = navMonth === 11 ? 0 : navMonth + 1;
@@ -261,7 +262,11 @@ export function DateTimePicker({
         <span className="truncate text-xs">{buttonText}</span>
       </PopoverTrigger>
       
-      <PopoverContent className="w-auto p-4 bg-card/95 border shadow-2xl rounded-2xl flex flex-col sm:flex-row gap-4 overflow-hidden border-border/80 backdrop-blur-md">
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-auto max-w-[calc(100vw-1rem)] p-3 bg-card border border-border/80 shadow-xl rounded-2xl flex flex-col sm:flex-row gap-3 overflow-hidden backdrop-blur-md"
+      >
         {/* Style block to hide scrollbars completely */}
         <style dangerouslySetInnerHTML={{__html: `
           .scrollbar-none::-webkit-scrollbar {
@@ -275,10 +280,10 @@ export function DateTimePicker({
         `}} />
 
         {/* Calendar Picker Panel */}
-        <div className="w-[260px] flex flex-col gap-3">
+        <div className="w-[248px] flex flex-col gap-2.5">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-sm text-foreground">
+          <div className="flex items-center justify-between pb-1">
+            <span className="font-semibold text-sm tracking-tight text-foreground">
               {MONTH_NAMES[navMonth]} {navYear}
             </span>
             <div className="flex items-center gap-1">
@@ -286,30 +291,32 @@ export function DateTimePicker({
                 variant="ghost"
                 size="icon"
                 onClick={handlePrevMonth}
-                className="w-7 h-7 rounded-lg hover:bg-accent/60"
+                aria-label="Previous month"
+                className="w-7 h-7 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary"
               >
-                <ChevronUp className="w-4 h-4 rotate-[270deg]" />
+                <ChevronLeft className="w-4 h-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleNextMonth}
-                className="w-7 h-7 rounded-lg hover:bg-accent/60"
+                aria-label="Next month"
+                className="w-7 h-7 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary"
               >
-                <ChevronUp className="w-4 h-4 rotate-[90deg]" />
+                <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
 
           {/* Weekday headers */}
-          <div className="grid grid-cols-7 text-center text-xs font-semibold text-muted-foreground/80">
-            {DAYS_OF_WEEK.map((d, i) => (
-              <div key={i} className="py-1">{d}</div>
+          <div className="grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+            {DAYS_OF_WEEK.map((d) => (
+              <div key={d} className="py-1">{d}</div>
             ))}
           </div>
 
           {/* Days grid */}
-          <div className="grid grid-cols-7 gap-1 text-center text-xs">
+          <div className="grid grid-cols-7 gap-0.5 text-center text-xs">
             {calendarCells.map((cell, idx) => {
               const isSelected = parsedDate && 
                 parsedDate.getDate() === cell.date.getDate() &&
@@ -345,14 +352,14 @@ export function DateTimePicker({
                   disabled={isDisabled}
                   onClick={() => !isDisabled && handleSelectDate(cell.date)}
                   className={cn(
-                    "h-8 w-8 rounded-lg flex items-center justify-center font-medium transition-all relative focus:outline-none",
+                    "h-8 w-8 rounded-full flex items-center justify-center font-medium transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1",
                     isDisabled 
                       ? "text-muted-foreground/20 cursor-not-allowed hover:bg-transparent"
-                      : cell.isPadding 
-                        ? "text-muted-foreground/30 hover:bg-transparent cursor-pointer" 
-                        : "text-foreground hover:bg-accent/60 cursor-pointer",
-                    isToday && !isDisabled && "border border-primary text-primary font-bold",
-                    isSelected && !isDisabled && "bg-primary text-primary-foreground font-semibold shadow-md hover:bg-primary/95 hover:text-primary-foreground"
+                        : cell.isPadding
+                        ? "text-muted-foreground/30 hover:bg-muted/40 cursor-pointer"
+                        : "text-foreground hover:bg-primary/10 hover:text-primary cursor-pointer",
+                    isToday && !isSelected && !isDisabled && "border border-primary/60 text-primary font-bold",
+                    isSelected && !isDisabled && "bg-primary text-primary-foreground font-semibold shadow-sm hover:bg-primary/90 hover:text-primary-foreground"
                   )}
                 >
                   {cell.day}
@@ -362,18 +369,18 @@ export function DateTimePicker({
           </div>
 
           {/* Bottom Actions */}
-          <div className="flex justify-between items-center border-t border-border/60 pt-2.5 mt-1">
+          <div className="flex justify-between items-center border-t border-border/60 pt-2 mt-0.5">
             <button
               type="button"
               onClick={handleClear}
-              className="text-xs font-semibold text-destructive hover:underline cursor-pointer focus:outline-none"
+            className="text-xs font-medium text-muted-foreground hover:text-destructive cursor-pointer focus:outline-none"
             >
               Clear
             </button>
             <button
               type="button"
               onClick={handleToday}
-              className="text-xs font-semibold text-primary hover:underline cursor-pointer focus:outline-none"
+            className="text-xs font-semibold text-primary hover:text-primary/80 cursor-pointer focus:outline-none"
             >
               Today
             </button>

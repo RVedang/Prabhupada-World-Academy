@@ -9,6 +9,7 @@ export interface Member {
   eligibility: string; delegateId: string | null; delegateName: string | null;
   groupId?: string | null;
   groupName?: string | null;
+  roleLabel?: 'RGF' | 'RGSF' | 'Member';
   rgfName?: string | null;
   supervisorName?: string | null;
   adminName?: string | null;
@@ -66,6 +67,16 @@ function EligibilityBadge({ eligibility, delegateName }: { eligibility: string; 
       Not Eligible
     </span>
   );
+}
+
+function RoleBadge({ roleLabel }: { roleLabel?: Member['roleLabel'] }) {
+  const role = roleLabel || 'Member';
+  const classes = role === 'RGF'
+    ? 'bg-amber-50 text-amber-800 border-amber-200'
+    : role === 'RGSF'
+      ? 'bg-blue-50 text-blue-700 border-blue-200'
+      : 'bg-green-50 text-green-700 border-green-200';
+  return <span className={`text-[9px] px-1 py-0.5 rounded border font-medium ${classes}`}>{role}</span>;
 }
 
 type TableRow =
@@ -179,7 +190,7 @@ export default function OneToOneMatrix({ members, meetings, weeks, groupByAshray
                         </>
                       )}
                       {isSupervisor && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">RGF: {member.rgfName || '—'}</span>
+                        <RoleBadge roleLabel={member.roleLabel} />
                       )}
                     </div>
                   </td>

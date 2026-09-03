@@ -50,7 +50,13 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
   // RGF and RGSF BV reports monitor their group members. Their improvement
   // view must therefore use member Sadhana scores, not facilitator preaching
   // activity. Supervisor/admin views retain the BV-preaching analysis.
-  const useMemberSadhanaImprovements = !!bvslMode || !!profile?.isBvSubFacilitator;
+  // RGFs and RGSFs improve the Sadhana of the members in their own groups.
+  // A supervisor also uses `bvslMode` for hierarchy scoping, but their
+  // improvement view must remain facilitator-focused so they can monitor the
+  // RGFs and RGSFs reporting to them.
+  const useMemberSadhanaImprovements = !isSupervisorOrAbove && (
+    !!bvslMode || !!profile?.isBvSubFacilitator
+  );
 
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, subTab); } catch {}

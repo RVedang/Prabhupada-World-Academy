@@ -413,8 +413,12 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
                             </>
                           )}
                           {isSupervisor && (
-                            <Badge variant="outline" className="text-[10px] font-normal bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
-                              RGF: {(member as any).rgfName || 'Unassigned'}
+                            <Badge variant="outline" className={`text-[10px] font-normal ${member.roleLabel === 'RGF'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                              : member.roleLabel === 'RGSF'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                                : 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800'}`}>
+                              {member.roleLabel || 'Member'}
                             </Badge>
                           )}
                         </div>

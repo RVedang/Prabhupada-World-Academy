@@ -90,25 +90,37 @@ function computeFieldLoss(submitted: BvslRow[], fields: BvFieldDef[]): FieldLoss
 }
 
 interface LowPerformer extends BvslRow {
+  attentionReason: 'missing_submission' | 'below_targets';
   weakFields: { def: BvFieldDef; val: number; deficit: number }[];
 }
 
-function computeLowPerformers(submitted: BvslRow[], fields: BvFieldDef[]): LowPerformer[] {
-  return submitted
+function computeLowPerformers(facilitators: BvslRow[], fields: BvFieldDef[]): LowPerformer[] {
+  return facilitators
     .filter(r => {
+      // Missing an entire report is the highest-priority follow-up. It must
+      // not disappear simply because there is no submitted row to calculate.
+      if (!r.submitted) return true;
       // Below target on total preaching OR 2+ other fields
       const totalOk = r.totalMinutes >= 120;
       const belowFields = fields.filter(d => Number((r as any)[d.key]) < d.target).length;
       return !totalOk || belowFields >= 2;
     })
     .map(r => {
+      if (!r.submitted) return {
+        ...r,
+        attentionReason: 'missing_submission' as const,
+        weakFields: [],
+      };
       const weakFields = fields
         .map(def => ({ def, val: Number((r as any)[def.key]) || 0, deficit: Math.max(0, def.target - (Number((r as any)[def.key]) || 0)) }))
         .filter(f => f.deficit > 0)
         .sort((a, b) => b.deficit - a.deficit);
-      return { ...r, weakFields };
+      return { ...r, attentionReason: 'below_targets' as const, weakFields };
     })
-    .sort((a, b) => b.weakFields.length - a.weakFields.length);
+    .sort((a, b) => {
+      if (a.attentionReason !== b.attentionReason) return a.attentionReason === 'missing_submission' ? -1 : 1;
+      return b.weakFields.length - a.weakFields.length;
+    });
 }
 
 interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
@@ -137,9 +149,9 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
   const submitted    = useMemo(() => (data?.bvsls || []).filter(r => r.submitted), [data]);
   const isMemberScope = (data as any)?.subjectType === 'members';
   const fields = isMemberScope ? MEMBER_BV_FIELDS : BV_FIELDS;
-  const subjectPlural = isMemberScope ? 'members' : 'RGFs';
+  const subjectPlural = isMemberScope ? 'members' : 'RGFs / RGSFs';
   const fieldLoss    = useMemo(() => computeFieldLoss(submitted, fields), [submitted, fields]);
-  const lowPerformers = useMemo(() => computeLowPerformers(submitted, fields), [submitted, fields]);
+  const lowPerformers = useMemo(() => computeLowPerformers(data?.bvsls || [], fields), [data, fields]);
 
   const actionPlan = useMemo(() => {
     const items: { priority: 'high' | 'medium' | 'low'; row: FieldLossRow }[] = [];
@@ -211,7 +223,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                           <p className="font-bold text-sm">{row.def.label}</p>
-                          <Badge variant="outline" className="text-xs border-primary/40 text-primary">👥 All {isMemberScope ? 'Members' : 'RGFs'}</Badge>
+                          <Badge variant="outline" className="text-xs border-primary/40 text-primary">👥 All {isMemberScope ? 'Members' : 'RGFs / RGSFs'}</Badge>
                           <span className={`text-xs font-semibold ${priority === 'high' ? 'text-destructive' : priority === 'medium' ? 'text-amber-600' : 'text-muted-foreground'}`}>
                             {priority === 'high' ? '— Urgent' : priority === 'medium' ? '— Attention needed' : '— Keep an eye'}
                           </span>
@@ -238,7 +250,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <TrendingDown className="w-4 h-4 text-destructive" />
-                  Where Are {isMemberScope ? 'Members' : 'RGFs'} Falling Short?
+                  Where Are {isMemberScope ? 'Members' : 'RGFs / RGSFs'} Falling Short?
                 </CardTitle>
                 <CardDescription className="text-xs">
                   BV fields ranked by how far below target — {submitted.length} {subjectPlural} submitted
@@ -316,7 +328,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                   )}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  RGFs missing targets — missing total preaching or 2+ fields
+                  RGFs / RGSFs who have not submitted, are missing total preaching, or are below target in 2+ fields
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -328,11 +340,22 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {lowPerformers.map(u => (
-                      <div key={u.id} className={`p-3 rounded-lg border ${u.totalMinutes < 60 ? 'border-l-4 border-l-destructive' : 'border-l-4 border-l-amber-400'}`}>
+                    {lowPerformers.map(u => {
+                      const isMissingSubmission = u.attentionReason === 'missing_submission';
+                      const roleLabel = (u as any).isRgsf || String((u as any).role || '').toUpperCase().replace(/[\s-]+/g, '_') === 'RGSF'
+                        ? 'RGSF'
+                        : 'RGF';
+                      return (
+                      <div key={u.id} className={`p-3 rounded-lg border ${isMissingSubmission || u.totalMinutes < 60 ? 'border-l-4 border-l-destructive' : 'border-l-4 border-l-amber-400'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm truncate mb-1.5">{u.fullName}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                              <p className="font-semibold text-sm truncate">{u.fullName}</p>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary">{roleLabel}</Badge>
+                            </div>
+                            {isMissingSubmission ? (
+                              <p className="text-xs font-medium text-destructive">No report submitted for this period</p>
+                            ) : (
                             <div className="flex flex-wrap gap-1">
                               {u.weakFields.slice(0, 3).map(f => (
                                 <span key={f.def.key} className="text-xs bg-destructive/8 text-destructive border border-destructive/20 rounded px-1.5 py-0.5">
@@ -340,18 +363,19 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                                 </span>
                               ))}
                             </div>
+                            )}
                           </div>
                           <div className="text-right shrink-0">
-                            <div className={`text-base font-bold ${u.totalMinutes >= 120 ? 'text-green-600' : u.totalMinutes >= 60 ? 'text-amber-600' : 'text-destructive'}`}>
-                              {u.totalMinutes >= 120 ? '✓' : u.totalMinutes >= 60 ? '~' : '✗'}
+                            <div className={`text-base font-bold ${isMissingSubmission ? 'text-destructive' : u.totalMinutes >= 120 ? 'text-green-600' : u.totalMinutes >= 60 ? 'text-amber-600' : 'text-destructive'}`}>
+                              {isMissingSubmission ? '!' : u.totalMinutes >= 120 ? '✓' : u.totalMinutes >= 60 ? '~' : '✗'}
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            {!isMissingSubmission && <div className="text-xs text-muted-foreground">
                               {Math.floor(u.totalMinutes / 60)}h{Math.round(u.totalMinutes % 60)}m
-                            </div>
+                            </div>}
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                     <p className="text-xs text-muted-foreground pt-1 text-center border-t">
                       Speak personally with {subjectPlural} who are consistently missing targets
                     </p>

@@ -64,7 +64,8 @@ export default createEndpoint({
       'id', 'userId', 'email', 'fullName', 'role', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
       'bvReportingAdminId', 'bvReportingAdminName',
       'bvReportingSupervisorId', 'bvReportingSupervisorName',
-      'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'segment'
+      'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'segment',
+      'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator', 'isBvSupervisor', 'isBvMentor'
     ];
 
     // Fetch candidate users
@@ -322,6 +323,12 @@ export default createEndpoint({
         const hasDelegate = !!rawDelegate && String(rawDelegate).toLowerCase() !== String(u.id || '').toLowerCase();
         const delegateId = hasDelegate ? String(rawDelegate) : null;
         const delegateName = delegateId ? (userNameMap.get(delegateId.toLowerCase()) || null) : null;
+        const roleValue = String(u.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+        const roleLabel = u.isBvSubFacilitator || roleValue === 'RGSF' || roleValue === 'SUB_FACILITATOR'
+          ? 'RGSF'
+          : (u.isBvFacilitator || u.isBvsl || ['RGF', 'BVSL', 'FACILITATOR'].includes(roleValue))
+            ? 'RGF'
+            : 'Member';
 
         return {
           userId: u.id,
@@ -331,6 +338,7 @@ export default createEndpoint({
           eligibility: hasDelegate ? 'Delegated' : 'Guide',
           delegateId,
           delegateName,
+          roleLabel,
           groupId: uGrp?.groupId || uGrp?.id || null,
           groupName: uGrp?.groupName || null,
           rgfName,

@@ -19,6 +19,8 @@ export default createEndpoint({
     bvslMode: z.boolean().optional(),
     residencyIds: z.array(z.string()).optional(),
     groupId: z.string().optional(),
+    /** Optional selected facilitator, always verified against the caller's scoped hierarchy. */
+    subjectUserId: z.string().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
@@ -32,7 +34,7 @@ export default createEndpoint({
       isBvSuperAdmin: context.user.isBvSuperAdmin,
       isBvSubFacilitator: context.user.isBvSubFacilitator,
     });
-    const { guideId, startDate, endDate, bvslMode, residencyIds, groupId } = input;
+    const { guideId, startDate, endDate, bvslMode, residencyIds, groupId, subjectUserId } = input;
 
     let bvslUsers: any[] = [];
 
@@ -105,6 +107,16 @@ export default createEndpoint({
         });
         bvslUsers = records;
       }
+    }
+
+    // The individual trend view is allowed only for a facilitator already
+    // resolved by the caller's scope above. This keeps supervisor reporting
+    // strictly within their own hierarchy.
+    if (subjectUserId) {
+      const requestedUserId = String(subjectUserId).trim().toLowerCase();
+      bvslUsers = bvslUsers.filter(user =>
+        bvUserAliases(user).some(alias => alias === requestedUserId)
+      );
     }
 
     if (bvslUsers.length === 0) {

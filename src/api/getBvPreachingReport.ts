@@ -71,7 +71,7 @@ export default createEndpoint({
         .map(group => group.record);
       bvslUsers = await resolveBvGroupFacilitatorUsers(
         context.user as any,
-        ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
+        ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'isBvSubFacilitator'],
         { segment, groupId },
       );
     } else if (bvslMode) {
@@ -222,6 +222,8 @@ export default createEndpoint({
         userId: u.userId || u.id,
         fullName: u.fullName || '',
         phone: (u as any).phone || '',
+        role: (u as any).role || '',
+        isRgsf: !!(u as any).isBvSubFacilitator || String((u as any).role || '').toUpperCase().replace(/[\s-]+/g, '_') === 'RGSF',
         groupName: ((u as any).__bvScopedGroupIds || [])
           .map((id: unknown) => groupNameById.get(String(id).toLowerCase()))
           .find(Boolean) || bvUserAliases(u).map(alias => groupByBvsl.get(alias)).find(Boolean) || '—',

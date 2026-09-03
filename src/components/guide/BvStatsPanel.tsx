@@ -66,6 +66,8 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
   const [period, setPeriod]               = useState<Period>('30d');
   const [groupStats, setGroupStats]       = useState<any>(null);
   const [groupLoading, setGroupLoading]   = useState(false);
+  const [individualStats, setIndividualStats] = useState<any>(null);
+  const [individualLoading, setIndividualLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState('all');
 
@@ -95,6 +97,33 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
   // the chart changes immediately, without a timer or a manual refresh.
   useRealtimeRefresh(['sadhana'], () => loadGroupStats(true));
 
+  const loadIndividualStats = useCallback(async (silent = false) => {
+    if (!selectedUserId) {
+      setIndividualStats(null);
+      return;
+    }
+    if (!silent) setIndividualLoading(true);
+    try {
+      const result = await getBvStats({
+        guideId,
+        startDate: start,
+        endDate: end,
+        bvslMode,
+        residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
+        groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+        subjectUserId: selectedUserId,
+      });
+      setIndividualStats(result);
+    } catch {
+      // Keep the previous successful individual trend visible during a refresh failure.
+    } finally {
+      if (!silent) setIndividualLoading(false);
+    }
+  }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId, selectedUserId]);
+
+  useEffect(() => { void loadIndividualStats(); }, [loadIndividualStats]);
+  useRealtimeRefresh(['sadhana'], () => loadIndividualStats(true), Boolean(selectedUserId));
+
   useEffect(() => { setSelectedUserId(''); }, [period]);
 
   useEffect(() => {
@@ -120,13 +149,13 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
     return [...groupStats.userSummaries].sort((a: any, b: any) => a.fullName.localeCompare(b.fullName));
   }, [groupStats]);
 
-  // For individual RGF stats, we re-use the group trend data filtered to that RGF
-  // (getBvStats returns group averages; for individual we'd need per-user entries)
-  // Show the group chart data as the user chart for now — individual selection shows their averages
+  // The selected facilitator uses a separately scoped request so its chart
+  // contains only that person's entries, never the group average.
   const selectedUserInfo = useMemo(() => {
     if (!selectedUserId) return null;
     return userList.find((u: any) => String(u.userId) === selectedUserId) || null;
   }, [selectedUserId, userList]);
+  const individualChartData = useMemo(() => individualStats?.dailyTrend || [], [individualStats]);
 
   return (
     <div className="space-y-4">
@@ -239,10 +268,19 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
               <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">
                 Select an RGF above to view their individual field trends
               </div>
+            ) : individualLoading && !individualStats ? (
+              <Skeleton className="h-72 w-full" />
+            ) : individualChartData.length > 0 ? (
+              <FieldTrendChart
+                data={individualChartData}
+                fieldConfigs={BV_FIELD_CONFIGS}
+                defaultSelected="totalPreachingMinutes"
+                height={260}
+                loading={individualLoading && !individualStats}
+              />
             ) : (
-              <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">
-                Individual per-RGF trend data requires separate entry fetch.
-                Use the Report tab to view this RGF's data for a specific date range.
+              <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                {individualLoading ? 'Loading…' : 'No submitted BV data for this RGF in the selected period'}
               </div>
             )}
           </CardContent>
