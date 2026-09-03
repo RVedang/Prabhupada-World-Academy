@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "BvAttendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "group", "order": "ASCENDING" },
+        { "fieldPath": "attendanceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "SadhanaEntries",
       "queryScope": "COLLECTION",
       "fields": [

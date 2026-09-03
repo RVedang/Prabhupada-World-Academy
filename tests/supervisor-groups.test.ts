@@ -236,6 +236,8 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     } as never);
     assert.deepEqual(reportMatrix.groups.map((group: any) => group.id), [supervisedGroup.id]);
     assert.deepEqual(reportMatrix.members.map((row: any) => row.fullName), [member.fullName]);
+    assert.deepEqual(reportMatrix.sessionDates, [today]);
+    assert.equal(reportMatrix.attendance[member.id]?.[today], true);
 
     const facilitatorReport = await getBvPreachingReport.execute({
       input: {
@@ -421,6 +423,8 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       context: { user: reportingRgf },
     } as never);
     assert.deepEqual(rgfMatrix.members.map((row: any) => row.fullName), [member.fullName]);
+    assert.deepEqual(rgfMatrix.sessionDates, [today]);
+    assert.equal(rgfMatrix.attendance[member.id]?.[today], true);
 
     const rgfPreachingReport = await getBvPreachingReport.execute({
       input: {
