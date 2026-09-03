@@ -3,7 +3,7 @@ import { createEndpoint, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizze
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 import { legacyQuizMatchesGroup, normalizeQuizDepartment } from '../lib/bvQuizAccess';
-import { bvUserAliases, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvGroupFacilitatorAliases, bvUserAliases, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'BV attendance matrix with FOLK-only quiz results',
@@ -116,8 +116,11 @@ export default createEndpoint({
       limit: 1000,
     });
     const callerAliases = new Set(bvUserAliases(context.user as any));
+    const facilitatorAliases = new Set(groups.flatMap(group => bvGroupFacilitatorAliases(group)));
     const scopedUsers = bvslMode
-      ? users.filter(user => !bvUserAliases(user as any).some(alias => callerAliases.has(alias)))
+      ? users.filter(user => !bvUserAliases(user as any).some(alias =>
+        callerAliases.has(alias) || facilitatorAliases.has(alias)
+      ))
       : users;
     const userMap = new Map(scopedUsers.map(u => [u.id, u]));
 

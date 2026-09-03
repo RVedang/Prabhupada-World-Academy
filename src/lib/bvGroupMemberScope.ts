@@ -35,6 +35,17 @@ export function bvUserAliases(user: UserRecord | null | undefined): string[] {
   return [...new Set(IDENTITY_FIELDS.flatMap(field => refs(user?.[field])))];
 }
 
+/** Identity aliases that identify the RGF/RGSF responsible for a BV group. */
+export function bvGroupFacilitatorAliases(group: UserRecord): string[] {
+  return refs([
+    group.bvslLeader,
+    group.bvslId,
+    group.subFacilitatorId,
+    group.rgsfId,
+    group.subFacilitator,
+  ]);
+}
+
 function profileName(user: UserRecord | null | undefined): string {
   return String(user?.fullName || user?.displayName || user?.name || '').trim();
 }
@@ -272,13 +283,7 @@ export async function resolveBvGroupMemberUsers(
   const facilitatorAliases = new Set<string>();
   if (options.excludeCaller) {
     for (const group of groups) {
-      refs([
-        group.record.bvslLeader,
-        group.record.bvslId,
-        group.record.subFacilitatorId,
-        group.record.rgsfId,
-        group.record.subFacilitator,
-      ]).forEach(alias => facilitatorAliases.add(alias));
+      bvGroupFacilitatorAliases(group.record).forEach(alias => facilitatorAliases.add(alias));
     }
   }
   return users
