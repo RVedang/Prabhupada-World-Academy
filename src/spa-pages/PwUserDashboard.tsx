@@ -198,7 +198,14 @@ export default function PwUserDashboard() {
         <TabTransition activeTab={visibleActiveTab}>
           {visibleActiveTab === 'sadhana' && (
             <SectionErrorBoundary sectionName="Sadhana Tab">
-              <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} refreshVersion={sadhanaRefreshVersion} />
+              <SadhanaTab
+                metrics={metricsNorm}
+                history={history}
+                userId={profile.userId}
+                residencyId={profile.selectedFolkResidency ?? undefined}
+                isResident={false}
+                refreshVersion={sadhanaRefreshVersion}
+              />
             </SectionErrorBoundary>
           )}
           {visibleActiveTab === 'leaderboard' && (

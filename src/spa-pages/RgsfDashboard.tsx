@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Users, CheckSquare, Brain, ClipboardList, FileText, CalendarClock, Video } from 'lucide-react';
+import { Users, CheckSquare, BarChart3, Brain, ClipboardList, FileText, CalendarClock, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBvslGroups } from '@/lib/endpoints-sdk';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ import BvslSessionPanel from '@/components/bvsl/BvslSessionPanel';
 import BvslMembersTable from '@/components/bvsl/BvslMembersTable';
 import BvslSadhanaReportPanel from '@/components/bvsl/BvslSadhanaReportPanel';
 import BvslQuizPanel from '@/components/bvsl/BvslQuizPanel';
+import BvSection from '@/components/guide/BvSection';
 import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
 import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
@@ -63,6 +64,7 @@ export default function RgsfDashboard() {
     { value: 'groups', label: 'Assigned Groups', icon: Users },
     { value: 'session', label: 'Attendance', icon: CheckSquare },
     { value: 'members', label: 'Group Members', icon: Users },
+    { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
     { value: 'report', label: 'Sadhana', icon: FileText },
     ...(isFolk ? [{ value: 'quizzes', label: 'Quizzes', icon: Brain }] : []),
     { value: 'onetone', label: '1:1 Calls', icon: CalendarClock },
@@ -77,7 +79,7 @@ export default function RgsfDashboard() {
       maxWidth="max-w-6xl"
     >
       {loading ? <LoadingPage rows={2} /> : (
-        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={8} preloadTabs={['groups', 'session', 'members']}>
+        <TabRouter tabs={tabs} defaultTab="weekplan" desktopCols={9} preloadTabs={['groups', 'session', 'members']}>
           {(activeTab) => (
             <>
               {activeTab === 'weekplan' && <BvslWeeklyPlanTab userEmail={authUser?.email || ''} />}
@@ -91,6 +93,7 @@ export default function RgsfDashboard() {
               )}
               {activeTab === 'session' && <BvslSessionPanel bvslId={bvslId} groups={groups} />}
               {activeTab === 'members' && <BvslMembersTable bvslId={bvslId} detailBasePath="/rgsf/users" />}
+              {activeTab === 'bvreport' && <BvSection guideId={bvslId} bvslMode />}
               {activeTab === 'report' && <BvslSadhanaReportPanel bvslId={bvslId} />}
               {isFolk && activeTab === 'quizzes' && (
                 <BvslQuizPanel

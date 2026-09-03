@@ -39,6 +39,18 @@ const reportingRgf = {
   bvReportingSupervisorId: supervisor.id,
 };
 
+const assignedRgsf = {
+  id: 'SUPERVISOR-GROUPS-RGSF-DB',
+  userId: 'SUPERVISOR-GROUPS-RGSF',
+  email: 'supervisor-groups-rgsf@example.invalid',
+  fullName: 'Assigned RGSF',
+  role: 'RGSF',
+  status: 'Active',
+  segment: 'FOLK',
+  isBvSubFacilitator: true,
+  bvReportingFacilitatorId: reportingRgf.id,
+};
+
 const outsideRgf = {
   id: 'SUPERVISOR-GROUPS-OUTSIDE-RGF-DB',
   userId: 'SUPERVISOR-GROUPS-OUTSIDE-RGF',
@@ -93,7 +105,7 @@ const outsideGroup = {
 };
 
 test('supervisor groups include only groups led by reporting RGFs with RGF card metrics', async () => {
-  const users = [supervisor, reportingRgf, outsideRgf, member, outsideMember];
+  const users = [supervisor, reportingRgf, assignedRgsf, outsideRgf, member, outsideMember];
   const groups = [supervisedGroup, outsideGroup];
   const membershipId = 'SUPERVISOR-GROUPS-MEMBERSHIP';
   const outsideMembershipId = 'SUPERVISOR-GROUPS-OUTSIDE-MEMBERSHIP';
@@ -456,6 +468,53 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     assert.equal(rgfPreachingStats.userSummaries[0].avgTotalPreachingMinutes, 135);
     assert.equal(rgfPreachingStats.dailyTrend[0].totalPreachingMinutes, 135);
     assert.equal(rgfPreachingStats.dailyTrend[0].prBooksDistributed, 4);
+
+    // The RGSF must receive the exact same assigned-group member data as the
+    // reporting RGF, never an empty report or data from an unrelated group.
+    const rgsfGroups = await resolveBvScopedGroups(assignedRgsf as any, { segment: 'FOLK' });
+    assert.deepEqual(rgsfGroups.map(group => group.id), [supervisedGroup.id]);
+    const rgsfMembers = await resolveBvGroupMemberUsers(assignedRgsf as any, ['id', 'fullName'], { segment: 'FOLK', excludeCaller: true });
+    assert.deepEqual(rgsfMembers.map(user => user.fullName), [member.fullName]);
+
+    const rgsfMatrix = await getBvSessionMatrix.execute({
+      input: {
+        guideId: assignedRgsf.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+      },
+      context: { user: assignedRgsf },
+    } as never);
+    assert.deepEqual(rgsfMatrix.members.map((row: any) => row.fullName), [member.fullName]);
+    assert.equal(rgsfMatrix.attendance[member.id]?.[today], true);
+
+    const rgsfPreachingReport = await getBvPreachingReport.execute({
+      input: {
+        guideId: assignedRgsf.userId,
+        date: today,
+        reportType: 'daily',
+        bvslMode: true,
+      },
+      context: { user: assignedRgsf },
+    } as never);
+    assert.equal((rgsfPreachingReport as any).subjectType, 'members');
+    assert.deepEqual(rgsfPreachingReport.bvsls.map((row: any) => row.fullName), [member.fullName]);
+    assert.equal(rgsfPreachingReport.bvsls[0].totalMinutes, 135);
+    assert.equal(rgsfPreachingReport.bvsls[0].booksDistributed, 4);
+
+    const rgsfPreachingStats = await getBvStats.execute({
+      input: {
+        guideId: assignedRgsf.userId,
+        startDate: today,
+        endDate: today,
+        bvslMode: true,
+      },
+      context: { user: assignedRgsf },
+    } as never);
+    assert.equal((rgsfPreachingStats as any).subjectType, 'members');
+    assert.deepEqual(rgsfPreachingStats.userSummaries.map((row: any) => row.fullName), [member.fullName]);
+    assert.equal(rgsfPreachingStats.totalSubmitted, 1);
+    assert.equal(rgsfPreachingStats.dailyTrend[0].totalPreachingMinutes, 135);
 
     const rgfSadhanaReport = await getGuideDetailedReport.execute({
       input: {

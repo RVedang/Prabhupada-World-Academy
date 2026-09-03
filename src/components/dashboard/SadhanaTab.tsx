@@ -30,6 +30,8 @@ interface Props {
   metrics: Metrics; history: HistoryEntry[];
   userId: string;
   residencyId?: string;
+  /** Profile-resolved scoring mode, available before progress stats load. */
+  isResident: boolean;
   /** Increments after this user saves Sadhana, triggering derived charts to refresh. */
   refreshVersion?: number;
 }
@@ -234,7 +236,7 @@ function ImprovementInsights({ insights, isResident, isScholar, period, onPeriod
   );
 }
 
-export default function SadhanaTab({ metrics, history, userId, residencyId, refreshVersion = 0 }: Props) {
+export default function SadhanaTab({ metrics, history, userId, residencyId, isResident, refreshVersion = 0 }: Props) {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -279,7 +281,6 @@ export default function SadhanaTab({ metrics, history, userId, residencyId, refr
   const daysApplicable = 7;
   const weekLabel = formatWeekLabel(metrics);
 
-  const isResident = progressData?.isResident ?? insightData?.isResident ?? true;
   const isScholar = insightData?.isScholar ?? false;
   const fieldConfigs = isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS;
   const trendEntries = progressData?.entries ?? [];

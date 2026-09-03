@@ -169,7 +169,13 @@ export default function FolkUserDashboard() {
         <TabTransition activeTab={activeTab}>
           {activeTab === 'sadhana' && (
             <SectionErrorBoundary sectionName="Sadhana Tab">
-              <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
+              <SadhanaTab
+                metrics={metricsNorm}
+                history={history}
+                userId={profile.userId}
+                residencyId={profile.selectedFolkResidency ?? undefined}
+                isResident={isResident}
+              />
             </SectionErrorBoundary>
           )}
           {activeTab === 'leaderboard' && (

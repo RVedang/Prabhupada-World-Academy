@@ -266,8 +266,25 @@ export async function resolveBvGroupMemberUsers(
   // this keeps Sadhana reports consistent with the Group Members tab.
   const users = await resolveCanonicalUsersByAliases(memberAliases, userFields);
   const callerAliases = new Set(bvUserAliases(contextUser));
+  // Facilitators can appear in a legacy group-membership record. A report
+  // opened by an RGF/RGSF is a member report, so never surface the RGF or
+  // RGSF as one of the people being monitored.
+  const facilitatorAliases = new Set<string>();
+  if (options.excludeCaller) {
+    for (const group of groups) {
+      refs([
+        group.record.bvslLeader,
+        group.record.bvslId,
+        group.record.subFacilitatorId,
+        group.record.rgsfId,
+        group.record.subFacilitator,
+      ]).forEach(alias => facilitatorAliases.add(alias));
+    }
+  }
   return users
-    .filter(user => !options.excludeCaller || !bvUserAliases(user).some(alias => callerAliases.has(alias)))
+    .filter(user => !options.excludeCaller || !bvUserAliases(user).some(alias =>
+      callerAliases.has(alias) || facilitatorAliases.has(alias)
+    ))
     .map(user => {
       const scopedGroupIds = new Set<string>();
       bvUserAliases(user).forEach(alias => {

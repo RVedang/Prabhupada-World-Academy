@@ -210,7 +210,13 @@ export default function UserDashboard() {
           {visitedTabs.has('sadhana') && (
             <div className={activeTab === 'sadhana' ? 'block' : 'hidden'}>
               <SectionErrorBoundary sectionName="Sadhana Tab">
-                <SadhanaTab metrics={metricsNorm} history={history} userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
+                <SadhanaTab
+                  metrics={metricsNorm}
+                  history={history}
+                  userId={profile.userId}
+                  residencyId={profile.selectedFolkResidency ?? undefined}
+                  isResident={!isPwDashboard && isResident}
+                />
               </SectionErrorBoundary>
             </div>
           )}
