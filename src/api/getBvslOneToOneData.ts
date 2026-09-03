@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, OneToOneMeetings, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
-import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+import { resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 
 function getWeeks(weeksBack: number): string[] {
   const today = new Date();
@@ -182,20 +182,27 @@ export default createEndpoint({
     }
 
     // The Supervisor report includes the reporting hierarchy (RGFs/RGSFs) as
-    // well as every authoritative group member. The membership resolver adds
-    // valid legacy members that may not have complete reporting fields, while
-    // the hierarchy result keeps the reporting RGFs visible. Both sources are
-    // already scoped by getScopedHierarchyUserIds, so sibling supervisors are
-    // never included.
+    // well as every authoritative group member. Resolve both from the scoped
+    // groups rather than relying only on reporting fields: older records may
+    // store a Firestore id in the group and a public userId in the hierarchy.
+    // This remains strictly limited to groups owned by an RGF under the caller.
     if (isSupervisor) {
-      const groupMembers = await resolveBvGroupMemberUsers(context.user, userFields, {
+      const scopeOptions: { segment: 'FOLK' | 'PW' } = {
         segment: callerSegment === 'FOLK' ? 'FOLK' : 'PW',
-      });
+      };
+      const [groupFacilitators, groupMembers] = await Promise.all([
+        resolveBvGroupFacilitatorUsers(context.user, userFields, scopeOptions),
+        resolveBvGroupMemberUsers(context.user, userFields, scopeOptions),
+      ]);
+      const callerAliases = new Set([dbUserId, customUserId, context.user.email]
+        .filter(Boolean)
+        .map(value => String(value).toLowerCase()));
       const seenAliases = new Set<string>();
-      filteredUsers = [...filteredUsers, ...groupMembers].filter((user: any) => {
+      filteredUsers = [...filteredUsers, ...groupFacilitators, ...groupMembers].filter((user: any) => {
         const aliases = [user.id, user.userId, user.email]
           .filter(Boolean)
           .map(value => String(value).toLowerCase());
+        if (aliases.some(alias => callerAliases.has(alias))) return false;
         if (aliases.some(alias => seenAliases.has(alias))) return false;
         aliases.forEach(alias => seenAliases.add(alias));
         return aliases.length > 0;
@@ -232,6 +239,15 @@ export default createEndpoint({
       if (!group) return;
       normalizedRefs([m.user, m.userId, m.memberId]).forEach(ref => userToGroupMap.set(ref, group));
     });
+    // RGF/RGSF records are normally not membership rows. Associate them with
+    // their group too, so supervisors can search and filter every level of
+    // their hierarchy in the same table.
+    allBvGroups.forEach((group: any) => {
+      normalizedRefs([group.bvslLeader, group.bvslId, group.subFacilitatorId, group.rgsfId, group.subFacilitator])
+        .forEach(ref => {
+          if (!userToGroupMap.has(ref)) userToGroupMap.set(ref, group);
+        });
+    });
 
     const userNameMap = new Map<string, string>();
     allUsers.forEach((u: any) => {
@@ -239,18 +255,25 @@ export default createEndpoint({
       if (u.userId) userNameMap.set(String(u.userId).toLowerCase(), u.fullName || '');
     });
 
-    const userIds = filteredUsers.map((u: any) => u.id);
+    const canonicalMemberIdByAlias = new Map<string, string>();
+    filteredUsers.forEach((user: any) => {
+      if (!user.id) return;
+      normalizedRefs([user.id, user.userId, user.email])
+        .forEach(alias => canonicalMemberIdByAlias.set(alias, String(user.id)));
+    });
 
     let meetings: any[] = [];
-    if (userIds.length > 0) {
+    if (canonicalMemberIdByAlias.size > 0) {
       const { records } = await OneToOneMeetings.findAll({
         filters: { weekDate: { gte: startDate, lte: endDate } } as any,
         fields: ['id', 'guide', 'member', 'weekDate', 'meetingDate', 'durationMinutes', 'notes', 'callStatus', 'recordingLink', 'nextCallDate', 'nextCallAgenda'],
         limit: 5000,
       });
-      meetings = records.filter((m: any) => {
-        const mid = Array.isArray(m.member) ? m.member[0] : m.member;
-        return mid && userIds.includes(mid);
+      meetings = records.flatMap((meeting: any) => {
+        const canonicalMemberId = normalizedRefs(meeting.member)
+          .map(alias => canonicalMemberIdByAlias.get(alias))
+          .find(Boolean);
+        return canonicalMemberId ? [{ ...meeting, canonicalMemberId }] : [];
       });
     }
 
@@ -316,7 +339,7 @@ export default createEndpoint({
       meetings: meetings.map((m: any) => ({
         id: m.id,
         guideId: Array.isArray(m.guide) ? m.guide[0] : m.guide,
-        memberId: Array.isArray(m.member) ? m.member[0] : m.member,
+        memberId: m.canonicalMemberId || (Array.isArray(m.member) ? m.member[0] : m.member),
         weekDate: String(m.weekDate || '').split('T')[0],
         meetingDate: String(m.meetingDate || '').split('T')[0],
         durationMinutes: m.durationMinutes || 0,

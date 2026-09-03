@@ -17,6 +17,7 @@ import { ASHRAY_LEVELS } from '@/types/enums';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
 
 type Period = '7d' | '30d' | '90d' | 'current_month' | 'prev_month';
 type ResidencyFilter = 'all' | 'resident' | 'non_resident' | 'scholar';
@@ -74,9 +75,14 @@ function TrendIcon({ trend }: { trend: 'up' | 'down' | 'flat' }) {
   return <Minus className="w-3.5 h-3.5 text-muted-foreground" />;
 }
 
-interface Props { guideId: string; bvslMode?: boolean; mentorMode?: boolean; }
+interface Props {
+  guideId: string;
+  bvslMode?: boolean;
+  mentorMode?: boolean;
+  groupOptions?: SadhanaGroupOption[];
+}
 
-export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Props) {
+export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, groupOptions = [] }: Props) {
   const { profile } = useUserProfile();
   const normalizedSegment = String(profile?.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
   // Only an explicit FOLK profile gets FOLK stats. This also handles legacy
@@ -89,6 +95,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
   const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>(isPw || bvslMode ? 'all' : 'resident');
   const [folkResidencyId, setFolkResidencyId] = useState<string>('all');
   const [ashrayFilter, setAshrayFilter] = useState<string>('all');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
 
   const [groupStats, setGroupStats] = useState<any>(null);
   const [groupLoading, setGroupLoading] = useState(false);
@@ -101,17 +108,27 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
   const [userError, setUserError] = useState('');
 
   const { start, end } = useMemo(() => getPeriodDates(period), [period]);
+  const effectiveGroupId = useMemo(() => {
+    if (selectedGroupId === 'all') return 'all';
+    return groupOptions.some(group => group.id === selectedGroupId || group.groupId === selectedGroupId)
+      ? selectedGroupId
+      : 'all';
+  }, [groupOptions, selectedGroupId]);
+  const selectedGroupName = effectiveGroupId === 'all'
+    ? 'All Groups'
+    : groupOptions.find(group => group.id === effectiveGroupId || group.groupId === effectiveGroupId)?.groupName || 'Reading Group';
 
   const loadGroupStats = useCallback(async (silent = false) => {
     if (!silent) setGroupLoading(true);
     try {
       const data = await getSadhanaStats({
-      guideId, startDate: start, endDate: end,
-      bvslMode, mentorMode,
-      residencyFilter: (residencyFilter === 'all' ? undefined : residencyFilter) as any,
-      folkResidencyId: folkResidencyId === 'all' ? undefined : folkResidencyId,
-      ashrayLevel: ashrayFilter === 'all' ? undefined : ashrayFilter,
-      segment: isPw ? 'PW' : 'FOLK',
+        guideId, startDate: start, endDate: end,
+        bvslMode, mentorMode,
+        residencyFilter: (residencyFilter === 'all' ? undefined : residencyFilter) as any,
+        folkResidencyId: folkResidencyId === 'all' ? undefined : folkResidencyId,
+        ashrayLevel: ashrayFilter === 'all' ? undefined : ashrayFilter,
+        groupId: effectiveGroupId === 'all' ? undefined : effectiveGroupId,
+        segment: isPw ? 'PW' : 'FOLK',
       });
       setGroupStats(data);
       // Only update residencies when we actually get some (don't clear on filtered fetches)
@@ -120,13 +137,13 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
       }
     } catch { /* keep cached stats visible */ }
     finally { if (!silent) setGroupLoading(false); }
-  }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter, isPw]);
+  }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter, effectiveGroupId, isPw]);
 
   useEffect(() => { void loadGroupStats(); }, [loadGroupStats]);
   useRealtimeRefresh(['sadhana', 'users', 'groups'], () => loadGroupStats(true));
 
   // Reset user when filters change
-  useEffect(() => { setSelectedUserId(''); setUserStats(null); setUserError(''); }, [residencyFilter, folkResidencyId, ashrayFilter, period]);
+  useEffect(() => { setSelectedUserId(''); setUserStats(null); setUserError(''); }, [residencyFilter, folkResidencyId, ashrayFilter, effectiveGroupId, period]);
 
   useEffect(() => {
     if (!selectedUserId) { setUserStats(null); setUserError(''); return; }
@@ -250,6 +267,23 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode }: Pr
                   </div>
                 )}
               </>
+            )}
+
+            {groupOptions.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs font-medium whitespace-nowrap text-muted-foreground">Group:</Label>
+                <Select value={effectiveGroupId} onValueChange={(value: string | null) => setSelectedGroupId(value || 'all')}>
+                  <SelectTrigger className="h-7 w-[180px] text-xs">
+                    <span className="truncate">{selectedGroupName}</span>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="all">All Groups</SelectItem>
+                    {groupOptions.map(group => (
+                      <SelectItem key={group.id} value={group.id}>{group.groupName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
 
 

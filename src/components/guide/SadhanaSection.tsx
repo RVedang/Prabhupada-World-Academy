@@ -97,7 +97,7 @@ export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMo
         /></div>
       )}
       {visited.has('stats') && (
-        <div className={subTab === 'stats' ? 'block' : 'hidden'}><StatsOverviewPanel guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} /></div>
+        <div className={subTab === 'stats' ? 'block' : 'hidden'}><StatsOverviewPanel guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} groupOptions={groupOptions} /></div>
       )}
       {visited.has('improvement') && (
         <div className={subTab === 'improvement' ? 'block' : 'hidden'}><ImprovementTab guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} /></div>

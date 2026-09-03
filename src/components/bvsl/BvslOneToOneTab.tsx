@@ -210,9 +210,11 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
         <BvslBookingLinkSettings initialLink={bvslLink} />
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
           <Info className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm font-medium">No delegated members yet</p>
+          <p className="text-sm font-medium">{isSupervisor ? 'No supervised members yet' : 'No delegated members yet'}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            When your guide delegates members to you for 1:1 meetings, they will appear here.
+            {isSupervisor
+              ? 'RGFs, RGSFs, and group members in your reporting hierarchy will appear here.'
+              : 'When your guide delegates members to you for 1:1 meetings, they will appear here.'}
           </p>
         </div>
       </div>
@@ -224,7 +226,11 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">My One-to-One Tracker</h2>
-          <p className="text-sm text-muted-foreground">Members delegated to you for 1:1 meetings. Click any cell to log a meeting.</p>
+          <p className="text-sm text-muted-foreground">
+            {isSupervisor
+              ? 'RGFs, RGSFs, and members in your supervised reading groups. Click any cell to log a meeting.'
+              : 'Members delegated to you for 1:1 meetings. Click any cell to log a meeting.'}
+          </p>
         </div>
         <div className="shrink-0 sm:min-w-[260px]">
           <BvslBookingLinkSettings initialLink={bvslLink} />
