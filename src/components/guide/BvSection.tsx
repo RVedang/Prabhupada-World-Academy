@@ -7,6 +7,7 @@ import GuideBvTab from '@/components/guide/GuideBvTab';
 import BvSessionMatrixTab from '@/components/guide/BvSessionMatrixTab';
 import SadhanaSection from '@/components/guide/SadhanaSection';
 import BvslManagementTab from '@/components/guide/BvslManagementTab';
+import ImprovementTab from '@/components/guide/ImprovementTab';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
 
@@ -17,6 +18,8 @@ interface Props {
   groupOptions?: SadhanaGroupOption[];
   /** Supervisor dashboard already has navigable group cards in its main Groups tab. */
   summaryOnlyGroups?: boolean;
+  /** Route for member details when this section is embedded in a scoped dashboard. */
+  improvementDetailBasePath?: string;
 }
 
 type SubTab = 'report' | 'stats' | 'improvement' | 'groups' | 'bvmatrix' | 'sadhana' | 'management';
@@ -32,7 +35,7 @@ function readStoredSubTab(): SubTab {
   return 'bvmatrix';
 }
 
-export default function BvSection({ guideId, bvslMode, residencyIds, groupOptions, summaryOnlyGroups }: Props) {
+export default function BvSection({ guideId, bvslMode, residencyIds, groupOptions, summaryOnlyGroups, improvementDetailBasePath }: Props) {
   const { profile } = useUserProfile();
   const [subTab, setSubTab] = useState<SubTab>(readStoredSubTab);
 
@@ -44,6 +47,10 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
     !!profile?.isBvSupervisor ||
     !!profile?.isBvMentor ||
     ['ADMIN', 'SUPER_ADMIN', 'SUPERVISOR', 'MENTOR', 'GUIDE', 'SUPER_GUIDE', 'PW_ADMIN'].includes(roleUpper);
+  // RGF and RGSF BV reports monitor their group members. Their improvement
+  // view must therefore use member Sadhana scores, not facilitator preaching
+  // activity. Supervisor/admin views retain the BV-preaching analysis.
+  const useMemberSadhanaImprovements = !!bvslMode || !!profile?.isBvSubFacilitator;
 
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, subTab); } catch {}
@@ -84,7 +91,16 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
       {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} />}
       {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} groupOptions={groupOptions} />}
-      {activeSubTab === 'improvement' && <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'improvement' && (useMemberSadhanaImprovements ? (
+        <ImprovementTab
+          guideId={guideId}
+          bvslMode
+          initialPeriod="this_month"
+          detailBasePath={improvementDetailBasePath || (profile?.isBvSubFacilitator ? '/rgsf/users' : '/guide/users')}
+        />
+      ) : (
+        <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />
+      ))}
       {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} summaryOnly={summaryOnlyGroups} />}
       {activeSubTab === 'management'  && !bvslMode && <BvslManagementTab guideId={guideId} />}
     </div>

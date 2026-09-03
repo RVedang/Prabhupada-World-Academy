@@ -304,14 +304,28 @@ function buildActionPlan(fieldLoss: FieldLossRow[], lowScorers: LowScorer[], tar
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-interface Props { guideId: string; bvslMode?: boolean; mentorMode?: boolean; }
+interface Props {
+  guideId: string;
+  bvslMode?: boolean;
+  mentorMode?: boolean;
+  /** Keeps member links within the dashboard that opened this report. */
+  detailBasePath?: string;
+  /** Lets embedded reports default to the period most useful for that dashboard. */
+  initialPeriod?: Period;
+}
 
-export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props) {
+export default function ImprovementTab({
+  guideId,
+  bvslMode,
+  mentorMode,
+  detailBasePath = '/guide/users',
+  initialPeriod = 'prev_week',
+}: Props) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const isFolk = profile?.segment === 'FOLK';
   // Default to previous week — current week is always incomplete
-  const [period, setPeriod] = useState<Period>('prev_week');
+  const [period, setPeriod] = useState<Period>(initialPeriod);
   const [residencyFilter, setResidencyFilter] = useState<ResidencyFilter>('all');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<GetGuideDetailedReportOutputType | null>(null);
@@ -536,7 +550,7 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
                         <div
                           key={u.id}
                           className={`p-3 rounded-lg border cursor-pointer hover:bg-muted/40 transition-colors ${urgent ? 'border-l-4 border-l-destructive' : 'border-l-4 border-l-amber-400'}`}
-                          onClick={() => navigate(`/guide/users/${u.userId}`)}
+                          onClick={() => navigate(`${detailBasePath}/${u.userId}`)}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
@@ -729,7 +743,7 @@ export default function ImprovementTab({ guideId, bvslMode, mentorMode }: Props)
                   <div
                     key={u.id}
                     className="flex items-center justify-between gap-2 p-2.5 rounded-lg border bg-muted/30 cursor-pointer hover:bg-muted/60 transition-colors"
-                    onClick={() => { setFieldDialog(null); navigate(`/guide/users/${u.userId}`); }}
+                    onClick={() => { setFieldDialog(null); navigate(`${detailBasePath}/${u.userId}`); }}
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{u.fullName}</p>

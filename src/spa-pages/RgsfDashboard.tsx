@@ -93,7 +93,13 @@ export default function RgsfDashboard() {
               )}
               {activeTab === 'session' && <BvslSessionPanel bvslId={bvslId} groups={groups} />}
               {activeTab === 'members' && <BvslMembersTable bvslId={bvslId} detailBasePath="/rgsf/users" />}
-              {activeTab === 'bvreport' && <BvSection guideId={bvslId} bvslMode />}
+              {activeTab === 'bvreport' && (
+                <BvSection
+                  guideId={bvslId}
+                  bvslMode
+                  improvementDetailBasePath="/rgsf/users"
+                />
+              )}
               {activeTab === 'report' && <BvslSadhanaReportPanel bvslId={bvslId} />}
               {isFolk && activeTab === 'quizzes' && (
                 <BvslQuizPanel
