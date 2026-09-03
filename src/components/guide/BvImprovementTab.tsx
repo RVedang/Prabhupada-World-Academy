@@ -42,6 +42,11 @@ const BV_FIELDS: BvFieldDef[] = [
   { key: 'uniqueOneOnOnes',  label: 'Unique 1-on-1s',  unit: 'count', target: 2,  tip: 'Encourage at least 2 unique personal interactions per session.' },
 ];
 
+const MEMBER_BV_FIELDS: BvFieldDef[] = [
+  { key: 'totalMinutes', label: 'Preaching Time', unit: 'min', target: 120, tip: 'Encourage members to spend at least 2 hours in preaching activity.' },
+  { key: 'booksDistributed', label: 'Books Distributed', unit: 'count', target: 2, tip: 'Encourage members to distribute at least 2 books.' },
+];
+
 function formatValue(val: number, unit: 'min' | 'count'): string {
   if (unit === 'count') return String(val);
   const h = Math.floor(val / 60);
@@ -73,9 +78,9 @@ interface FieldLossRow {
   totalCount: number;
 }
 
-function computeFieldLoss(submitted: BvslRow[]): FieldLossRow[] {
+function computeFieldLoss(submitted: BvslRow[], fields: BvFieldDef[]): FieldLossRow[] {
   if (submitted.length === 0) return [];
-  return BV_FIELDS.map(def => {
+  return fields.map(def => {
     const values = submitted.map(r => Number((r as any)[def.key]) || 0);
     const avgValue = Math.round(values.reduce((a, b) => a + b, 0) / values.length * 10) / 10;
     const deficit  = Math.max(0, def.target - avgValue);
@@ -88,16 +93,16 @@ interface LowPerformer extends BvslRow {
   weakFields: { def: BvFieldDef; val: number; deficit: number }[];
 }
 
-function computeLowPerformers(submitted: BvslRow[]): LowPerformer[] {
+function computeLowPerformers(submitted: BvslRow[], fields: BvFieldDef[]): LowPerformer[] {
   return submitted
     .filter(r => {
       // Below target on total preaching OR 2+ other fields
       const totalOk = r.totalMinutes >= 120;
-      const belowFields = BV_FIELDS.filter(d => Number((r as any)[d.key]) < d.target).length;
+      const belowFields = fields.filter(d => Number((r as any)[d.key]) < d.target).length;
       return !totalOk || belowFields >= 2;
     })
     .map(r => {
-      const weakFields = BV_FIELDS
+      const weakFields = fields
         .map(def => ({ def, val: Number((r as any)[def.key]) || 0, deficit: Math.max(0, def.target - (Number((r as any)[def.key]) || 0)) }))
         .filter(f => f.deficit > 0)
         .sort((a, b) => b.deficit - a.deficit);
@@ -130,8 +135,11 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
   useRealtimeRefresh(['sadhana'], () => load(true));
 
   const submitted    = useMemo(() => (data?.bvsls || []).filter(r => r.submitted), [data]);
-  const fieldLoss    = useMemo(() => computeFieldLoss(submitted), [submitted]);
-  const lowPerformers = useMemo(() => computeLowPerformers(submitted), [submitted]);
+  const isMemberScope = (data as any)?.subjectType === 'members';
+  const fields = isMemberScope ? MEMBER_BV_FIELDS : BV_FIELDS;
+  const subjectPlural = isMemberScope ? 'members' : 'RGFs';
+  const fieldLoss    = useMemo(() => computeFieldLoss(submitted, fields), [submitted, fields]);
+  const lowPerformers = useMemo(() => computeLowPerformers(submitted, fields), [submitted, fields]);
 
   const actionPlan = useMemo(() => {
     const items: { priority: 'high' | 'medium' | 'low'; row: FieldLossRow }[] = [];
@@ -189,7 +197,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                   Action Plan — What to Improve
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Top fields where RGFs are falling short of targets
+                  Top fields where {subjectPlural} are falling short of targets
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -203,13 +211,13 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                           <p className="font-bold text-sm">{row.def.label}</p>
-                          <Badge variant="outline" className="text-xs border-primary/40 text-primary">👥 All RGFs</Badge>
+                          <Badge variant="outline" className="text-xs border-primary/40 text-primary">👥 All {isMemberScope ? 'Members' : 'RGFs'}</Badge>
                           <span className={`text-xs font-semibold ${priority === 'high' ? 'text-destructive' : priority === 'medium' ? 'text-amber-600' : 'text-muted-foreground'}`}>
                             {priority === 'high' ? '— Urgent' : priority === 'medium' ? '— Attention needed' : '— Keep an eye'}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mb-2 leading-relaxed">
-                          {row.belowCount} of {row.totalCount} RGFs are below target ({formatValue(row.def.target, row.def.unit)}).
+                          {row.belowCount} of {row.totalCount} {subjectPlural} are below target ({formatValue(row.def.target, row.def.unit)}).
                           {' '}Group avg: {formatValue(row.avgValue, row.def.unit)} vs target {formatValue(row.def.target, row.def.unit)}.
                         </p>
                         <div className="flex items-start gap-2 bg-background rounded-md px-2.5 py-2 border border-border/60">
@@ -230,17 +238,17 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <TrendingDown className="w-4 h-4 text-destructive" />
-                  Where Are RGFs Falling Short?
+                  Where Are {isMemberScope ? 'Members' : 'RGFs'} Falling Short?
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  BV fields ranked by how far below target — {submitted.length} RGFs submitted
+                  BV fields ranked by how far below target — {submitted.length} {subjectPlural} submitted
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {fieldLoss.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-2xl mb-2">🎉</p>
-                    <p className="font-semibold text-sm text-green-600">All RGFs are meeting targets!</p>
+                    <p className="font-semibold text-sm text-green-600">All {isMemberScope ? 'members' : 'RGFs'} are meeting targets!</p>
                     <p className="text-xs text-muted-foreground mt-1">Excellent preaching work — keep it up 🙏</p>
                   </div>
                 ) : (
@@ -275,13 +283,13 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                       );
                     })}
                     {/* Fields meeting targets */}
-                    {BV_FIELDS.filter(def => !fieldLoss.find(r => r.def.key === def.key)).length > 0 && (
+                    {fields.filter(def => !fieldLoss.find(r => r.def.key === def.key)).length > 0 && (
                       <div className="pt-1">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1">
                           <CheckCircle className="w-3 h-3 text-green-600" /> Meeting targets
                         </p>
                         <div className="grid grid-cols-2 gap-1.5">
-                          {BV_FIELDS.filter(def => !fieldLoss.find(r => r.def.key === def.key)).map(def => (
+                          {fields.filter(def => !fieldLoss.find(r => r.def.key === def.key)).map(def => (
                             <div key={def.key} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-green-50 border border-green-200">
                               <CheckCircle className="w-3 h-3 text-green-600 shrink-0" />
                               <span className="text-xs font-medium text-green-800 truncate">{def.label}</span>
@@ -315,7 +323,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                 {lowPerformers.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-2xl mb-2">🎉</p>
-                    <p className="font-semibold text-sm text-green-600">All RGFs are meeting targets!</p>
+                    <p className="font-semibold text-sm text-green-600">All {isMemberScope ? 'members' : 'RGFs'} are meeting targets!</p>
                     <p className="text-xs text-muted-foreground mt-1">Great preaching engagement — keep it up 🙏</p>
                   </div>
                 ) : (
@@ -345,7 +353,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                       </div>
                     ))}
                     <p className="text-xs text-muted-foreground pt-1 text-center border-t">
-                      Speak personally with RGFs who are consistently missing targets
+                      Speak personally with {subjectPlural} who are consistently missing targets
                     </p>
                   </div>
                 )}

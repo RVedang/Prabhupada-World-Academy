@@ -34,6 +34,11 @@ export const BV_FIELD_CONFIGS: FieldConfig[] = [
   { key: 'prUniqueOneOnOnes',     label: 'Unique 1-on-1s',  unit: '',    yMax: 20  },
 ];
 
+const MEMBER_BV_FIELD_CONFIGS: FieldConfig[] = [
+  { key: 'totalPreachingMinutes', label: 'Preaching',         unit: 'min', yMax: 300 },
+  { key: 'prBooksDistributed',    label: 'Books Distributed', unit: '',    yMax: 20  },
+];
+
 function getPeriodDates(period: Period): { start: string; end: string } {
   const today = new Date();
   switch (period) {
@@ -107,6 +112,9 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
     return groupStats.dailyTrend;
   }, [groupStats]);
 
+  const isMemberScope = groupStats?.subjectType === 'members' || (!!bvslMode && showIndividualStats === false);
+  const fieldConfigs = isMemberScope ? MEMBER_BV_FIELD_CONFIGS : BV_FIELD_CONFIGS;
+
   const userList = useMemo(() => {
     if (!groupStats?.userSummaries) return [];
     return [...groupStats.userSummaries].sort((a: any, b: any) => a.fullName.localeCompare(b.fullName));
@@ -162,10 +170,12 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            BV Field Trends ({selectedGroupName} Averages)
+            {isMemberScope ? 'BV Member Trends' : 'BV Field Trends'} ({selectedGroupName} Averages)
             {groupStats && (
               <span className="text-xs font-normal text-muted-foreground">
-                · {groupStats.totalUsers} Facilitators · {groupStats.totalSubmitted ?? 0} entries
+                · {groupStats.totalUsers} {isMemberScope
+                  ? (groupStats.totalUsers === 1 ? 'Member' : 'Members')
+                  : (groupStats.totalUsers === 1 ? 'Facilitator' : 'Facilitators')} · {groupStats.totalSubmitted ?? 0} entries
               </span>
             )}
           </CardTitle>
@@ -176,7 +186,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
           ) : groupChartData.length > 0 ? (
             <FieldTrendChart
               data={groupChartData}
-              fieldConfigs={BV_FIELD_CONFIGS}
+              fieldConfigs={fieldConfigs}
               defaultSelected="totalPreachingMinutes"
               height={260}
               loading={groupLoading && !groupStats}

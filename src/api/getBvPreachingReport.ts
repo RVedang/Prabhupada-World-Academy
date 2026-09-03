@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides } from '@/lib/backend-sdk';
+import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
 
 function isFolkMemberLevelFacilitator(user: any): boolean {
   const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
@@ -60,6 +61,7 @@ export default createEndpoint({
     }
 
     const isSupervisorMode = !!bvslMode && !!(context.user.isBvSupervisor || context.user.isBvMentor);
+    const isMemberMode = !!bvslMode && !isSupervisorMode;
     let hierarchyGroups: any[] | null = null;
     let bvslUsers: any[] = [];
     if (isSupervisorMode) {
@@ -117,7 +119,9 @@ export default createEndpoint({
       bvslUsers = bvslUsers.filter(isFolkMemberLevelFacilitator);
     }
 
-    if (bvslUsers.length === 0) return { bvsls: [], groups: [] };
+    if (bvslUsers.length === 0) {
+      return { subjectType: isMemberMode ? 'members' : 'facilitators', bvsls: [], groups: [] };
+    }
 
     const bvslDbIds = bvslUsers.map(u => u.id);
 
@@ -138,7 +142,7 @@ export default createEndpoint({
 
     // If a specific group is selected, only show BVSLs leading that group
     let filteredBvslUsers = bvslUsers;
-    if (groupId && groups.length > 0) {
+    if (groupId && groups.length > 0 && !isMemberMode) {
       const leaderIdsInGroup = new Set(groups.flatMap(g => [
         g.bvslLeader, g.bvslId, g.subFacilitatorId, g.rgsfId, g.subFacilitator,
       ]).flat().filter(Boolean).map(value => String(value).toLowerCase()));
@@ -167,12 +171,16 @@ export default createEndpoint({
     let allEntries: any[] = [];
     let offset = 0;
     while (true) {
-      const { records, hasMore } = await BvslPreachingEntries.findAll({
+      const source = isMemberMode ? SadhanaEntries : BvslPreachingEntries;
+      const { records, hasMore } = await source.findAll({
         filters: dateFilter as any,
+        fields: isMemberMode
+          ? ['id', 'user', 'entryDate', 'preachingMinutes', 'booksDistributed', 'fieldValuesJson', 'submittedAt']
+          : undefined,
         limit: 2000,
         offset,
       });
-      allEntries = allEntries.concat(records);
+      allEntries = allEntries.concat(isMemberMode ? records.map(normaliseMemberBvActivity) : records);
       if (!hasMore) break;
       offset += 2000;
     }
@@ -236,6 +244,7 @@ export default createEndpoint({
     bvslRows.sort((a, b) => b.totalMinutes - a.totalMinutes);
 
     return {
+      subjectType: isMemberMode ? 'members' : 'facilitators',
       bvsls: bvslRows,
       groups: groups.map(g => ({ id: g.id, name: g.groupName || '' })),
     };

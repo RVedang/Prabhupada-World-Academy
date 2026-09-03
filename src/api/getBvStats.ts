@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, BvslPreachingEntries } from '@/lib/backend-sdk';
+import { createEndpoint, Users, Guides, BvslPreachingEntries, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
 
 const BV_FIELDS = [
   'prCallingTime', 'prOneOnOneTime', 'prBookDistTime', 'prRduaTime', 'prPlanTime',
@@ -36,6 +37,7 @@ export default createEndpoint({
     let bvslUsers: any[] = [];
 
     const isSupervisorMode = !!bvslMode && !!(context.user.isBvSupervisor || context.user.isBvMentor);
+    const isMemberMode = !!bvslMode && !isSupervisorMode;
     if (isSupervisorMode) {
       const rawSegment = String(context.user.segment || 'FOLK').toUpperCase();
       const segment = rawSegment === 'PW' ? 'PW' : 'FOLK';
@@ -106,7 +108,13 @@ export default createEndpoint({
     }
 
     if (bvslUsers.length === 0) {
-      return { dailyTrend: [], userSummaries: [], totalUsers: 0 };
+      return {
+        subjectType: isMemberMode ? 'members' : 'facilitators',
+        dailyTrend: [],
+        userSummaries: [],
+        totalUsers: 0,
+        totalSubmitted: 0,
+      };
     }
 
     const canonicalByAlias = new Map<string, string>();
@@ -120,12 +128,16 @@ export default createEndpoint({
       ? startDate
       : { gte: startDate, lte: endDate };
     while (true) {
-      const { records, hasMore } = await BvslPreachingEntries.findAll({
+      const source = isMemberMode ? SadhanaEntries : BvslPreachingEntries;
+      const { records, hasMore } = await source.findAll({
         filters: { entryDate: entryDateFilter } as any,
+        fields: isMemberMode
+          ? ['id', 'user', 'entryDate', 'preachingMinutes', 'booksDistributed', 'fieldValuesJson', 'submittedAt']
+          : undefined,
         limit: 2000,
         offset,
       });
-      allEntries = allEntries.concat(records);
+      allEntries = allEntries.concat(isMemberMode ? records.map(normaliseMemberBvActivity) : records);
       if (!hasMore) break;
       offset += 2000;
     }
@@ -194,6 +206,7 @@ export default createEndpoint({
     });
 
     return {
+      subjectType: isMemberMode ? 'members' : 'facilitators',
       dailyTrend,
       userSummaries: userSummaries.sort((a, b) => b.avgTotalPreachingMinutes - a.avgTotalPreachingMinutes),
       totalUsers: bvslUsers.length,

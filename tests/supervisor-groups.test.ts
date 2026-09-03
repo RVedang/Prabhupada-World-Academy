@@ -157,6 +157,8 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       totalScore: 17,
       maxScore: 20,
       scorePercent: 85,
+      preachingMinutes: 135,
+      booksDistributed: 4,
       templateMode: 'NON_RESIDENT',
       fieldValuesJson: '{}',
       submittedAt: `${today}T05:00:00.000Z`,
@@ -430,8 +432,10 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       context: { user: reportingRgf },
     } as never);
     assert.deepEqual(rgfPreachingReport.bvsls.map((row: any) => row.fullName), [member.fullName]);
+    assert.equal((rgfPreachingReport as any).subjectType, 'members');
     assert.equal(rgfPreachingReport.bvsls[0].groupName, supervisedGroup.groupName);
-    assert.equal(rgfPreachingReport.bvsls[0].totalMinutes, 45);
+    assert.equal(rgfPreachingReport.bvsls[0].totalMinutes, 135);
+    assert.equal(rgfPreachingReport.bvsls[0].booksDistributed, 4);
 
     const rgfPreachingStats = await getBvStats.execute({
       input: {
@@ -443,6 +447,11 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
       context: { user: reportingRgf },
     } as never);
     assert.deepEqual(rgfPreachingStats.userSummaries.map((row: any) => row.fullName), [member.fullName]);
+    assert.equal((rgfPreachingStats as any).subjectType, 'members');
+    assert.equal(rgfPreachingStats.totalSubmitted, 1);
+    assert.equal(rgfPreachingStats.userSummaries[0].avgTotalPreachingMinutes, 135);
+    assert.equal(rgfPreachingStats.dailyTrend[0].totalPreachingMinutes, 135);
+    assert.equal(rgfPreachingStats.dailyTrend[0].prBooksDistributed, 4);
 
     const rgfSadhanaReport = await getGuideDetailedReport.execute({
       input: {
