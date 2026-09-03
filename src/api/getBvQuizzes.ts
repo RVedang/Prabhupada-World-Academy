@@ -4,12 +4,8 @@ import {
   canManageQuizContent,
   findScopedQuizGroup,
   getQuizGroupsForUser,
-  isPwQuizFacilitator,
-  isPwQuizSubFacilitator,
   legacyQuizMatchesGroup,
-  normalizeQuizDepartment,
   quizGroupAliases,
-  quizIsActivatedForGroup,
   quizRefValues,
   resolveQuizDepartment,
 } from '@/lib/bvQuizAccess';
@@ -27,29 +23,26 @@ function submissionMatchesGroup(submission: any, group: any, memberships: any[])
 }
 
 export default createEndpoint({
-  description: 'Get authorized department quizzes with group activation and submission counts',
+  description: 'Get authorized FOLK quizzes with submission counts',
   authenticated: true,
   inputSchema: z.object({
-    department: z.enum(['FOLK', 'PW']).optional(),
+    department: z.literal('FOLK').optional(),
     groupId: z.string().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
-    const department = normalizeQuizDepartment(input.department || context.user.segment, 'PW');
-    const canManageContent = canManageQuizContent(context.user, department);
-    const canReadPwGroups = department === 'PW' && (isPwQuizFacilitator(context.user) || isPwQuizSubFacilitator(context.user));
-    if (!canManageContent && !canReadPwGroups) {
+    const canManageContent = canManageQuizContent(context.user, 'FOLK');
+    if (!canManageContent) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Quiz management access is required' });
     }
 
-    const scopedGroups = await getQuizGroupsForUser(context.user, department, { readOnly: true });
+    const scopedGroups = await getQuizGroupsForUser(context.user, 'FOLK', { readOnly: true });
     const selectedGroup = input.groupId ? findScopedQuizGroup(scopedGroups, input.groupId) : null;
-    const canViewAllPw = department === 'PW' && canManageContent;
     if (input.groupId && !selectedGroup) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You can view quizzes only for authorized reading groups' });
     }
-    if (!input.groupId && !canViewAllPw) {
+    if (!input.groupId) {
       throw new AppError({ code: 'BAD_REQUEST', message: 'A reading group is required' });
     }
 
@@ -63,19 +56,13 @@ export default createEndpoint({
 
     const departmentPairs = await Promise.all(allQuizzes.map(async quiz => ({
       quiz,
-      department: await resolveQuizDepartment(quiz, department),
+      department: await resolveQuizDepartment(quiz, 'FOLK'),
     })));
     const quizzes = departmentPairs
-      .filter(pair => pair.department === department)
+      .filter(pair => pair.department === 'FOLK')
       .map(pair => pair.quiz)
       .filter(quiz => canManageContent || quiz.isActive === true)
-      .filter(quiz => {
-        if (department === 'FOLK') return !!selectedGroup && legacyQuizMatchesGroup(quiz, selectedGroup.record);
-        if (!selectedGroup) return true;
-        // PW now uses central quizzes, while group-specific legacy quizzes
-        // remain visible to their original group during migration.
-        return quizRefValues(quiz.group).length === 0 || legacyQuizMatchesGroup(quiz, selectedGroup.record);
-      });
+      .filter(quiz => !!selectedGroup && legacyQuizMatchesGroup(quiz, selectedGroup.record));
 
     const quizIds = quizzes.map(quiz => quiz.id);
     const submissionBatches: any[][] = [];
@@ -111,18 +98,14 @@ export default createEndpoint({
         try { questions = JSON.parse(quiz.questionsJson || '[]'); } catch {}
         const normalizedQuizId = String(quiz.id).toLowerCase();
         const mySubmission = mySubmissionByQuiz.get(normalizedQuizId);
-        const activeGroupIds = quizRefValues(quiz.activeGroupIds);
-        const isActiveForGroup = department === 'PW' && selectedGroup
-          ? quiz.isActive === true && (quizIsActivatedForGroup(quiz, selectedGroup.record) || legacyQuizMatchesGroup(quiz, selectedGroup.record))
-          : quiz.isActive === true;
         return {
           id: quiz.id,
           title: quiz.quizTitle || '',
           description: quiz.description || '',
-          department,
+          department: 'FOLK',
           isActive: quiz.isActive === true,
-          isActiveForGroup,
-          activeGroupCount: new Set(activeGroupIds).size,
+          isActiveForGroup: quiz.isActive === true,
+          activeGroupCount: 0,
           questionCount: questions.length,
           quizDate: quiz.quizDate || '',
           createdAt: quiz.createdAt || '',
@@ -142,8 +125,8 @@ export default createEndpoint({
       quizzes: result,
       permissions: {
         canManageContent,
-        canToggleGroups: department === 'PW' && (canManageContent || isPwQuizFacilitator(context.user)),
-        canViewAllGroups: canViewAllPw,
+        canToggleGroups: false,
+        canViewAllGroups: false,
       },
     };
   },

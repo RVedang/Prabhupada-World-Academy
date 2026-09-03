@@ -177,9 +177,7 @@ function QuizAnalyticsCard({ quiz, groupId, memberCount }: {
     let cancelled = false;
     setLoading(true);
     setError('');
-    // The server resolves the quiz department from the quiz itself. Passing
-    // FOLK here incorrectly rejected centrally published PW quizzes.
-    getBvQuizSubmissions({ quizId: quiz.quizId, groupId })
+    getBvQuizSubmissions({ quizId: quiz.quizId, department: 'FOLK', groupId })
       .then(data => { if (!cancelled) setResult(data); })
       .catch((requestError: any) => {
         if (!cancelled) setError(requestError?.message || 'Unable to load quiz analytics.');
@@ -401,7 +399,11 @@ export default function BvGroupDetailPage() {
       if (!silent) setLoading(false);
     }
   };
-  useRealtimeRefresh(['groups', 'users', 'attendance', 'quizzes'], () => load(true), Boolean(groupId));
+  useRealtimeRefresh(
+    profile?.segment === 'FOLK' ? ['groups', 'users', 'attendance', 'quizzes'] : ['groups', 'users', 'attendance'],
+    () => load(true),
+    Boolean(groupId),
+  );
 
   const overallRate = useMemo(() => {
     if (!detail || detail.members.length === 0) return 0;
@@ -439,6 +441,7 @@ export default function BvGroupDetailPage() {
   }
 
   const dd = detail as any;
+  const isFolkGroup = dd.group.segment === 'FOLK';
   const quizzes = dd.quizzes ?? [];
 
   return (
@@ -460,17 +463,17 @@ export default function BvGroupDetailPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className={`grid grid-cols-2 ${isFolkGroup ? 'md:grid-cols-3' : ''} gap-3`}>
           <StatCard icon={Users} label="Members" value={detail.members.length} sub="in this group" />
           <StatCard icon={CheckCircle2} label="Attendance Rate" value={`${overallRate}%`} sub="all-time average" color="text-green-600" />
-          <StatCard icon={Brain} label="Quizzes" value={quizzes.length} sub="assigned quizzes" color="text-purple-600" />
+          {isFolkGroup && <StatCard icon={Brain} label="Quizzes" value={quizzes.length} sub="assigned quizzes" color="text-purple-600" />}
         </div>
 
-        <Tabs defaultValue="quizzes">
+        <Tabs defaultValue={isFolkGroup ? 'quizzes' : 'attendance'}>
           <TabsList className="w-full md:w-auto">
-            <TabsTrigger value="quizzes" className="flex items-center gap-1.5">
+            {isFolkGroup && <TabsTrigger value="quizzes" className="flex items-center gap-1.5">
               <Brain className="w-4 h-4" />Quizzes
-            </TabsTrigger>
+            </TabsTrigger>}
             <TabsTrigger value="attendance" className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />Attendance
             </TabsTrigger>
@@ -479,9 +482,9 @@ export default function BvGroupDetailPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="quizzes" className="mt-4">
+          {isFolkGroup && <TabsContent value="quizzes" className="mt-4">
             <QuizzesTab quizzes={quizzes} groupId={detail.group.groupId} memberCount={detail.members.length} />
-          </TabsContent>
+          </TabsContent>}
 
           <TabsContent value="attendance" className="mt-4">
             <Card>

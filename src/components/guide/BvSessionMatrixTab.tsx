@@ -1,6 +1,5 @@
 /**
- * BvSessionMatrixTab — BV session attendance + quiz matrix
- * Columns: Name | Level | FOLK | Group | date columns (Attend | Quiz) | Att% | Quiz%
+ * BvSessionMatrixTab — BV attendance matrix with FOLK-only quiz columns
  */
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -78,6 +77,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   const navigate = useNavigate();
   const userEmail = (profile?.userId || '').toLowerCase();
   const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
+  const showFolkAssessmentData = !isPw;
 
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('weekly');
@@ -88,6 +88,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   const [residencyFilter, setResidencyFilter] = useState('all');
   const [folkFilter, setFolkFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<'both' | 'attendance' | 'quiz'>('both');
+  const reportView = isPw ? 'attendance' : viewFilter;
   const [data, setData] = useState<GetBvSessionMatrixOutputType | null>(null);
   const mountedRef = useRef(true);
   const requestVersionRef = useRef(0);
@@ -248,8 +249,12 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
 
   const handleExportCsv = () => {
     if (!data) return;
-    const dateHeaders = displayDates.flatMap(d => [`${format(new Date(d + 'T00:00:00'), 'MMM d')} Att`, `${format(new Date(d + 'T00:00:00'), 'MMM d')} Quiz`]);
-    const headers = ['Name', 'Level', 'FOLK', 'Group', ...dateHeaders, 'Att%', 'Quiz%'];
+    const dateHeaders = displayDates.flatMap(d => isPw
+      ? [`${format(new Date(d + 'T00:00:00'), 'MMM d')} Att`]
+      : [`${format(new Date(d + 'T00:00:00'), 'MMM d')} Att`, `${format(new Date(d + 'T00:00:00'), 'MMM d')} Quiz`]);
+    const headers = isPw
+      ? ['Name', 'Level', 'Group', ...dateHeaders, 'Att%']
+      : ['Name', 'Level', 'FOLK', 'Group', ...dateHeaders, 'Att%', 'Quiz%'];
     const rows = filteredMembers.map(m => {
       const att = (data.attendance as Record<string, Record<string, boolean>>)[m.userId] || {};
       const qs = (data.quizScores as Record<string, Record<string, number>>)[m.userId] || {};
@@ -259,13 +264,18 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
         const a = att[d]; const q = qs[d];
         if (hasS && a !== undefined) { attP++; if (a) attT++; }
         if (q != null) ql.push(q);
-        return [hasS ? (a ? '✓' : '✗') : '—', q != null ? `${q}%` : '—'];
+        return isPw
+          ? [hasS ? (a ? '✓' : '✗') : '—']
+          : [hasS ? (a ? '✓' : '✗') : '—', q != null ? `${q}%` : '—'];
       });
+      const identityCells = isPw
+        ? [m.fullName, m.ashrayLevel || '', m.groupName]
+        : [m.fullName, m.ashrayLevel || '', m.isResident ? ((m as any).residencyName || 'Resident') : 'Non-Resident', m.groupName];
       return [
-        m.fullName, m.ashrayLevel || '', m.isResident ? ((m as any).residencyName || 'Resident') : 'Non-Resident', m.groupName,
+        ...identityCells,
         ...dateCells,
         attP > 0 ? `${Math.round(attT / attP * 100)}%` : '—',
-        ql.length > 0 ? `${Math.round(ql.reduce((a, b) => a + b, 0) / ql.length)}%` : '—',
+        ...(!isPw ? [ql.length > 0 ? `${Math.round(ql.reduce((a, b) => a + b, 0) / ql.length)}%` : '—'] : []),
       ];
     });
     exportToCsv(`bv-report-${start}-${end}.csv`, headers, rows);
@@ -376,7 +386,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-1.5">
+            {!isPw && <div className="flex items-center gap-1.5">
               <Label className="text-sm font-medium whitespace-nowrap">View:</Label>
               <Select value={viewFilter} onValueChange={(v: 'both' | 'attendance' | 'quiz') => setViewFilter(v)}>
                 <SelectTrigger className="h-8 w-[150px]">
@@ -388,7 +398,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                   <SelectItem value="quiz">Quiz Only</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div>}
             {!isPw && (
               <div className="flex items-center gap-1.5">
                 <Label className="text-sm font-medium whitespace-nowrap">FOLK:</Label>
@@ -424,9 +434,9 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
             <SummaryCard icon={Calendar} label="Session Dates" value={stats.sessionDates} color="text-primary" />
             <SummaryCard icon={CheckSquare} label="Attendance %"  value={`${stats.attendancePct}%`}
               color={stats.attendancePct >= 75 ? 'text-green-600' : stats.attendancePct >= 50 ? 'text-amber-600' : 'text-red-600'} />
-            <SummaryCard icon={Brain} label="Avg Quiz"
+            {showFolkAssessmentData && <SummaryCard icon={Brain} label="Avg Quiz"
               value={stats.avgQuiz != null ? `${stats.avgQuiz}%` : '—'}
-              color={stats.avgQuiz == null ? '' : stats.avgQuiz >= 80 ? 'text-green-600' : stats.avgQuiz >= 60 ? 'text-amber-600' : 'text-red-600'} />
+              color={stats.avgQuiz == null ? '' : stats.avgQuiz >= 80 ? 'text-green-600' : stats.avgQuiz >= 60 ? 'text-amber-600' : 'text-red-600'} />}
           </div>
 
           {/* Legend */}
@@ -435,9 +445,11 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
             <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">✓ Attended</span>
             <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">✗ Absent</span>
             <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">— No session</span>
-            <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">Quiz ≥80%</span>
-            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">Quiz 60-79%</span>
-            <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">Quiz &lt;60%</span>
+            {showFolkAssessmentData && <>
+              <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">Quiz ≥80%</span>
+              <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">Quiz 60-79%</span>
+              <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">Quiz &lt;60%</span>
+            </>}
           </div>
 
           {filteredMembers.length === 0 ? (
@@ -457,15 +469,15 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                         {!isPw && <th className="p-2 text-center font-medium min-w-[72px]">FOLK</th>}
                         <th className="p-2 text-left font-medium border-r min-w-[80px]">Group</th>
                         {displayDates.map(d => (
-                          <th key={d} colSpan={viewFilter === 'both' ? 2 : 1}
+                          <th key={d} colSpan={reportView === 'both' ? 2 : 1}
                             className={`p-1 text-center font-medium border-r whitespace-nowrap ${sessionDateSet.has(d) ? 'bg-primary/10 text-primary' : ''}`}
-                            style={{ minWidth: viewFilter === 'both' ? 80 : 40 }}>
+                            style={{ minWidth: reportView === 'both' ? 80 : 40 }}>
                             {format(new Date(d + 'T00:00:00'), 'MMM d')}
                             {sessionDateSet.has(d) && <span className="ml-1 text-[9px] text-primary opacity-70">●</span>}
                           </th>
                         ))}
-                        {viewFilter !== 'quiz' && <th className="p-2 text-center font-semibold border-l-2 border-border min-w-[60px]" rowSpan={2}>Att%</th>}
-                        {viewFilter !== 'attendance' && <th className="p-2 text-center font-semibold min-w-[60px]" rowSpan={2}>Quiz%</th>}
+                        {reportView !== 'quiz' && <th className="p-2 text-center font-semibold border-l-2 border-border min-w-[60px]" rowSpan={2}>Att%</th>}
+                        {reportView !== 'attendance' && <th className="p-2 text-center font-semibold min-w-[60px]" rowSpan={2}>Quiz%</th>}
                       </tr>
                       {/* Row 2: sub-column headers */}
                       <tr className="bg-muted/30 border-b">
@@ -474,8 +486,8 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                         {!isPw && <th />}
                         <th className="border-r" />
                         {displayDates.flatMap(d => [
-                          ...(viewFilter !== 'quiz' ? [<th key={`${d}-ha`} className={`p-1 text-center font-medium border-r text-[10px] ${sessionDateSet.has(d) ? 'bg-primary/5' : 'text-muted-foreground'}`} style={{ minWidth: 38 }}>Att</th>] : []),
-                          ...(viewFilter !== 'attendance' ? [<th key={`${d}-hq`} className={`p-1 text-center font-medium border-r text-[10px] ${sessionDateSet.has(d) ? 'bg-primary/5' : 'text-muted-foreground'}`} style={{ minWidth: 42 }}>Quiz</th>] : []),
+                          ...(reportView !== 'quiz' ? [<th key={`${d}-ha`} className={`p-1 text-center font-medium border-r text-[10px] ${sessionDateSet.has(d) ? 'bg-primary/5' : 'text-muted-foreground'}`} style={{ minWidth: 38 }}>Att</th>] : []),
+                          ...(reportView !== 'attendance' ? [<th key={`${d}-hq`} className={`p-1 text-center font-medium border-r text-[10px] ${sessionDateSet.has(d) ? 'bg-primary/5' : 'text-muted-foreground'}`} style={{ minWidth: 42 }}>Quiz</th>] : []),
                         ])}
                       </tr>
                     </thead>
@@ -489,8 +501,8 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
                           attendance={(data.attendance as Record<string, Record<string, boolean>>)[m.userId] || {}}
                           quizScores={(data.quizScores as Record<string, Record<string, number>>)[m.userId] || {}}
                           isEven={idx % 2 === 0}
-                          viewFilter={viewFilter}
-                          isPw={isPw}
+                          viewFilter={reportView}
+                          showFolkMetadata={!isPw}
                         />
                       ))}
                     </tbody>
@@ -505,7 +517,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
   );
 }
 
-function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven, viewFilter, isPw }: {
+function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven, viewFilter, showFolkMetadata }: {
   member: MemberRow;
   dates: string[];
   sessionDates: Set<string>;
@@ -513,7 +525,7 @@ function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven
   quizScores: Record<string, number>;
   isEven: boolean;
   viewFilter: 'both' | 'attendance' | 'quiz';
-  isPw?: boolean;
+  showFolkMetadata?: boolean;
 }) {
   const navigate = useNavigate();
   const rowBg = isEven ? '' : 'bg-muted/20';
@@ -550,7 +562,7 @@ function MatrixRow({ member, dates, sessionDates, attendance, quizScores, isEven
       <td className="p-2 text-center text-[11px]">
         {member.ashrayLevel ? <span className="font-medium truncate block max-w-[75px] mx-auto">{member.ashrayLevel}</span> : <span className="text-muted-foreground/40">—</span>}
       </td>
-      {!isPw && (
+      {showFolkMetadata && (
         <td className="p-2 text-center text-[11px]">
           {member.isResident
             ? <span className="text-primary font-medium truncate block max-w-[68px] mx-auto">{folkLabel}</span>

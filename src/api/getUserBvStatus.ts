@@ -56,8 +56,7 @@ export default createEndpoint({
       );
     }
     // A BvGroupMembers document is the authoritative membership record. A
-    // profile flag can be stale after an approval or group assignment; using
-    // it as a second gate hid valid PW members and their active quizzes.
+    // profile flag can be stale after an approval or group assignment.
     const membership = rawMembership;
 
     const pending = pendingRes.records[0];

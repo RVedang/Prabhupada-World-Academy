@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video, Brain } from 'lucide-react';
+import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video } from 'lucide-react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { DashboardLayout } from '@/layouts';
@@ -24,7 +24,6 @@ const ApprovalsTab = lazy(() => import('@/components/guide/ApprovalsTab'));
 const SuperBvRegistrationsTab = lazy(() => import('@/components/super/SuperBvRegistrationsTab'));
 const BvAdminManagementTab = lazy(() => import('@/components/super/BvAdminManagementTab'));
 const MeetingsAndMomTab = lazy(() => import('@/components/super/MeetingsAndMomTab'));
-const PwQuizManagementPanel = lazy(() => import('@/components/super/PwQuizManagementPanel'));
 const BvslOneToOneTab = lazy(() => import('@/components/bvsl/BvslOneToOneTab'));
 import {
   getCurrentGuide, getPushSubscriptionStats, GetPushSubscriptionStatsOutputType,
@@ -139,7 +138,6 @@ export default function PwAdminDashboard() {
   const navItems = [
     { value: 'sadhana', label: 'Sadhana Report', icon: Database },
     { value: 'bv', label: 'Bhakti Vriksha Report', icon: CalendarCheck },
-    { value: 'quizzes', label: 'Quizzes', icon: Brain },
     { value: 'users', label: 'Members / Users', icon: Users },
     { value: 'approvals', label: 'Approvals', icon: ClipboardCheck, badge: approvalCount },
     { value: 'bhakti-vriksha', label: 'Bhakti Vriksha', icon: Leaf, badge: bvRegCount },
@@ -277,16 +275,6 @@ export default function PwAdminDashboard() {
                       <p className="text-sm text-muted-foreground">Bhakti Vriksha attendance and group reports</p>
                     </div>
                     <SuperBvReportTab isPwAdmin={true} />
-                  </div>
-                )}
-
-                {visitedTabs.has('quizzes') && (
-                  <div className={activeTab === 'quizzes' ? 'block' : 'hidden'}>
-                    <div className="space-y-1 mb-4">
-                      <h2 className="text-lg font-bold">Prabhupada World Quizzes</h2>
-                      <p className="text-sm text-muted-foreground">Create central quizzes, control publication, and review results across reading groups</p>
-                    </div>
-                    <PwQuizManagementPanel />
                   </div>
                 )}
 

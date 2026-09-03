@@ -64,7 +64,7 @@ export default function RgsfDashboard() {
     { value: 'session', label: 'Attendance', icon: CheckSquare },
     { value: 'members', label: 'Group Members', icon: Users },
     { value: 'report', label: 'Sadhana', icon: FileText },
-    { value: 'quizzes', label: 'Quizzes', icon: Brain },
+    ...(isFolk ? [{ value: 'quizzes', label: 'Quizzes', icon: Brain }] : []),
     { value: 'onetone', label: '1:1 Calls', icon: CalendarClock },
     ...(!isFolk ? [{ value: 'meetings', label: 'Meetings & MoM', icon: Video }] : []),
   ];
@@ -92,13 +92,9 @@ export default function RgsfDashboard() {
               {activeTab === 'session' && <BvslSessionPanel bvslId={bvslId} groups={groups} />}
               {activeTab === 'members' && <BvslMembersTable bvslId={bvslId} detailBasePath="/rgsf/users" />}
               {activeTab === 'report' && <BvslSadhanaReportPanel bvslId={bvslId} />}
-              {activeTab === 'quizzes' && (
+              {isFolk && activeTab === 'quizzes' && (
                 <BvslQuizPanel
-                  bvslId={bvslId}
                   groups={groups.map((g: any) => ({ id: g.id, groupName: g.groupName }))}
-                  department={isFolk ? 'FOLK' : 'PW'}
-                  canManageContent={isFolk}
-                  canToggleGroupActivation={false}
                 />
               )}
               {activeTab === 'onetone' && <RgsfCallHistoryTab />}

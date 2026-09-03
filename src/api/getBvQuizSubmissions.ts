@@ -5,10 +5,7 @@ import {
   canReadFolkQuizResults,
   findScopedQuizGroup,
   getQuizGroupsForUser,
-  isPwQuizFacilitator,
-  isPwQuizSubFacilitator,
   legacyQuizMatchesGroup,
-  normalizeQuizDepartment,
   quizGroupAliases,
   quizRefValues,
   resolveQuizDepartment,
@@ -38,7 +35,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({
     quizId: z.string().min(1),
-    department: z.enum(['FOLK', 'PW']).optional(),
+    department: z.literal('FOLK').optional(),
     groupId: z.string().optional(),
   }),
   outputSchema: z.any(),
@@ -47,27 +44,23 @@ export default createEndpoint({
     const quiz = await BvQuizzes.findOne({ id: input.quizId });
     if (!quiz) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz not found' });
 
-    const requestedDepartment = normalizeQuizDepartment(input.department || context.user.segment, 'PW');
-    const department = await resolveQuizDepartment(quiz, requestedDepartment);
-    if (input.department && department !== requestedDepartment) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'The quiz belongs to another department' });
+    if (await resolveQuizDepartment(quiz, 'FOLK') !== 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only FOLK quiz results are available' });
     }
 
-    const canManageContent = canManageQuizContent(context.user, department);
-    const canReadPwGroups = department === 'PW' && (isPwQuizFacilitator(context.user) || isPwQuizSubFacilitator(context.user));
-    const canReadFolkSupervisorGroups = department === 'FOLK' && canReadFolkQuizResults(context.user);
-    if (!canManageContent && !canReadPwGroups && !canReadFolkSupervisorGroups) {
+    const canManageContent = canManageQuizContent(context.user, 'FOLK');
+    const canReadFolkSupervisorGroups = canReadFolkQuizResults(context.user);
+    if (!canManageContent && !canReadFolkSupervisorGroups) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You do not have access to these quiz results' });
     }
 
-    const scopedGroups = await getQuizGroupsForUser(context.user, department, { readOnly: true });
+    const scopedGroups = await getQuizGroupsForUser(context.user, 'FOLK', { readOnly: true });
     let selectedGroup = input.groupId ? findScopedQuizGroup(scopedGroups, input.groupId) : null;
-    if (!selectedGroup && department === 'FOLK') selectedGroup = findScopedQuizGroup(scopedGroups, quiz.group);
-    const canViewAllGroups = department === 'PW' && canManageContent;
+    if (!selectedGroup) selectedGroup = findScopedQuizGroup(scopedGroups, quiz.group);
     if (input.groupId && !selectedGroup) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You can view results only for authorized reading groups' });
     }
-    if (!selectedGroup && !canViewAllGroups) {
+    if (!selectedGroup) {
       throw new AppError({ code: 'BAD_REQUEST', message: 'A reading group is required to view results' });
     }
     if (selectedGroup && quizRefValues(quiz.group).length > 0 && !legacyQuizMatchesGroup(quiz, selectedGroup.record)) {

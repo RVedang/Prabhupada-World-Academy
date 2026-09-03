@@ -16,10 +16,13 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    if (String(context.user.segment || '').toUpperCase() !== 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Quizzes are available only in FOLK' });
+    }
 
     const quiz = await BvQuizzes.findOne({ id: input.quizId });
     if (!quiz) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz not found' });
-    const access = await assertQuizParticipantAccess(context.user, quiz);
+    const access = await assertQuizParticipantAccess(context.user, quiz, 'FOLK');
 
     // Check all identity aliases because older submissions may store a public
     // userId while current records use the Firestore Users document id.

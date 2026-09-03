@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvSessions, BvAttendance, BvQuizzes, Users, AppError } from '@/lib/backend-sdk';
-import { legacyQuizMatchesGroup, normalizeQuizDepartment, quizIsActivatedForGroup } from '@/lib/bvQuizAccess';
+import { legacyQuizMatchesGroup, normalizeQuizDepartment } from '@/lib/bvQuizAccess';
 
 function normalizeKey(value: unknown): string {
   return String(value || '').trim().toLowerCase();
@@ -72,12 +72,12 @@ export default createEndpoint({
     // Try finding by the custom groupId field first, then fall back to DB record ID
     let group = await BvGroups.findOne({
       filters: { groupId: input.groupId },
-      fields: ['id', 'groupId', 'groupName', 'description', 'isActive', 'joinToken', 'whatsAppLink', 'bvslLeader'],
+      fields: ['id', 'groupId', 'groupName', 'description', 'isActive', 'joinToken', 'whatsAppLink', 'bvslLeader', 'segment'],
     });
     if (!group) {
       group = await BvGroups.findOne({
         id: input.groupId,
-        fields: ['id', 'groupId', 'groupName', 'description', 'isActive', 'joinToken', 'whatsAppLink', 'bvslLeader'],
+        fields: ['id', 'groupId', 'groupName', 'description', 'isActive', 'joinToken', 'whatsAppLink', 'bvslLeader', 'segment'],
       }).catch(() => undefined);
     }
     if (!group) throw new AppError({ code: 'NOT_FOUND', message: 'Group not found' });
@@ -92,7 +92,9 @@ export default createEndpoint({
       group.groupId
         ? BvSessions.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }).catch(() => ({ records: [] }))
         : Promise.resolve({ records: [] }),
-      BvQuizzes.findAll({ fields: ['id', 'group', 'groupId', 'department', 'activeGroupIds', 'isActive', 'quizTitle', 'createdAt'], limit: 500 }),
+      String(group.segment || '').toUpperCase() === 'FOLK'
+        ? BvQuizzes.findAll({ fields: ['id', 'group', 'groupId', 'department', 'isActive', 'quizTitle', 'createdAt'], limit: 500 })
+        : Promise.resolve({ records: [] }),
     ]);
 
     const membershipMap = new Map<string, any>();
@@ -102,10 +104,7 @@ export default createEndpoint({
     [...sessionsRes.records, ...sessionsByGroupIdRes.records].forEach((session: any) => sessionMap.set(String(session.id), session));
     const quizMap = new Map<string, any>();
     allQuizzesRes.records
-      .filter((quiz: any) =>
-        legacyQuizMatchesGroup(quiz, group) ||
-        (normalizeQuizDepartment(quiz.department, 'FOLK') === 'PW' && quiz.isActive === true && quizIsActivatedForGroup(quiz, group))
-      )
+      .filter((quiz: any) => normalizeQuizDepartment(quiz.department, 'FOLK') === 'FOLK' && legacyQuizMatchesGroup(quiz, group))
       .forEach((quiz: any) => quizMap.set(String(quiz.id), quiz));
     const sessionRecords = [...sessionMap.values()];
     const quizRecords = [...quizMap.values()];
@@ -206,6 +205,7 @@ export default createEndpoint({
         isActive: (group.isActive as boolean) ?? true,
         joinToken: (group.joinToken as string) || null,
         whatsAppLink: (group.whatsAppLink as string) || null,
+        segment: String(group.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW',
       },
       members,
       recentSessions: sessions.sort((a: any, b: any) => b.sessionDate.localeCompare(a.sessionDate)).slice(0, 20),

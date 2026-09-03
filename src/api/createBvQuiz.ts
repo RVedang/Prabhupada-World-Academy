@@ -3,7 +3,6 @@ import { createEndpoint, BvQuizzes, AppError } from '@/lib/backend-sdk';
 import {
   findScopedQuizGroup,
   getQuizGroupsForUser,
-  normalizeQuizDepartment,
   requireQuizContentManager,
   resolveQuizDepartment,
 } from '@/lib/bvQuizAccess';
@@ -35,11 +34,11 @@ const questionsSchema = z.array(questionSchema).min(1).max(500).superRefine((que
 });
 
 export default createEndpoint({
-  description: 'Create or update a department-aware BV quiz',
+  description: 'Create or update a FOLK BV quiz',
   authenticated: true,
   inputSchema: z.object({
     quizId: z.string().optional(),
-    department: z.enum(['FOLK', 'PW']).optional(),
+    department: z.literal('FOLK').optional(),
     title: z.string().trim().min(1).max(200),
     description: z.string().optional(),
     groupId: z.string().optional(),
@@ -50,33 +49,26 @@ export default createEndpoint({
   outputSchema: z.object({ quizId: z.string(), success: z.boolean() }),
   execute: async ({ input, context }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
-    const requestedDepartment = normalizeQuizDepartment(input.department || context.user.segment, 'PW');
-
     let existingQuiz: any = null;
-    let department = requestedDepartment;
     if (input.quizId) {
       existingQuiz = await BvQuizzes.findOne({ id: input.quizId });
       if (!existingQuiz) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz not found' });
-      department = await resolveQuizDepartment(existingQuiz, requestedDepartment);
-      if (input.department && department !== requestedDepartment) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'A quiz cannot be moved between departments' });
+      if (await resolveQuizDepartment(existingQuiz, 'FOLK') !== 'FOLK') {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Only FOLK quizzes can be managed' });
       }
     }
 
-    requireQuizContentManager(context.user, department);
+    requireQuizContentManager(context.user, 'FOLK');
 
-    let groupId: string | null = null;
-    if (department === 'FOLK') {
-      const groups = await getQuizGroupsForUser(context.user, 'FOLK');
-      const group = findScopedQuizGroup(groups, input.groupId || existingQuiz?.group);
-      if (!group) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'You can manage quizzes only for your assigned FOLK groups' });
-      }
-      if (existingQuiz?.group && !findScopedQuizGroup([group], existingQuiz.group)) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'The quiz does not belong to the selected group' });
-      }
-      groupId = group.id;
+    const groups = await getQuizGroupsForUser(context.user, 'FOLK');
+    const group = findScopedQuizGroup(groups, input.groupId || existingQuiz?.group);
+    if (!group) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You can manage quizzes only for your assigned FOLK groups' });
     }
+    if (existingQuiz?.group && !findScopedQuizGroup([group], existingQuiz.group)) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'The quiz does not belong to the selected group' });
+    }
+    const groupId = group.id;
 
     const questionsJson = JSON.stringify(input.questions);
     if (input.quizId) {
@@ -88,7 +80,7 @@ export default createEndpoint({
           questionsJson,
           isActive: input.isActive ?? true,
           quizDate: input.quizDate,
-          department,
+          department: 'FOLK',
           updatedAt: new Date().toISOString(),
         },
       });
@@ -98,9 +90,8 @@ export default createEndpoint({
       record: {
         quizTitle: input.title.trim(),
         description: input.description || '',
-        group: department === 'FOLK' ? groupId : null,
-        department,
-        activeGroupIds: department === 'PW' ? [] : undefined,
+        group: groupId,
+        department: 'FOLK',
         createdBy: context.user.id,
         questionsJson,
         isActive: input.isActive ?? true,

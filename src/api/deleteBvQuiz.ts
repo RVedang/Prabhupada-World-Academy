@@ -3,7 +3,6 @@ import { createEndpoint, BvQuizzes, BvQuizSubmissions, AppError } from '@/lib/ba
 import {
   findScopedQuizGroup,
   getQuizGroupsForUser,
-  normalizeQuizDepartment,
   requireQuizContentManager,
   resolveQuizDepartment,
 } from '@/lib/bvQuizAccess';
@@ -13,7 +12,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({
     quizId: z.string(),
-    department: z.enum(['FOLK', 'PW']).optional(),
+    department: z.literal('FOLK').optional(),
   }),
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }) => {
@@ -21,18 +20,14 @@ export default createEndpoint({
     const quiz = await BvQuizzes.findOne({ id: input.quizId });
     if (!quiz) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz not found' });
 
-    const requestedDepartment = normalizeQuizDepartment(input.department || context.user.segment, 'PW');
-    const department = await resolveQuizDepartment(quiz, requestedDepartment);
-    if (input.department && department !== requestedDepartment) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'The quiz belongs to another department' });
+    if (await resolveQuizDepartment(quiz, 'FOLK') !== 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only FOLK quizzes can be managed' });
     }
-    requireQuizContentManager(context.user, department);
+    requireQuizContentManager(context.user, 'FOLK');
 
-    if (department === 'FOLK') {
-      const groups = await getQuizGroupsForUser(context.user, 'FOLK');
-      if (!findScopedQuizGroup(groups, quiz.group)) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'You can delete quizzes only from your assigned FOLK groups' });
-      }
+    const groups = await getQuizGroupsForUser(context.user, 'FOLK');
+    if (!findScopedQuizGroup(groups, quiz.group)) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You can delete quizzes only from your assigned FOLK groups' });
     }
 
     const { records: submissions } = await BvQuizSubmissions.findAll({

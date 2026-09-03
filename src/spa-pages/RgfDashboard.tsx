@@ -64,7 +64,7 @@ export default function RgfDashboard() {
     { value: 'weekplan',  label: 'Weekly Plan', icon: ClipboardList },
     { value: 'groups',    label: 'Groups',      icon: Users },
     { value: 'session',   label: 'Attendance',  icon: CheckSquare },
-    { value: 'quizzes',   label: 'Quizzes',     icon: Brain },
+    ...(isFolk ? [{ value: 'quizzes', label: 'Quizzes', icon: Brain }] : []),
     { value: 'bvreport',  label: 'BV Report',   icon: BarChart3 },
     { value: 'report',    label: 'Sadhana',     icon: FileText },
     { value: 'members',   label: 'Members',     icon: Users },
@@ -96,13 +96,9 @@ export default function RgfDashboard() {
               {activeTab === 'members' && <BvslMembersTable bvslId={bvslId} />}
               {activeTab === 'bvreport' && <BvSection guideId={bvslId} bvslMode />}
               {activeTab === 'report' && <BvslSadhanaReportPanel bvslId={bvslId} />}
-              {activeTab === 'quizzes' && (
+              {isFolk && activeTab === 'quizzes' && (
                 <BvslQuizPanel
-                  bvslId={bvslId}
                   groups={groups.map((g: any) => ({ id: g.id, groupName: g.groupName }))}
-                  department={isFolk ? 'FOLK' : 'PW'}
-                  canManageContent={isFolk}
-                  canToggleGroupActivation={!isFolk}
                 />
               )}
               {activeTab === 'onetone' && <BvslOneToOneTab />}

@@ -69,7 +69,7 @@ export default function PwUserDashboard() {
     key: profile?.userId ? `dashboard:${profile.userId}` : null,
     fetcher: () => getUserDashboardData({ userId: profile!.userId, days: 30 }),
     ttl: 60_000,
-    realtimeChannels: ['sadhana', 'attendance', 'groups', 'quizzes'],
+    realtimeChannels: ['sadhana', 'attendance', 'groups'],
   });
 
   useEffect(() => {
@@ -218,7 +218,7 @@ export default function PwUserDashboard() {
           )}
           {visibleActiveTab === 'attendance' && canViewBvAttendance && (
             <SectionErrorBoundary sectionName="Attendance Tab">
-              <AttendanceTab userId={profile.userId} />
+              <AttendanceTab userId={profile.userId} segment="PW" />
             </SectionErrorBoundary>
           )}
           {visibleActiveTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (

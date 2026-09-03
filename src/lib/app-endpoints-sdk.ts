@@ -1905,13 +1905,6 @@ export const setAshrayLevel = (input: setAshrayLevel_Input): Promise<setAshrayLe
 export type SetAshrayLevelOutputType = setAshrayLevel_Output;
 export type SetAshrayLevelInputType = setAshrayLevel_Input;
 
-import type setBvQuizGroupActivation_Type from '../api/setBvQuizGroupActivation';
-type setBvQuizGroupActivation_Input = Parameters<typeof setBvQuizGroupActivation_Type.execute>[0]['input'];
-type setBvQuizGroupActivation_Output = ReturnType<typeof setBvQuizGroupActivation_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof setBvQuizGroupActivation_Type.execute>;
-export const setBvQuizGroupActivation = (input: setBvQuizGroupActivation_Input): Promise<setBvQuizGroupActivation_Output> => invokeEndpoint('setBvQuizGroupActivation', input);
-export type SetBvQuizGroupActivationOutputType = setBvQuizGroupActivation_Output;
-export type SetBvQuizGroupActivationInputType = setBvQuizGroupActivation_Input;
-
 import type setFolkCenter_Type from '../api/setFolkCenter';
 type setFolkCenter_Input = Parameters<typeof setFolkCenter_Type.execute>[0]['input'];
 type setFolkCenter_Output = ReturnType<typeof setFolkCenter_Type.execute> extends Promise<infer R> ? R : ReturnType<typeof setFolkCenter_Type.execute>;

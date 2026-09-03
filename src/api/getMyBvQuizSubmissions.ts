@@ -3,8 +3,6 @@ import { AppError, BvQuizSubmissions, BvQuizzes, createEndpoint } from '@/lib/ba
 import {
   getUserQuizGroups,
   legacyQuizMatchesGroup,
-  normalizeQuizDepartment,
-  quizIsActivatedForGroup,
   quizRefValues,
   resolveQuizDepartment,
 } from '@/lib/bvQuizAccess';
@@ -18,8 +16,10 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ context }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
-    const department = normalizeQuizDepartment(context.user.segment, 'PW');
-    const groups = await getUserQuizGroups(context.user, department);
+    if (String(context.user.segment || '').toUpperCase() !== 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Quizzes are available only in FOLK' });
+    }
+    const groups = await getUserQuizGroups(context.user, 'FOLK');
 
     const [{ records: allSubmissions }, { records: allQuizzes }] = await Promise.all([
       BvQuizSubmissions.findAll({
@@ -42,10 +42,10 @@ export default createEndpoint({
 
     const quizDepartmentPairs = await Promise.all(allQuizzes.map(async quiz => ({
       quiz,
-      department: await resolveQuizDepartment(quiz, department),
+      department: await resolveQuizDepartment(quiz, 'FOLK'),
     })));
     const departmentQuizzes = quizDepartmentPairs
-      .filter(pair => pair.department === department)
+      .filter(pair => pair.department === 'FOLK')
       .map(pair => pair.quiz);
     const quizById = new Map(departmentQuizzes.map(quiz => [String(quiz.id).toLowerCase(), quiz]));
     const submissions = ownSubmissions
@@ -70,9 +70,7 @@ export default createEndpoint({
 
     const pendingQuizzes = departmentQuizzes
       .filter(quiz => quiz.isActive === true && !submittedQuizIds.has(String(quiz.id).toLowerCase()))
-      .filter(quiz => groups.some(group => department === 'PW'
-        ? (quizIsActivatedForGroup(quiz, group) || legacyQuizMatchesGroup(quiz, group))
-        : legacyQuizMatchesGroup(quiz, group)))
+      .filter(quiz => groups.some(group => legacyQuizMatchesGroup(quiz, group)))
       .map(quiz => {
         let questionCount = 0;
         try { questionCount = JSON.parse(quiz.questionsJson || '[]').length; } catch {}
@@ -99,7 +97,7 @@ export default createEndpoint({
       : 0;
 
     return {
-      department,
+      department: 'FOLK',
       submissions,
       quizDates,
       pendingQuizzes,

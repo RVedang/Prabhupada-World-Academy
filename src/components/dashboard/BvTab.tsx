@@ -204,8 +204,7 @@ export default function BvTab({ userId, segment }: Props) {
         </Card>
       )}
 
-      {/* Group quizzes — visible to active members of their reading group */}
-      {status?.myGroup && (
+      {segment === 'FOLK' && status?.myGroup && (
         <BvQuizSection userId={userId} />
       )}
 

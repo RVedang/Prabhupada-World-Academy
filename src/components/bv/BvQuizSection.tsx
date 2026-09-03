@@ -45,9 +45,8 @@ export default function BvQuizSection({ userId }: Props) {
   const load = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      // Quiz publication and group activation can be changed from another
-      // signed-in browser. Never reuse an earlier empty result when this view
-      // is opened or reconciled after an availability event.
+      // Quiz publication can change from another signed-in browser. Never
+      // reuse an earlier empty result when this view is reopened.
       const r = await getMyBvQuizSubmissions({ _nocache: true });
       setData(r as QuizData);
     } catch { toast.error('Failed to load quizzes'); }
@@ -58,8 +57,7 @@ export default function BvQuizSection({ userId }: Props) {
   // synchronization for the currently authenticated member.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [userId, load]);
-  // A facilitator activating a centrally published PW quiz should make it
-  // available to active group members immediately, without polling.
+  // FOLK quiz publication updates are event-driven, without polling.
   useRealtimeRefresh(['quizzes', 'groups'], () => { void load(false); }, Boolean(userId));
 
   // Reconcile after the user returns to this browser/app. This covers a quiz

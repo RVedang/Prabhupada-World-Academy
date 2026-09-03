@@ -188,7 +188,7 @@ export default function FolkUserDashboard() {
           )}
           {activeTab === 'attendance' && !!profile.isBvMember && (
             <SectionErrorBoundary sectionName="Attendance Tab">
-              <AttendanceTab userId={profile.userId} />
+              <AttendanceTab userId={profile.userId} segment="FOLK" />
             </SectionErrorBoundary>
           )}
           {activeTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (

@@ -4,7 +4,6 @@ import {
   assertQuizParticipantAccess,
   findScopedQuizGroup,
   getQuizGroupsForUser,
-  normalizeQuizDepartment,
   requireQuizContentManager,
   resolveQuizDepartment,
 } from '@/lib/bvQuizAccess';
@@ -14,7 +13,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({
     quizId: z.string(),
-    department: z.enum(['FOLK', 'PW']).optional(),
+    department: z.literal('FOLK').optional(),
     includeAnswers: z.boolean().optional(),
   }),
   outputSchema: z.any(),
@@ -23,22 +22,18 @@ export default createEndpoint({
     const quiz = await BvQuizzes.findOne({ id: input.quizId });
     if (!quiz) throw new AppError({ code: 'NOT_FOUND', message: 'Quiz not found' });
 
-    const requestedDepartment = normalizeQuizDepartment(input.department || context.user.segment, 'PW');
-    const department = await resolveQuizDepartment(quiz, requestedDepartment);
-    if (input.department && department !== requestedDepartment) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'The quiz belongs to another department' });
+    if (await resolveQuizDepartment(quiz, 'FOLK') !== 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Only FOLK quizzes are available' });
     }
 
     if (input.includeAnswers) {
-      requireQuizContentManager(context.user, department);
-      if (department === 'FOLK') {
-        const groups = await getQuizGroupsForUser(context.user, 'FOLK');
-        if (!findScopedQuizGroup(groups, quiz.group)) {
-          throw new AppError({ code: 'FORBIDDEN', message: 'You can edit quizzes only for your assigned FOLK groups' });
-        }
+      requireQuizContentManager(context.user, 'FOLK');
+      const groups = await getQuizGroupsForUser(context.user, 'FOLK');
+      if (!findScopedQuizGroup(groups, quiz.group)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'You can edit quizzes only for your assigned FOLK groups' });
       }
     } else {
-      await assertQuizParticipantAccess(context.user, quiz, department);
+      await assertQuizParticipantAccess(context.user, quiz, 'FOLK');
     }
 
     let questions: any[] = [];
@@ -48,7 +43,7 @@ export default createEndpoint({
       id: quiz.id,
       title: quiz.quizTitle || '',
       description: quiz.description || '',
-      department,
+      department: 'FOLK',
       isActive: quiz.isActive === true,
       quizDate: quiz.quizDate || '',
       createdAt: quiz.createdAt || '',

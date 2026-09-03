@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, AppError, BvQuizSubmissions, BvQuizzes } from '@/lib/backend-sdk';
-import { quizRefValues } from '@/lib/bvQuizAccess';
+import { quizRefValues, resolveQuizDepartment } from '@/lib/bvQuizAccess';
 
 export default createEndpoint({
   description: 'Get the current user\'s completed BV quiz with their answer review',
@@ -9,11 +9,14 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    if (String(context.user.segment || '').toUpperCase() !== 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Quizzes are available only in FOLK' });
+    }
 
     // A result can only ever be reviewed by the user who submitted it.
     const submission = await BvQuizSubmissions.findOne({
       id: input.submissionId,
-      fields: ['id', 'quiz', 'score', 'totalQuestions', 'percentage', 'submittedAt', 'answersJson'],
+      fields: ['id', 'user', 'userId', 'quiz', 'department', 'score', 'totalQuestions', 'percentage', 'submittedAt', 'answersJson'],
     });
     const callerAliases = new Set(quizRefValues([
       context.user.id,
@@ -29,9 +32,12 @@ export default createEndpoint({
     const quizId = Array.isArray(submission.quiz) ? submission.quiz[0] : submission.quiz;
     const quiz = quizId ? await BvQuizzes.findOne({
       id: quizId as string,
-      fields: ['id', 'quizTitle', 'description', 'isActive', 'createdAt', 'questionsJson'],
+      fields: ['id', 'quizTitle', 'description', 'department', 'isActive', 'createdAt', 'questionsJson'],
     }) : null;
     if (!quiz) throw new AppError({ code: 'NOT_FOUND', message: 'The original quiz is no longer available' });
+    if (await resolveQuizDepartment(quiz, 'FOLK') !== 'FOLK') {
+      throw new AppError({ code: 'NOT_FOUND', message: 'The original quiz is no longer available' });
+    }
 
     let questions: any[] = [];
     let submittedAnswers: { questionId: string; selected: number[] }[] = [];

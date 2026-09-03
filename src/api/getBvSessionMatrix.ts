@@ -2,11 +2,11 @@ import { z } from 'zod';
 import { createEndpoint, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizzes, BvQuizSubmissions, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { legacyQuizMatchesGroup, normalizeQuizDepartment, quizIsActivatedForGroup } from '../lib/bvQuizAccess';
+import { legacyQuizMatchesGroup, normalizeQuizDepartment } from '../lib/bvQuizAccess';
 import { bvUserAliases, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
-  description: 'BV attendance + quiz matrix — person × date grid for guides/bvsls (queries attendance directly by group+date)',
+  description: 'BV attendance matrix with FOLK-only quiz results',
   authenticated: true,
   inputSchema: z.object({
     guideId: z.string(),
@@ -239,24 +239,22 @@ export default createEndpoint({
       }
     }
 
-    // Include both legacy group-specific quizzes and centrally published PW
-    // quizzes that an RGF/Admin has activated for one of these groups.
-    const { records: allQuizzes } = await BvQuizzes.findAll({
-      fields: ['id', 'group', 'department', 'activeGroupIds'],
-      limit: 500,
-    });
-    const quizzes = allQuizzes.filter((quiz: any) =>
-      groups.some((group: any) => legacyQuizMatchesGroup(quiz, group)) ||
-      (normalizeQuizDepartment(quiz.department, 'FOLK') === 'PW' && groups.some((group: any) => quizIsActivatedForGroup(quiz, group)))
-    );
-
-    const quizIds = quizzes.map(q => q.id);
-
-    // Get quiz submissions
     const quizScoreMap: Record<string, Record<string, number>> = {};
-    if (quizIds.length > 0 && memberUserIds.length > 0) {
+    const includeFolkQuizzes = String(context.user.segment || '').toUpperCase() === 'FOLK';
+    if (includeFolkQuizzes && memberUserIds.length > 0) {
+      const { records: allQuizzes } = await BvQuizzes.findAll({
+        fields: ['id', 'group', 'department'],
+        limit: 500,
+      });
+      const quizIds = allQuizzes
+        .filter((quiz: any) =>
+          normalizeQuizDepartment(quiz.department, 'FOLK') === 'FOLK' &&
+          groups.some((group: any) => legacyQuizMatchesGroup(quiz, group))
+        )
+        .map(quiz => quiz.id);
+
       let offset = 0;
-      while (true) {
+      while (quizIds.length > 0) {
         const { records, hasMore } = await BvQuizSubmissions.findAll({
           filters: { user: { in: memberUserIds } } as any,
           fields: ['id', 'user', 'quiz', 'percentage', 'submittedAt'],

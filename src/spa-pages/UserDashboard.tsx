@@ -90,7 +90,9 @@ export default function UserDashboard() {
     key: profile?.userId ? `dashboard:${profile.userId}` : null,
     fetcher: () => getUserDashboardData({ userId: profile!.userId, days: 30 }),
     ttl: 60_000, // 60s — fresh enough, avoids re-fetch on tab switch
-    realtimeChannels: ['sadhana', 'attendance', 'groups', 'quizzes'],
+    realtimeChannels: profile?.segment === 'FOLK'
+      ? ['sadhana', 'attendance', 'groups', 'quizzes']
+      : ['sadhana', 'attendance', 'groups'],
   });
 
   useEffect(() => {
@@ -234,7 +236,7 @@ export default function UserDashboard() {
           {visitedTabs.has('attendance') && !!profile.isBvMember && (
             <div className={activeTab === 'attendance' ? 'block' : 'hidden'}>
               <SectionErrorBoundary sectionName="Attendance Tab">
-                <AttendanceTab userId={profile.userId} />
+              <AttendanceTab userId={profile.userId} segment={profile.segment === 'FOLK' ? 'FOLK' : 'PW'} />
               </SectionErrorBoundary>
             </div>
           )}

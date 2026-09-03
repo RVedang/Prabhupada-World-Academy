@@ -8,9 +8,9 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMont
 import { getMyBvQuizSubmissions, getUserAttendanceCalendar } from '@/lib/endpoints-sdk';
 import { fmt } from '@/lib/fmt';
 
-interface Props { userId: string; }
+interface Props { userId: string; segment: 'PW' | 'FOLK'; }
 
-export default function AttendanceTab({ userId }: Props) {
+export default function AttendanceTab({ userId, segment }: Props) {
   const [data, setData] = useState<any>(null);
   const [quizDates, setQuizDates] = useState<{ date: string; percentage: number; quizTitle?: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,14 +18,16 @@ export default function AttendanceTab({ userId }: Props) {
 
   const fetchAttendance = async () => {
     try {
-      const [attendance, quizzes] = await Promise.all([
-        getUserAttendanceCalendar({}),
-        getMyBvQuizSubmissions({}),
-      ]);
+      const attendance = await getUserAttendanceCalendar({});
       setData(attendance);
-      setQuizDates((quizzes.quizDates || []) as { date: string; percentage: number; quizTitle?: string }[]);
+      if (segment === 'FOLK') {
+        const quizzes = await getMyBvQuizSubmissions({});
+        setQuizDates((quizzes.quizDates || []) as { date: string; percentage: number; quizTitle?: string }[]);
+      } else {
+        setQuizDates([]);
+      }
     } catch {
-      // Keep the attendance tab usable even if no quizzes have been assigned.
+      // Keep the attendance tab usable if optional FOLK quiz history fails.
     } finally {
       setLoading(false);
     }
@@ -35,7 +37,7 @@ export default function AttendanceTab({ userId }: Props) {
     fetchAttendance();
     window.addEventListener('attendanceUpdated', fetchAttendance);
     return () => window.removeEventListener('attendanceUpdated', fetchAttendance);
-  }, [userId]);
+  }, [userId, segment]);
 
   if (loading) {
     return (
