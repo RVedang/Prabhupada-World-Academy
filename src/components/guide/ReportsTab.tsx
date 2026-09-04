@@ -513,15 +513,24 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     return d.shortLabel;
   };
 
-  const buildUserCsvRow = (u: UserRow, rankDisplay: number | string) => [
-    rankDisplay,
-    u.fullName,
-    u.ashrayLevel || '',
-    u.isResident
-      ? (resolveResidencyName(u, residencies) || 'Resident')
-      : 'Non-Resident',
-    String(u.currentStreak ?? 0),
-    ...visibleFieldDefs.map(d => {
+  const buildUserCsvRow = (u: UserRow, rankDisplay: number | string) => {
+    const baseColumns = [
+      rankDisplay,
+      u.fullName,
+      u.ashrayLevel || '',
+    ];
+    if (!isPw) {
+      baseColumns.push(
+        u.isResident
+          ? (resolveResidencyName(u, residencies) || 'Resident')
+          : 'Non-Resident'
+      );
+    }
+
+    return [
+      ...baseColumns,
+      String(u.currentStreak ?? 0),
+      ...visibleFieldDefs.map(d => {
       const applicable = u.isResident ? d.forResident : d.forNR;
       if (!applicable) return 'NA';
       if (!u.submitted) return '';
@@ -534,9 +543,10 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
         return minutesToHHMM(mins);
       }
       return String(val);
-    }),
-    u.scorePercent != null ? `${u.scorePercent}%` : '',
-  ];
+      }),
+      u.scorePercent != null ? `${u.scorePercent}%` : '',
+    ];
+  };
 
   /** Build a descriptive kebab-case filename for exports */
   const buildExportFilename = (ext: 'png' | 'csv'): string => {
@@ -583,7 +593,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
 
   const handleExportCsv = () => {
     if (!rawReportData) return;
-    const headers = ['Rank', 'Name', 'Ashray Level', 'FOLK', 'Streak', ...visibleFieldDefs.map(getFieldHeader), 'Total %'];
+    const headers = ['Rank', 'Name', 'Ashray Level', ...(!isPw ? ['FOLK'] : []), 'Streak', ...visibleFieldDefs.map(getFieldHeader), 'Total %'];
     const emptyCols = headers.map(() => '');
 
     if (residencyFilter === 'non_resident') {
@@ -634,9 +644,13 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   const handleSyncScores = async () => {
     const start = computedStart ?? selectedDate;
     const end = computedEnd ?? selectedDate;
+    const userIds = usersForTable
+      .flatMap((u: any) => [u.id, u.userId])
+      .map(id => String(id || '').trim())
+      .filter(Boolean);
     setSyncing(true);
     try {
-      const result = await recalculateScoresForDate({ startDate: start, endDate: end });
+      const result = await recalculateScoresForDate({ startDate: start, endDate: end, userIds });
       if (result.fixed > 0) {
         toast.success(`✅ Synced ${result.fixed} entr${result.fixed === 1 ? 'y' : 'ies'} — refreshing report…`);
         // Refresh the report to show updated scores
@@ -662,11 +676,13 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
 
   const handleExportImage = () => {
     if (!rawReportData) return;
-    const folkResName = residencyFilter === 'non_resident'
-      ? 'Non-Residents'
-      : folkResidencyId === 'all'
-        ? (residencies.length === 1 ? residencies[0].residencyName : 'All Residencies')
-        : (residencies.find(r => r.residencyId === folkResidencyId)?.residencyName || 'All Residencies');
+    const folkResName = isPw
+      ? undefined
+      : residencyFilter === 'non_resident'
+        ? 'Non-Residents'
+        : folkResidencyId === 'all'
+          ? (residencies.length === 1 ? residencies[0].residencyName : 'All Residencies')
+          : (residencies.find(r => r.residencyId === folkResidencyId)?.residencyName || 'All Residencies');
     const ashrayLabel = ashrayLevelFilter === 'all' ? 'All Ashray Levels' : ashrayLevelFilter;
     let dateLabel = '';
     if (reportType === 'daily') {

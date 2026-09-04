@@ -1,18 +1,25 @@
 import { z } from 'zod';
 import { createEndpoint, SadhanaEntries, AppError } from '@/lib/backend-sdk';
 import { getNRMaxScore, fillingSameDayApplies, normalizeAshrayLevel } from '../lib/userUtils';
+import { getScopedHierarchyUserIds } from '@/lib/hierarchyUtils';
 
 function getIstDateStr(isoString: string): string {
   const ms = new Date(isoString).getTime() + 5.5 * 60 * 60 * 1000;
   return new Date(ms).toISOString().split('T')[0];
 }
 
+function refValues(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(refValues);
+  return value == null ? [] : String(value).split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+}
+
 export default createEndpoint({
-  description: 'Recalculate scores for all entries in a date range — Super Guide only',
+  description: 'Recalculate Sadhana scores for the caller-visible entries in a date range',
   authenticated: true,
   inputSchema: z.object({
     startDate: z.string(),
     endDate: z.string().optional(),
+    userIds: z.array(z.string()).optional(),
   }),
   outputSchema: z.object({
     fixed: z.number(),
@@ -25,13 +32,45 @@ export default createEndpoint({
     })),
   }),
   execute: async ({ input, context }) => {
-    // Only Super Guide or Guide can run recalculations
-    const callerRole = context.user!.role || '';
-    if (callerRole !== 'Super Guide' && callerRole !== 'Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Guide or Super Guide access required' });
+    if (!context.user) {
+      throw new AppError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    }
+
+    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const canRecalculate = !!(
+      callerRole === 'SUPER_GUIDE' ||
+      callerRole === 'GUIDE' ||
+      callerRole === 'SUPER_ADMIN' ||
+      callerRole === 'ADMIN' ||
+      callerRole === 'PW_ADMIN' ||
+      context.user.isBvSuperAdmin ||
+      context.user.isBvAdmin ||
+      context.user.isBvSupervisor ||
+      context.user.isBvMentor ||
+      context.user.isSadhanaMentor ||
+      context.user.isBvFacilitator ||
+      context.user.isBvsl ||
+      context.user.isBvSubFacilitator
+    );
+    if (!canRecalculate) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Sadhana report access required' });
     }
 
     const endDate = input.endDate || input.startDate;
+    const requestedUserIds = new Set(
+      (input.userIds || [])
+        .map(id => String(id || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const hierarchyScope = await getScopedHierarchyUserIds(context.user);
+    const callerKeys = [
+      context.user.id,
+      context.user.userId,
+      context.user.email,
+    ].map(value => String(value || '').trim().toLowerCase()).filter(Boolean);
+    const allowedUserIds = hierarchyScope === null
+      ? requestedUserIds
+      : new Set([...requestedUserIds].filter(id => hierarchyScope.has(id) || callerKeys.includes(id)));
 
     // Paginate until all entries in the date range are fetched
     let allEntries: any[] = [];
@@ -40,7 +79,7 @@ export default createEndpoint({
       const { records, hasMore } = await SadhanaEntries.findAll({
         filters: { entryDate: { gte: input.startDate, lte: endDate } } as any,
         fields: [
-          'id', 'entryDate', 'submittedAt', 'templateMode', 'flagSick', 'flagOs',
+          'id', 'user', 'entryDate', 'submittedAt', 'templateMode', 'flagSick', 'flagOs',
           'totalScore', 'maxScore', 'scorePercent', 'reportSendingPoints',
           'roundsPoints', 'spReadingPoints',
           'maNaGvPoints', 'quotesTulasiPoints', 'japaVisiblePoints', 'sbPoints',
@@ -61,6 +100,14 @@ export default createEndpoint({
     const details: any[] = [];
 
     for (const e of allEntries) {
+      const entryUserIds = refValues(e.user);
+      const inRequestedScope = requestedUserIds.size === 0 || entryUserIds.some(id => allowedUserIds.has(id));
+      const inHierarchyScope = hierarchyScope === null || entryUserIds.some(id => hierarchyScope.has(id) || callerKeys.includes(id));
+      if (!inRequestedScope || !inHierarchyScope) {
+        skipped++;
+        continue;
+      }
+
       const templateMode = String(e.templateMode || '');
       const isResident = templateMode.toUpperCase().includes('RESIDENT') &&
         !templateMode.toUpperCase().includes('NON_RESIDENT');
