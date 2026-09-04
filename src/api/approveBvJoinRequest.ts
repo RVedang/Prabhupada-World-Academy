@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroupRequests, BvGroupMembers, AppError } from '@/lib/backend-sdk';
+import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
   description: 'Approve or reject a BV group join request',
@@ -48,6 +49,9 @@ export default createEndpoint({
       });
     }
 
+    // Bust member-list and group-list caches — membership changed.
+    serverCacheInvalidate('bvslMembers:');
+    serverCacheInvalidate('allBvGroupsAdmin:');
     return { success: true, message: `Join request ${input.action === 'approve' ? 'approved' : 'rejected'}` };
   },
 });

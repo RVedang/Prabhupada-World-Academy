@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroupMembers, Users, AppError } from '@/lib/backend-sdk';
+import { serverCacheInvalidate } from '../lib/serverCache';
 
 function firstValue(value: unknown): string {
   if (Array.isArray(value)) return String(value[0] || '');
@@ -67,7 +68,9 @@ export default createEndpoint({
         }
       }).catch(() => {})
     ));
+    // Bust member-list and group-list caches — membership changed.
+    serverCacheInvalidate('bvslMembers:');
+    serverCacheInvalidate('allBvGroupsAdmin:');
     return { success: true };
-
   },
 });

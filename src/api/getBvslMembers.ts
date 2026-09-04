@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Users, Guides, BvGroups, BvGroupMembers, FolkResidencies } from '@/lib/backend-sdk';
+import { serverCacheGetOrFetch } from '../lib/serverCache';
 
 const formatPhone = (phone?: string) => {
   if (!phone) return '';
@@ -18,8 +19,15 @@ export default createEndpoint({
     bvslId: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }: any) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
+    // 5-minute cache — member lists change only when someone joins/leaves a group.
+    const cacheKey = `bvslMembers:${input.bvslId || ''}:${input.guideId || ''}:${context.user.id}`;
+    return serverCacheGetOrFetch(cacheKey, () => _fetchBvslMembers({ input, context }), 5 * 60 * 1000);
+  },
+});
+
+async function _fetchBvslMembers({ input, context }: { input: any; context: any }) {
     const isSuperGuide = context.user.role === 'Super Guide';
     let guideDbId: string | null = null;
 
@@ -232,5 +240,4 @@ export default createEndpoint({
     }).filter(Boolean);
 
     return { members };
-  },
-});
+}

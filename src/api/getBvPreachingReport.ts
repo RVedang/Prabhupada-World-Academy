@@ -4,6 +4,7 @@ import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
+import { serverCacheGetOrFetch } from '../lib/serverCache';
 
 function isFolkMemberLevelFacilitator(user: any): boolean {
   const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
@@ -32,15 +33,26 @@ export default createEndpoint({
     residencyIds: z.array(z.string()).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
-    const isBvMentor = !!(context.user as any).isBvMentor;
-    if (!input.bvslMode && !isBvMentor) requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor });
 
-    const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, groupId, residencyIds } = input;
-    const effectiveStart = (startDate || date || '').split('T')[0];
-    const effectiveEnd = (endDate || date || '').split('T')[0];
-    if (!effectiveStart) throw new Error('Invalid date');
+    // Cache key encodes every dimension that affects the result. TTL = 5 min.
+    // The cache is invalidated globally by assignBvRole and other mutation
+    // endpoints via serverCacheInvalidate().
+    const callerSegment = String((context.user as any).segment || 'FOLK').toUpperCase();
+    const cacheKey = `bvPreachingReport:${input.guideId}:${input.date}:${input.reportType}:${input.startDate || ''}:${input.endDate || ''}:${input.bvslMode ? '1' : '0'}:${input.groupId || ''}:${(input.residencyIds || []).sort().join(',')}:${callerSegment}:${context.user.id}`;
+    return serverCacheGetOrFetch(cacheKey, () => _fetchBvPreachingReport({ input, context }), 5 * 60 * 1000);
+  },
+});
+
+async function _fetchBvPreachingReport({ input, context }: { input: any; context: any }) {
+  const isBvMentor = !!(context.user as any).isBvMentor;
+  if (!input.bvslMode && !isBvMentor) requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor });
+
+  const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, groupId, residencyIds } = input;
+  const effectiveStart = (startDate || date || '').split('T')[0];
+  const effectiveEnd = (endDate || date || '').split('T')[0];
+  if (!effectiveStart) throw new Error('Invalid date');
 
     let guideDbId: string | null = inputGuideId === 'ALL' ? null : inputGuideId;
 
@@ -187,7 +199,7 @@ export default createEndpoint({
 
     const canonicalByAlias = new Map<string, string>();
     filteredBvslUsers.forEach(user => {
-      bvUserAliases(user).forEach(alias => canonicalByAlias.set(alias, user.id));
+      bvUserAliases(user).forEach((alias: string) => canonicalByAlias.set(alias, user.id));
     });
 
     // Group entries by user
@@ -195,7 +207,7 @@ export default createEndpoint({
     for (const e of allEntries) {
       const entryAliases = (Array.isArray(e.user) ? e.user : [e.user])
         .filter(Boolean).map((value: unknown) => String(value).toLowerCase());
-      const canonicalId = entryAliases.map(alias => canonicalByAlias.get(alias)).find(Boolean);
+      const canonicalId = entryAliases.map((alias: string) => canonicalByAlias.get(alias)).find(Boolean);
       if (!canonicalId) continue;
       if (!entriesByUser.has(canonicalId)) entriesByUser.set(canonicalId, []);
       entriesByUser.get(canonicalId)!.push(e);
@@ -250,5 +262,4 @@ export default createEndpoint({
       bvsls: bvslRows,
       groups: groups.map(g => ({ id: g.id, name: g.groupName || '' })),
     };
-  },
-});
+}

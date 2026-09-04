@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, Users, Guides, AppError } from '@/lib/backend-sdk';
+import { serverCacheInvalidate } from '../lib/serverCache';
 
 export default createEndpoint({
   description: 'Create a new Bhakti Vriksha Reading Group',
@@ -81,6 +82,8 @@ export default createEndpoint({
     };
 
     await BvGroups.create({ record: newGroup });
+    // Invalidate the admin group-list cache so the new group appears immediately.
+    serverCacheInvalidate('allBvGroupsAdmin:');
 
     return {
       success: true,

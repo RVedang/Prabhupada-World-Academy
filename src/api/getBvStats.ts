@@ -3,6 +3,7 @@ import { createEndpoint, Users, Guides, BvslPreachingEntries, SadhanaEntries } f
 import { requireGuideRole } from '../lib/userUtils';
 import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
+import { serverCacheGetOrFetch } from '../lib/serverCache';
 
 const BV_FIELDS = [
   'prCallingTime', 'prOneOnOneTime', 'prBookDistTime', 'prRduaTime', 'prPlanTime',
@@ -23,8 +24,15 @@ export default createEndpoint({
     subjectUserId: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
+    const callerSegment = String((context.user as any).segment || 'FOLK').toUpperCase();
+    const cacheKey = `bvStats:${input.guideId}:${input.startDate}:${input.endDate}:${input.bvslMode ? '1' : '0'}:${input.groupId || ''}:${input.subjectUserId || ''}:${(input.residencyIds || []).sort().join(',')}:${callerSegment}:${context.user.id}`;
+    return serverCacheGetOrFetch(cacheKey, () => _fetchBvStats({ input, context }), 5 * 60 * 1000);
+  },
+});
+
+async function _fetchBvStats({ input, context }: { input: any; context: any }) {
     requireGuideRole(context.user.role, {
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
@@ -224,5 +232,4 @@ export default createEndpoint({
       totalUsers: bvslUsers.length,
       totalSubmitted: filteredEntries.length,
     };
-  },
-});
+}
