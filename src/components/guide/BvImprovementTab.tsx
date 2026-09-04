@@ -194,7 +194,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
         <div className="grid gap-4 lg:grid-cols-2">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-48" />)}
         </div>
-      ) : submitted.length === 0 ? (
+      ) : submitted.length === 0 && lowPerformers.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">
           No submitted entries in this period. Try a different date range.
         </CardContent></Card>
@@ -257,7 +257,13 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {fieldLoss.length === 0 ? (
+                {submitted.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <p className="text-2xl mb-2">📝</p>
+                    <p className="font-semibold text-sm text-amber-600">No submitted entries yet</p>
+                    <p className="text-xs text-muted-foreground mt-1">Field trends will appear after the first report is submitted.</p>
+                  </div>
+                ) : fieldLoss.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-2xl mb-2">🎉</p>
                     <p className="font-semibold text-sm text-green-600">All {isMemberScope ? 'members' : 'RGFs'} are meeting targets!</p>

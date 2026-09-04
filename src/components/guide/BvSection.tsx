@@ -47,16 +47,14 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
     !!profile?.isBvSupervisor ||
     !!profile?.isBvMentor ||
     ['ADMIN', 'SUPER_ADMIN', 'SUPERVISOR', 'MENTOR', 'GUIDE', 'SUPER_GUIDE', 'PW_ADMIN'].includes(roleUpper);
-  // RGF and RGSF BV reports monitor their group members. Their improvement
-  // view must therefore use member Sadhana scores, not facilitator preaching
-  // activity. Supervisor/admin views retain the BV-preaching analysis.
   // RGFs and RGSFs improve the Sadhana of the members in their own groups.
-  // A supervisor also uses `bvslMode` for hierarchy scoping, but their
-  // improvement view must remain facilitator-focused so they can monitor the
-  // RGFs and RGSFs reporting to them.
+  // Supervisors need both sides of the picture: the member Sadhana analysis
+  // that was previously available in this tab and the BV-preaching analysis
+  // for the RGFs/RGSFs reporting to them.
   const useMemberSadhanaImprovements = !isSupervisorOrAbove && (
     !!bvslMode || !!profile?.isBvSubFacilitator
   );
+  const isBvSupervisorDashboard = !!bvslMode && isSupervisorOrAbove;
 
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, subTab); } catch {}
@@ -97,7 +95,30 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
       {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
       {activeSubTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} />}
       {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} groupOptions={groupOptions} />}
-      {activeSubTab === 'improvement' && (useMemberSadhanaImprovements ? (
+      {activeSubTab === 'improvement' && (isBvSupervisorDashboard ? (
+        <div className="space-y-6">
+          <div className="rounded-xl border bg-card px-4 py-3">
+            <h3 className="text-sm font-semibold">Member Sadhana Improvement</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Sadhana trends, action items, and members who need personal attention.
+            </p>
+          </div>
+          <ImprovementTab
+            guideId={guideId}
+            bvslMode
+            initialPeriod="this_month"
+            detailBasePath={improvementDetailBasePath || '/guide/users'}
+          />
+
+          <div className="rounded-xl border bg-card px-4 py-3">
+            <h3 className="text-sm font-semibold">RGF / RGSF Improvement</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Facilitator preaching performance and follow-up priorities for your hierarchy.
+            </p>
+          </div>
+          <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />
+        </div>
+      ) : useMemberSadhanaImprovements ? (
         <ImprovementTab
           guideId={guideId}
           bvslMode
