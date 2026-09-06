@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { FileText, TrendingUp, Flame, Edit, Plus, Target, ArrowRight, GraduationCap } from 'lucide-react';
-import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS } from '@/components/stats/FieldTrendChart';
+import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS, PW_FIELD_CONFIGS } from '@/components/stats/FieldTrendChart';
 import { format } from 'date-fns';
 import SectionErrorBoundary from '@/components/SectionErrorBoundary';
 import MiniCalendar from '@/components/dashboard/MiniCalendar';
@@ -282,7 +282,7 @@ export default function SadhanaTab({ metrics, history, userId, residencyId, isRe
   const weekLabel = formatWeekLabel(metrics);
 
   const isScholar = insightData?.isScholar ?? false;
-  const fieldConfigs = isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS;
+  const fieldConfigs = progressData?.isPw ? PW_FIELD_CONFIGS : isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS;
   const trendEntries = progressData?.entries ?? [];
 
   return (

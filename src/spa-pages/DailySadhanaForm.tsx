@@ -16,6 +16,7 @@ const SADHANA_SUBMITTED_KEY_PREFIX = 'sadhana_submitted_';
 import { markSubmittedToday, scheduleSadhanaReminder } from '@/utils/sadhanaNotification';
 import { invalidateUserDashboardCache } from '@/utils/cache';
 import { publishSadhanaEntrySaved } from '@/utils/sadhanaDashboardRefresh';
+import { getUserDashboardPath, getUserDepartment } from '@/lib/userDashboardRoutes';
 import { useDebouncedCallback } from 'use-debounce';
 import { format, subDays } from 'date-fns';
 import { fmt } from '@/lib/fmt';
@@ -45,7 +46,7 @@ export default function DailySadhanaForm() {
 
   // Sadhana form always returns to the sadhana dashboard — regardless of role.
   // RGFs / Mentors also use the sadhana form and expect to land back on user dashboard.
-  const getDashboardUrl = useCallback(() => '/user/dashboard', []);
+  const getDashboardUrl = useCallback(() => `${getUserDashboardPath(profile)}#sadhana`, [profile]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
@@ -76,7 +77,7 @@ export default function DailySadhanaForm() {
 
   const userId = profile?.userId || '';
   const ashrayLevel = profile?.ashrayLevel || '';
-  const isFolkUser = profile?.segment === 'FOLK' || (profile as any)?.isFolkUser === true;
+  const isFolkUser = getUserDepartment(profile) === 'FOLK';
   const [userRoleFromDb, setUserRoleFromDb] = useState<string | null>(null);
   const userRole = userRoleFromDb || profile?.role || 'USER';
   // RGFs are the current Reading Group Facilitator role.  Their Bhakti
@@ -211,7 +212,7 @@ export default function DailySadhanaForm() {
       if (result.userRole) setUserRoleFromDb(result.userRole);
       applyExisting(result, entryDate, result.fields);
       // Only fetch residencies if user might need the temp-residency dropdown
-      if (!result.isOfficialResident) {
+      if (isFolkUser && !result.isOfficialResident) {
         getAllResidencies({}).then(setResidencies).catch(() => {});
       }
       // Check cleanliness auto-fill for residents
@@ -395,7 +396,7 @@ export default function DailySadhanaForm() {
       // database write succeeds.
       if (entryDate === format(new Date(), 'yyyy-MM-dd')) {
         markSubmittedToday();
-        scheduleSadhanaReminder(true);
+        scheduleSadhanaReminder(true, getUserDepartment(profile));
       }
       invalidateUserDashboardCache(userId);
       publishSadhanaEntrySaved({

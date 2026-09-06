@@ -4,6 +4,7 @@ import { nextSadhanaEntryId, nextBvEntryId } from '../lib/entryIdCounter';
 import { getNRMaxScore, fillingSameDayApplies } from '../lib/userUtils';
 import { TEMPLATE_MODES } from '../types/enums';
 import { computeStreak, daysAgo } from '../lib/streakUtils';
+import { getUserDepartment } from '../lib/userDashboardRoutes';
 
 
 /** Normalize templateMode to canonical TEMPLATE_MODES values */
@@ -236,9 +237,13 @@ export default createEndpoint({
 
     // Block inactive users from submitting, and retain the legacy/custom ID only
     // to locate an entry saved by the earlier, incorrect write path.
-    const userRec = await Users.findOne({ id: authenticatedUserId, fields: ['id', 'userId', 'status'] });
+    const userRec = await Users.findOne({ id: authenticatedUserId, fields: ['id', 'userId', 'status', 'segment', 'isPrabhupadaWorldUser', 'isFolkUser'] });
     if (userRec?.status === 'Inactive') {
       throw new Error('Your account has been deactivated. Please contact your guide.');
+    }
+
+    if (getUserDepartment(userRec) === 'PW' && normalizeTemplateMode(input.templateMode) === TEMPLATE_MODES.RESIDENT) {
+      throw new Error('Prabhupada World uses the non-resident Sadhana form. Please reload the form.');
     }
 
     // Server-side date validation

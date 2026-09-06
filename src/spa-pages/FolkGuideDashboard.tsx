@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Building2, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import { DashboardLayout } from '@/layouts';
 import TabTransition from '@/components/TabTransition';
 import { motion } from 'framer-motion';
@@ -62,7 +63,7 @@ export default function FolkGuideDashboard() {
   useEffect(() => {
     if (profile) {
       if (!isBvAdminUser) {
-        navigate('/user/folk-dashboard', { replace: true });
+        navigate(getUserDashboardPath(profile), { replace: true });
       } else if (profile.segment !== 'FOLK') {
         navigate('/pw-admin/dashboard', { replace: true });
       }

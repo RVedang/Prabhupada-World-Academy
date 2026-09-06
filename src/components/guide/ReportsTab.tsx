@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { getGuideDetailedReport, GetGuideDetailedReportOutputType, recalculateScoresForDate } from '@/lib/endpoints-sdk';
 import { useDebouncedCallback } from 'use-debounce';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { isPwSadhanaUser } from '@/lib/sadhanaDepartment';
 import { format, subDays, startOfMonth, endOfMonth, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear } from 'date-fns';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { scoreColor } from '@/lib/scoring';
@@ -217,7 +218,7 @@ function computeSummary(users: ReportUser[], isScholarView = false) {
 export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode, isSuperAdminOverride, groupOptions = [] }: ReportsTabProps) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
-  const isPw = (profile?.segment === 'PW') || false;
+  const isPw = isPwSadhanaUser(profile);
   const isSuperAdmin = isSuperAdminOverride !== undefined ? isSuperAdminOverride : !!(
     profile?.isBvSuperAdmin ||
     profile?.role === 'SUPER_ADMIN' ||
@@ -637,7 +638,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       dateStr = format(new Date(selectedMonth + '-01'), 'MMMM yyyy');
     }
     const names = missing.map(u => `• ${u.fullName}`).join('\n');
-    const msg = `🙏 Hare Krishna!\n\nKindly submit your Sadhana form for *${dateStr}*.\n${window.location.origin}\n\nStill pending (${missing.length}):\n${names}`;
+    const msg = `Hare Krishna!\n\nKindly submit your Sadhana form for *${dateStr}*.\n${window.location.origin}\n\nStill pending (${missing.length}):\n${names}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 

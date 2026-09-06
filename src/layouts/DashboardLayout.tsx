@@ -6,6 +6,7 @@ import { LogOut, User, BookOpen, Users, Award, Network, Compass, ShieldAlert } f
 import { useUserProfile } from '../contexts/UserProfileContext';
 import TransferNoticeModal from '@/components/TransferNoticeModal';
 import { useMeetingReminderScheduler } from '@/hooks/useMeetingReminderScheduler';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 
 import { motion } from 'framer-motion';
 
@@ -169,10 +170,11 @@ export default function DashboardLayout({
 
     // 5. My Sadhana (Placed just before Profile & Logout) — Only for regular members/users who fill sadhana
     if (!isBvAdmin && !isSuperAdminUser) {
-      const isMySadhanaActive = ['/user/dashboard', '/sadhana', '/history', '/bhaktivriksha'].includes(currentPath);
+      const personalDashboardPath = getUserDashboardPath(profile);
+      const isMySadhanaActive = [personalDashboardPath, '/sadhana', '/history', '/bhaktivriksha'].includes(currentPath);
       tabItems.push({
         label: 'My Sadhana',
-        path: '/user/dashboard',
+        path: personalDashboardPath,
         active: isMySadhanaActive,
         icon: <BookOpen className="w-4 h-4 mr-1 md:mr-1.5" />,
       });

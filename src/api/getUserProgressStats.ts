@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { createEndpoint, Users, SadhanaEntries, BvAttendance } from '@/lib/backend-sdk';
 import { fillingSameDayApplies } from '@/lib/userUtils';
+import { isPwSadhanaUser } from '@/lib/sadhanaDepartment';
 
-const USER_FIELDS = ['id', 'userId', 'email', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'userId', 'email', 'segment', 'isPrabhupadaWorldUser', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'temporaryResidencyEnabled', 'temporaryResidency', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'roundsCount', 'spReadingMinutes',
@@ -335,6 +336,12 @@ const NR_FIELD_DEFS = [
   { key: 'bhaktiVriksha', label: 'BV Attended', unit: 'Yes/No' },
 ];
 
+const PW_FIELD_DEFS = [
+  ...NR_FIELD_DEFS.filter(field => !['fillingSameDay', 'bhaktiVriksha'].includes(field.key)),
+  { key: 'preachingMinutes', label: 'Preaching', unit: 'min' },
+  { key: 'booksDistributed', label: 'Books Distributed', unit: '' },
+];
+
 export default createEndpoint({
   description: 'Field-level progress stats for a single user, with period aggregation and entry-count based insights',
   authenticated: true,
@@ -453,7 +460,8 @@ export default createEndpoint({
     };
 
     // Scholars use resident scoring template
-    const effectiveIsResident = isResident || isScholar;
+    const isPw = isPwSadhanaUser(targetUser);
+    const effectiveIsResident = !isPw && (isResident || isScholar);
 
     // ─── Trend chart: date-range based (unchanged) ───
     const today = new Date();
@@ -517,7 +525,7 @@ export default createEndpoint({
         .map(([mk, vals]) => ({ label: getMonthLabel(mk), date: mk, ...avgValues(vals) }));
     }
 
-    const fieldDefs = effectiveIsResident ? RESIDENT_FIELD_DEFS : NR_FIELD_DEFS;
+    const fieldDefs = isPw ? PW_FIELD_DEFS : effectiveIsResident ? RESIDENT_FIELD_DEFS : NR_FIELD_DEFS;
     const mid = Math.floor(allValues.length / 2);
 
     // Sick/OS scored keys: only these fields are valid for sick/OS resident entries
@@ -588,7 +596,9 @@ export default createEndpoint({
     });
 
     // Build improvement insights — sick/OS aware
-    const insightDefs = effectiveIsResident ? RESIDENT_INSIGHT_DEFS : NR_INSIGHT_DEFS;
+    const insightDefs = isPw
+      ? NR_INSIGHT_DEFS.filter(field => field.key !== 'nrFillingSameDayPts')
+      : effectiveIsResident ? RESIDENT_INSIGHT_DEFS : NR_INSIGHT_DEFS;
 
     const insightFields = noEntry ? [] : insightDefs.map(def => {
       // Filter entries applicable for this field
@@ -623,6 +633,7 @@ export default createEndpoint({
       entries: aggregated,
       fieldTrends,
       fieldDefs,
+      isPw,
       insightFields,
       isResident: effectiveIsResident,
       isScholar,

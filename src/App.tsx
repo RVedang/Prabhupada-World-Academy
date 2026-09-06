@@ -11,6 +11,8 @@ import RealtimeSyncProvider from '@/components/RealtimeSyncProvider';
 import { Skeleton } from '@/components/ui/skeleton';
 import ErrorBoundary from './layouts/ErrorBoundary';
 import ProtectedRoute from './layouts/ProtectedRoute';
+import UserDashboardRoute from './layouts/UserDashboardRoute';
+import { getUserDashboardPath } from './lib/userDashboardRoutes';
 import InstallBanner from './components/InstallBanner';
 import { GuestOnlyRoute, StatusRoute, AuthCallbackGuard } from './layouts/RouteGuards';
 
@@ -27,7 +29,6 @@ const BvslEntryPage = lazy(() => import('./spa-pages/BvslEntryPage'));
 
 // Route-level chunks keep unrelated departments and dashboards out of the
 // first bundle. Their frequently used inner tabs preload after dashboard idle.
-const UserDashboard = lazy(() => import('./spa-pages/UserDashboard'));
 const FolkUserDashboard = lazy(() => import('./spa-pages/FolkUserDashboard'));
 const PwUserDashboard = lazy(() => import('./spa-pages/PwUserDashboard'));
 const DailySadhanaForm = lazy(() => import('./spa-pages/DailySadhanaForm'));
@@ -181,10 +182,10 @@ export default function App() {
             <Route path="/dashboard" element={<ProtectedRoute><DashboardRouter /></ProtectedRoute>} />
 
             {/* User — accessible by all non-guide roles */}
-            <Route path="/user/dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><UserDashboard /></ProtectedRoute>} />
+            <Route path="/user/dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><UserDashboardRoute /></ProtectedRoute>} />
             {/* Segment-specific user dashboards (FOLK vs Prabhupada World) */}
-            <Route path="/user/folk-dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><FolkUserDashboard /></ProtectedRoute>} />
-            <Route path="/user/pw-dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><PwUserDashboard /></ProtectedRoute>} />
+            <Route path="/user/folk-dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><UserDashboardRoute><FolkUserDashboard /></UserDashboardRoute></ProtectedRoute>} />
+            <Route path="/user/pw-dashboard" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><UserDashboardRoute><PwUserDashboard /></UserDashboardRoute></ProtectedRoute>} />
             <Route path="/sadhana" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><DailySadhanaForm /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><HistoryPage /></ProtectedRoute>} />
             <Route path="/bhaktivriksha" element={<ProtectedRoute allowedRoles={[...USER_ROLES]}><BhaktiVrikshaPage /></ProtectedRoute>} />
@@ -355,8 +356,5 @@ function DashboardRouter() {
   }
 
   // Default: regular user — route by department (determined by mentor chosen at registration)
-  const isPwUser = !!(profile as any)?.isPrabhupadaWorldUser || (profile as any)?.segment === 'PW';
-  return isPwUser
-    ? <Navigate to={`/user/pw-dashboard${suffix}`} replace />
-    : <Navigate to={`/user/folk-dashboard${suffix}`} replace />;
+  return <Navigate to={`${getUserDashboardPath(profile)}${suffix}`} replace />;
 }

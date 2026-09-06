@@ -14,6 +14,7 @@ import { format, subMonths, subDays } from 'date-fns';
 import { getUserBvStatus, getBvAttendance, requestJoinBvGroup, leaveBvGroup, acknowledgeBvApprovalNotice, acknowledgeBvRejectionNotice } from '@/lib/endpoints-sdk';
 import type { GetUserBvStatusOutputType, GetBvAttendanceOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import BvCalendarView from '@/components/bv/BvCalendarView';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
@@ -124,7 +125,7 @@ export default function BhaktiVrikshaPage() {
             if (window.history.length > 1) {
               navigate(-1);
             } else {
-              navigate('/user/dashboard');
+              navigate(getUserDashboardPath(profile));
             }
           }}>
             <ArrowLeft className="w-4 h-4 mr-1" />Back

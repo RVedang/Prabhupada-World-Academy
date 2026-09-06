@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, SadhanaEntries, Users } from '@/lib/backend-sdk';
 import { NON_RESIDENT_FIELDS, RESIDENT_FIELDS } from '../config/sadhanaFields';
+import { isPwSadhanaUser, PW_SADHANA_FORM_KEYS } from '@/lib/sadhanaDepartment';
 
 // Human-readable labels for common field keys
 const FIELD_LABEL_MAP: Record<string, string> = {
@@ -80,6 +81,14 @@ export default createEndpoint({
 
     if (!entry) return { found: false, entry: null };
 
+    const ownerId = String(Array.isArray(entry.user) ? entry.user[0] : entry.user || '');
+    const ownerFields = ['segment', 'isPrabhupadaWorldUser'];
+    const owner = ownerId ? (
+      await Users.findOne({ id: ownerId, fields: ownerFields }) ||
+      await Users.findOne({ filters: { userId: ownerId }, fields: ownerFields })
+    ) : null;
+    const isPw = isPwSadhanaUser(owner);
+
     // Parse stored field values
     let rawFieldValues: Record<string, any> = {};
     if (entry.fieldValuesJson) {
@@ -97,12 +106,13 @@ export default createEndpoint({
     }> = [];
 
     // Determine if this is a non-resident entry
-    const isNREntry = (meta.templateMode || entry.templateMode || '').toUpperCase().includes('NON_RESIDENT') &&
-      !(meta.templateMode || entry.templateMode || '').toUpperCase().startsWith('RESIDENT');
+    const templateMode = String(meta.templateMode || entry.templateMode || '').toUpperCase();
+    const isNREntry = isPw || templateMode.includes('NON_RESIDENT') || ['NR_TEMPLATE', 'NR'].includes(templateMode);
     // Use the same current schema as the form. Legacy database field rows can
     // still exist for history, but must not relabel a resident's entry using
     // the retired resident form.
     const fieldDefs = (isNREntry ? NON_RESIDENT_FIELDS : RESIDENT_FIELDS)
+      .filter(field => !isPw || PW_SADHANA_FORM_KEYS.has(field.fieldKey))
       .slice()
       .sort((a, b) => a.displayOrder - b.displayOrder);
     // For NR entries, seva and bhaktiVriksha may be leaderboard-only (no direct pts).
@@ -137,6 +147,7 @@ export default createEndpoint({
     // Skip keys ending with _points — they are derived scoring values already shown
     // as a badge next to the raw field row (e.g. rounds_points, sp_reading_points)
     for (const [key, val] of Object.entries(rawFieldValues)) {
+      if (isPw && !PW_SADHANA_FORM_KEYS.has(key)) continue;
       if (key.startsWith('_') || fieldKeySet.has(key)) continue;
       if (key.endsWith('_points')) continue;
       if (val === null || val === undefined) continue;

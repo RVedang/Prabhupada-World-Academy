@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, UserCheck, Award, Users, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -126,7 +127,7 @@ export default function RoleAcknowledgementModal() {
     setRoleNotice(null);
 
     if (wasAdminRemoved && isAdminPath) {
-      const targetUserDashboard = profile?.segment === 'FOLK' ? '/user/folk-dashboard' : '/user/pw-dashboard';
+      const targetUserDashboard = getUserDashboardPath(profile);
       window.location.href = targetUserDashboard;
     }
   };

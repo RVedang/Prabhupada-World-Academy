@@ -1,11 +1,6 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Leaf, Trophy, ClipboardCheck, Sparkles, Building2, Settings2, ArrowRightLeft, Star } from 'lucide-react';
-import { FEATURES } from '@/config/features';
-import UserServicesTab from '@/components/services/UserServicesTab';
-import GuideServicesTab from '@/components/services/GuideServicesTab';
+import { BookOpen, Leaf, Trophy, ClipboardCheck } from 'lucide-react';
 import { getUserDashboardData, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -19,8 +14,6 @@ import { useQuery } from '@/hooks/useQuery';
 import SectionErrorBoundary from '@/components/SectionErrorBoundary';
 import AttendanceTab from '@/components/dashboard/AttendanceTab';
 import PushNotificationBanner from '@/components/dashboard/PushNotificationBanner';
-import CleanlinessCalendarTab from '@/components/cleanliness/CleanlinessCalendarTab';
-import CleanlinessManagerDashboard from '@/components/cleanliness/CleanlinessManagerDashboard';
 import { initReminderVisibilityCheck, scheduleSadhanaReminder, hasSubmittedToday } from '@/utils/sadhanaNotification';
 import {
   consumePendingSadhanaEntrySaved,
@@ -31,7 +24,6 @@ import {
 
 export default function PwUserDashboard() {
   const { profile } = useUserProfile();
-  const navigate = useNavigate();
 
   const initialTab = window.location.hash.slice(1) || 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -117,13 +109,14 @@ export default function PwUserDashboard() {
     realtimeChannels: ['sadhana'],
   });
 
-  const isResident = useMemo(() => !!(profile?.residencyGuideVerified && profile?.selectedFolkResidency), [profile]);
   // Approval alone makes the Bhakti Vriksha area available, but Attendance is
   // meaningful only after a real Reading Group membership has been created.
   const canViewBvAttendance = !!profile?.isBvMember && !!profile?.bvGroupId;
   // Old bookmarks may still point to #attendance. Render the BV status page
   // instead of leaving an unauthorized/empty tab selected.
-  const visibleActiveTab = activeTab === 'attendance' && !canViewBvAttendance ? 'bv' : activeTab;
+  const visibleActiveTab = activeTab === 'attendance' && !canViewBvAttendance
+    ? 'bv'
+    : ['sadhana', 'leaderboard', 'bv', 'attendance'].includes(activeTab) ? activeTab : 'sadhana';
 
   if (dashLoading || !profile) return <LoadingPage rows={3} />;
 
@@ -155,10 +148,12 @@ export default function PwUserDashboard() {
     flagOs: e.flagOs ?? false,
   }));
 
+  const subtitle = `Ashraya: ${profile?.ashrayLevel || 'Jigyasa'}`;
+
   return (
     <DashboardLayout
       title={`Hare Krishna ${profile.fullName}!`}
-      subtitle={`Prabhupada World${profile.guideName ? ` · Guide: ${profile.guideName}` : ''}`}
+      subtitle={subtitle}
     >
       <PushNotificationBanner />
       <Tabs value={visibleActiveTab} onValueChange={handleTabChange}>
@@ -179,21 +174,6 @@ export default function PwUserDashboard() {
               <ClipboardCheck className="w-4 h-4" />Attendance
             </TabsTrigger>
           )}
-          {isResident && !!profile.selectedFolkResidency && (
-            <TabsTrigger value="cleanliness" className="flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4" />Cleanliness
-            </TabsTrigger>
-          )}
-          {FEATURES.SERVICE_ALLOCATION && isResident && !!profile.selectedFolkResidency && (
-            <TabsTrigger value="services" className="flex items-center gap-1.5">
-              <Building2 className="w-4 h-4" />Services
-            </TabsTrigger>
-          )}
-          {FEATURES.SERVICE_ALLOCATION && !!profile.isServiceAllocator && (
-            <TabsTrigger value="folk-mgmt" className="flex items-center gap-1.5">
-              <Settings2 className="w-4 h-4" />Mgmt
-            </TabsTrigger>
-          )}
         </TabsList>
         <TabTransition activeTab={visibleActiveTab}>
           {visibleActiveTab === 'sadhana' && (
@@ -202,7 +182,6 @@ export default function PwUserDashboard() {
                 metrics={metricsNorm}
                 history={history}
                 userId={profile.userId}
-                residencyId={profile.selectedFolkResidency ?? undefined}
                 isResident={false}
                 refreshVersion={sadhanaRefreshVersion}
               />
@@ -213,7 +192,6 @@ export default function PwUserDashboard() {
               <LeaderboardTab
                 leaderboardData={leaderboardData as any}
                 userId={profile.userId}
-                userResidencyName={profile.residencyName ?? undefined}
                 isPw
               />
             </SectionErrorBoundary>
@@ -226,25 +204,6 @@ export default function PwUserDashboard() {
           {visibleActiveTab === 'attendance' && canViewBvAttendance && (
             <SectionErrorBoundary sectionName="Attendance Tab">
               <AttendanceTab userId={profile.userId} segment="PW" />
-            </SectionErrorBoundary>
-          )}
-          {visibleActiveTab === 'cleanliness' && isResident && !!profile.selectedFolkResidency && (
-            <SectionErrorBoundary sectionName="Cleanliness Tab">
-              {(profile as any).isCleanlinessManager ? (
-                <CleanlinessManagerDashboard residencyId={profile.selectedFolkResidency!} residencyName={profile.residencyName ?? undefined} />
-              ) : (
-                <CleanlinessCalendarTab userId={profile.userId} residencyId={profile.selectedFolkResidency!} />
-              )}
-            </SectionErrorBoundary>
-          )}
-          {visibleActiveTab === 'services' && FEATURES.SERVICE_ALLOCATION && isResident && !!profile.selectedFolkResidency && (
-            <SectionErrorBoundary sectionName="Services Tab">
-              <UserServicesTab userId={profile.userId} residencyId={profile.selectedFolkResidency ?? undefined} />
-            </SectionErrorBoundary>
-          )}
-          {visibleActiveTab === 'folk-mgmt' && FEATURES.SERVICE_ALLOCATION && !!profile.isServiceAllocator && (
-            <SectionErrorBoundary sectionName="FOLK Mgmt Tab">
-              <GuideServicesTab residencyId={(profile as any).folkResidencyCustomId ?? undefined} />
             </SectionErrorBoundary>
           )}
         </TabTransition>

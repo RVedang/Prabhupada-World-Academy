@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Users, Guides, FolkResidencies, GuideTransferRequests, ResidencyTransferRequests, AshrayUpgradeRequests, BvGroupMembers } from '@/lib/backend-sdk';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
+import { getUserDepartment } from '../lib/userDashboardRoutes';
 
 export const profileCacheKey = (userId: string) => `user_profile:${userId}`;
 
@@ -11,7 +12,7 @@ const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'stat
   'acknowledgedFolkLead', 'acknowledgedTripCoordinator', 'acknowledgedSadhanaMentor',
   'isBvSuperAdmin', 'isBvAdmin', 'isBvSupervisor', 'isBvFacilitator', 'isBvSubFacilitator',
   'pendingRoleNotice', 'pendingBvGroupAssignmentNotice', 'roleNoticeAcknowledged', 'bvRegistrationStatus', 'bvGroupId', 'bvGroupName', 'isBvMember', 'isPrabhupadaWorldUser', 'pendingBvRejectionNotice', 'segment', 'pendingBvApprovalNotice',
-  'pendingAshrayNoticeStatus', 'pendingAshrayNoticeLevel', 'ashrayNoticeAcknowledged'];
+  'pendingAshrayNoticeStatus', 'pendingAshrayNoticeLevel', 'ashrayNoticeAcknowledged', 'isFolkUser'];
 const GUIDE_FIELDS = ['id', 'fullName', 'abbr'];
 const RESIDENCY_FIELDS = ['id', 'residencyName', 'residencyId'];
 
@@ -312,7 +313,7 @@ function buildProfileResult({
       pendingAshrayNoticeStatus: userRecord.pendingAshrayNoticeStatus || null,
       pendingAshrayNoticeLevel: userRecord.pendingAshrayNoticeLevel || null,
       ashrayNoticeAcknowledged: !!(userRecord.ashrayNoticeAcknowledged),
-      segment: userRecord.segment || 'PW',
+      segment: getUserDepartment(userRecord),
     },
   };
 }

@@ -4,6 +4,7 @@ import { getUserProfile, updateLastLogin } from '@/lib/endpoints-sdk';
 import type { ProfileSummary } from '@/types/models';
 import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { getUserDepartment } from '@/lib/userDashboardRoutes';
 
 // Re-export for backward compatibility — NEW CODE should import from '@/types/models'
 export type ProfileData = ProfileSummary | null;
@@ -58,7 +59,7 @@ function buildProfile(userObj: any): ProfileData {
   const isBvSubFacilitator = !!(userObj.isBvSubFacilitator);
 
   // Determine segment ('PW' | 'FOLK')
-  const segment: 'PW' | 'FOLK' = userObj.segment ?? 'PW';
+  const segment = getUserDepartment(userObj);
 
   return {
     userId: userObj.userId ?? userObj.id ?? '',

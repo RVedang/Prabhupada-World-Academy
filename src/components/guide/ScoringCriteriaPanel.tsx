@@ -156,7 +156,7 @@ export default function ScoringCriteriaPanel({ isResident, mode }: { isResident?
             <CriteriaTable title="Non-Resident Scoring Criteria" rows={NR_CRITERIA} />
           </div>
         ) : effectiveMode === 'pw' ? (
-          <CriteriaTable title="Sadhana Scoring Criteria" rows={NR_CRITERIA} />
+          <CriteriaTable title="Sadhana Scoring Criteria" rows={NR_CRITERIA.filter(row => !['Filled Same Day', 'Bhakti Vriksha'].includes(row.field))} />
         ) : effectiveMode === 'resident' ? (
           <CriteriaTable title="Resident Scoring Criteria" rows={RESIDENT_CRITERIA} />
         ) : (

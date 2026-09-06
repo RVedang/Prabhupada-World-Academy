@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import { joinGroupByToken } from '@/lib/endpoints-sdk';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +11,7 @@ import { Leaf, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 export default function JoinGroupPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
   const { user, isLoading: authLoading, loginWithRedirect } = useAuth();
   const token = searchParams.get('token') || '';
 
@@ -67,7 +70,7 @@ export default function JoinGroupPage() {
                 <p className="font-semibold text-primary mt-2">{groupName}</p>
               )}
             </div>
-            <Button className="w-full" onClick={() => navigate('/user/dashboard')}>
+            <Button className="w-full" onClick={() => navigate(getUserDashboardPath(profile))}>
               Go to Dashboard
             </Button>
           </CardContent>
@@ -85,7 +88,7 @@ export default function JoinGroupPage() {
             <p className="font-bold text-xl">Could Not Join</p>
             <p className="text-muted-foreground mt-1 text-sm">{message}</p>
           </div>
-          <Button variant="outline" className="w-full" onClick={() => navigate('/user/dashboard')}>
+          <Button variant="outline" className="w-full" onClick={() => navigate(getUserDashboardPath(profile))}>
             Go to Dashboard
           </Button>
         </CardContent>

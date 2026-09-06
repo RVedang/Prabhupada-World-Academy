@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-sdk';
-import { useUserProfile } from '@/contexts/UserProfileContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { subDays } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +19,8 @@ import { normalizePhoneForLinks } from '@/lib/userUtils';
 import AshrayCriteriaGrid from '@/components/profile/AshrayCriteriaGrid';
 import MiniCalendar from '@/components/dashboard/MiniCalendar';
 import EntryDetailModal from '@/components/dashboard/EntryDetailModal';
-import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS } from '@/components/stats/FieldTrendChart';
+import FieldTrendChart, { RESIDENT_FIELD_CONFIGS, NR_FIELD_CONFIGS, PW_FIELD_CONFIGS } from '@/components/stats/FieldTrendChart';
+import { isPwSadhanaUser } from '@/lib/sadhanaDepartment';
 
 type Period = 'daily' | 'weekly' | 'monthly';
 const PERIOD_LABELS: Record<Period, string> = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
@@ -32,7 +32,6 @@ function isRequired(req: string): boolean {
 export default function GuideUserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
   const { user: viewerUser } = useAuth();
-  const { profile: viewerProfile } = useUserProfile();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -174,9 +173,9 @@ export default function GuideUserDetailPage() {
     ? Math.round(recentScores.reduce((s: number, d: number) => s + d, 0) / recentScores.length)
     : 0;
 
-  const isPw = String(viewerProfile?.segment || '').toUpperCase() === 'PW';
+  const isPw = isPwSadhanaUser(data.user);
   const isResident = data.user.isResident;
-  const fieldConfigs = isPw ? NR_FIELD_CONFIGS : (isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS);
+  const fieldConfigs = isPw ? PW_FIELD_CONFIGS : (isResident ? RESIDENT_FIELD_CONFIGS : NR_FIELD_CONFIGS);
   const trendEntries = progressStats?.entries ?? [];
 
   return (
@@ -282,7 +281,7 @@ export default function GuideUserDetailPage() {
             {/* Field average tiles */}
             {progressStats?.fieldTrends?.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                {(progressStats.fieldTrends as any[]).map((ft: any) => (
+                {(progressStats.fieldTrends as any[]).filter(ft => !isPw || fieldConfigs.some(config => config.key === ft.field)).map((ft: any) => (
                   <div key={ft.field} className="bg-muted/40 rounded-lg p-2.5 flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">{ft.label}</span>
                     <div className="flex items-center gap-1.5">

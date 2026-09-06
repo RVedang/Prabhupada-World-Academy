@@ -7,7 +7,7 @@ import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'phone', 'email', 'ashrayLevel', 'status',
   'residency', 'residencyApproved', 'residencyGuideVerified', 'selectedFolkResidency',
   'temporaryResidency', 'temporaryResidencyEnabled', 'createdAt', 'lastLoginAt', 'isBvsl', 'isSadhanaMentor',
-  'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor',
+  'currentStreak', 'lastStreakUpdatedAt', 'guide', 'sadhanaMentor', 'segment', 'isPrabhupadaWorldUser',
   'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt', 'user'];
@@ -262,6 +262,8 @@ export default createEndpoint({
       user: {
         userId: (userRecord.userId as string) || userRecord.id,
         dbId: userRecord.id,
+        segment: userRecord.segment,
+        isPrabhupadaWorldUser: userRecord.isPrabhupadaWorldUser,
         fullName: (userRecord.fullName as string) || (userRecord.displayName as string) || (userRecord.name as string) || (userRecord.userId as string) || userRecord.id,
         phone: userRecord.phone || '',
         email: (userRecord.email as string) || '',

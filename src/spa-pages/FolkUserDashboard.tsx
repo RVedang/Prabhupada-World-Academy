@@ -1,8 +1,6 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Leaf, Trophy, ClipboardCheck, Sparkles, Building2, Settings2, ArrowRightLeft, Users } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BookOpen, Leaf, Trophy, ClipboardCheck, Sparkles, Building2, Settings2 } from 'lucide-react';
 import { FEATURES } from '@/config/features';
 import UserServicesTab from '@/components/services/UserServicesTab';
 import GuideServicesTab from '@/components/services/GuideServicesTab';
@@ -31,11 +29,12 @@ import {
 
 export default function FolkUserDashboard() {
   const { profile } = useUserProfile();
-  const navigate = useNavigate();
 
   const initialTab = window.location.hash.slice(1) || 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [lbRequested, setLbRequested] = useState(initialTab === 'leaderboard');
+  const [sadhanaRefreshVersion, setSadhanaRefreshVersion] = useState(0);
+  const pendingSavedEntryRef = useRef<SavedSadhanaEntryPayload | null>(null);
 
   useEffect(() => {
     initReminderVisibilityCheck();
@@ -60,7 +59,7 @@ export default function FolkUserDashboard() {
     if (tab === 'leaderboard') setLbRequested(true);
   }, []);
 
-  const { data: dashboardData, loading: dashLoading, setData: setDashboardData } = useQuery({
+  const { data: dashboardData, loading: dashLoading, setData: setDashboardData, refetch: refetchDashboard } = useQuery({
     key: profile?.userId ? `dashboard:${profile.userId}` : null,
     fetcher: () => getUserDashboardData({ userId: profile!.userId, days: 30 }),
     ttl: 60_000,
@@ -72,7 +71,13 @@ export default function FolkUserDashboard() {
 
     const applySavedEntry = (payload: SavedSadhanaEntryPayload) => {
       if (payload.userId !== profile.userId) return;
-      setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
+      pendingSavedEntryRef.current = payload;
+      if (dashboardData) {
+        setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, payload) as any);
+        pendingSavedEntryRef.current = null;
+      }
+      setSadhanaRefreshVersion(version => version + 1);
+      void refetchDashboard();
     };
 
     const pending = consumePendingSadhanaEntrySaved(profile.userId);
@@ -83,7 +88,15 @@ export default function FolkUserDashboard() {
     };
     window.addEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(SADHANA_ENTRY_SAVED_EVENT, onSaved);
-  }, [profile?.userId, dashboardData, setDashboardData]);
+  }, [profile?.userId, dashboardData, setDashboardData, refetchDashboard]);
+
+  useEffect(() => {
+    const pending = pendingSavedEntryRef.current;
+    if (!dashboardData || !pending) return;
+    setDashboardData(mergeSavedSadhanaIntoDashboardData(dashboardData, pending) as any);
+    pendingSavedEntryRef.current = null;
+    setSadhanaRefreshVersion(version => version + 1);
+  }, [dashboardData, setDashboardData]);
 
   const { data: leaderboardData } = useQuery({
     key: lbRequested && profile?.userId ? `lb:${profile.userId}:${format(new Date(), 'yyyy-MM-dd')}` : null,
@@ -124,10 +137,16 @@ export default function FolkUserDashboard() {
     flagOs: e.flagOs ?? false,
   }));
 
+  const subtitle = [
+    `Ashraya: ${profile?.ashrayLevel || 'Jigyasa'}`,
+    profile?.guideName ? `FOLK Guide: ${profile.guideName}` : null,
+    profile?.residencyName && isResident ? `Residency: ${profile.residencyName}` : null,
+  ].filter(Boolean).join(' · ');
+
   return (
     <DashboardLayout
       title={`Hare Krishna ${profile.fullName}!`}
-      subtitle={`FOLK${profile.guideName ? ` Guide: ${profile.guideName}` : ''}`}
+      subtitle={subtitle}
     >
       <PushNotificationBanner />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -175,6 +194,7 @@ export default function FolkUserDashboard() {
                 userId={profile.userId}
                 residencyId={profile.selectedFolkResidency ?? undefined}
                 isResident={isResident}
+                refreshVersion={sadhanaRefreshVersion}
               />
             </SectionErrorBoundary>
           )}

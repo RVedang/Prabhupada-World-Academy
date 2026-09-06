@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video } from 'lucide-react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import { DashboardLayout } from '@/layouts';
 import { LoadingPage } from '@/shared';
 import TabTransition from '@/components/TabTransition';
@@ -51,7 +52,7 @@ export default function PwAdminDashboard() {
   useEffect(() => {
     if (profile) {
       if (!isBvAdminUser) {
-        const targetUserDashboard = isFolk ? '/user/folk-dashboard' : '/user/pw-dashboard';
+        const targetUserDashboard = getUserDashboardPath(profile);
         navigate(targetUserDashboard, { replace: true });
       } else if (isFolk) {
         navigate('/folk-guide/dashboard', { replace: true });
@@ -302,6 +303,11 @@ export default function PwAdminDashboard() {
                   <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') ? 'space-y-6 block' : 'hidden'}>
                     <SuperBvRegistrationsTab
                       segment="PW"
+                      // PW admins assign across the department, not a single
+                      // guide's scope. Without this, the registration panel
+                      // calls the guide-scoped group endpoint with no guide ID
+                      // and the "Show all time slots" list is empty.
+                      isSuperGuide={isBvAdminUser}
                       onRegistrationResolved={handleBvRegistrationResolved}
                     />
                     <hr className="my-6 border-t" />

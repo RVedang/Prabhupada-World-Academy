@@ -20,6 +20,7 @@ import AshrayJourneyCard from '@/components/crm/AshrayJourneyCard';
 import TripsDuesCard from '@/components/crm/TripsDuesCard';
 import RentHistoryCard from '@/components/crm/RentHistoryCard';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import PersonalInfoCard from '@/components/profile/PersonalInfoCard';
 import GuideResidencyCard from '@/components/profile/GuideResidencyCard';
 import AccountCard from '@/components/profile/AccountCard';
@@ -119,6 +120,16 @@ export default function ProfilePage() {
     profile.role === 'GUIDE' ||
     !!(profile as any).isBvAdmin;
 
+  // Admin profiles are operational accounts rather than member-progress
+  // profiles. Keep the spiritual-progress cards and member CRM sections out
+  // of both Admin and Super Admin views (without also hiding them for Guides).
+  const isAdminOrSuperAdmin =
+    profile.role === 'ADMIN' ||
+    profile.role === 'SUPER_ADMIN' ||
+    profile.role === 'PW_ADMIN' ||
+    !!(profile as any).isBvAdmin ||
+    !!(profile as any).isBvSuperAdmin;
+
   const isPwUser = !!(profile as any).isPrabhupadaWorldUser || profile.segment === 'PW';
   const showGuideResidencyCard = !isPwUser && !isBvAdminUser;
   const isFolk = profile.segment === 'FOLK';
@@ -133,7 +144,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center gap-3 max-w-7xl">
-          <Button variant="ghost" size="sm" onClick={() => navigate(isBvAdminUser ? adminDashboardPath : '/user/dashboard')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(isBvAdminUser ? adminDashboardPath : getUserDashboardPath(profile))}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <h1 className="text-xl font-bold">My Profile</h1>
@@ -178,8 +189,8 @@ export default function ProfilePage() {
           <NotificationCard />
         </div>
 
-        {/* Sadhana Graph & Stat cards — Hidden for Super Admins */}
-        {!isSuperAdmin && metrics && (
+        {/* Sadhana Graph & Stat cards — member profiles only */}
+        {!isAdminOrSuperAdmin && metrics && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatMini icon={Flame} iconColor="text-orange-500"
               value={metrics.currentStreak} label="Sadhana Streak" />
@@ -195,14 +206,14 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Mini CRM — Ashray Journey & Trips/Dues hidden for Super Admins */}
+        {/* Mini CRM — Ashray Journey & Trips/Dues are member-profile sections. */}
         {crmData && (() => {
           const role = profile.role || '';
           const canEditRent = ['GUIDE', 'SUPER_GUIDE'].includes(role) || !!profile.isFolkLead;
           const isResident = !!(profile.residencyGuideVerified && profile.selectedFolkResidency);
 
-          if (isSuperAdmin) {
-            // Super admins only see Rent History if they are residents with rent data
+          if (isAdminOrSuperAdmin) {
+            // Admins only see Rent History when it applies to their own residency.
             if (!isResident || !crmData.rentPayments || crmData.rentPayments.length === 0) return null;
             return (
               <div className="space-y-4">
@@ -241,8 +252,8 @@ export default function ProfilePage() {
           );
         })()}
 
-        {/* Ashraya Checklist — Hidden for Super Admins */}
-        {!isSuperAdmin && ashrayData && ashrayData.practiceGroups.length > 0 && (
+        {/* Ashraya Checklist — member profiles only */}
+        {!isAdminOrSuperAdmin && ashrayData && ashrayData.practiceGroups.length > 0 && (
           <AshrayCriteriaGrid currentLevel={profile.ashrayLevel || 'Jigyasa'}
             userId={profile.userId} practiceGroups={ashrayData.practiceGroups} />
         )}

@@ -6,8 +6,9 @@ import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 import { NON_RESIDENT_FIELDS } from '../config/sadhanaFields';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
+import { isPwSadhanaUser } from '@/lib/sadhanaDepartment';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'role', 'isBvSuperAdmin', 'isBvAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'phone', 'segment', 'isPrabhupadaWorldUser', 'sadhanaMentor', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'role', 'isBvSuperAdmin', 'isBvAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
   'id', 'user', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'flagSick', 'flagOs', 'submittedAt', 'templateMode',
@@ -701,16 +702,31 @@ export default createEndpoint({
     });
 
     const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, mentorMode } = input;
+    const reportFieldDefs = input.segment === 'PW'
+      ? FIELD_DEFS.filter(field => field.forNR && !['fillingSameDay', 'bhaktiVriksha'].includes(field.key))
+      : FIELD_DEFS;
     // BUG 4 FIX: Always ensure valid date strings — never pass undefined to date operations
     const effectiveStart = (startDate || date || '').split('T')[0];
     const effectiveEnd = (endDate || date || '').split('T')[0];
     if (!effectiveStart) throw new Error('Invalid date: no date provided');
 
-    // Resolve guide DB ID
-    let guideDbId: string | null = inputGuideId === 'ALL' ? null : inputGuideId;
+    const isPwMentor = !!mentorMode && input.segment === 'PW';
+    const mentorRecord = isPwMentor
+      ? (await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email'] }).catch(() => null)
+        || await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email'] }).catch(() => null))
+      : null;
+    const mentorReferences = new Set(
+      [context.user.id, context.user.userId, context.user.email, (mentorRecord as any)?.id, (mentorRecord as any)?.userId, (mentorRecord as any)?.email]
+        .map(value => String(value || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    // PW Sadhana Mentors are scoped directly by explicit member assignment;
+    // they do not need, or use, a FOLK guide relationship.
+    let guideDbId: string | null = isPwMentor ? null : (inputGuideId === 'ALL' ? null : inputGuideId);
 
     // For BVSL/Mentor mode, resolve guide from authenticated user's guide field
-    if (bvslMode || mentorMode) {
+    if ((bvslMode || mentorMode) && !isPwMentor) {
       const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'guide'] }) || (context.user?.email
         ? await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'guide'] })
         : null);
@@ -719,7 +735,7 @@ export default createEndpoint({
         guideDbId = gid as string;
       } else if (mentorMode) {
         // Mentors without a linked guide cannot be safely scoped.
-        return { users: [], fieldDefs: FIELD_DEFS, availableResidencies: [], summary: {},
+        return { users: [], fieldDefs: reportFieldDefs, availableResidencies: [], summary: {},
           error: 'No FOLK Guide assigned to your account. Please contact your administrator.' };
       } else {
         // An RGF can still be scoped from their active group memberships even
@@ -766,7 +782,14 @@ export default createEndpoint({
 
     // Phase 1 FIX: include both guide-assigned users AND users in any of the guide's residencies
     let users: any[] = [];
-    if (guideDbId) {
+    if (isPwMentor) {
+      const { records } = await Users.findAll({ filters: { status: 'Active' }, fields: USER_FIELDS, limit: 2000 });
+      users = records.filter(user => {
+        const assignments = Array.isArray(user.sadhanaMentor) ? user.sadhanaMentor : [user.sadhanaMentor];
+        return isPwSadhanaUser(user)
+          && assignments.some(value => mentorReferences.has(String(value || '').trim().toLowerCase()));
+      });
+    } else if (guideDbId) {
       const userFetchPromises = [
         Users.findAll({ filters: { guide: guideDbId, status: 'Active' }, fields: USER_FIELDS, limit: 2000 }),
         ...guideResidencyIds.map(rid => Users.findAll({ filters: { residency: rid, status: 'Active' }, fields: USER_FIELDS, limit: 500 })),
@@ -796,14 +819,14 @@ export default createEndpoint({
       users = records;
     }
 
-    const scopedUserIds = await getScopedHierarchyUserIds(context.user);
+    const scopedUserIds = isPwMentor ? null : await getScopedHierarchyUserIds(context.user);
 
     // BVSL/RGSF mode applies its own strict group-membership scope below,
     // including legacy aliases for group/member references. Applying the
     // generic hierarchy set first can discard valid members when an older
     // group record uses a different identifier shape, causing an empty report
     // before the BVSL resolver gets a chance to recover them.
-    if (scopedUserIds !== null && !bvslMode) {
+    if (!isPwMentor && scopedUserIds !== null && !bvslMode) {
       users = users.filter(u => {
         const uId = String(u.id || '').toLowerCase();
         const userIdStr = String(u.userId || '').toLowerCase();
@@ -868,7 +891,7 @@ export default createEndpoint({
       });
     }
 
-    if (users.length === 0) return { users: [], fieldDefs: FIELD_DEFS, availableResidencies, availableGuides: [], currentGuideId: guideDbId, summary: {} };
+    if (users.length === 0) return { users: [], fieldDefs: reportFieldDefs, availableResidencies, availableGuides: [], currentGuideId: guideDbId, summary: {} };
 
     // Collect unique guide IDs across all returned users — used for the Guide filter dropdown
     const guideIdsFromUsers = [...new Set(
@@ -1045,6 +1068,6 @@ export default createEndpoint({
       };
     });
 
-    return { users: userRows, fieldDefs: FIELD_DEFS, availableResidencies, availableGuides, currentGuideId: guideDbId, summary: {} };
+    return { users: userRows, fieldDefs: reportFieldDefs, availableResidencies, availableGuides, currentGuideId: guideDbId, summary: {} };
   },
 });

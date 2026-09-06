@@ -8,6 +8,7 @@ import { ArrowLeft, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Trendin
 import { getUserHistory } from '@/lib/endpoints-sdk';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from 'date-fns';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import EntryDetailModal from '@/components/dashboard/EntryDetailModal';
 import { useQuery } from '@/hooks/useQuery';
 
@@ -148,7 +149,7 @@ export default function HistoryPage() {
           } else {
             if (profile?.role === 'BVSL' || profile?.isBvsl) navigate('/bvsl/dashboard');
             else if (profile?.role === 'SADHANA_MENTOR' || profile?.isSadhanaMentor) navigate('/mentor/dashboard');
-            else navigate('/user/dashboard');
+            else navigate(getUserDashboardPath(profile));
           }
         }} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" />Back to Dashboard

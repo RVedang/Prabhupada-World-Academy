@@ -3,6 +3,7 @@ import { createEndpoint, Users, SadhanaEntries, SadhanaFields as SadhanaFieldsTa
 import { getTodayIST } from '../lib/streakUtils';
 import { RESIDENT_FIELDS, NON_RESIDENT_FIELDS, toFormField } from '../config/sadhanaFields';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
+import { getUserDepartment } from '../lib/userDashboardRoutes';
 
 // ── Field cache keys & TTL ─────────────────────────────────────────────────────
 export const FIELD_CACHE_KEY_RESIDENT  = 'sadhana_fields:resident';
@@ -112,7 +113,7 @@ async function loadFormFields(isResident: boolean): Promise<FormField[]> {
 
 // ── User/entry field selectors ─────────────────────────────────────────────────
 const USER_FIELDS  = ['id', 'userId', 'residency', 'residencyApproved', 'residencyJoinDate', 'ashrayLevel',
-  'role', 'temporaryResidencyEnabled', 'temporaryResidency'];
+  'role', 'segment', 'isPrabhupadaWorldUser', 'isFolkUser', 'temporaryResidencyEnabled', 'temporaryResidency'];
 const ENTRY_FIELDS = ['id', 'entryId', 'entryDate', 'totalScore', 'maxScore', 'scorePercent',
   'templateMode', 'ashrayLevelUsed', 'flagSick', 'flagOs', 'submittedAt', 'fieldValuesJson'];
 
@@ -156,11 +157,12 @@ export default createEndpoint({
 
     const officialResidencyId = Array.isArray(userInfo?.residency)
       ? userInfo!.residency[0] : userInfo?.residency;
-    const isOfficialResident = !!(userInfo?.residencyApproved && officialResidencyId);
+    const isFolkUser = getUserDepartment(userInfo) === 'FOLK';
+    const isOfficialResident = isFolkUser && !!(userInfo?.residencyApproved && officialResidencyId);
 
     const rawTempResidency = userInfo?.temporaryResidency;
     const tempResidencyId  = Array.isArray(rawTempResidency) ? rawTempResidency[0] : rawTempResidency;
-    const tempResidencyEnabled = !!(userInfo?.temporaryResidencyEnabled);
+    const tempResidencyEnabled = isFolkUser && !!(userInfo?.temporaryResidencyEnabled);
     const isTempResident = !isOfficialResident && !!(tempResidencyEnabled && tempResidencyId);
 
     const isResident    = isOfficialResident || isTempResident;

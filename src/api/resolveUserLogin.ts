@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, Guides } from '@/lib/backend-sdk';
 import { generateUniqueUserId } from '../lib/userIdGen';
 import { serverCacheInvalidate } from '../lib/serverCache';
+import { getUserDashboardPath, getUserDepartment } from '../lib/userDashboardRoutes';
 
 function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean, isBvSupervisor?: boolean, isBvFacilitator?: boolean, isBvSubFacilitator?: boolean, email?: string, segment?: string): string {
   const isFolk = segment === 'FOLK';
@@ -17,7 +18,7 @@ function roleToRoute(role: string, isBvsl?: boolean, isSadhanaMentor?: boolean, 
   if (role === 'Sadhana Mentor') return '/mentor/dashboard';
   if (isBvsl || isBvFacilitator) return '/bvsl/dashboard';
   if (isSadhanaMentor) return '/mentor/dashboard';
-  return '/user/dashboard';
+  return getUserDashboardPath({ segment });
 }
 
 export function normalizeRole(r: string): string {
@@ -151,7 +152,7 @@ export default createEndpoint({
           let route = '/pending';
           if (status === 'Rejected') route = '/rejected';
           else if (status === 'Inactive') route = '/inactive';
-          else if (status === 'Active') route = roleToRoute(real.role || 'User', real.isBvsl, real.isSadhanaMentor, real.isBvSupervisor || real.isBvMentor, real.isBvFacilitator || real.isBvsl, real.isBvSubFacilitator, real.email || authEmail, real.segment);
+          else if (status === 'Active') route = roleToRoute(real.role || 'User', real.isBvsl, real.isSadhanaMentor, real.isBvSupervisor || real.isBvMentor, real.isBvFacilitator || real.isBvsl, real.isBvSubFacilitator, real.email || authEmail, getUserDepartment(real));
 
           return {
             action: 'route',
@@ -181,7 +182,7 @@ export default createEndpoint({
               isBvSupervisor: !!(real.isBvSupervisor || real.isBvMentor),
               isBvFacilitator: !!(real.isBvFacilitator || real.isBvsl),
               isBvSubFacilitator: !!(real.isBvSubFacilitator),
-              segment: real.segment || null,
+              segment: getUserDepartment(real),
             },
           };
         }
@@ -229,7 +230,7 @@ export default createEndpoint({
     } else if (status === 'Inactive') {
       route = '/inactive';
     } else if (status === 'Active') {
-      route = roleToRoute(userRecord.role || 'User', userRecord.isBvsl, userRecord.isSadhanaMentor, userRecord.isBvSupervisor || userRecord.isBvMentor, userRecord.isBvFacilitator || userRecord.isBvsl, userRecord.isBvSubFacilitator, userRecord.email, userRecord.segment);
+      route = roleToRoute(userRecord.role || 'User', userRecord.isBvsl, userRecord.isSadhanaMentor, userRecord.isBvSupervisor || userRecord.isBvMentor, userRecord.isBvFacilitator || userRecord.isBvsl, userRecord.isBvSubFacilitator, userRecord.email, getUserDepartment(userRecord));
     }
 
     return {
@@ -261,7 +262,7 @@ export default createEndpoint({
         isBvFacilitator: !!(userRecord.isBvFacilitator || userRecord.isBvsl),
         isBvSubFacilitator: !!(userRecord.isBvSubFacilitator),
         isBvMember: userRecord.isBvMember || false,
-        segment: userRecord.segment || 'PW',
+        segment: getUserDepartment(userRecord),
       },
     };
   },

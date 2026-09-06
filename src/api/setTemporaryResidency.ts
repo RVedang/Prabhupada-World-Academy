@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Users } from '@/lib/backend-sdk';
+import { getUserDepartment } from '../lib/userDashboardRoutes';
 
 export default createEndpoint({
   description: 'Set or clear the temporary FOLK Residency for a non-resident user visiting FOLK',
@@ -10,6 +11,10 @@ export default createEndpoint({
   }),
   outputSchema: z.object({ success: z.boolean() }),
   execute: async ({ input, context }) => {
+    const user = await Users.findOne({ id: context.user!.id });
+    if (getUserDepartment(user) !== 'FOLK') {
+      throw new Error('Temporary residency is available only to FOLK users.');
+    }
     await Users.update({
       id: context.user!.id,
       record: {

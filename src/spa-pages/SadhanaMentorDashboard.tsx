@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { getMentorMembers } from '@/lib/endpoints-sdk';
 import type { GetMentorMembersOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import { DashboardLayout } from '@/layouts';
 import { LoadingPage } from '@/shared';
 import TabRouter from '@/shared/TabRouter';
@@ -316,7 +317,7 @@ export default function SadhanaMentorDashboard() {
       const isMentor = profile.isSadhanaMentor || (profile.role as string) === 'SADHANA_MENTOR' || profile.isBvSuperAdmin || profile.isBvAdmin || (profile.role as string) === 'SUPER_ADMIN' || (profile.role as string) === 'ADMIN';
       if (!isMentor) {
         toast.error('You do not have active Sadhana Mentor permissions');
-        navigate('/user/dashboard', { replace: true });
+        navigate(getUserDashboardPath(profile), { replace: true });
         return;
       }
       if (profile.userId) loadMembers();
