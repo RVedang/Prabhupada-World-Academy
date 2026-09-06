@@ -1,8 +1,11 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvSessions, BvAttendance, BvGroupMembers, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, BvGroups, BvSessions, BvAttendance, BvGroupMembers, Users, AppError } from '@/lib/backend-sdk';
 
 const referenceValues = (value: unknown): string[] =>
   (Array.isArray(value) ? value : [value]).filter(Boolean).map(String);
+
+const normalizedValues = (value: unknown): string[] =>
+  referenceValues(value).map(item => item.trim().toLowerCase()).filter(Boolean);
 
 async function requireAssignedFacilitator(groupId: string, context: any) {
   const group = await BvGroups.findOne({
@@ -44,18 +47,23 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     const isPresent = input.present ?? (input.status === 'P');
 
-    // Resolve canonical user keys (id, userId, email)
+    // Resolve canonical user keys (document ID, custom user ID, email). The
+    // attendance writer must use the same identity as group-session attendance
+    // rather than treating the custom userId as a separate member.
     const targetUserId = input.userId || context.user!.id;
-    let uid = targetUserId;
-    const userKeys = new Set<string>();
-    userKeys.add(String(targetUserId).toLowerCase());
-    if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
-    if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
-
-    if (input.userId) {
-      const uRec = await BvAttendance.findOne({ filters: { id: input.userId }, fields: ['id'] }).catch(() => null);
-      if (uRec) uid = uRec.id;
-    }
+    const [byId, byUserId, byEmail] = await Promise.all([
+      Users.findOne({ id: targetUserId, fields: ['id', 'userId', 'email'] }).catch(() => null),
+      Users.findOne({ filters: { userId: targetUserId }, fields: ['id', 'userId', 'email'] }).catch(() => null),
+      Users.findOne({ filters: { email: targetUserId }, fields: ['id', 'userId', 'email'] }).catch(() => null),
+    ]);
+    const targetUser = byId || byUserId || byEmail;
+    const uid = targetUser?.id || targetUserId;
+    const userKeys = new Set<string>(normalizedValues([
+      targetUserId,
+      targetUser?.id,
+      targetUser?.userId,
+      targetUser?.email,
+    ]));
 
     // If sessionId is given, mark attendance for that session
     if (input.sessionId) {
@@ -77,7 +85,8 @@ export default createEndpoint({
 
       const existing = dateRecords.find((a: any) => {
         const u = Array.isArray(a.user) ? a.user[0] : a.user;
-        return userKeys.has(String(u || '').toLowerCase());
+        const recordGroup = Array.isArray(a.group) ? a.group[0] : (a.group || a.groupId);
+        return userKeys.has(String(u || '').toLowerCase()) && (!recordGroup || String(recordGroup) === groupId);
       });
 
       if (existing) {
@@ -100,14 +109,32 @@ export default createEndpoint({
     if (input.localDate) {
       // Resolve the target user's group before permitting a mark. A regular
       // member cannot mark their own attendance merely by calling this API.
-      const membershipRes = await BvGroupMembers.findAll({
-        filters: { user: uid },
-        limit: 1,
-        fields: ['id', 'group'],
-      }).catch(() => ({ records: [] }));
-      const groupId = membershipRes.records[0]
-        ? (Array.isArray(membershipRes.records[0].group) ? membershipRes.records[0].group[0] : membershipRes.records[0].group as string)
+      const aliases = [...userKeys];
+      const [membershipByUser, membershipByUserId] = await Promise.all([
+        BvGroupMembers.findAll({ filters: { user: { in: aliases } }, limit: 5, fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'] }).catch(() => ({ records: [] })),
+        BvGroupMembers.findAll({ filters: { userId: { in: aliases } }, limit: 5, fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'] }).catch(() => ({ records: [] })),
+      ]);
+      let membership = membershipByUser.records[0] || membershipByUserId.records[0];
+      if (!membership) {
+        const { records } = await BvGroupMembers.findAll({
+          fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
+          limit: 5000,
+        }).catch(() => ({ records: [] }));
+        membership = records.find((member: any) => normalizedValues([
+          member.id, member.user, member.userId, member.memberId,
+        ]).some(value => userKeys.has(value)));
+      }
+      for (const alias of normalizedValues([
+        membership?.id, membership?.user, membership?.userId, membership?.memberId,
+      ])) userKeys.add(alias);
+      const storedGroupId = membership
+        ? (Array.isArray(membership.group) ? membership.group[0] : (membership.group || membership.groupId) as string)
         : null;
+      const group = storedGroupId
+        ? await BvGroups.findOne({ id: storedGroupId, fields: ['id', 'groupId'] }).catch(() => null)
+          || await BvGroups.findOne({ filters: { groupId: storedGroupId }, fields: ['id', 'groupId'] }).catch(() => null)
+        : null;
+      const groupId = group?.id || storedGroupId;
       if (!groupId) throw new AppError({ code: 'NOT_FOUND', message: 'User is not assigned to a Reading Group' });
       await requireAssignedFacilitator(groupId, context);
 
@@ -119,7 +146,8 @@ export default createEndpoint({
 
       const existing = dateRecords.find((a: any) => {
         const u = Array.isArray(a.user) ? a.user[0] : a.user;
-        return userKeys.has(String(u || '').toLowerCase());
+        const recordGroup = Array.isArray(a.group) ? a.group[0] : (a.group || a.groupId);
+        return userKeys.has(String(u || '').toLowerCase()) && (!recordGroup || String(recordGroup) === groupId);
       });
 
       if (existing) {

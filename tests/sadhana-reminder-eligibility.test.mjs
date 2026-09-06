@@ -25,3 +25,9 @@ test('long-poll broadcasts are restricted to eligible recipient IDs and emails',
   assert.match(endpointSource, /\[\.\.\.eligibleIds\]/);
   assert.match(endpointSource, /\[\.\.\.eligibleEmails\]/);
 });
+
+test('missing Sadhana members receive an in-app broadcast even without native push consent', () => {
+  assert.match(endpointSource, /const eligibleRecipients = \(await fetchActiveUsers\(\)\)\.filter/);
+  assert.match(endpointSource, /if \(eligibleRecipients\.length > 0\)/);
+  assert.doesNotMatch(endpointSource, /if \(subs\.length === 0\) return/);
+});

@@ -16,9 +16,17 @@ export default function PushNotificationBanner() {
   const { profile } = useUserProfile();
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pwConfig, setPwConfig] = useState({ enabled: true, times: ['21:20', '22:20'] });
 
-  const pwConfig = getPwNotificationConfig();
   const isFolk = profile?.segment === 'FOLK';
+
+  useEffect(() => {
+    let active = true;
+    getPwNotificationConfig().then((config) => {
+      if (active) setPwConfig(config);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     // If PW user and disabled by PW Super Admin, don't show

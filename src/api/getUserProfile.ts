@@ -85,13 +85,17 @@ export default createEndpoint({
     // valid only after the registration flow has assigned both fields.
     if (!userRecord?.userId || !userRecord?.status) return { user: null };
 
-    // Current membership requires both a real BvGroupMembers row and a profile
-    // that still agrees the user belongs to that group. This prevents stale
-    // legacy membership rows from re-enabling Attendance after removal.
+    // A real BvGroupMembers row is the authoritative BV membership record.
+    // Profile flags are derived/cache fields and may be stale immediately after
+    // approval or on older records; they must never hide Attendance from a
+    // member whose Reading Group page is already active.
     const userIdentities = [...new Set([
       context.user.id,
+      context.user.userId,
+      context.user.email,
       userRecord.id,
       userRecord.userId,
+      userRecord.email,
     ].filter(Boolean).map(String))];
     const [byUser, byUserId] = await Promise.all([
       BvGroupMembers.findAll({
@@ -105,14 +109,22 @@ export default createEndpoint({
         limit: 5,
       }).catch(() => ({ records: [] })),
     ]);
-    const rawMembership = byUser.records[0] || byUserId.records[0];
-    const rawGroupId = rawMembership
-      ? (Array.isArray(rawMembership.group) ? rawMembership.group[0] : (rawMembership.group || rawMembership.groupId || ''))
-      : '';
-    const profileGroupId = Array.isArray(userRecord.bvGroupId) ? userRecord.bvGroupId[0] : userRecord.bvGroupId;
-    const profileAllowsMembership = !!userRecord.isBvMember &&
-      (!profileGroupId || !rawGroupId || profileGroupId === rawGroupId);
-    const membership = profileAllowsMembership ? rawMembership : null;
+    let rawMembership = byUser.records[0] || byUserId.records[0];
+    if (!rawMembership) {
+      const membershipKeys = new Set(userIdentities.map(value => value.toLowerCase()));
+      const { records: allMemberships } = await BvGroupMembers.findAll({
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
+        limit: 5000,
+      }).catch(() => ({ records: [] }));
+      rawMembership = allMemberships.find((membership: any) => [
+        membership.user,
+        membership.userId,
+        membership.memberId,
+      ].flatMap(value => Array.isArray(value) ? value : [value])
+        .filter(Boolean)
+        .some(value => membershipKeys.has(String(value).trim().toLowerCase())));
+    }
+    const membership = rawMembership;
     const hasBvMembership = !!membership;
     const groupId = membership
       ? (Array.isArray(membership.group) ? membership.group[0] : (membership.group || membership.groupId || ''))

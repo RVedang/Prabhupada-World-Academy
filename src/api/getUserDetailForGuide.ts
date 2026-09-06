@@ -3,6 +3,7 @@ import { createEndpoint, Users, SadhanaEntries, BvGroupMembers, BvGroups, FolkRe
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
+import { isBvGroupProfileAdministrator } from '../lib/bvGroupMemberProfileNavigation';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'phone', 'email', 'ashrayLevel', 'status',
   'residency', 'residencyApproved', 'residencyGuideVerified', 'selectedFolkResidency',
@@ -121,6 +122,8 @@ export default createEndpoint({
       isSadhanaMentor: context.user.isSadhanaMentor,
       isBvsl: context.user.isBvsl,
       isBvMentor: context.user.isBvMentor,
+      isBvAdmin: context.user.isBvAdmin,
+      isBvSuperAdmin: context.user.isBvSuperAdmin,
       isBvSupervisor: context.user.isBvSupervisor,
       isBvSubFacilitator: context.user.isBvSubFacilitator,
     });
@@ -128,13 +131,15 @@ export default createEndpoint({
     const userRecord = await resolveUser(input.userId);
     if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
 
-    const isSuperGuide = context.user.role === 'Super Guide';
+    // Admin-tier users manage members across their authorized department and
+    // must not fall through to the RGF/guide-only scope checks below.
+    const hasUnrestrictedProfileAccess = isBvGroupProfileAdministrator(context.user);
 
     const isBvMentor = !!(context.user.isBvMentor || context.user.isBvSupervisor);
     const isRgsf = !!context.user.isBvSubFacilitator ||
       String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_').includes('RGSF');
 
-    if (!isSuperGuide && !isBvMentor) {
+    if (!hasUnrestrictedProfileAccess && !isBvMentor) {
       // Try center-based scope (works for guides)
       const scope = await getGuideScope(context.user.email);
 

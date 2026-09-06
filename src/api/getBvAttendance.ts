@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroupMembers, BvAttendance, Users, FolkResidencies } from '@/lib/backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, FolkResidencies } from '@/lib/backend-sdk';
 
 const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const USER_FIELDS = ['id', 'userId', 'email', 'fullName', 'displayName', 'name', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'residencyName', 'ashrayLevel', ...USER_IDENTITY_FIELDS.filter(field => !['id', 'userId', 'email'].includes(field))];
@@ -7,6 +7,12 @@ const USER_FIELDS = ['id', 'userId', 'email', 'fullName', 'displayName', 'name',
 function firstValue(value: unknown): string {
   if (Array.isArray(value)) return String(value[0] || '');
   return String(value || '');
+}
+
+function referenceValues(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(referenceValues);
+  if (value == null) return [];
+  return String(value).split(',').map(item => item.trim()).filter(Boolean);
 }
 
 function userIdentityAliases(user: any): string[] {
@@ -68,49 +74,83 @@ export default createEndpoint({
       Users.findOne({ filters: { userId: lookupId }, fields: USER_FIELDS }).catch(() => null),
     ]);
     const requestedUser = byId || byUserId;
-    const identityAliases = [...new Set([
+    // When a guide opens a member's profile, only the target member's aliases
+    // belong in this lookup. Mixing in the guide's aliases can accidentally
+    // select the guide's group and hide the member's attendance.
+    const lookupAliases = [...new Set([
       lookupId,
       ...userIdentityAliases(requestedUser),
-      ...userIdentityAliases(context.user),
     ].filter(Boolean).map(String))];
 
     const [membershipByUser, membershipByUserId] = await Promise.all([
       BvGroupMembers.findAll({
-        filters: { user: { in: identityAliases } },
-        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+        filters: { user: { in: lookupAliases } },
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
         limit: 10,
       }),
       BvGroupMembers.findAll({
-        filters: { userId: { in: identityAliases } },
-        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+        filters: { userId: { in: lookupAliases } },
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
         limit: 10,
       }),
     ]);
-    const membership = membershipByUser.records[0] || membershipByUserId.records[0];
-    const groupId = firstValue(membership?.group || membership?.groupId);
-    if (!groupId) {
+    let membership = membershipByUser.records[0] || membershipByUserId.records[0];
+    if (!membership) {
+      // Older membership rows may use memberId, email, or a custom user ID.
+      // The indexed reads above handle current records; this bounded fallback
+      // keeps historic approved members visible until their records are saved.
+      const lookupKeys = new Set(lookupAliases.map(value => value.toLowerCase()));
+      const { records: memberships } = await BvGroupMembers.findAll({
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
+        limit: 5000,
+      }).catch(() => ({ records: [] }));
+      membership = memberships.find((member: any) =>
+        referenceValues([member.id, member.user, member.userId, member.memberId])
+          .some(value => lookupKeys.has(value.toLowerCase()))
+      );
+    }
+    const storedGroupId = firstValue(membership?.group || membership?.groupId);
+    if (!storedGroupId) {
       return { userHistory: [], leaderboard: [], userTotalPointsThisWeek: 0 };
     }
 
+    const group = await BvGroups.findOne({ id: storedGroupId, fields: ['id', 'groupId'] })
+      .catch(() => null)
+      || await BvGroups.findOne({ filters: { groupId: storedGroupId }, fields: ['id', 'groupId'] })
+        .catch(() => null);
+    const groupReferences = [...new Set([
+      storedGroupId,
+      group?.id,
+      group?.groupId,
+    ].flatMap(referenceValues))];
+    // Membership references are valid aliases for attendance rows but are not
+    // user identities themselves. Keep them separate so a membership document
+    // never appears as a phantom member on the leaderboard.
+    const identityAliases = lookupAliases;
+    const attendanceIdentityAliases = [...new Set([
+      ...lookupAliases,
+      ...referenceValues([membership?.id, membership?.user, membership?.userId, membership?.memberId]),
+    ])];
+
     const [attendanceByGroup, membersByGroup, attendanceByGroupId, membersByGroupId] = await Promise.all([
       BvAttendance.findAll({
-        filters: { group: groupId },
+        filters: { group: { in: groupReferences } },
         fields: ['id', 'group', 'groupId', 'user', 'present', 'attendanceDate'],
         limit: 5000,
       }),
       BvGroupMembers.findAll({
-        filters: { group: groupId },
-        fields: ['id', 'user', 'userId'],
+        filters: { group: { in: groupReferences } },
+        fields: ['id', 'user', 'userId', 'memberId'],
         limit: 1000,
       }),
       BvAttendance.findAll({
-        filters: { groupId },
+        filters: { groupId: { in: groupReferences } },
         fields: ['id', 'group', 'groupId', 'user', 'present', 'attendanceDate'],
         limit: 5000,
       }).catch(() => ({ records: [], hasMore: false })),
       BvGroupMembers.findAll({
-        filters: { groupId },
-        fields: ['id', 'user', 'userId'],
+        filters: { groupId: { in: groupReferences } },
+        fields: ['id', 'user', 'userId', 'memberId'],
         limit: 1000,
       }).catch(() => ({ records: [], hasMore: false })),
     ]);
@@ -184,7 +224,7 @@ export default createEndpoint({
       for (const alias of aliases) infoByAlias.set(alias.toLowerCase(), info);
     }
 
-    const currentAliasSet = new Set(identityAliases.map(alias => alias.toLowerCase()));
+    const currentAliasSet = new Set(attendanceIdentityAliases.map(alias => alias.toLowerCase()));
     for (const alias of [...currentAliasSet]) {
       const info = infoByAlias.get(alias);
       info?.aliases.forEach(value => currentAliasSet.add(value.toLowerCase()));

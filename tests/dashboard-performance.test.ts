@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import getBvAttendance from '../src/api/getBvAttendance';
+import getUserAttendanceCalendar from '../src/api/getUserAttendanceCalendar';
 import getSadhanaLeaderboard from '../src/api/getSadhanaLeaderboard';
-import { BvAttendance, BvGroupMembers, SadhanaEntries, Users } from '../src/lib/app-backend-sdk';
+import markBvAttendance from '../src/api/markBvAttendance';
+import { BvAttendance, BvGroupMembers, BvGroups, SadhanaEntries, Users } from '../src/lib/app-backend-sdk';
 import { serverCacheGetOrFetch, serverCacheInvalidate } from '../src/lib/serverCache';
 import { getTodayIST } from '../src/lib/streakUtils';
 
@@ -101,6 +103,148 @@ test('BV attendance reads and aggregates only the member assigned group', async 
       [member.userId, peer.userId].sort(),
     );
     assert.equal(result.leaderboard.some((entry: any) => entry.userId === outside.userId), false);
+  } finally {
+    for (const item of cleanup.reverse()) await item.table.delete({ id: item.id });
+  }
+});
+
+test('BV attendance calendar resolves a Firebase Auth UID to the stored Users ID', async () => {
+  const member = {
+    id: 'CALENDAR-BV-MEMBER-DB',
+    userId: 'CALENDAR-BV-MEMBER',
+    firebaseUid: 'CALENDAR-BV-MEMBER-AUTH',
+    email: 'calendar-bv-member@example.invalid',
+    fullName: 'Calendar Member',
+    status: 'Active',
+    role: 'User',
+  };
+  const attendance = {
+    id: 'CALENDAR-BV-ATTENDANCE',
+    group: 'CALENDAR-BV-GROUP',
+    user: member.id,
+    attendanceDate: '2026-09-06',
+    present: true,
+  };
+
+  try {
+    await Users.create({ record: member });
+    await BvAttendance.create({ record: attendance });
+
+    const result = await getUserAttendanceCalendar.execute({
+      input: {},
+      context: { user: { id: member.firebaseUid } },
+    } as never);
+
+    assert.deepEqual(result.entries, [{
+      date: attendance.attendanceDate,
+      present: true,
+      status: 'P',
+      sessionName: 'Bhakti Vriksha Session',
+      eventTitle: 'Present',
+    }]);
+  } finally {
+    await BvAttendance.delete({ id: attendance.id });
+    await Users.delete({ id: member.id });
+  }
+});
+
+test('BV attendance resolves legacy membership IDs to facilitator-saved attendance', async () => {
+  const today = getTodayIST();
+  const member = {
+    id: 'BV-LEGACY-ALIAS-USER-DOC',
+    userId: 'BV-LEGACY-ALIAS-USER',
+    email: 'bv-legacy-alias@example.invalid',
+    fullName: 'BV Legacy Alias Member',
+    status: 'Active',
+    role: 'User',
+  };
+  const group = { id: 'BV-LEGACY-ALIAS-GROUP-DOC', groupId: 'BV-LEGACY-ALIAS-GROUP' };
+  const cleanup: Array<{ table: any; id: string }> = [];
+
+  try {
+    await Users.create({ record: member });
+    cleanup.push({ table: Users, id: member.id });
+    await BvGroups.create({ record: group });
+    cleanup.push({ table: BvGroups, id: group.id });
+    await BvGroupMembers.create({
+      record: {
+        id: 'BV-LEGACY-ALIAS-MEMBERSHIP',
+        group: group.groupId,
+        // Pre-migration records sometimes used memberId rather than user.
+        memberId: member.email,
+      },
+    });
+    cleanup.push({ table: BvGroupMembers, id: 'BV-LEGACY-ALIAS-MEMBERSHIP' });
+    await BvAttendance.create({
+      record: {
+        id: 'BV-LEGACY-ALIAS-ATTENDANCE',
+        group: group.id,
+        user: member.id,
+        attendanceDate: today,
+        present: true,
+      },
+    });
+    cleanup.push({ table: BvAttendance, id: 'BV-LEGACY-ALIAS-ATTENDANCE' });
+
+    const context = { user: { id: member.id, userId: member.userId, email: member.email } };
+    const [report, calendar] = await Promise.all([
+      getBvAttendance.execute({ input: { userId: member.userId, sinceDate: today }, context } as never),
+      getUserAttendanceCalendar.execute({ input: {}, context } as never),
+    ]);
+
+    assert.equal(report.userHistory[0]?.status, 'P');
+    assert.equal(calendar.entries.find((entry: any) => entry.date === today)?.status, 'P');
+  } finally {
+    for (const item of cleanup.reverse()) await item.table.delete({ id: item.id });
+  }
+});
+
+test('a facilitator save uses the member document ID for a legacy BV membership', async () => {
+  const today = getTodayIST();
+  const member = {
+    id: 'BV-MARK-ALIAS-USER-DOC',
+    userId: 'BV-MARK-ALIAS-USER',
+    email: 'bv-mark-alias@example.invalid',
+    fullName: 'BV Mark Alias Member',
+    status: 'Active',
+    role: 'User',
+  };
+  const group = {
+    id: 'BV-MARK-ALIAS-GROUP-DOC',
+    groupId: 'BV-MARK-ALIAS-GROUP',
+    bvslLeader: 'BV-MARK-FACILITATOR',
+  };
+  const cleanup: Array<{ table: any; id: string }> = [];
+
+  try {
+    await Users.create({ record: member });
+    cleanup.push({ table: Users, id: member.id });
+    await BvGroups.create({ record: group });
+    cleanup.push({ table: BvGroups, id: group.id });
+    await BvGroupMembers.create({
+      record: {
+        id: 'BV-MARK-ALIAS-MEMBERSHIP',
+        group: group.groupId,
+        memberId: member.email,
+      },
+    });
+    cleanup.push({ table: BvGroupMembers, id: 'BV-MARK-ALIAS-MEMBERSHIP' });
+
+    await markBvAttendance.execute({
+      input: { userId: member.userId, status: 'P', localDate: today },
+      context: { user: { id: 'BV-MARK-FACILITATOR' } },
+    } as never);
+
+    const { records } = await BvAttendance.findAll({
+      filters: { group: group.id, attendanceDate: today },
+      fields: ['id', 'user', 'present'],
+      limit: 10,
+    });
+    assert.deepEqual(records.map((record: any) => ({ user: record.user, present: record.present })), [{
+      user: member.id,
+      present: true,
+    }]);
+    cleanup.push(...records.map((record: any) => ({ table: BvAttendance, id: record.id })));
   } finally {
     for (const item of cleanup.reverse()) await item.table.delete({ id: item.id });
   }

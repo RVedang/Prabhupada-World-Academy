@@ -67,6 +67,27 @@ async function fetchUsersByKeys(keys: string[]): Promise<any[]> {
   return [...results.values()];
 }
 
+async function fetchActiveUsers(): Promise<any[]> {
+  const users: any[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await Users.findAll({
+      filters: { status: 'Active' },
+      fields: [
+        'id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid',
+        'firebaseUserId', 'firebaseAuthUid', 'status', 'segment', 'fullName',
+        'isPrabhupadaWorldUser', 'isFolkLead', 'residencyId',
+      ],
+      limit: 500,
+      offset,
+    });
+    users.push(...page.records);
+    if (!page.hasMore) break;
+    offset += page.records.length;
+  }
+  return users;
+}
+
 // ── VAPID + Web Push helpers (pure Web Crypto — no npm packages) ──
 
 function base64UrlEncode(buf: ArrayBuffer | ArrayBufferLike): string {
@@ -314,8 +335,6 @@ export default createEndpoint({
     // Get all push subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
 
-    if (subs.length === 0) return { sent: 0, failed: 0, skipped: 0 };
-
     const allSubscriptionUserKeys = subs.flatMap(getSubscriptionUserKeys);
     const userRecords = await fetchUsersByKeys(allSubscriptionUserKeys);
     const userByAlias = new Map<string, any>();
@@ -396,6 +415,14 @@ export default createEndpoint({
       return getUserAliasKeys(user).some(key => submittedUserIds.has(normalizeKey(key)));
     };
 
+    // In-app delivery must not depend on native-push consent. Every active,
+    // in-scope member who has not submitted receives the scoped long-poll
+    // broadcast; only the subset with a device subscription receives Web Push.
+    const eligibleRecipients = (await fetchActiveUsers()).filter(user =>
+      isTargetUser(user) && !hasSubmitted(user)
+    );
+    const eligibleRecipientIds = new Set(eligibleRecipients.map(user => String(user.id)));
+
     const payloadStr = JSON.stringify({
       id: broadcastId,
       title,
@@ -419,13 +446,6 @@ export default createEndpoint({
       process.env.VAPID_PUBLIC_KEY ||
       process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
-    if (!vapidPrivate || !vapidPublic) {
-      throw new AppError({
-        code: 'INTERNAL_ERROR',
-        message: 'Web Push credentials are not configured',
-      });
-    }
-
     const seenEndpoints = new Set<string>();
     const toSend = subs.filter((sub: any) => {
       const endpoint = String(sub.endpoint || '').trim();
@@ -437,18 +457,16 @@ export default createEndpoint({
       // Sadhana completion is an unconditional exclusion. No caller, including
       // an administrator using instant dispatch, may bypass this guard.
       if (hasSubmitted(user)) { skipped++; return false; }
+      if (!eligibleRecipientIds.has(String(user.id))) { skipped++; return false; }
       return true;
     });
 
-    // The long-poll fallback must be scoped to the same eligible users as Web
-    // Push. A general segment broadcast would otherwise notify active devices
-    // belonging to members who have already submitted today.
-    if (toSend.length > 0) {
+    // Scope the long-poll broadcast to every missing member, whether or not
+    // they have opted into browser push. This is the in-app notification path.
+    if (eligibleRecipients.length > 0) {
       const eligibleIds = new Set<string>();
       const eligibleEmails = new Set<string>();
-      for (const sub of toSend) {
-        const user = resolveSubscriptionUser(sub);
-        if (!user) continue;
+      for (const user of eligibleRecipients) {
         for (const alias of getUserAliasKeys(user)) {
           if (alias.includes('@')) eligibleEmails.add(alias.toLowerCase());
           else eligibleIds.add(alias);
@@ -470,6 +488,16 @@ export default createEndpoint({
       } catch (e) {
         console.warn('[Push] Store broadcast failed:', e);
       }
+    }
+
+    // In-app broadcasts remain useful even if a deployment is missing VAPID
+    // credentials. Report native delivery failures without discarding them.
+    if (!vapidPrivate || !vapidPublic) {
+      if (toSend.length > 0) {
+        console.error('[Push] Web Push credentials are not configured');
+        return { sent: 0, failed: toSend.length, skipped };
+      }
+      return { sent: 0, failed: 0, skipped };
     }
 
     const batchSize = 10;

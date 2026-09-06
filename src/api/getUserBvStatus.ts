@@ -64,6 +64,14 @@ export default createEndpoint({
     // A BvGroupMembers document is the authoritative membership record. A
     // profile flag can be stale after an approval or group assignment.
     const membership = rawMembership;
+    for (const alias of referenceValues([
+      membership?.id,
+      membership?.user,
+      membership?.userId,
+      (membership as any)?.memberId,
+    ])) {
+      userIdentityKeys.add(alias.toLowerCase());
+    }
 
     const pending = pendingRes.records[0];
     const isUserRegPending = userRecord?.bvRegistrationStatus === 'Pending Approval' || userRecord?.bvRegistrationStatus === 'Pending';
@@ -146,24 +154,29 @@ export default createEndpoint({
     }
 
     // In a group — get group details + attendance
-    const groupId = Array.isArray(membership.group) ? membership.group[0] : (membership.group || (membership as any).groupId);
-    if (!groupId) return { myGroup: null, pendingRequest: null, availableGroups: [], todayStatus: null, streak: 0, presentCount: 0, totalSessions: 0 };
+    const storedGroupId = Array.isArray(membership.group) ? membership.group[0] : (membership.group || (membership as any).groupId);
+    if (!storedGroupId) return { myGroup: null, pendingRequest: null, availableGroups: [], todayStatus: null, streak: 0, presentCount: 0, totalSessions: 0 };
 
-    const [groupRecord, groupMembersRes] = await Promise.all([
-      BvGroups.findOne({ id: groupId, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName'] })
-        .then(g => g || BvGroups.findOne({ filters: { groupId }, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName'] })),
-      BvGroupMembers.findAll({ filters: { group: groupId }, fields: ['id', 'user', 'userId'], limit: 1000 }),
+    const groupRecord = await BvGroups.findOne({ id: storedGroupId, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName'] })
+      .catch(() => null)
+      || await BvGroups.findOne({ filters: { groupId: storedGroupId }, fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId', 'bvslName'] })
+        .catch(() => null);
+    const groupReferences = [...new Set([storedGroupId, groupRecord?.id, groupRecord?.groupId].flatMap(referenceValues))];
+    const [membersByGroup, membersByGroupId, attendanceByGroup, attendanceByGroupId] = await Promise.all([
+      BvGroupMembers.findAll({ filters: { group: { in: groupReferences } }, fields: ['id', 'user', 'userId', 'memberId'], limit: 1000 }),
+      BvGroupMembers.findAll({ filters: { groupId: { in: groupReferences } }, fields: ['id', 'user', 'userId', 'memberId'], limit: 1000 }).catch(() => ({ records: [] })),
+      BvAttendance.findAll({ filters: { group: { in: groupReferences } }, fields: ['id', 'user', 'present', 'attendanceDate'], limit: 1000 }),
+      BvAttendance.findAll({ filters: { groupId: { in: groupReferences } }, fields: ['id', 'user', 'present', 'attendanceDate'], limit: 1000 }).catch(() => ({ records: [] })),
     ]);
 
     const group = groupRecord as any;
+    const groupMembersRes = {
+      records: [...membersByGroup.records, ...membersByGroupId.records]
+        .filter((member: any, index: number, records: any[]) => records.findIndex(item => item.id === member.id) === index),
+    };
     const memberCount = groupMembersRes.records.length;
-
-    // Get all attendance for this group (to find session dates)
-    const { records: allGroupAtt } = await BvAttendance.findAll({
-      filters: { group: groupId },
-      fields: ['id', 'user', 'present', 'attendanceDate'],
-      limit: 1000,
-    });
+    const allGroupAtt = [...attendanceByGroup.records, ...attendanceByGroupId.records]
+      .filter((attendance: any, index: number, records: any[]) => records.findIndex(item => item.id === attendance.id) === index);
 
     // Get this user's attendance
     const myAtt = allGroupAtt.filter((a: any) => {
@@ -244,7 +257,7 @@ export default createEndpoint({
 
     return {
       myGroup: {
-        groupId: group?.groupId || groupId,
+        groupId: group?.groupId || group?.id || storedGroupId,
         groupName,
         bvslName: finalFacilitator,
         rgsfName,

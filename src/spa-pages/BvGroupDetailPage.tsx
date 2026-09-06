@@ -15,6 +15,7 @@ import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { Calendar } from 'lucide-react';
 import { DashboardLayout } from '@/layouts';
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { canOpenBvGroupMemberProfile, getBvGroupMemberProfileBasePath } from '@/lib/bvGroupMemberProfileNavigation';
 
 type GroupDetail = GetBvGroupDetailOutputType;
 type MatrixData = GetBvAttendanceMatrixOutputType;
@@ -121,8 +122,17 @@ function MembersTab({ members, onUserClick }: { members: GroupDetail['members'];
           {members.map((m: any) => (
             <tr
               key={m.userId}
-              className={`border-b ${onUserClick ? 'hover:bg-muted/40 cursor-pointer' : ''}`}
+              className={`border-b ${onUserClick ? 'hover:bg-muted/40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary' : ''}`}
               onClick={onUserClick ? () => onUserClick(m.userId) : undefined}
+              onKeyDown={onUserClick ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onUserClick(m.userId);
+                }
+              } : undefined}
+              role={onUserClick ? 'link' : undefined}
+              tabIndex={onUserClick ? 0 : undefined}
+              aria-label={onUserClick ? `Open ${m.fullName}'s profile` : undefined}
             >
               <td className="px-3 py-2.5 font-medium">{m.fullName}</td>
               <td className="px-3 py-2.5 hidden sm:table-cell">
@@ -328,19 +338,7 @@ export default function BvGroupDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile } = useUserProfile();
-  const canViewUserProfile = !!(
-    profile && (
-      profile.role === 'GUIDE' ||
-      profile.role === 'SUPER_GUIDE' ||
-      (profile.role as string) === 'ADMIN' ||
-      profile.role === 'SUPER_ADMIN' ||
-      profile.isBvsl ||
-      profile.isSadhanaMentor ||
-      profile.isBvMentor ||
-      profile.isBvSupervisor ||
-      profile.isBvSubFacilitator
-    )
-  );
+  const canViewUserProfile = canOpenBvGroupMemberProfile(profile);
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [matrix, setMatrix] = useState<MatrixData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -564,7 +562,7 @@ export default function BvGroupDetailPage() {
             <MembersTab
               members={detail.members}
               onUserClick={canViewUserProfile ? (uid) => {
-                const detailBasePath = profile?.isBvSubFacilitator ? '/rgsf/users' : '/guide/users';
+                const detailBasePath = getBvGroupMemberProfileBasePath(profile);
                 navigate(`${detailBasePath}/${encodeURIComponent(uid)}`, {
                   state: { from: `${location.pathname}${location.search}` },
                 });

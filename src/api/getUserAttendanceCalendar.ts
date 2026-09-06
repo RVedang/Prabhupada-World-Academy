@@ -1,5 +1,34 @@
 import { z } from 'zod';
-import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, Users } from '@/lib/backend-sdk';
+import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, BvGroupMembers, Users } from '@/lib/backend-sdk';
+
+const USER_IDENTITY_FIELDS = [
+  'id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId',
+  'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId',
+];
+
+function identityValues(user: any): string[] {
+  return [...new Set(USER_IDENTITY_FIELDS
+    .map(field => user?.[field])
+    .filter(Boolean)
+    .map(value => String(value).trim())
+    .filter(Boolean))];
+}
+
+async function resolveUserProfile(contextUser: any) {
+  const aliases = identityValues(contextUser);
+  if (aliases.length === 0) return null;
+
+  // Authentication commonly supplies a Firebase Auth UID while BV attendance
+  // stores the Users document ID. Look through every supported identity field
+  // so the calendar can compare those two representations of the same member.
+  const lookups = USER_IDENTITY_FIELDS.map(field => Users.findAll({
+    filters: { [field]: { in: aliases } },
+    fields: USER_IDENTITY_FIELDS,
+    limit: 30,
+  }).catch(() => ({ records: [] })));
+  const results = await Promise.all(lookups);
+  return results.flatMap(result => result.records)[0] || null;
+}
 
 export default createEndpoint({
   description: 'Get attendance calendar data for the current user',
@@ -12,21 +41,44 @@ export default createEndpoint({
     if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
     if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
     if (context.user?.email) userKeys.add(String(context.user.email).toLowerCase());
-    const profileRecord = await Users.findOne({
-      id: context.user?.id,
-      fields: ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'],
-    }).catch(() => null);
-    for (const key of [
-      profileRecord?.id,
-      profileRecord?.userId,
-      profileRecord?.email,
-      profileRecord?.uid,
-      profileRecord?.authUid,
-      profileRecord?.firebaseUid,
-      profileRecord?.firebaseUserId,
-      profileRecord?.firebaseAuthUid,
-    ].filter(Boolean)) {
+    const profileRecord = await resolveUserProfile(context.user);
+    for (const key of identityValues(profileRecord)) {
       userKeys.add(String(key).toLowerCase());
+    }
+
+    // Facilitators normally save the Users document ID, but older approved
+    // memberships can carry a custom user ID, email, or membership ID. Keep
+    // all of those aliases together before matching the attendance rows.
+    const initialKeys = [...userKeys];
+    const [membershipByUser, membershipByUserId] = await Promise.all([
+      BvGroupMembers.findAll({
+        filters: { user: { in: initialKeys } },
+        fields: ['id', 'user', 'userId', 'memberId'],
+        limit: 10,
+      }).catch(() => ({ records: [] })),
+      BvGroupMembers.findAll({
+        filters: { userId: { in: initialKeys } },
+        fields: ['id', 'user', 'userId', 'memberId'],
+        limit: 10,
+      }).catch(() => ({ records: [] })),
+    ]);
+    let memberships = [...membershipByUser.records, ...membershipByUserId.records];
+    if (memberships.length === 0) {
+      const { records } = await BvGroupMembers.findAll({
+        fields: ['id', 'user', 'userId', 'memberId'],
+        limit: 5000,
+      }).catch(() => ({ records: [] }));
+      memberships = records.filter((member: any) => [member.id, member.user, member.userId, member.memberId]
+        .flatMap(value => Array.isArray(value) ? value : [value])
+        .filter(Boolean)
+        .some(value => userKeys.has(String(value).trim().toLowerCase())));
+    }
+    for (const membership of memberships) {
+      for (const key of [membership.id, membership.user, membership.userId, membership.memberId]
+        .flatMap(value => Array.isArray(value) ? value : [value])
+        .filter(Boolean)) {
+        userKeys.add(String(key).trim().toLowerCase());
+      }
     }
 
     // Fetch BvAttendance records for user
