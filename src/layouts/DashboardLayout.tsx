@@ -6,7 +6,7 @@ import { LogOut, User, BookOpen, Users, Award, Network, Compass, ShieldAlert } f
 import { useUserProfile } from '../contexts/UserProfileContext';
 import TransferNoticeModal from '@/components/TransferNoticeModal';
 import { useMeetingReminderScheduler } from '@/hooks/useMeetingReminderScheduler';
-import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
+import { getDepartmentLandingUrl, getUserDashboardPath } from '@/lib/userDashboardRoutes';
 
 import { motion } from 'framer-motion';
 
@@ -225,7 +225,7 @@ export default function DashboardLayout({
                   <span className="hidden md:inline">Profile</span>
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={() => logout()} className="shrink-0">
+              <Button variant="ghost" size="sm" onClick={() => logout({ returnTo: getDepartmentLandingUrl(profile) })} className="shrink-0">
                 <LogOut className="w-4 h-4 mr-1 md:mr-1.5" />
                 <span className="hidden md:inline">Logout</span>
               </Button>

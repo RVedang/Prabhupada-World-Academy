@@ -4,7 +4,7 @@ import { getUserProfile, updateLastLogin } from '@/lib/endpoints-sdk';
 import type { ProfileSummary } from '@/types/models';
 import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
-import { getUserDepartment } from '@/lib/userDashboardRoutes';
+import { getDepartmentLandingUrl, getUserDepartment, rememberUserDepartment } from '@/lib/userDashboardRoutes';
 
 // Re-export for backward compatibility — NEW CODE should import from '@/types/models'
 export type ProfileData = ProfileSummary | null;
@@ -217,6 +217,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
       if (res?.user) {
         built = buildProfile(res.user);
         setAndCacheProfile(built);
+        rememberUserDepartment(built);
         loadedEmailRef.current = email;
         accountInvalidatedRef.current = false;
         try { localStorage.setItem('auth_profile_email', email.toLowerCase()); } catch { /* storage unavailable */ }
@@ -232,7 +233,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
         loadedEmailRef.current = null;
         if (hadConfirmedProfile && !accountInvalidatedRef.current) {
           accountInvalidatedRef.current = true;
-          await logout({ returnTo: '/login' });
+          await logout({ returnTo: getDepartmentLandingUrl(profileRef.current) });
           return null;
         }
       }

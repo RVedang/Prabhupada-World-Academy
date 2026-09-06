@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
+import { getDepartmentLandingUrl } from '@/lib/userDashboardRoutes';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -56,12 +57,12 @@ function hasAccess(
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: Props) {
-  const { user, isLoading: authLoading, loginWithRedirect } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { profile, isLoading: profileLoading, profileError } = useUserProfile();
 
   useEffect(() => {
     if (!authLoading && !user) {
-      loginWithRedirect({ redirectUrl: window.location.href });
+      window.location.replace(getDepartmentLandingUrl());
     }
   }, [authLoading, user]);
 

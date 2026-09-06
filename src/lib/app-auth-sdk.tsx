@@ -11,6 +11,7 @@ import {
   connectAuthEmulator,
   User as FirebaseUser
 } from 'firebase/auth';
+import { getDepartmentLandingUrl } from '@/lib/userDashboardRoutes';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // app-auth-sdk.tsx — Firebase Auth integration with Google sign-in.
@@ -131,10 +132,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       delete (window as any).__firebase_id_token;
     }
     setUser(null);
-    if (options?.returnTo) {
-      window.location.href = options.returnTo;
-    } else {
-      window.location.reload();
+    if (typeof window !== 'undefined') {
+      // Do not reload a protected dashboard after logout. That leaves the
+      // route waiting for authentication and produces the perpetual spinner.
+      window.location.replace(options?.returnTo || getDepartmentLandingUrl());
     }
   };
 
