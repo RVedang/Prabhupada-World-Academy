@@ -272,7 +272,6 @@ export default createEndpoint({
     customBody: z.string().max(1000).optional(),
     senderEmail: z.string().email().max(320).optional(),
     segment: z.enum(['PW', 'FOLK']).optional(),
-    forceSend: z.boolean().optional(),
   }),
   outputSchema: z.object({
     sent: z.number(),
@@ -312,23 +311,6 @@ export default createEndpoint({
     const body = input.customBody || slotMsg.body;
     const broadcastId = String(Date.now()) + '_' + String(Math.floor(Math.random() * 1000000));
 
-    // Store the broadcast so active tabs pick it up via long-polling immediately
-    try {
-      storeBroadcast(
-        title,
-        body,
-        input.reminderSlot || 'night-1',
-        senderEmail || undefined,
-        broadcastId,
-        undefined,
-        '/sadhana',
-        undefined,
-        targetSegment
-      );
-    } catch (e) {
-      console.warn('[Push] Store broadcast failed:', e);
-    }
-
     // Get all push subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
 
@@ -352,11 +334,19 @@ export default createEndpoint({
     };
 
     // Check who submitted sadhana for checkDate
-    const { records: entries } = await SadhanaEntries.findAll({
-      filters: { entryDate: checkDate },
-      fields: ['user'],
-      limit: 2000,
-    });
+    const entries: any[] = [];
+    let entryOffset = 0;
+    while (true) {
+      const page = await SadhanaEntries.findAll({
+        filters: { entryDate: checkDate },
+        fields: ['user'],
+        limit: 500,
+        offset: entryOffset,
+      });
+      entries.push(...page.records);
+      if (!page.hasMore) break;
+      entryOffset += page.records.length;
+    }
 
     // Use getUserIdStr to extract plain string IDs from sadhana entry references
     const submittedUserIds = new Set(
@@ -444,9 +434,43 @@ export default createEndpoint({
 
       const user = resolveSubscriptionUser(sub);
       if (!isTargetUser(user)) { skipped++; return false; }
-      if (!input.forceSend && hasSubmitted(user)) { skipped++; return false; }
+      // Sadhana completion is an unconditional exclusion. No caller, including
+      // an administrator using instant dispatch, may bypass this guard.
+      if (hasSubmitted(user)) { skipped++; return false; }
       return true;
     });
+
+    // The long-poll fallback must be scoped to the same eligible users as Web
+    // Push. A general segment broadcast would otherwise notify active devices
+    // belonging to members who have already submitted today.
+    if (toSend.length > 0) {
+      const eligibleIds = new Set<string>();
+      const eligibleEmails = new Set<string>();
+      for (const sub of toSend) {
+        const user = resolveSubscriptionUser(sub);
+        if (!user) continue;
+        for (const alias of getUserAliasKeys(user)) {
+          if (alias.includes('@')) eligibleEmails.add(alias.toLowerCase());
+          else eligibleIds.add(alias);
+        }
+      }
+
+      try {
+        storeBroadcast(
+          title,
+          body,
+          input.reminderSlot || 'night-1',
+          senderEmail || undefined,
+          broadcastId,
+          [...eligibleIds],
+          '/sadhana',
+          [...eligibleEmails],
+          targetSegment,
+        );
+      } catch (e) {
+        console.warn('[Push] Store broadcast failed:', e);
+      }
+    }
 
     const batchSize = 10;
     for (let i = 0; i < toSend.length; i += batchSize) {

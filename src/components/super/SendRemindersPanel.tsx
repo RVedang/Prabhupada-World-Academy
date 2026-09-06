@@ -155,7 +155,7 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
         if (stats.totalSubscriptions === 0) return;
         const res = await sendPushNotifications({
           reminderSlot: 'night-1', customTitle: config.title, customBody: config.body,
-          segment: activeSegment, forceSend: true,
+          segment: activeSegment,
         });
         if (res.sent > 0) toast.success(`⏰ Sadhana reminder sent at ${time} to ${res.sent} device${res.sent === 1 ? '' : 's'}.`);
       } catch (error) {
@@ -259,7 +259,6 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
         customTitle: config.title,
         customBody: config.body,
         segment: activeSegment,
-        forceSend: true,
       });
 
       // 3. Show toast only when at least 1 notification was actually delivered
@@ -584,7 +583,7 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
                 }`}>
                   {(pushStats?.totalSubscriptions || 0) > 0 ? (
                     <>
-                      <strong>Active Target Audience:</strong> {pushStats?.totalSubscriptions || 0} registered device(s) will be notified.
+                      <strong>Maximum Target Audience:</strong> Up to {pushStats?.totalSubscriptions || 0} registered device(s). Members who already submitted today's Sadhana will be excluded.
                     </>
                   ) : (
                     <>
