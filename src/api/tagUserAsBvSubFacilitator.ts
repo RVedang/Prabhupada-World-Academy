@@ -45,7 +45,7 @@ export default createEndpoint({
       record: {
         isBvSubFacilitator: shouldTag,
         role: 'User',
-        pendingRoleNotice: shouldTag ? 'Reading Group Sub-Facilitator (RGSF)' : 'Regular Member',
+        pendingRoleNotice: shouldTag ? 'Assigned responsibility: Reading Group Sub-Facilitator (RGSF)' : 'Removed responsibility: Reading Group Sub-Facilitator (RGSF)',
         roleNoticeAcknowledged: false,
         // Hierarchy: which RGF does this RGSF report to?
         bvReportingFacilitatorId: shouldTag ? (input.facilitatorId || '') : '',

@@ -30,7 +30,7 @@ export default createEndpoint({
       record: {
         isBvAdmin: shouldTag,
         role: shouldTag ? 'Admin' : 'User',
-        pendingRoleNotice: shouldTag ? 'BV Admin' : 'Regular Member',
+        pendingRoleNotice: shouldTag ? 'Assigned responsibility: BV Admin' : 'Removed responsibility: BV Admin',
         roleNoticeAcknowledged: false,
       },
     });

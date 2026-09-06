@@ -109,9 +109,11 @@ export default function PwUserDashboard() {
     realtimeChannels: ['sadhana'],
   });
 
-  // Approval alone makes the Bhakti Vriksha area available, but Attendance is
-  // meaningful only after a real Reading Group membership has been created.
-  const canViewBvAttendance = !!profile?.isBvMember && !!profile?.bvGroupId;
+  // The server derives isBvMember from the authoritative membership row. Do
+  // not additionally require the profile's legacy bvGroupId field: older
+  // memberships may have groupId only on BvGroupMembers, while attendance is
+  // still valid and should remain visible.
+  const canViewBvAttendance = !!profile?.isBvMember;
   // Old bookmarks may still point to #attendance. Render the BV status page
   // instead of leaving an unauthorized/empty tab selected.
   const visibleActiveTab = activeTab === 'attendance' && !canViewBvAttendance

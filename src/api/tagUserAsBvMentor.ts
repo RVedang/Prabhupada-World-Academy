@@ -34,7 +34,7 @@ export default createEndpoint({
     const shouldTag = input.action === 'tag';
     const updateData: Record<string, any> = {
       isBvMentor: shouldTag,
-      pendingRoleNotice: shouldTag ? 'BV Supervisor' : 'Regular Member',
+      pendingRoleNotice: shouldTag ? 'Assigned responsibility: BV Supervisor' : 'Removed responsibility: BV Supervisor',
       roleNoticeAcknowledged: false,
     };
     if (shouldTag) {

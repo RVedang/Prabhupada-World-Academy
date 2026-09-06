@@ -24,6 +24,12 @@ export default createEndpoint({
 
     const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'fullName', 'email', 'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'isBvMember', 'segment', 'isPrabhupadaWorldUser'] }).catch(() => null);
     const altUid = userRecord?.userId || uid;
+    const userIdentityKeys = new Set([
+      uid,
+      userRecord?.id,
+      userRecord?.userId,
+      userRecord?.email,
+    ].flatMap(referenceValues));
 
     // A member exists only when a real BvGroupMembers document exists. Query
     // both identifier fields to support legacy custom user IDs without using a
@@ -162,7 +168,7 @@ export default createEndpoint({
     // Get this user's attendance
     const myAtt = allGroupAtt.filter((a: any) => {
       const u = Array.isArray(a.user) ? a.user[0] : a.user;
-      return u === uid || u === altUid;
+      return userIdentityKeys.has(String(u || '').trim().toLowerCase());
     });
 
     // Build maps

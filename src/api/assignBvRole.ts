@@ -221,7 +221,18 @@ export default createEndpoint({
     if (updates.isBvSubFacilitator) activeRoles.push('Reading Group Sub-Facilitator (RGSF)');
     if (activeRoles.length === 0) activeRoles.push(input.isBvMember === false ? 'NA' : 'Regular Member');
 
-    updates.pendingRoleNotice = activeRoles.join(', ');
+    const previousRoles: string[] = [];
+    if (targetUser.isBvAdmin) previousRoles.push('BV Admin');
+    if (targetUser.isBvSupervisor || targetUser.isBvMentor) previousRoles.push('BV Supervisor');
+    if (targetUser.isBvFacilitator || targetUser.isBvsl) previousRoles.push('Reading Group Facilitator (RGF)');
+    if (targetUser.isBvSubFacilitator) previousRoles.push('Reading Group Sub-Facilitator (RGSF)');
+    const meaningfulActiveRoles = activeRoles.filter(role => role !== 'Regular Member' && role !== 'NA');
+    const addedRoles = meaningfulActiveRoles.filter(role => !previousRoles.includes(role));
+    const removedRoles = previousRoles.filter(role => !meaningfulActiveRoles.includes(role));
+    updates.pendingRoleNotice = [
+      addedRoles.length > 0 ? `Assigned responsibility: ${addedRoles.join(', ')}` : '',
+      removedRoles.length > 0 ? `Removed responsibility: ${removedRoles.join(', ')}` : '',
+    ].filter(Boolean).join(' | ') || `Assigned responsibility: ${activeRoles.join(', ')}`;
     updates.roleNoticeAcknowledged = false;
 
     // Store appropriate hierarchy link & inherit parent's admin/supervisor

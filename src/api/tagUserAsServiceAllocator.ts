@@ -45,7 +45,7 @@ export default createEndpoint({
       id: userRecord.id,
       record: {
         isServiceAllocator: input.action === 'tag',
-        pendingRoleNotice: input.action === 'tag' ? 'Service Allocator' : 'Regular Member',
+        pendingRoleNotice: input.action === 'tag' ? 'Assigned responsibility: Service Allocator' : 'Removed responsibility: Service Allocator',
         roleNoticeAcknowledged: false,
       },
     });

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance } from '@/lib/backend-sdk';
+import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, Users } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Get attendance calendar data for the current user',
@@ -12,11 +12,27 @@ export default createEndpoint({
     if (context.user?.id) userKeys.add(String(context.user.id).toLowerCase());
     if (context.user?.userId) userKeys.add(String(context.user.userId).toLowerCase());
     if (context.user?.email) userKeys.add(String(context.user.email).toLowerCase());
+    const profileRecord = await Users.findOne({
+      id: context.user?.id,
+      fields: ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'],
+    }).catch(() => null);
+    for (const key of [
+      profileRecord?.id,
+      profileRecord?.userId,
+      profileRecord?.email,
+      profileRecord?.uid,
+      profileRecord?.authUid,
+      profileRecord?.firebaseUid,
+      profileRecord?.firebaseUserId,
+      profileRecord?.firebaseAuthUid,
+    ].filter(Boolean)) {
+      userKeys.add(String(key).toLowerCase());
+    }
 
     // Fetch BvAttendance records for user
     const { records: allBv } = await BvAttendance.findAll({
       limit: 2000,
-      fields: ['id', 'user', 'group', 'attendanceDate', 'present'],
+      fields: ['id', 'user', 'group', 'groupId', 'attendanceDate', 'present'],
     }).catch(() => ({ records: [] }));
 
     const bvAtt = allBv.filter((a: any) => {
@@ -24,7 +40,7 @@ export default createEndpoint({
       // Official BV attendance is always connected to the reading group by
       // the facilitator. Ignore old Sadhana-created rows, which had no group
       // and incorrectly displayed unmarked days as absences.
-      const groupId = Array.isArray(a.group) ? a.group[0] : a.group;
+      const groupId = Array.isArray(a.group) ? a.group[0] : (a.group || a.groupId);
       return userKeys.has(String(rawU || '').toLowerCase()) && !!groupId;
     });
 

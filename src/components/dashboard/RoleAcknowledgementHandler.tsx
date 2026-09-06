@@ -37,7 +37,7 @@ export default function RoleAcknowledgementHandler() {
 
   // Fetch Reading Group details when approval popup is triggered
   useEffect(() => {
-    if (popupType === 'bv_approval_notice') {
+    if (popupType === 'bv_approval_notice' || popupType === 'bv_group_assignment_notice') {
       getUserBvStatus({})
         .then(res => {
           if (res?.myGroup) {
@@ -91,6 +91,9 @@ export default function RoleAcknowledgementHandler() {
   let title = '';
   let description = '';
   let icon = null;
+  const roleNoticeText = String((profile as any).pendingRoleNotice || '');
+  const responsibilityRemoved = roleNoticeText.toLowerCase().includes('removed responsibility:');
+  const responsibilityAssigned = roleNoticeText.toLowerCase().includes('assigned responsibility:');
 
   switch (popupType) {
     case 'ashray_notice_approved':
@@ -119,16 +122,29 @@ export default function RoleAcknowledgementHandler() {
       icon = <CheckCircle className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
     case 'bv_role_notice': {
-      title = 'Account Updates Notice';
-      description = 'Please review the latest update to your account permissions and responsibilities.';
-      icon = <Sparkles className="w-12 h-12 text-primary mx-auto animate-bounce" />;
+      title = responsibilityRemoved && responsibilityAssigned
+        ? 'Responsibilities Updated'
+        : responsibilityRemoved ? 'Responsibility Removed' : 'New Responsibility Assigned';
+      description = responsibilityRemoved && responsibilityAssigned
+        ? 'Your account responsibilities have been updated.'
+        : responsibilityRemoved
+        ? 'The following responsibility has been removed from your account.'
+        : 'The following responsibility has been added to your account.';
+      icon = responsibilityRemoved
+        ? <XCircle className="w-12 h-12 text-destructive mx-auto" />
+        : <Sparkles className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={(val) => { if (!val && !busy) handleAcknowledge(); }}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md text-center p-6 gap-4">
+      <DialogContent
+        showCloseButton={false}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+        className="sm:max-w-md text-center p-6 gap-4"
+      >
         <div className="pt-2">
           {icon}
         </div>
@@ -140,16 +156,21 @@ export default function RoleAcknowledgementHandler() {
         </DialogHeader>
 
         {popupType === 'bv_role_notice' && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-left my-1">
-            <p className="font-semibold text-amber-700 dark:text-amber-400">Role updated:</p>
-            <p className="mt-1">{(profile as any).pendingRoleNotice || 'Your account role has been updated.'}</p>
+          <div className={`border rounded-lg p-3 text-sm text-left my-1 ${responsibilityRemoved ? 'bg-destructive/10 border-destructive/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+            <p className={`font-semibold ${responsibilityRemoved ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'}`}>
+              {responsibilityRemoved && responsibilityAssigned
+                ? 'Responsibility changes:'
+                : responsibilityRemoved ? 'Removed responsibility:' : 'Assigned responsibility:'}
+            </p>
+            <p className="mt-1 whitespace-pre-line">{roleNoticeText.replace(/(removed|assigned) responsibility:\s*/gi, '') || 'Account responsibility updated.'}</p>
           </div>
         )}
 
         {popupType === 'bv_group_assignment_notice' && (
-          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm text-left my-1">
-            <p className="font-semibold text-primary">Reading Group:</p>
-            <p className="mt-1">{(profile as any).bvGroupName || 'Your assigned Reading Group'}</p>
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm text-left my-1 space-y-1">
+            <p><strong>Reading Group:</strong> {groupInfo?.groupName || (profile as any).bvGroupName || 'Your assigned Reading Group'}</p>
+            <p><strong>Facilitator (RGF):</strong> {groupInfo?.bvslName || 'Not assigned'}</p>
+            <p><strong>Sub-Facilitator (RGSF):</strong> {groupInfo?.rgsfName || 'None'}</p>
           </div>
         )}
 
@@ -163,7 +184,7 @@ export default function RoleAcknowledgementHandler() {
 
         <DialogFooter className="sm:justify-center w-full flex justify-center mt-2">
           <Button onClick={handleAcknowledge} disabled={busy} className="w-full sm:w-auto px-8">
-            {busy ? 'Saving...' : 'I Understand'}
+            {busy ? 'Saving...' : 'Got it'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -44,7 +44,7 @@ export default createEndpoint({
       isBvSupervisor: shouldTag,
       isBvMentor: shouldTag, // Backward compatibility
       role: shouldTag ? 'Guide' : 'User',
-      pendingRoleNotice: shouldTag ? 'BV Supervisor' : 'Regular Member',
+      pendingRoleNotice: shouldTag ? 'Assigned responsibility: BV Supervisor' : 'Removed responsibility: BV Supervisor',
       roleNoticeAcknowledged: false,
       // Hierarchy: which Admin does this Supervisor report to?
       bvReportingAdminId: shouldTag ? (input.adminId || '') : '',

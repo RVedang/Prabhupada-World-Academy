@@ -92,10 +92,10 @@ export default createEndpoint({
       return { userHistory: [], leaderboard: [], userTotalPointsThisWeek: 0 };
     }
 
-    const [attendanceResult, groupMembersResult] = await Promise.all([
+    const [attendanceByGroup, membersByGroup, attendanceByGroupId, membersByGroupId] = await Promise.all([
       BvAttendance.findAll({
         filters: { group: groupId },
-        fields: ['id', 'group', 'user', 'present', 'attendanceDate'],
+        fields: ['id', 'group', 'groupId', 'user', 'present', 'attendanceDate'],
         limit: 5000,
       }),
       BvGroupMembers.findAll({
@@ -103,7 +103,26 @@ export default createEndpoint({
         fields: ['id', 'user', 'userId'],
         limit: 1000,
       }),
+      BvAttendance.findAll({
+        filters: { groupId },
+        fields: ['id', 'group', 'groupId', 'user', 'present', 'attendanceDate'],
+        limit: 5000,
+      }).catch(() => ({ records: [], hasMore: false })),
+      BvGroupMembers.findAll({
+        filters: { groupId },
+        fields: ['id', 'user', 'userId'],
+        limit: 1000,
+      }).catch(() => ({ records: [], hasMore: false })),
     ]);
+
+    const attendanceResult = {
+      records: [...attendanceByGroup.records, ...attendanceByGroupId.records]
+        .filter((record: any, index: number, records: any[]) => records.findIndex(item => item.id === record.id) === index),
+    };
+    const groupMembersResult = {
+      records: [...membersByGroup.records, ...membersByGroupId.records]
+        .filter((member: any, index: number, members: any[]) => members.findIndex(item => item.id === member.id) === index),
+    };
 
     const allAtt = attendanceResult.records.filter((record: any) =>
       !!record.attendanceDate && String(record.attendanceDate) >= sinceDate
