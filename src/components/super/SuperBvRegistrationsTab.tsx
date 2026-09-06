@@ -8,42 +8,13 @@ import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Loader2, Users, CheckCircle2, Clock, Leaf, Phone, HeartHandshake, BookOpen, Calendar, Building } from 'lucide-react';
 import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, getAllBvGroupsAdmin, rejectBvRegistration, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
-
-const normalizeTimeSlot = (str: string) => {
-  if (!str) return '';
-  return str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-};
+import { getBvGroupAssignmentOptions, isBvGroupActive, isBvGroupTimeMatch } from '@/lib/bvGroupAssignment';
 
 const normalizeSegment = (value: unknown): 'PW' | 'FOLK' | undefined => {
   const normalized = String(value || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
   if (normalized === 'FOLK') return 'FOLK';
   if (normalized === 'PW' || normalized === 'PRABHUPADAWORLD') return 'PW';
   return undefined;
-};
-
-const isTimeSlotMatch = (pref: string, groupTime: string) => {
-  if (!pref || pref === 'flexible' || pref === 'none') return true;
-  if (!groupTime) return false;
-
-  const cleanPref = normalizeTimeSlot(pref);
-  const cleanGroup = normalizeTimeSlot(groupTime);
-
-  if (cleanGroup === cleanPref) return true;
-  if (cleanPref.includes(cleanGroup) || cleanGroup.includes(cleanPref)) return true;
-
-  const extractTimes = (s: string) => {
-    const match = s.match(/\d{1,4}[ap]m/gi);
-    return match ? match.map(m => m.toLowerCase()).join('') : s.replace(/everyday|weekdays|weekends|daily|days/gi, '');
-  };
-
-  const timesPref = extractTimes(cleanPref);
-  const timesGroup = extractTimes(cleanGroup);
-
-  if (timesPref && timesGroup) {
-    if (timesPref === timesGroup || timesPref.includes(timesGroup) || timesGroup.includes(timesPref)) return true;
-  }
-
-  return false;
 };
 
 export default function SuperBvRegistrationsTab({
@@ -76,34 +47,29 @@ export default function SuperBvRegistrationsTab({
   // confirms that the registration has left the pending queue.
   const resolvedRegistrationIdsRef = useRef<Set<string>>(new Set());
 
-  // Start with the applicant's time-matched group, but the explicit
-  // "Show all time slots" control must expose every active reading group.
+  // Start with the applicant's time-matched active group. The explicit
+  // "Show all groups" control exposes every department group, including
+  // inactive ones as disabled options so the list is complete without allowing
+  // an accidental assignment to a disabled reading group.
   // Some older Super Guide-created groups do not carry complete segment
   // metadata, so applying the segment filter after this explicit action can
   // incorrectly hide otherwise valid groups from the dropdown.
-  const activeGroups = allGroupsState.filter(g => g.isActive !== false);
-  const targetSegment = String(selectedReg?.segment || segment || '').toUpperCase();
-  // Guide-scoped group endpoints historically do not include a `segment`
-  // field.  Those groups are already scoped to this dashboard by the server,
-  // so an undefined segment must remain eligible instead of making the
-  // "show all" list appear empty.  When a segment is present, still honour it
-  // to avoid mixing PW and FOLK groups in a department-wide view.
-  const segmentGroups = targetSegment
-    ? activeGroups.filter(g => {
-        const groupSegment = String(g.segment || '').toUpperCase();
-        return !groupSegment || groupSegment === targetSegment;
-      })
-    : activeGroups;
-  const timeMatchedGroups = segmentGroups.filter(g =>
-    isTimeSlotMatch(selectedReg?.timePreference, g.meetingTime)
-  );
-  const filteredGroups = showAllGroups ? segmentGroups : timeMatchedGroups;
+  const assignmentOptions = {
+    segment: selectedReg?.segment || segment,
+    timePreference: selectedReg?.timePreference,
+    showAllGroups,
+  };
+  const timeMatchedGroups = getBvGroupAssignmentOptions(allGroupsState, {
+    ...assignmentOptions,
+    showAllGroups: false,
+  });
+  const filteredGroups = getBvGroupAssignmentOptions(allGroupsState, assignmentOptions);
 
   useEffect(() => {
     if (!selectedReg) return;
     // A matching group always wins the initial selection. If none match, the
     // first group in the visible list is selected once all slots are shown.
-    const preferredGroup = timeMatchedGroups[0] || filteredGroups[0];
+    const preferredGroup = timeMatchedGroups[0] || filteredGroups.find(isBvGroupActive);
     if (preferredGroup) {
       setTargetGroupId(preferredGroup.id || preferredGroup.groupId || '');
     } else {
@@ -379,7 +345,7 @@ export default function SuperBvRegistrationsTab({
                         onChange={(e) => setShowAllGroups(e.target.checked)}
                         className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
                       />
-                      <span>Show all time slots</span>
+                      <span>Show all groups</span>
                     </label>
                   )}
                 </div>
@@ -394,7 +360,7 @@ export default function SuperBvRegistrationsTab({
                       }}
                       className="text-xs text-primary font-semibold underline hover:opacity-90 block"
                     >
-                      Show all active groups anyway
+                      Show all groups anyway
                     </button>
                   </div>
                 ) : (
@@ -409,8 +375,8 @@ export default function SuperBvRegistrationsTab({
                       </SelectTrigger>
                       <SelectContent className="max-w-lg">
                         {filteredGroups.map(g => (
-                          <SelectItem key={g.id} value={g.id}>
-                            {g.groupName} {g.meetingTime ? `[${g.meetingTime}]` : ''} (Facilitator: {g.bvslName || g.bvslLeaderName || 'Unassigned'})
+                          <SelectItem key={g.id} value={g.id} disabled={!isBvGroupActive(g)}>
+                            {g.groupName} {g.meetingTime ? `[${g.meetingTime}]` : ''} (Facilitator: {g.bvslName || g.bvslLeaderName || 'Unassigned'}){!isBvGroupActive(g) ? ' — Inactive (activate before assigning)' : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>

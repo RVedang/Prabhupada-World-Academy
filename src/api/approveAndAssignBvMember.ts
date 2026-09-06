@@ -130,6 +130,12 @@ export default createEndpoint({
       ? await BvGroups.findOne({ id: input.groupId })
       : null;
     if (input.groupId && !group) throw new AppError({ code: 'NOT_FOUND', message: 'Selected Reading Group not found' });
+    if (group?.isActive === false) {
+      throw new AppError({
+        code: 'VALIDATION_ERROR',
+        message: 'This Reading Group is inactive. Activate it before assigning a member.',
+      });
+    }
 
     const now = new Date().toISOString();
 
