@@ -230,9 +230,9 @@ export default createEndpoint({
     const addedRoles = meaningfulActiveRoles.filter(role => !previousRoles.includes(role));
     const removedRoles = previousRoles.filter(role => !meaningfulActiveRoles.includes(role));
     updates.pendingRoleNotice = [
-      addedRoles.length > 0 ? `Assigned responsibility: ${addedRoles.join(', ')}` : '',
-      removedRoles.length > 0 ? `Removed responsibility: ${removedRoles.join(', ')}` : '',
-    ].filter(Boolean).join(' | ') || `Assigned responsibility: ${activeRoles.join(', ')}`;
+      addedRoles.length > 0 ? `Assigned role: ${addedRoles.join(', ')}` : '',
+      removedRoles.length > 0 ? `Removed role: ${removedRoles.join(', ')}` : '',
+    ].filter(Boolean).join(' | ') || `Assigned role: ${activeRoles.join(', ')}`;
     updates.roleNoticeAcknowledged = false;
 
     // Store appropriate hierarchy link & inherit parent's admin/supervisor

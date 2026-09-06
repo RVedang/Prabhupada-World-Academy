@@ -10,6 +10,10 @@ function getRecordUserKeys(record: any): string[] {
   const rawValues = [
     Array.isArray(record?.user) ? record.user[0] : record?.user,
     Array.isArray(record?.userId) ? record.userId[0] : record?.userId,
+    // Older membership documents use memberId instead of user/userId.
+    // Keep it in the canonical lookup set so card counts and detail rows
+    // resolve the same membership records.
+    Array.isArray(record?.memberId) ? record.memberId[0] : record?.memberId,
   ];
   return [...new Set(rawValues.filter(Boolean).map(String))];
 }
@@ -30,6 +34,11 @@ function addUserToMap(userMap: Record<string, any>, user: any) {
     user?.firebaseUid,
     user?.firebaseUserId,
     user?.firebaseAuthUid,
+    user?.authId,
+    user?.authUserId,
+    user?.firebaseId,
+    user?.firebaseAuthId,
+    user?.firebase_id,
   ].forEach(alias => {
     const key = normalizeKey(alias);
     if (key) userMap[key] = user;
@@ -42,8 +51,13 @@ async function findUsersForKeys(keys: string[]): Promise<any[]> {
     'id', 'userId', 'fullName', 'email', 'phone', 'ashrayLevel', 'status',
     'bvGroupId', 'bvGroupName', 'bvRegistrationStatus', 'isBvMember',
     'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid',
+    'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id',
   ];
-  const lookupFields = ['id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid'];
+  const lookupFields = [
+    'id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid',
+    'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId',
+    'firebaseId', 'firebaseAuthId', 'firebase_id',
+  ];
   const results = new Map<string, any>();
 
   for (let i = 0; i < uniqueKeys.length; i += 30) {
@@ -84,10 +98,11 @@ export default createEndpoint({
 
     const groupRefs = [...new Set([group.id, group.groupId].filter(Boolean))];
     const [membersRes, membersByGroupIdRes, sessionsRes, sessionsByGroupIdRes, allQuizzesRes] = await Promise.all([
-      BvGroupMembers.findAll({ filters: { group: group.id }, fields: ['id', 'user', 'userId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }),
-      group.groupId
-        ? BvGroupMembers.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'user', 'userId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }).catch(() => ({ records: [] }))
-        : Promise.resolve({ records: [] }),
+      // Memberships created across migrations may store either the database
+      // id or public groupId in either field. Query both aliases, matching
+      // the group-card counter, so its count and the detail list agree.
+      BvGroupMembers.findAll({ filters: { group: groupRefs.length > 1 ? { in: groupRefs } : group.id } as any, fields: ['id', 'user', 'userId', 'memberId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }),
+      BvGroupMembers.findAll({ filters: { groupId: groupRefs.length > 1 ? { in: groupRefs } : group.id } as any, fields: ['id', 'user', 'userId', 'memberId', 'role', 'joinedAt', 'group', 'groupId'], limit: 200 }).catch(() => ({ records: [] })),
       BvSessions.findAll({ filters: { group: groupRefs.length > 1 ? { in: groupRefs } : group.id } as any, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }),
       group.groupId
         ? BvSessions.findAll({ filters: { groupId: group.groupId } as any, fields: ['id', 'sessionId', 'sessionDate', 'topic', 'notes'], limit: 50 }).catch(() => ({ records: [] }))

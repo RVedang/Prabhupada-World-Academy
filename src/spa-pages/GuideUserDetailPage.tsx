@@ -127,14 +127,16 @@ export default function GuideUserDetailPage() {
   if (!data) {
     return (
       <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-        <Card>
-          <CardHeader>
-            <CardTitle>User Not Found</CardTitle>
-            <CardDescription className="text-sm text-muted-foreground">
+        <Card className="w-full max-w-md">
+          <CardHeader className="gap-3 px-6 pt-6 text-center sm:px-8 sm:pt-8">
+            <CardTitle className="text-xl font-semibold">User Not Found</CardTitle>
+            <CardDescription className="text-sm leading-6 text-muted-foreground">
               You may not have permission to view this profile, or the user no longer exists.
             </CardDescription>
           </CardHeader>
-          <CardContent><Button onClick={goBack}>Go Back</Button></CardContent>
+          <CardContent className="px-6 pb-6 sm:px-8 sm:pb-8">
+            <Button className="w-full sm:w-auto" onClick={goBack}>Go Back</Button>
+          </CardContent>
         </Card>
       </div>
     );

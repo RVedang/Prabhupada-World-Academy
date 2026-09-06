@@ -46,7 +46,7 @@ export default createEndpoint({
         isBvFacilitator: shouldTag,
         isBvsl: shouldTag, // Backward compatibility
         role: shouldTag ? 'BVSL' : 'User',
-        pendingRoleNotice: shouldTag ? 'Assigned responsibility: Reading Group Facilitator (RGF)' : 'Removed responsibility: Reading Group Facilitator (RGF)',
+        pendingRoleNotice: shouldTag ? 'Assigned role: Reading Group Facilitator (RGF)' : 'Removed role: Reading Group Facilitator (RGF)',
         roleNoticeAcknowledged: false,
         // Hierarchy: which Supervisor does this RGF report to?
         bvReportingSupervisorId: shouldTag ? (input.supervisorId || '') : '',

@@ -92,8 +92,10 @@ export default function RoleAcknowledgementHandler() {
   let description = '';
   let icon = null;
   const roleNoticeText = String((profile as any).pendingRoleNotice || '');
-  const responsibilityRemoved = roleNoticeText.toLowerCase().includes('removed responsibility:');
-  const responsibilityAssigned = roleNoticeText.toLowerCase().includes('assigned responsibility:');
+  // Accept the older "responsibility" notices too, so pending notices saved
+  // before this wording change continue to display correctly.
+  const roleRemoved = /removed (?:role|responsibility):/i.test(roleNoticeText);
+  const roleAssigned = /assigned (?:role|responsibility):/i.test(roleNoticeText);
 
   switch (popupType) {
     case 'ashray_notice_approved':
@@ -122,15 +124,15 @@ export default function RoleAcknowledgementHandler() {
       icon = <CheckCircle className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
     case 'bv_role_notice': {
-      title = responsibilityRemoved && responsibilityAssigned
-        ? 'Responsibilities Updated'
-        : responsibilityRemoved ? 'Responsibility Removed' : 'New Responsibility Assigned';
-      description = responsibilityRemoved && responsibilityAssigned
-        ? 'Your account responsibilities have been updated.'
-        : responsibilityRemoved
-        ? 'The following responsibility has been removed from your account.'
-        : 'The following responsibility has been added to your account.';
-      icon = responsibilityRemoved
+      title = roleRemoved && roleAssigned
+        ? 'Roles Updated'
+        : roleRemoved ? 'Role Removed' : 'New Role Assigned';
+      description = roleRemoved && roleAssigned
+        ? 'Your account roles have been updated.'
+        : roleRemoved
+        ? 'The following role has been removed from your account.'
+        : 'The following role has been added to your account.';
+      icon = roleRemoved
         ? <XCircle className="w-12 h-12 text-destructive mx-auto" />
         : <Sparkles className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
@@ -148,7 +150,7 @@ export default function RoleAcknowledgementHandler() {
         <div className="pt-2">
           {icon}
         </div>
-        <DialogHeader className="text-center">
+        <DialogHeader className="items-center text-center">
           <DialogTitle className="text-xl font-bold text-foreground text-center w-full">{title}</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground mt-1">
             {description}
@@ -156,13 +158,13 @@ export default function RoleAcknowledgementHandler() {
         </DialogHeader>
 
         {popupType === 'bv_role_notice' && (
-          <div className={`border rounded-lg p-3 text-sm text-left my-1 ${responsibilityRemoved ? 'bg-destructive/10 border-destructive/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-            <p className={`font-semibold ${responsibilityRemoved ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'}`}>
-              {responsibilityRemoved && responsibilityAssigned
-                ? 'Responsibility changes:'
-                : responsibilityRemoved ? 'Removed responsibility:' : 'Assigned responsibility:'}
+          <div className={`border rounded-lg p-3 text-center text-sm my-1 ${roleRemoved ? 'bg-destructive/10 border-destructive/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+            <p className={`font-semibold ${roleRemoved ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'}`}>
+              {roleRemoved && roleAssigned
+                ? 'Role changes:'
+                : roleRemoved ? 'Removed role:' : 'Assigned role:'}
             </p>
-            <p className="mt-1 whitespace-pre-line">{roleNoticeText.replace(/(removed|assigned) responsibility:\s*/gi, '') || 'Account responsibility updated.'}</p>
+            <p className="mt-1 whitespace-pre-line">{roleNoticeText.replace(/(removed|assigned) (?:role|responsibility):\s*/gi, '') || 'Account role updated.'}</p>
           </div>
         )}
 

@@ -547,3 +547,42 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
     for (const user of users) await Users.delete({ id: user.id });
   }
 });
+
+test('BV group detail resolves a legacy memberId membership', async () => {
+  const group = {
+    id: 'BV-GROUP-DETAIL-LEGACY-DOC',
+    groupId: 'BV-GROUP-DETAIL-LEGACY',
+    groupName: 'Legacy Detail Group',
+    isActive: true,
+  };
+  const member = {
+    id: 'BV-GROUP-DETAIL-LEGACY-USER-DOC',
+    userId: 'BV-GROUP-DETAIL-LEGACY-USER',
+    email: 'bv-group-detail-legacy@example.invalid',
+    fullName: 'Legacy Detail Member',
+    status: 'Active',
+    role: 'User',
+  };
+  const membershipId = 'BV-GROUP-DETAIL-LEGACY-MEMBERSHIP';
+
+  try {
+    await Users.create({ record: member });
+    await BvGroups.create({ record: group });
+    await BvGroupMembers.create({
+      record: { id: membershipId, group: group.groupId, memberId: member.email, role: 'Member' },
+    });
+
+    const detail = await getBvGroupDetail.execute({
+      input: { groupId: group.groupId },
+      context: { user: member },
+    } as never);
+
+    assert.equal(detail.members.length, 1);
+    assert.equal(detail.members[0].fullName, member.fullName);
+    assert.equal(detail.members[0].userId, member.userId);
+  } finally {
+    await BvGroupMembers.delete({ id: membershipId }).catch(() => undefined);
+    await BvGroups.delete({ id: group.id }).catch(() => undefined);
+    await Users.delete({ id: member.id }).catch(() => undefined);
+  }
+});
