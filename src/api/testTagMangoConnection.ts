@@ -1,17 +1,14 @@
 import { z } from 'zod';
-import { createEndpoint, AppError } from '@/lib/backend-sdk';
+import { createEndpoint } from '@/lib/backend-sdk';
 import { resolveApiKey, resolveApiUrl } from '../lib/tagMangoEnroll';
 
 export default createEndpoint({
   description: 'Test TagMango API connection using the actual migrate-user endpoint',
   authenticated: true,
+  requiredCapabilities: 'integrations.manage',
   inputSchema: z.object({}),
   outputSchema: z.object({ success: z.boolean(), message: z.string() }),
-  execute: async ({ context }) => {
-    if (context.user.role !== 'Super Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
-    }
-
+  execute: async () => {
     const apiKey = await resolveApiKey();
     if (!apiKey) {
       return { success: false, message: 'No API key configured' };

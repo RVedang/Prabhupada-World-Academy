@@ -1,20 +1,17 @@
 import { z } from 'zod';
-import { createEndpoint, Config, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Config } from '@/lib/backend-sdk';
 
 export default createEndpoint({
-  description: 'Save TagMango configuration (Super Guide only)',
+  description: 'Save TagMango configuration for authorized department administrators',
   authenticated: true,
+  requiredCapabilities: 'integrations.manage',
   inputSchema: z.object({
     apiKey: z.string().optional(),
     apiUrl: z.string().optional(),
     courseConfig: z.record(z.string(), z.record(z.string(), z.string())).optional(),
   }),
   outputSchema: z.object({ success: z.boolean() }),
-  execute: async ({ input, context }) => {
-    if (context.user.role !== 'Super Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
-    }
-
+  execute: async ({ input }) => {
     const now = new Date().toISOString();
     const records: { configKey: string; configValue: string; updatedAt: string }[] = [];
 

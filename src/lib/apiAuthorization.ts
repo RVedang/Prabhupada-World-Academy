@@ -13,7 +13,8 @@ export type ApiCapability =
   | 'services.manage'
   | 'cleanliness.manage'
   | 'meetings.manage'
-  | 'notifications.send';
+  | 'notifications.send'
+  | 'integrations.manage';
 
 export interface VerifiedApiIdentity {
   uid: string;
@@ -118,6 +119,7 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
       'cleanliness.manage',
       'meetings.manage',
       'notifications.send',
+      'integrations.manage',
     ]);
   }
 
@@ -136,6 +138,7 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
       'cleanliness.manage',
       'meetings.manage',
       'notifications.send',
+      'integrations.manage',
     ]);
   }
 
@@ -154,7 +157,7 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
   }
 
   if (dbUser.isBvAdmin === true) {
-    addCapabilities(capabilities, ['bv.manage', 'bv.roles.assign']);
+    addCapabilities(capabilities, ['bv.manage', 'bv.roles.assign', 'attendance.manage', 'integrations.manage']);
   }
   if (dbUser.isBvSupervisor === true || dbUser.isBvMentor === true) {
     addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage', 'meetings.manage']);

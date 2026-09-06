@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { createEndpoint, TagMangoSyncLog, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, TagMangoSyncLog } from '@/lib/backend-sdk';
 
 export default createEndpoint({
-  description: 'Get TagMango sync log entries with stats (Super Guide only)',
+  description: 'Get TagMango sync log entries with stats for authorized department administrators',
   authenticated: true,
+  requiredCapabilities: 'integrations.manage',
   inputSchema: z.object({
     limit: z.number().optional(),
     offset: z.number().optional(),
@@ -34,11 +35,7 @@ export default createEndpoint({
       errors: z.number(),
     }),
   }),
-  execute: async ({ input, context }) => {
-    if (context.user.role !== 'Super Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
-    }
-
+  execute: async ({ input }) => {
     const limit = input.limit || 50;
     const offset = input.offset || 0;
 

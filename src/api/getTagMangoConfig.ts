@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { createEndpoint, Config, FolkResidencies, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Config, FolkResidencies } from '@/lib/backend-sdk';
 
 export default createEndpoint({
-  description: 'Get TagMango configuration (Super Guide only)',
+  description: 'Get TagMango configuration for authorized department administrators',
   authenticated: true,
+  requiredCapabilities: 'integrations.manage',
   inputSchema: z.object({}),
   outputSchema: z.object({
     apiKey: z.string(),
@@ -12,11 +13,7 @@ export default createEndpoint({
     residencies: z.array(z.object({ id: z.string(), name: z.string() })),
     envKeyConfigured: z.boolean(),
   }),
-  execute: async ({ context }) => {
-    if (context.user.role !== 'Super Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
-    }
-
+  execute: async () => {
     const [configResult, residencyResult] = await Promise.all([
       Config.findAll({ filters: { configKey: { in: ['tagmango_api_key', 'tagmango_api_url', 'course_config'] } }, limit: 50 }),
       FolkResidencies.findAll({ filters: { isActive: true }, limit: 200, fields: ['residencyName'] }),

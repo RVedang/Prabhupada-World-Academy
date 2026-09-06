@@ -5,6 +5,7 @@ import { enrollUserOnTagMango, resolveApiKey } from '../lib/tagMangoEnroll';
 export default createEndpoint({
   description: 'Bulk enroll eligible active users on TagMango who are not yet enrolled',
   authenticated: true,
+  requiredCapabilities: 'integrations.manage',
   inputSchema: z.object({
     dryRun: z.boolean().optional(),
   }),
@@ -15,11 +16,7 @@ export default createEndpoint({
     skipped: z.number(),
     errors: z.array(z.object({ name: z.string(), error: z.string() })),
   }),
-  execute: async ({ input, context }) => {
-    if (context.user.role !== 'Super Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Super Guide access required' });
-    }
-
+  execute: async ({ input }) => {
     const apiKey = await resolveApiKey();
     if (!apiKey) throw new AppError({ code: 'BAD_REQUEST', message: 'TagMango API key not configured' });
 

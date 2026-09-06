@@ -20,6 +20,7 @@ const rowSchema = z.object({
 export default createEndpoint({
   description: 'Process a TagMango registration CSV (parsed rows from frontend)',
   authenticated: true,
+  requiredCapabilities: 'attendance.manage',
   inputSchema: z.object({
     fileName: z.string(),
     rows: z.array(rowSchema),
@@ -30,12 +31,7 @@ export default createEndpoint({
     updated: z.number(),
     skipped: z.number(),
   }),
-  execute: async ({ input, context }) => {
-    const role = context.user.role;
-    if (role !== 'Super Guide' && role !== 'Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can upload registrations' });
-    }
-
+  execute: async ({ input }) => {
     // Check if already processed
     const existing = await JigyasaProcessedFiles.findOne({ filters: { fileName: input.fileName, fileType: 'Registration' } });
     if (existing) throw new AppError({ code: 'CONFLICT', message: 'This registration file has already been processed' });

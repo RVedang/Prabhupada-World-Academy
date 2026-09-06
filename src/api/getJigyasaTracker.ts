@@ -5,6 +5,7 @@ import { mangoToCentre } from '../lib/mangoToCentre';
 export default createEndpoint({
   description: 'Get Jigyasa attendance tracker data with filters',
   authenticated: true,
+  requiredCapabilities: 'attendance.manage',
   inputSchema: z.object({
     centre: z.string().optional(),
     affiliate: z.string().optional(),

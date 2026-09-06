@@ -11,6 +11,7 @@ const rowSchema = z.object({
 export default createEndpoint({
   description: 'Process a Jigyasa attendance CSV (parsed rows from frontend)',
   authenticated: true,
+  requiredCapabilities: 'attendance.manage',
   inputSchema: z.object({
     fileName: z.string(),
     sessionDate: z.string(),
@@ -21,12 +22,7 @@ export default createEndpoint({
     attendeesProcessed: z.number(),
     newRegistrations: z.number(),
   }),
-  execute: async ({ input, context }) => {
-    const role = context.user.role;
-    if (role !== 'Super Guide' && role !== 'Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can upload attendance' });
-    }
-
+  execute: async ({ input }) => {
     // Check if already processed
     const existing = await JigyasaProcessedFiles.findOne({
       filters: { fileName: input.fileName, fileType: 'Attendance' },
