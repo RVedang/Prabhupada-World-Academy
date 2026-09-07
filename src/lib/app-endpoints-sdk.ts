@@ -2167,6 +2167,7 @@ const createSdkInvoker = (endpointName: string): any => {
 export const getPendingBvRegistrations = createSdkInvoker('getPendingBvRegistrations');
 export const approveAndAssignBvMember = createSdkInvoker('approveAndAssignBvMember');
 export const assignBvRole = createSdkInvoker('assignBvRole');
+export const transferBvGroupMember = createSdkInvoker('transferBvGroupMember');
 export const getBvSupervisorOverview = createSdkInvoker('getBvSupervisorOverview');
 export const registerBvMember = createSdkInvoker('registerBvMember');
 export const tagUserAsBvAdmin = createSdkInvoker('tagUserAsBvAdmin');
