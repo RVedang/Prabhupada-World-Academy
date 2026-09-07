@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -352,6 +352,7 @@ export default function BvGroupDetailPage() {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const isDeletingRef = useRef(false);
 
   const dateRange = useMemo(() => {
     if (weekFilter === 'custom' && customStart && customEnd) {
@@ -381,7 +382,7 @@ export default function BvGroupDetailPage() {
     })
       .then(data => { if (!cancelled) setMatrix(data); })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !isDeletingRef.current) {
           setMatrixError('Unable to load attendance for this date range.');
           toast.error('Unable to refresh the attendance matrix');
         }
@@ -391,21 +392,21 @@ export default function BvGroupDetailPage() {
   }, [groupId, dateRange]);
 
   const load = async (silent = false) => {
-    if (!groupId) return;
+    if (!groupId || isDeletingRef.current) return;
     if (!silent) setLoading(true);
     try {
       const detailRes = await getBvGroupDetail({ groupId });
       setDetail(detailRes);
     } catch {
-      toast.error('Failed to load group details');
+      if (!isDeletingRef.current) toast.error('Failed to load group details');
     } finally {
       if (!silent) setLoading(false);
     }
   };
   useRealtimeRefresh(
     profile?.segment === 'FOLK' ? ['groups', 'users', 'attendance', 'quizzes'] : ['groups', 'users', 'attendance'],
-    () => load(true),
-    Boolean(groupId),
+    () => { if (!isDeletingRef.current) return load(true); },
+    Boolean(groupId) && !deleting,
   );
 
   const overallRate = useMemo(() => {
@@ -451,14 +452,16 @@ export default function BvGroupDetailPage() {
     !!profile?.isBvAdmin || !!profile?.isBvSuperAdmin;
 
   const handleDeleteGroup = async () => {
-    if (!groupId) return;
+    if (!groupId || isDeletingRef.current) return;
+    isDeletingRef.current = true;
     setDeleting(true);
     try {
       const result = await deleteBvGroup({ groupId });
-      toast.success(`Group deleted. ${result.membersUnassigned} member${result.membersUnassigned === 1 ? '' : 's'} unassigned.`);
+      toast.success(`Group deleted. ${result.membersUnassigned} member${result.membersUnassigned === 1 ? '' : 's'} unassigned.`, { id: 'bv-group-deleted' });
       navigate(-1);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to delete group.');
+      isDeletingRef.current = false;
       setDeleting(false);
     }
   };

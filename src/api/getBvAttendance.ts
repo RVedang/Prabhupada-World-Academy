@@ -73,7 +73,13 @@ export default createEndpoint({
       Users.findOne({ id: lookupId, fields: USER_FIELDS }).catch(() => null),
       Users.findOne({ filters: { userId: lookupId }, fields: USER_FIELDS }).catch(() => null),
     ]);
-    const requestedUser = byId || byUserId;
+    let requestedUser = byId || byUserId;
+    if (!requestedUser) {
+      const matches = await Promise.all(USER_IDENTITY_FIELDS
+        .filter(field => !['id', 'userId'].includes(field))
+        .map(field => Users.findOne({ filters: { [field]: lookupId }, fields: USER_FIELDS }).catch(() => null)));
+      requestedUser = matches.find(Boolean) || null;
+    }
     // When a guide opens a member's profile, only the target member's aliases
     // belong in this lookup. Mixing in the guide's aliases can accidentally
     // select the guide's group and hide the member's attendance.
@@ -222,6 +228,21 @@ export default createEndpoint({
         aliases,
       };
       for (const alias of aliases) infoByAlias.set(alias.toLowerCase(), info);
+    }
+
+    // Facilitator records can reference a membership document instead of a
+    // Users document. Resolve those references before aggregating attendance,
+    // so they count for the member rather than creating a separate person.
+    for (const member of [membership, ...groupMembersResult.records]) {
+      const aliases = referenceValues([member.user, member.userId, member.memberId]);
+      const info = aliases.map(alias => infoByAlias.get(alias.toLowerCase())).find(Boolean)
+        || (member.id === membership.id
+          ? lookupAliases.map(alias => infoByAlias.get(alias.toLowerCase())).find(Boolean)
+          : undefined);
+      if (!info) continue;
+      for (const alias of referenceValues([member.id, ...aliases])) {
+        if (!infoByAlias.has(alias.toLowerCase())) infoByAlias.set(alias.toLowerCase(), info);
+      }
     }
 
     const currentAliasSet = new Set(attendanceIdentityAliases.map(alias => alias.toLowerCase()));
