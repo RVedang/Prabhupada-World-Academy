@@ -28,7 +28,7 @@ export default function BvSadhanaGroupRow({ group, targetDate }: Props) {
     if (!group.bvslPhone) { alert('No phone number for this RGF'); return; }
     const dateLabel = format(new Date(targetDate + 'T00:00:00'), 'd MMM yyyy');
     const pendingNames = pendingMembers.map(m => m.fullName).join(', ');
-    const msg = `🙏 Hare Krishna ${group.bvslName} Prabhuji!\n\nSadhana update for your group *"${group.groupName}"* (${dateLabel}):\n✅ Filled: ${group.filledCount}/${group.memberCount} members\n❌ Pending: ${pendingNames || 'None'}\n\nPlease ensure all members fill their sadhana form today.\n\nHare Krishna! 🙏`;
+    const msg = `🙏 Hare Krishna, ${group.bvslName}!\n\nSadhana update for your group *"${group.groupName}"* (${dateLabel}):\n✅ Filled: ${group.filledCount}/${group.memberCount} members\n❌ Pending: ${pendingNames || 'None'}\n\nPlease ensure all members fill their sadhana form today.\n\nHare Krishna! 🙏`;
     const phone = group.bvslPhone.replace(/\D/g, '');
     const dialCode = phone.startsWith('91') ? phone : `91${phone}`;
     window.open(`https://wa.me/${dialCode}?text=${encodeURIComponent(msg)}`, '_blank');

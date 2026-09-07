@@ -74,7 +74,7 @@ export default function RgfDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna, ${profile.fullName} Prabhu`}
+      title={`Hare Krishna, ${profile.fullName}!`}
       subtitle={subtitle}
       role="RGF"
       maxWidth="max-w-6xl"

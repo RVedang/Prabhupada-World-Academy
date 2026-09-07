@@ -105,7 +105,7 @@ export default function BvSupervisorDashboard() {
     <DashboardLayout
       title={`${isFolk ? 'FOLK' : 'Prabhupada World'} Bhakti Vriksha Supervisor Dashboard`}
       subtitle={[
-        `Hare Krishna ${profile?.fullName || 'Supervisor'}!`,
+        `Hare Krishna, ${profile?.fullName || 'Supervisor'}!`,
         (profile as any)?.bvReportingAdminName
           ? `${isFolk ? 'Guide' : 'Admin'}: ${(profile as any).bvReportingAdminName}`
           : null,

@@ -154,7 +154,7 @@ export default function PwUserDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile.fullName}!`}
+      title={`Hare Krishna, ${profile.fullName}!`}
       subtitle={subtitle}
     >
       <PushNotificationBanner />

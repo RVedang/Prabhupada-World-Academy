@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Loader2, Leaf, HeartHandshake, BookOpen, Clock, Building2 } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Leaf, HeartHandshake, BookOpen, Clock, Building2 } from 'lucide-react';
 import { registerBvMember } from '@/lib/app-endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { BULK_USER_ASHRAY_LEVELS, BULK_USER_TIME_PREFERENCES } from '@/config/bulkUserCsv';
@@ -84,7 +84,8 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
   const [weeklyHearingHours, setWeeklyHearingHours] = useState('');
 
   const [ashrayLevel, setAshrayLevel] = useState(profile?.ashrayLevel || 'None');
-  const [pwClassesAttending, setPwClassesAttending] = useState<string>('None');
+  const [pwClassesAttending, setPwClassesAttending] = useState<string[]>(['None']);
+  const [classesOpen, setClassesOpen] = useState(false);
 
   const [inTouchWithTemple, setInTouchWithTemple] = useState(false);
   const [templeName, setTempleName] = useState('');
@@ -117,6 +118,34 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
     setDob(val);
   };
 
+  const isAtLeastFourteen = (value: string) => {
+    const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+    if (!match) return false;
+
+    const [, day, month, year] = match;
+    const birthDate = new Date(Number(year), Number(month) - 1, Number(day));
+    if (
+      birthDate.getFullYear() !== Number(year) ||
+      birthDate.getMonth() !== Number(month) - 1 ||
+      birthDate.getDate() !== Number(day)
+    ) return false;
+
+    const latestAllowedBirthDate = new Date();
+    latestAllowedBirthDate.setHours(0, 0, 0, 0);
+    latestAllowedBirthDate.setFullYear(latestAllowedBirthDate.getFullYear() - 14);
+    return birthDate <= latestAllowedBirthDate;
+  };
+
+  const togglePwClass = (value: string) => {
+    setPwClassesAttending(current => {
+      if (value === 'None') return ['None'];
+      const next = current.filter(item => item !== 'None');
+      return next.includes(value)
+        ? next.filter(item => item !== value)
+        : [...next, value];
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) { toast.error('Please enter your full name'); return; }
@@ -130,7 +159,10 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
       toast.error('WhatsApp number must be exactly 10 digits');
       return;
     }
-    if (!dob || dob.length !== 10) { toast.error('Please enter a valid Date of Birth (DD/MM/YYYY)'); return; }
+    if (!isAtLeastFourteen(dob)) {
+      toast.error('Please enter a valid Date of Birth. Participants must be at least 14 years old.');
+      return;
+    }
     if (!occupation.trim() || /\d/.test(occupation)) {
       toast.error('Occupation must contain letters only (no numbers allowed)');
       return;
@@ -181,7 +213,7 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
         weeklyReadingHours: `${readingMins} mins`,
         weeklyHearingHours: `${hearingMins} mins`,
         ashrayLevel,
-        pwClassesAttending,
+        pwClassesAttending: pwClassesAttending.length ? pwClassesAttending.join(', ') : 'None',
         inTouchWithTemple,
         templeName: inTouchWithTemple ? templeName.trim() : '',
         devoteeName: inTouchWithTemple ? devoteeName.trim() : '',
@@ -411,17 +443,41 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
 
               {activeSegment !== 'FOLK' && (
                 <div className="space-y-1.5">
-                  <Label>Prabhupada World Classes Attending *</Label>
-                  <Select value={pwClassesAttending} onValueChange={(val: any) => val && setPwClassesAttending(val)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60 overflow-y-auto min-w-[280px]">
-                      {PW_CLASSES.map(c => (
-                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label id="pw-classes-label">Prabhupada World Classes Attending *</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between font-normal"
+                    aria-labelledby="pw-classes-label"
+                    aria-expanded={classesOpen}
+                    onClick={() => setClassesOpen(open => !open)}
+                  >
+                    <span className="truncate">{pwClassesAttending.map(value => PW_CLASSES.find(c => c.value === value)?.label || value).join(', ') || 'Select classes'}</span>
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
+                  </Button>
+                  {classesOpen && (
+                    <div className="space-y-1 rounded-md border bg-popover p-1" role="group" aria-labelledby="pw-classes-label">
+                      {PW_CLASSES.map(c => {
+                        const selected = pwClassesAttending.includes(c.value);
+                        return (
+                          <Button
+                            key={c.value}
+                            type="button"
+                            variant="ghost"
+                            className="w-full justify-start gap-2 px-2 font-normal"
+                            aria-pressed={selected}
+                            onClick={() => togglePwClass(c.value)}
+                          >
+                            <span className={`flex h-4 w-4 items-center justify-center rounded border ${selected ? 'border-primary bg-primary text-primary-foreground' : 'border-input'}`}>
+                              {selected && <Check className="h-3 w-3" />}
+                            </span>
+                            {c.label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">Select all classes that apply. Choosing “None” clears other selections.</p>
                 </div>
               )}
             </div>
@@ -498,5 +554,4 @@ export default function BvRegistrationModal({ open, onOpenChange, onSuccess, seg
     </Dialog>
   );
 }
-
 

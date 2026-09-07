@@ -87,7 +87,7 @@ export default function BvslDashboard() {
   const headerName = isSuperAdmin ? defaultName : (displayName || defaultName);
   const roleTitle = isSubFacilitatorOnly ? 'Reading Group Sub-Facilitator Dashboard' : 'Reading Group Facilitator Dashboard';
   const subtitle = [
-    `Hare Krishna ${headerName} Prabhu`,
+    `Hare Krishna, ${headerName}!`,
     isSubFacilitatorOnly ? 'Sub-Facilitator (RGSF)' : 'Facilitator (RGF)',
     profile.ashrayLevel ? `Ashray: ${profile.ashrayLevel}` : null,
     profile.guideName ? `Guide: ${profile.guideName}` : null,

@@ -91,6 +91,7 @@ export default function RoleAcknowledgementHandler() {
   let title = '';
   let description = '';
   let icon = null;
+  const greeting = `Hare Krishna, ${profile.fullName || 'Devotee'}!`;
   const roleNoticeText = String((profile as any).pendingRoleNotice || '');
   // Accept the older "responsibility" notices too, so pending notices saved
   // before this wording change continue to display correctly.
@@ -100,27 +101,27 @@ export default function RoleAcknowledgementHandler() {
   switch (popupType) {
     case 'ashray_notice_approved':
       title = 'Ashraya Level Request Approved! 🎉';
-      description = `Hare Krishna, Prabhu! Your Ashraya level request for "${profile.pendingAshrayNoticeLevel || 'Ashraya'}" has been approved!`;
+      description = `${greeting} Your Ashraya level request for "${profile.pendingAshrayNoticeLevel || 'Ashraya'}" has been approved!`;
       icon = <CheckCircle className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
     case 'ashray_notice_rejected':
       title = 'Ashraya Level Request Update';
-      description = `Hare Krishna, Prabhu! Your Ashraya level request for "${profile.pendingAshrayNoticeLevel || 'Ashraya'}" was not approved at this time. Please contact your guide for more guidance.`;
+      description = `${greeting} Your Ashraya level request for "${profile.pendingAshrayNoticeLevel || 'Ashraya'}" was not approved at this time. Please contact your guide for more guidance.`;
       icon = <XCircle className="w-12 h-12 text-destructive mx-auto" />;
       break;
     case 'bv_approval_notice':
       title = 'Bhakti Vriksha Registration Approved! 🎉';
-      description = 'Hare Krishna, Prabhu! Your registration to join Bhakti Vriksha has been approved. Welcome to your Reading Group!';
+      description = `${greeting} Your registration to join Bhakti Vriksha has been approved. Welcome to your Reading Group!`;
       icon = <Sparkles className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
     case 'bv_rejection_notice':
       title = 'Bhakti Vriksha Registration Update';
-      description = 'Hare Krishna, Prabhu! Unfortunately, your recent registration for a Bhakti Vriksha reading group was not approved at this time. Please contact your guide for more information.';
+      description = `${greeting} Unfortunately, your recent registration for a Bhakti Vriksha reading group was not approved at this time. Please contact your guide for more information.`;
       icon = <XCircle className="w-12 h-12 text-destructive mx-auto" />;
       break;
     case 'bv_group_assignment_notice':
       title = 'Added to a Bhakti Vriksha Reading Group!';
-      description = 'Hare Krishna, Prabhu! You have been added to the following Reading Group.';
+      description = `${greeting} You have been added to the following Reading Group.`;
       icon = <CheckCircle className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
     case 'bv_role_notice': {

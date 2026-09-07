@@ -75,7 +75,7 @@ export default function BvMentorDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile?.fullName || mentorName || 'Mentor'}!`}
+      title={`Hare Krishna, ${profile?.fullName || mentorName || 'Mentor'}!`}
       subtitle="BV Supervisor / Mentor"
       role="BV_MENTOR"
       maxWidth="max-w-7xl"

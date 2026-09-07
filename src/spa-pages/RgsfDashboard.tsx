@@ -73,7 +73,7 @@ export default function RgsfDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile.fullName}!`}
+      title={`Hare Krishna, ${profile.fullName}!`}
       subtitle={subtitle}
       role="RGSF"
       maxWidth="max-w-6xl"

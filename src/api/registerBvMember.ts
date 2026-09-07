@@ -3,6 +3,24 @@ import { createEndpoint, Users, BvMemberRegistrations, AppError } from '@/lib/ba
 import { serverCacheInvalidate } from '../lib/serverCache';
 import { profileCacheKey } from './getUserProfile';
 
+function isAtLeastFourteen(value: string): boolean {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return false;
+
+  const [, day, month, year] = match;
+  const birthDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (
+    birthDate.getUTCFullYear() !== Number(year) ||
+    birthDate.getUTCMonth() !== Number(month) - 1 ||
+    birthDate.getUTCDate() !== Number(day)
+  ) return false;
+
+  const latestAllowedBirthDate = new Date();
+  latestAllowedBirthDate.setUTCHours(0, 0, 0, 0);
+  latestAllowedBirthDate.setUTCFullYear(latestAllowedBirthDate.getUTCFullYear() - 14);
+  return birthDate <= latestAllowedBirthDate;
+}
+
 export default createEndpoint({
   description: 'Register user for Bhakti Vriksha Reading Group — submits detailed profile, spiritual habits & preferences for Admin approval',
   authenticated: true,
@@ -15,7 +33,7 @@ export default createEndpoint({
     address: z.string().max(500).optional(),
     occupation: z.string().max(200).optional(),
     companyName: z.string().max(200).optional(),
-    dob: z.string().max(20).optional(),
+    dob: z.string().min(10).max(20),
     gender: z.enum(['Male', 'Female', 'Other']).optional(),
     dailyChantingRounds: z.union([z.string(), z.number()]).optional(),
     weeklyReadingHours: z.string().max(100).optional(),
@@ -34,6 +52,10 @@ export default createEndpoint({
     status: z.string(),
   }),
   execute: async ({ input, context }: any) => {
+    if (!isAtLeastFourteen(input.dob)) {
+      throw new AppError({ code: 'BAD_REQUEST', message: 'Participants must be at least 14 years old.' });
+    }
+
     const userId = context.user.id;
     const userEmail = (context.user.email || '').toLowerCase();
     const phoneE164 = `${input.phoneCountryCode}${input.phone.replace(/\D/g, '')}`;

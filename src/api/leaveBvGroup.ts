@@ -8,8 +8,8 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     const uid = context.user!.id;
-    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId'] }).catch(() => null);
-    const memberIdentities = new Set([uid, userRecord?.id, userRecord?.userId].filter(Boolean).map(String));
+    const userRecord = await Users.findOne({ id: uid, fields: ['id', 'userId', 'email'] }).catch(() => null);
+    const memberIdentities = new Set([uid, userRecord?.id, userRecord?.userId, userRecord?.email].filter(Boolean).map(value => String(value).toLowerCase()));
     // The UI exposes a group's public groupId, whereas membership documents
     // reference its database document ID. Resolve either form before cleanup.
     const groupRecord = await BvGroups.findOne({
@@ -20,16 +20,27 @@ export default createEndpoint({
       fields: ['id', 'groupId', 'groupName', 'bvslId', 'guide'],
     }).catch(() => null);
     const groupDocumentId = groupRecord?.id || input.groupId;
+    const groupReferences = [...new Set([groupDocumentId, groupRecord?.groupId, input.groupId].filter(Boolean))];
 
     // Remove every matching legacy/current membership row in this group. This
     // prevents a leftover custom userId row from keeping Attendance visible.
-    const { records: groupMembers } = await BvGroupMembers.findAll({
-      filters: { group: groupDocumentId },
-      limit: 1000,
-      fields: ['id', 'user', 'userId'],
-    });
+    const [membersByGroup, membersByGroupId] = await Promise.all([
+      BvGroupMembers.findAll({
+        filters: { group: groupReferences.length > 1 ? { in: groupReferences } : groupDocumentId } as any,
+        limit: 1000,
+        fields: ['id', 'user', 'userId', 'memberId'],
+      }),
+      BvGroupMembers.findAll({
+        filters: { groupId: groupReferences.length > 1 ? { in: groupReferences } : groupDocumentId } as any,
+        limit: 1000,
+        fields: ['id', 'user', 'userId', 'memberId'],
+      }).catch(() => ({ records: [] })),
+    ]);
+    const groupMembers = [...new Map([...membersByGroup.records, ...membersByGroupId.records]
+      .map(member => [String(member.id), member])).values()];
+    const firstValue = (value: unknown) => String(Array.isArray(value) ? value[0] || '' : value || '').toLowerCase();
     await Promise.all(groupMembers
-      .filter(member => memberIdentities.has(String(member.user || '')) || memberIdentities.has(String(member.userId || '')))
+      .filter(member => [member.user, member.userId, member.memberId].some(value => memberIdentities.has(firstValue(value))))
       .map(member => BvGroupMembers.delete({ id: member.id })));
 
     // Clear the authenticated profile and any resolved email-fallback profile.

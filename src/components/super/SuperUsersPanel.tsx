@@ -357,7 +357,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     if (u.displayName && !u.displayName.includes('@')) return u.displayName;
     if (u.email && u.email.includes('@')) {
       const parts = u.email.split('@')[0].split(/[._-]/);
-      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
     }
     return String(u.userId || u.id || 'Devotee');
   };
@@ -754,7 +754,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           if (!val) return '';
                           if (val.includes('@')) {
                             const parts = val.split('@')[0].split(/[._-]/);
-                            return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+                            return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
                           }
                           return val;
                         };

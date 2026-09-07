@@ -145,7 +145,7 @@ export default function FolkUserDashboard() {
 
   return (
     <DashboardLayout
-      title={`Hare Krishna ${profile.fullName}!`}
+      title={`Hare Krishna, ${profile.fullName}!`}
       subtitle={subtitle}
     >
       <PushNotificationBanner />

@@ -155,7 +155,11 @@ export default createEndpoint({
         // lack bvGroupId/isBvMember even though their membership is active.
         const isCurrentGroup = profileGroupId ? groupAliases.has(profileGroupId) : true;
         const isActiveUser = !resolved.user?.status || String(resolved.user.status).toLowerCase() === 'active';
-        const isActiveMember = !!resolved.user && isActiveUser && isCurrentGroup;
+        // An explicit false is written when a member leaves a group; do not
+        // render its leftover legacy membership row. Missing values remain
+        // supported for pre-migration records.
+        const isBvMember = resolved.user?.isBvMember !== false;
+        const isActiveMember = !!resolved.user && isActiveUser && isBvMember && isCurrentGroup;
         return { record: m, resolved, isActiveMember };
       })
       .filter(item => item.isActiveMember);

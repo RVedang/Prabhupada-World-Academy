@@ -261,13 +261,13 @@ export default createEndpoint({
       BvGroupMembers.findAll({
         filters: { group: { in: [...new Set([...groupIdList, ...groupPublicIdList])] } } as any,
         limit: 5000,
-        fields: ['id', 'group', 'groupId', 'user', 'userId'],
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
       }),
-      groupPublicIdList.length > 0
+      groupIdList.length + groupPublicIdList.length > 0
         ? BvGroupMembers.findAll({
-            filters: { groupId: { in: [...new Set(groupPublicIdList)] } } as any,
+            filters: { groupId: { in: [...new Set([...groupIdList, ...groupPublicIdList])] } } as any,
             limit: 5000,
-            fields: ['id', 'group', 'groupId', 'user', 'userId'],
+            fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
           }).catch(() => ({ records: [] }))
         : Promise.resolve({ records: [] }),
     ]);
@@ -283,39 +283,42 @@ export default createEndpoint({
 
     const memberUserIds = [...new Set(allMembers.flatMap((m: any) => [
       firstValue(m.user),
-      firstValue(m.userId)
+      firstValue(m.userId),
+      firstValue(m.memberId),
     ]).filter(Boolean))];
 
     const userMap: Record<string, any> = {};
     if (memberUserIds.length > 0) {
+      const userFields = [
+        'id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId',
+        'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid',
+        'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id',
+      ];
+      const lookupFields = [
+        'userId', 'id', 'email', 'uid', 'authUid', 'firebaseUid',
+        'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId',
+        'firebaseId', 'firebaseAuthId', 'firebase_id',
+      ];
       const batches: string[][] = [];
       for (let i = 0; i < memberUserIds.length; i += 30) {
         batches.push(memberUserIds.slice(i, i + 30));
       }
       const results = await Promise.all(batches.map(async (batch) => {
-        const [byUserId, byId, byEmail] = await Promise.all([
-          Users.findAll({
-            filters: { userId: { in: batch } } as any,
-            fields: ['id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId'],
-            limit: 100,
-          }).catch(() => ({ records: [] })),
-          Users.findAll({
-            filters: { id: { in: batch } } as any,
-            fields: ['id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId'],
-            limit: 100,
-          }).catch(() => ({ records: [] })),
-          Users.findAll({
-            filters: { email: { in: batch } } as any,
-            fields: ['id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId'],
-            limit: 100,
-          }).catch(() => ({ records: [] })),
-        ]);
-        return [...(byUserId?.records || []), ...(byId?.records || []), ...(byEmail?.records || [])];
+        const lists = await Promise.all(lookupFields.map(field => Users.findAll({
+          filters: { [field]: { in: batch } } as any,
+          fields: userFields,
+          limit: 100,
+        }).catch(() => ({ records: [] }))));
+        return lists.flatMap(result => result.records || []);
       }));
 
       for (const list of results) {
         for (const u of list) {
-          [u.id, u.userId, u.email].filter(Boolean).forEach(alias => {
+          [
+            u.id, u.userId, u.email, u.uid, u.authUid, u.firebaseUid,
+            u.firebaseUserId, u.firebaseAuthUid, u.authId, u.authUserId,
+            u.firebaseId, u.firebaseAuthId, u.firebase_id,
+          ].filter(Boolean).forEach(alias => {
             userMap[String(alias).toLowerCase()] = u;
           });
         }
@@ -324,24 +327,29 @@ export default createEndpoint({
 
     const memberIdsByGroup = new Map<string, Set<string>>();
     for (const m of allMembers) {
-      const rawGroupRef = firstValue(m.group) || firstValue((m as any).groupId);
-      if (!rawGroupRef) continue;
-      const normalizedGroupRef = rawGroupRef.toLowerCase();
-      const groupRec = groupRecords.find(gr =>
-        String(gr.id || '').toLowerCase() === normalizedGroupRef ||
-        String(gr.groupId || '').toLowerCase() === normalizedGroupRef
-      );
+      const groupRec = [firstValue(m.group), firstValue(m.groupId)]
+        .filter(Boolean)
+        .map(groupRef => groupRecords.find(gr =>
+          String(gr.id || '').toLowerCase() === groupRef.toLowerCase() ||
+          String(gr.groupId || '').toLowerCase() === groupRef.toLowerCase()
+        ))
+        .find(Boolean);
       if (!groupRec) continue;
 
       const uid = firstValue(m.user);
       const altUid = firstValue((m as any).userId);
-      const u = userMap[uid.toLowerCase()] || userMap[altUid.toLowerCase()];
+      const legacyMemberId = firstValue((m as any).memberId);
+      const u = userMap[uid.toLowerCase()] || userMap[altUid.toLowerCase()] || userMap[legacyMemberId.toLowerCase()];
       const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
+      const groupAliases = new Set([groupRec.id, groupRec.groupId].filter(Boolean).map(value => String(value).toLowerCase()));
+      const profileGroupId = firstValue(u?.bvGroupId).toLowerCase();
+      const isCurrentGroup = !profileGroupId || groupAliases.has(profileGroupId);
+      const isBvMember = u?.isBvMember !== false;
 
-      // BvGroupMembers is the membership source of truth. Legacy user
-      // profiles can have missing isBvMember/bvGroupId fields.
-      if (u && isActiveUser) {
-        const canonicalUserId = String(u.id || u.userId || uid || altUid);
+      // Keep legacy records with missing profile fields, but never count an
+      // inactive, explicitly removed, or reassigned user from a stale row.
+      if (u && isActiveUser && isBvMember && isCurrentGroup) {
+        const canonicalUserId = String(u.id || u.userId || uid || altUid || legacyMemberId);
         if (!memberIdsByGroup.has(groupRec.id)) memberIdsByGroup.set(groupRec.id, new Set());
         memberIdsByGroup.get(groupRec.id)!.add(canonicalUserId);
       }

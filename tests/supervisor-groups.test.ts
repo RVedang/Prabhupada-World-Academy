@@ -7,6 +7,7 @@ import getBvPreachingReport from '../src/api/getBvPreachingReport';
 import getBvSessionMatrix from '../src/api/getBvSessionMatrix';
 import getBvStats from '../src/api/getBvStats';
 import getBvSupervisorOverview from '../src/api/getBvSupervisorOverview';
+import getBvslGroups from '../src/api/getBvslGroups';
 import getGuideGroupStats from '../src/api/getGuideGroupStats';
 import getGuideDetailedReport from '../src/api/getGuideDetailedReport';
 import getSadhanaLeaderboard from '../src/api/getSadhanaLeaderboard';
@@ -584,5 +585,58 @@ test('BV group detail resolves a legacy memberId membership', async () => {
     await BvGroupMembers.delete({ id: membershipId }).catch(() => undefined);
     await BvGroups.delete({ id: group.id }).catch(() => undefined);
     await Users.delete({ id: member.id }).catch(() => undefined);
+  }
+});
+
+test('BV group cards count only current active members and update after a removal', async () => {
+  const group = {
+    id: 'BV-GROUP-CARD-COUNT-DOC',
+    groupId: 'BV-GROUP-CARD-COUNT',
+    groupName: 'Card Count Group',
+    isActive: true,
+  };
+  const currentMember = {
+    id: 'BV-GROUP-CARD-COUNT-CURRENT-DOC',
+    userId: 'BV-GROUP-CARD-COUNT-CURRENT',
+    email: 'bv-group-card-current@example.invalid',
+    fullName: 'Current Card Member',
+    status: 'Active',
+    isBvMember: true,
+    bvGroupId: group.id,
+  };
+  const removedMember = {
+    id: 'BV-GROUP-CARD-COUNT-REMOVED-DOC',
+    userId: 'BV-GROUP-CARD-COUNT-REMOVED',
+    fullName: 'Removed Card Member',
+    status: 'Active',
+    isBvMember: false,
+    bvGroupId: '',
+  };
+  const currentMembershipId = 'BV-GROUP-CARD-COUNT-CURRENT-MEMBERSHIP';
+  const staleMembershipId = 'BV-GROUP-CARD-COUNT-STALE-MEMBERSHIP';
+
+  try {
+    await Users.create({ record: currentMember });
+    await Users.create({ record: removedMember });
+    await BvGroups.create({ record: group });
+    await BvGroupMembers.create({
+      record: { id: currentMembershipId, group: group.groupId, memberId: currentMember.email },
+    });
+    await BvGroupMembers.create({
+      record: { id: staleMembershipId, groupId: group.id, user: removedMember.id },
+    });
+
+    const initial = await getBvslGroups.execute({ input: { bvslId: 'ALL' }, context: {} } as never);
+    assert.equal(initial.groups.find((item: any) => item.id === group.id)?.memberCount, 1);
+
+    await BvGroupMembers.delete({ id: currentMembershipId });
+    const afterRemoval = await getBvslGroups.execute({ input: { bvslId: 'ALL' }, context: {} } as never);
+    assert.equal(afterRemoval.groups.find((item: any) => item.id === group.id)?.memberCount, 0);
+  } finally {
+    await BvGroupMembers.delete({ id: currentMembershipId }).catch(() => undefined);
+    await BvGroupMembers.delete({ id: staleMembershipId }).catch(() => undefined);
+    await BvGroups.delete({ id: group.id }).catch(() => undefined);
+    await Users.delete({ id: currentMember.id }).catch(() => undefined);
+    await Users.delete({ id: removedMember.id }).catch(() => undefined);
   }
 });

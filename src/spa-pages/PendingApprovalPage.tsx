@@ -2,13 +2,18 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, User, RefreshCw } from 'lucide-react';
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, Clock, Info, RefreshCw, User, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
 import { getGuides } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+
+type StatusNotice = {
+  message: string;
+  variant: 'default' | 'destructive';
+};
 
 export default function PendingApprovalPage() {
   const navigate = useNavigate();
@@ -17,6 +22,7 @@ export default function PendingApprovalPage() {
   const [guideName, setGuideName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [statusNotice, setStatusNotice] = useState<StatusNotice | null>(null);
 
   const isPw = profile?.segment === 'PW' || !!(profile as any)?.isPrabhupadaWorldUser || localStorage.getItem('pwa_is_pw_flow') === 'true';
 
@@ -41,6 +47,7 @@ export default function PendingApprovalPage() {
 
   const handleCheckStatus = async () => {
     setChecking(true);
+    setStatusNotice(null);
     try {
       const updatedProfile = await refreshProfile(); // clears cache + re-fetches from sheet
       // AUTH-013 FIX: Route directly based on updated profile status — no full re-auth cycle
@@ -49,10 +56,18 @@ export default function PendingApprovalPage() {
       } else if (updatedProfile?.status === 'REJECTED') {
         navigate('/rejected', { replace: true });
       } else {
-        toast.info(isPw ? 'Still pending approval. Please check with your administrator.' : 'Still pending approval. Please check with your FOLK Guide.');
+        setStatusNotice({
+          variant: 'default',
+          message: isPw
+            ? 'Still pending approval. Please check with your administrator.'
+            : 'Still pending approval. Please check with your FOLK Guide.',
+        });
       }
     } catch {
-      toast.error('Failed to check status. Please try again.');
+      setStatusNotice({
+        variant: 'destructive',
+        message: 'Failed to check status. Please try again.',
+      });
     } finally {
       setChecking(false);
     }
@@ -115,6 +130,31 @@ export default function PendingApprovalPage() {
                 <><RefreshCw className="w-4 h-4 mr-2" /> Check Approval Status</>
               )}
             </Button>
+
+            {statusNotice && (
+              <Alert
+                variant={statusNotice.variant}
+                className="pr-10"
+              >
+                {statusNotice.variant === 'destructive' ? (
+                  <AlertCircle className="h-4 w-4" />
+                ) : (
+                  <Info className="h-4 w-4 text-blue-600" />
+                )}
+                <AlertDescription>{statusNotice.message}</AlertDescription>
+                <AlertAction>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Close status message"
+                    onClick={() => setStatusNotice(null)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </AlertAction>
+              </Alert>
+            )}
           </CardContent>
         </Card>
       </motion.div>

@@ -123,7 +123,7 @@ export const fmt = {
     const email = u.email || (typeof u === 'string' && u.includes('@') ? u : '');
     if (email && email.includes('@')) {
       const parts = email.split('@')[0].split(/[._-]/);
-      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') + ' Prabhu';
+      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
     }
     const val = u.userId || u.id || (typeof u === 'string' ? u : '');
     return val ? String(val) : 'Devotee';
