@@ -294,7 +294,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
             duration: 10000,
           });
         } else if (lastSeen === 'PENDING_APPROVAL' && profile.status === 'REJECTED') {
-          toast.error('❌ Your registration request was rejected by your Guide.', {
+          toast.error(`❌ Your registration request was rejected by ${profile.segment === 'PW' || profile.isPrabhupadaWorldUser ? 'the admin.' : 'your Guide.'}`, {
             duration: 10000,
           });
         }

@@ -1,8 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 export default function RejectedPage() {
+  const { profile } = useUserProfile();
+  const isPwUser = profile?.segment === 'PW' || profile?.isPrabhupadaWorldUser === true;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary flex items-center justify-center p-4">
@@ -19,12 +22,16 @@ export default function RejectedPage() {
             </div>
             <CardTitle className="text-2xl">Registration Rejected</CardTitle>
             <CardDescription>
-              Your registration request has been rejected by your FOLK Guide
+              {isPwUser
+                ? 'Your registration request has been rejected by the admin.'
+                : 'Your registration request has been rejected by your FOLK Guide'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              Please contact your guide directly for more information or to discuss reapplying.
+              {isPwUser
+                ? 'Please contact the admin directly for more information or to discuss reapplying.'
+                : 'Please contact your guide directly for more information or to discuss reapplying.'}
             </p>
           </CardContent>
         </Card>

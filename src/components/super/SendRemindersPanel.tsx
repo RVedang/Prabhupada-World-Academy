@@ -275,7 +275,26 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
           { duration: Infinity }
         );
       } else if (res.inAppRecipients > 0) {
-        toast.success(`In-app reminder published for ${res.inAppRecipients} members who have not submitted. ${res.failed > 0 ? `${res.failed} native push attempts failed.` : 'Native push requires an enabled device.'}`);
+        toast.success(
+          <div className="flex items-start gap-3 py-1">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-sm dark:bg-emerald-900/40 dark:text-emerald-300">
+              <BellRing className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-base font-bold leading-5">In-app reminder published</div>
+              <div className="mt-1 text-sm leading-5 opacity-90">
+                Sent to {res.inAppRecipients} {res.inAppRecipients === 1 ? 'member' : 'members'} who have not submitted.
+              </div>
+              <div className="mt-1 text-xs font-medium opacity-75">
+                {res.failed > 0 ? `${res.failed} native push attempts failed.` : 'Native push requires an enabled device.'}
+              </div>
+            </div>
+          </div>,
+          {
+            duration: 10000,
+            className: '!min-w-[380px] !max-w-[520px] !rounded-2xl !p-4 !shadow-[0_12px_35px_-12px_rgba(16,185,129,0.35)]',
+          }
+        );
       } else if (stats.totalSubscriptions > 0) {
         toast.warning(
           `⚠️ Push broadcast attempted: ${stats.totalSubscriptions} subscriber(s) found, but 0 notifications were delivered. Subscriptions may be stale or all users have already submitted today.`,

@@ -190,7 +190,7 @@ export default function BhaktiVrikshaPage() {
                     Application Update
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Your application to join Bhakti Vriksha was rejected. Please contact your supervisor or spiritual guide for further guidance.
+                    Your application to join Bhakti Vriksha was rejected. Please contact {profile?.segment === 'PW' || profile?.isPrabhupadaWorldUser ? 'the admin' : 'your supervisor or spiritual guide'} for further guidance.
                   </p>
                 </div>
               </div>
