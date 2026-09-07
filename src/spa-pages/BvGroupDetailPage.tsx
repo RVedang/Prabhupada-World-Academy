@@ -6,10 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Users, CheckCircle2, Brain, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle2, Brain, ChevronDown, ChevronUp, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
-import { getBvGroupDetail, getBvAttendanceMatrix, getBvQuizSubmissions } from '@/lib/endpoints-sdk';
+import { deleteBvGroup, getBvGroupDetail, getBvAttendanceMatrix, getBvQuizSubmissions } from '@/lib/endpoints-sdk';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import type { GetBvGroupDetailOutputType, GetBvAttendanceMatrixOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { Calendar } from 'lucide-react';
@@ -347,6 +351,7 @@ export default function BvGroupDetailPage() {
   const [customEnd, setCustomEnd] = useState('');
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const dateRange = useMemo(() => {
     if (weekFilter === 'custom' && customStart && customEnd) {
@@ -441,6 +446,22 @@ export default function BvGroupDetailPage() {
   const dd = detail as any;
   const isFolkGroup = dd.group.segment === 'FOLK';
   const quizzes = dd.quizzes ?? [];
+  const normalizedRole = String(profile?.role || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
+  const canDeleteGroup = ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'PW_ADMIN', 'SUPER_ADMIN'].includes(normalizedRole) ||
+    !!profile?.isBvAdmin || !!profile?.isBvSuperAdmin;
+
+  const handleDeleteGroup = async () => {
+    if (!groupId) return;
+    setDeleting(true);
+    try {
+      const result = await deleteBvGroup({ groupId });
+      toast.success(`Group deleted. ${result.membersUnassigned} member${result.membersUnassigned === 1 ? '' : 's'} unassigned.`);
+      navigate(-1);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete group.');
+      setDeleting(false);
+    }
+  };
 
   return (
     <DashboardLayout title="BV Group" maxWidth="max-w-5xl">
@@ -449,7 +470,8 @@ export default function BvGroupDetailPage() {
           <ArrowLeft className="w-4 h-4" /> Back
         </Button>
 
-        <div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-2xl font-bold">{detail.group.groupName}</h2>
             {detail.group.isActive
@@ -458,6 +480,31 @@ export default function BvGroupDetailPage() {
           </div>
           {detail.group.description && (
             <p className="text-muted-foreground text-sm mt-1">{detail.group.description}</p>
+          )}
+          </div>
+          {canDeleteGroup && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="shrink-0">
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete group
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this Bhakti Vriksha group?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently deletes “{detail.group.groupName}” and removes all members from the group. Their group will show as Unassigned. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteGroup} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Delete group
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
 

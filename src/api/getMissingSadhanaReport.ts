@@ -4,7 +4,7 @@ import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 import { getGuideScope } from '../lib/guideScope';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'role', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
 
 // Guides and Super Guides oversee Sadhana; they are not expected to submit a
 // daily member report. Normalize legacy spacing/casing so the rule applies to
@@ -14,7 +14,14 @@ function isSadhanaExemptLeadershipRole(role: unknown): boolean {
     .trim()
     .toUpperCase()
     .replace(/[\s-]+/g, '_');
-  return normalized === 'GUIDE' || normalized === 'SUPER_GUIDE' || normalized === 'SUPERGUIDE';
+  return normalized === 'GUIDE' || normalized === 'SUPER_GUIDE' || normalized === 'SUPERGUIDE' ||
+    normalized === 'ADMIN' || normalized === 'ADMINISTRATOR' || normalized === 'SUPER_ADMIN' ||
+    normalized === 'SUPERADMIN' || normalized === 'SUPER_ADMINISTRATOR' ||
+    normalized === 'PW_ADMIN' || normalized === 'PW_SUPER_ADMIN' || normalized === 'PW_SUPERADMIN';
+}
+
+function isSadhanaExemptUser(user: any): boolean {
+  return !!(user?.isBvAdmin || user?.isBvSuperAdmin) || isSadhanaExemptLeadershipRole(user?.role);
 }
 
 export default createEndpoint({
@@ -99,12 +106,12 @@ export default createEndpoint({
       });
     }
 
-    // Only registered members (have userId + fullName). Guides and Super
-    // Guides are report administrators, not Sadhana-report participants.
+    // Only registered members (have userId + fullName). Guides, admins, and
+    // super admins are report administrators, not Sadhana-report participants.
     const users = allUsers.filter(u =>
       u.userId &&
       (u.fullName || '').trim().length > 0 &&
-      !isSadhanaExemptLeadershipRole(u.role)
+      !isSadhanaExemptUser(u)
     );
 
     if (users.length === 0) {
