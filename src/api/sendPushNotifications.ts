@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { createEndpoint, PushSubscriptions, Users, SadhanaEntries, AppError } from '@/lib/backend-sdk';
 import { storeBroadcast } from '@/lib/notificationBroadcast';
+import getPwNotificationConfig from './getPwNotificationConfig';
+import { isSadhanaReminderDue } from '@/lib/sadhanaReminderSchedule';
 
 /** Extract a plain string ID from a Firestore DocumentReference, array, or string. */
 function getUserIdStr(userField: any): string | null {
@@ -179,7 +181,7 @@ function concat(...arrays: Uint8Array[]): Uint8Array {
   return result;
 }
 
-async function encryptPayload(
+export async function encryptPayload(
   p256dhKey: string,
   authSecret: string,
   payload: string,
@@ -200,28 +202,21 @@ async function encryptPayload(
   // Generate salt
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
-  // Create info params for HKDF per RFC 8291
-  const authInfo = new TextEncoder().encode('Content-Encoding: auth\0');
+  // RFC 8291 section 3.4. The older aesgcm draft used different info
+  // strings; mixing that derivation with aes128gcm makes Chrome reject it.
+  const authInfo = concat(
+    new TextEncoder().encode('WebPush: info\0'),
+    clientPublicKey,
+    localPublicKeyRaw,
+  );
   const prkCombine = await hkdf(clientAuth, sharedSecret, authInfo, 32);
 
   // Key info
-  const keyInfoBuf = concat(
-    new TextEncoder().encode('Content-Encoding: aes128gcm\0'),
-    new Uint8Array([0, 65]),
-    clientPublicKey,
-    new Uint8Array([0, 65]),
-    localPublicKeyRaw,
-  );
+  const keyInfoBuf = new TextEncoder().encode('Content-Encoding: aes128gcm\0');
   const contentKey = await hkdf(salt, prkCombine, keyInfoBuf, 16);
 
   // Nonce info
-  const nonceInfoBuf = concat(
-    new TextEncoder().encode('Content-Encoding: nonce\0'),
-    new Uint8Array([0, 65]),
-    clientPublicKey,
-    new Uint8Array([0, 65]),
-    localPublicKeyRaw,
-  );
+  const nonceInfoBuf = new TextEncoder().encode('Content-Encoding: nonce\0');
   const nonce = await hkdf(salt, prkCombine, nonceInfoBuf, 12);
 
   // Encrypt with AES-128-GCM
@@ -265,7 +260,7 @@ async function sendPush(
 
   const responseText = await resp.text().catch(() => '');
   console.log('[Push Send Debug]', {
-    endpoint: sub.endpoint,
+    pushService: url.origin,
     status: resp.status,
     statusText: resp.statusText,
     responseText,
@@ -293,11 +288,13 @@ export default createEndpoint({
     customBody: z.string().max(1000).optional(),
     senderEmail: z.string().email().max(320).optional(),
     segment: z.enum(['PW', 'FOLK']).optional(),
+    scheduled: z.boolean().optional(),
   }),
   outputSchema: z.object({
     sent: z.number(),
     failed: z.number(),
     skipped: z.number(),
+    inAppRecipients: z.number(),
   }),
   execute: async ({ input, context }: any) => {
     // Validate a server-only cron secret or an active user with notification authority.
@@ -314,8 +311,16 @@ export default createEndpoint({
       throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized to send push notifications' });
     }
 
+    // A server scheduler can call every minute; the saved admin schedule
+    // determines whether to send. Manual dispatch remains immediate.
+    const scheduleConfig = input.scheduled ? await getPwNotificationConfig.execute() : null;
+    if (scheduleConfig && !isSadhanaReminderDue(scheduleConfig)) {
+      return { sent: 0, failed: 0, skipped: 0, inAppRecipients: 0 };
+    }
+
     // Determine the date to check
     const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
+    if (input.reminderSlot === 'morning') istNow.setUTCDate(istNow.getUTCDate() - 1);
     const checkDate = input.checkDate || istNow.toISOString().slice(0, 10);
 
     const senderId = context?.user?.id;
@@ -328,8 +333,8 @@ export default createEndpoint({
     const isPwTarget = targetSegment === 'PW';
 
     const slotMsg = SLOT_MESSAGES[input.reminderSlot] || SLOT_MESSAGES['night-1'];
-    const title = input.customTitle || slotMsg.title;
-    const body = input.customBody || slotMsg.body;
+    const title = scheduleConfig?.title || input.customTitle || slotMsg.title;
+    const body = scheduleConfig?.body || input.customBody || slotMsg.body;
     const broadcastId = String(Date.now()) + '_' + String(Math.floor(Math.random() * 1000000));
 
     // Get all push subscriptions
@@ -463,6 +468,7 @@ export default createEndpoint({
 
     // Scope the long-poll broadcast to every missing member, whether or not
     // they have opted into browser push. This is the in-app notification path.
+    let inAppRecipients = 0;
     if (eligibleRecipients.length > 0) {
       const eligibleIds = new Set<string>();
       const eligibleEmails = new Set<string>();
@@ -474,7 +480,7 @@ export default createEndpoint({
       }
 
       try {
-        storeBroadcast(
+        await storeBroadcast(
           title,
           body,
           input.reminderSlot || 'night-1',
@@ -485,6 +491,7 @@ export default createEndpoint({
           [...eligibleEmails],
           targetSegment,
         );
+        inAppRecipients = eligibleRecipients.length;
       } catch (e) {
         console.warn('[Push] Store broadcast failed:', e);
       }
@@ -495,9 +502,9 @@ export default createEndpoint({
     if (!vapidPrivate || !vapidPublic) {
       if (toSend.length > 0) {
         console.error('[Push] Web Push credentials are not configured');
-        return { sent: 0, failed: toSend.length, skipped };
+        return { sent: 0, failed: toSend.length, skipped, inAppRecipients };
       }
-      return { sent: 0, failed: 0, skipped };
+      return { sent: 0, failed: 0, skipped, inAppRecipients };
     }
 
     const batchSize = 10;
@@ -520,6 +527,6 @@ export default createEndpoint({
       }
     }
 
-    return { sent, failed, skipped };
+    return { sent, failed, skipped, inAppRecipients };
   },
 });

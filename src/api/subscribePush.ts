@@ -42,14 +42,8 @@ export default createEndpoint({
       await PushSubscriptions.delete({ id: sub.id });
     }
 
-    // New endpoint — delete ALL existing subscriptions for this user first (one-sub-per-user policy)
-    const allExisting = await PushSubscriptions.findAll({
-      filters: { user: userId },
-      limit: 100,
-    });
-    for (const sub of allExisting.records) {
-      await PushSubscriptions.delete({ id: sub.id });
-    }
+    // Keep the user's other devices subscribed. Registering a laptop must
+    // not silently disable reminders on their phone.
 
     // Create new subscription
     await PushSubscriptions.create({

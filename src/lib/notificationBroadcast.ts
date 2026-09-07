@@ -45,7 +45,7 @@ function getDb(): any | null {
 
 const FIRESTORE_DOC = { collection: 'meta', doc: 'latestBroadcast' };
 
-export function storeBroadcast(
+export async function storeBroadcast(
   title: string,
   body: string,
   slot: string,
@@ -55,7 +55,7 @@ export function storeBroadcast(
   url?: string,
   inviteeEmails?: string[],
   segment?: string,
-): void {
+): Promise<void> {
   const broadcast: BroadcastData = {
     id: id || (String(Date.now()) + '_' + String(++_idCounter)),
     title,
@@ -73,18 +73,13 @@ export function storeBroadcast(
   _memCache = broadcast;
   _memCacheTime = Date.now();
 
-  // Write to Firestore (async, non-blocking)
+  // Await shared persistence before the request ends. App Hosting can stop
+  // background work once a response is sent.
   const db = getDb();
   if (db) {
-    db.collection(FIRESTORE_DOC.collection)
+    await db.collection(FIRESTORE_DOC.collection)
       .doc(FIRESTORE_DOC.doc)
-      .set(broadcast)
-      .then(() => {
-        console.log('[Notifications] Stored broadcast to Firestore:', broadcast.id, title);
-      })
-      .catch((e: any) => {
-        console.error('[Notifications] Failed to write broadcast to Firestore:', e);
-      });
+      .set(broadcast);
   }
 
   // Also write /tmp as local fallback

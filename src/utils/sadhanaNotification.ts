@@ -71,56 +71,50 @@ const REMINDER_TIMES = {
 // ── localStorage helpers ──
 const SUBMITTED_KEY = 'sadhana_submitted_today';
 const SUBMITTED_DATE_KEY = 'sadhana_submitted_date';
+const SUBMITTED_USER_KEY = 'sadhana_submitted_user';
+
+function currentReminderUser(): string {
+  return localStorage.getItem('auth_user_id') || localStorage.getItem('auth_email') || '';
+}
+
+function reminderDate(): string {
+  return new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+}
 
 export function hasSubmittedToday(): boolean {
   const date = localStorage.getItem(SUBMITTED_DATE_KEY);
-  const today = new Date().toISOString().slice(0, 10);
-  return date === today && localStorage.getItem(SUBMITTED_KEY) === 'true';
+  const today = reminderDate();
+  return !!currentReminderUser() && localStorage.getItem(SUBMITTED_USER_KEY) === currentReminderUser()
+    && date === today && localStorage.getItem(SUBMITTED_KEY) === 'true';
 }
 
 export function markSubmittedToday(): void {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = reminderDate();
   localStorage.setItem(SUBMITTED_KEY, 'true');
   localStorage.setItem(SUBMITTED_DATE_KEY, today);
+  localStorage.setItem(SUBMITTED_USER_KEY, currentReminderUser());
 }
 
 // ── Permission helpers ──
 export function getNotificationPermission(): NotificationPermission | 'unsupported' {
-  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
-    return 'granted';
-  }
   if (typeof Notification === 'undefined') return 'unsupported';
   return Notification.permission;
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermission | 'unsupported'> {
-  if (typeof window !== 'undefined' && localStorage.getItem('notifications_simulated_granted') === 'true') {
-    return 'granted';
-  }
-
-  if (typeof Notification === 'undefined') {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('notifications_simulated_granted', 'true');
-      localStorage.removeItem('push_notifications_disabled');
-    }
-    return 'granted';
-  }
+  if (typeof window !== 'undefined') localStorage.removeItem('notifications_simulated_granted');
+  if (typeof Notification === 'undefined') return 'unsupported';
 
   try {
     const result = await Notification.requestPermission();
     if (result === 'granted') {
       await ensureSwRegistered();
-      return result;
     }
+    return result;
   } catch (err) {
-    console.warn('Native notification request failed, falling back to simulation:', err);
+    console.warn('Native notification permission request failed:', err);
+    return Notification.permission;
   }
-
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('notifications_simulated_granted', 'true');
-    localStorage.removeItem('push_notifications_disabled');
-  }
-  return 'granted';
 }
 
 // ── Service Worker registration ──
@@ -320,6 +314,14 @@ export async function registerServiceWorker(): Promise<void> {
     navigator.serviceWorker.controller?.postMessage({ type: 'SYNC_USER', email, userId });
   }
   syncSwUser();
+  // localStorage's storage event does not fire in the tab that logged in.
+  window.addEventListener('authStateChanged', () => {
+    syncSwUser();
+    if (currentReminderUser() && getNotificationPermission() === 'granted'
+      && localStorage.getItem('push_notifications_disabled') !== 'true') {
+      subscribeToPush().catch(() => {});
+    }
+  });
 
   // Sync settings to service worker
   function syncSwSettings() {
@@ -524,8 +526,8 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
   }
 
   if (submittedToday) return;
-  const configPerm = getNotificationPermission();
-  if (configPerm === 'unsupported' || configPerm !== 'granted') return;
+  // Foreground reminders work without browser notification permission.
+  // Native delivery still requires the browser's actual permission.
 
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
@@ -567,9 +569,6 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
         const liveConfig = await getPwNotificationConfig().catch(() => null);
         if (!liveConfig || !liveConfig.enabled) return;
         if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') return;
-
-        const hasSub = await checkPushSubscriptionStatus();
-        if (!hasSub) return;
 
         if (!hasSubmittedToday()) {
           triggerInAppOrNativeNotification({

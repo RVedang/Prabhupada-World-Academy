@@ -152,7 +152,6 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
       try {
         const stats = await getPushSubscriptionStats({ segment: activeSegment });
         setPushStats(stats);
-        if (stats.totalSubscriptions === 0) return;
         const res = await sendPushNotifications({
           reminderSlot: 'night-1', customTitle: config.title, customBody: config.body,
           segment: activeSegment,
@@ -261,7 +260,7 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
         segment: activeSegment,
       });
 
-      // 3. Show toast only when at least 1 notification was actually delivered
+      // Native acceptance and in-app publication are separate results.
       if (res.sent > 0) {
         const notifWord = res.sent === 1 ? 'notification' : 'notifications';
         const deviceWord = res.sent === 1 ? 'device' : 'devices';
@@ -269,12 +268,14 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
           <div className="flex flex-col text-[15px] sm:text-base leading-relaxed">
             <span className="font-bold">🔔 Push broadcast sent!</span>
             <div className="mt-2 font-semibold text-neutral-800 dark:text-neutral-200">
-              <div>{res.sent} web push {notifWord} successfully delivered</div>
+              <div>{res.sent} web push {notifWord} accepted by the push service</div>
               <div>to {res.sent} subscribed user {deviceWord}.</div>
             </div>
           </div>,
           { duration: Infinity }
         );
+      } else if (res.inAppRecipients > 0) {
+        toast.success(`In-app reminder published for ${res.inAppRecipients} members who have not submitted. ${res.failed > 0 ? `${res.failed} native push attempts failed.` : 'Native push requires an enabled device.'}`);
       } else if (stats.totalSubscriptions > 0) {
         toast.warning(
           `⚠️ Push broadcast attempted: ${stats.totalSubscriptions} subscriber(s) found, but 0 notifications were delivered. Subscriptions may be stale or all users have already submitted today.`,
@@ -587,7 +588,7 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
                     </>
                   ) : (
                     <>
-                      <strong>Warning:</strong> No registered push notification devices found. You cannot send a broadcast because there are no active device subscriptions.
+                      No registered push devices found. Members who have not submitted can still receive an in-app reminder while the app is open.
                     </>
                   )}
                 </div>
@@ -598,7 +599,7 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => handleSend(1, true)}
-              disabled={loadingPushStats || !pushStats || pushStats.totalSubscriptions === 0}
+              disabled={loadingPushStats}
               className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold"
             >
               Send Push Broadcast Now

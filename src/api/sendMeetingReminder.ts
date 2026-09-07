@@ -299,7 +299,7 @@ export default createEndpoint({
       const inviteeEmails = (meeting.invitees || [])
         .map((inv: any) => (inv.email || '').toLowerCase())
         .filter(Boolean);
-      storeBroadcast(title, body, 'meeting', undefined, broadcastId, inviteeIds, targetUrl, inviteeEmails);
+      await storeBroadcast(title, body, 'meeting', undefined, broadcastId, inviteeIds, targetUrl, inviteeEmails);
     } catch (e) {
       console.warn('[Meeting Notification] Store broadcast failed:', e);
     }

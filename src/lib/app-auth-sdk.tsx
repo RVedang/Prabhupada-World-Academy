@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             (window as any).__firebase_id_token = token;
             localStorage.setItem('auth_email', fbUser.email || '');
             localStorage.setItem('auth_user_id', fbUser.uid || '');
+            window.dispatchEvent(new Event('authStateChanged'));
           }
           setUser({ email: fbUser.email, id: fbUser.uid });
         } else {
@@ -94,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             delete (window as any).__firebase_id_token;
             localStorage.removeItem('auth_email');
             localStorage.removeItem('auth_user_id');
+            window.dispatchEvent(new Event('authStateChanged'));
           }
           setUser(null);
         }
