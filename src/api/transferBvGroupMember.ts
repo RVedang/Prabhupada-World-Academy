@@ -8,9 +8,9 @@ function referenceValues(value: unknown): string[] {
 }
 
 async function findUser(userId: string) {
-  return Users.findOne({ id: userId }).catch(() => null)
-    || Users.findOne({ filters: { userId } }).catch(() => null)
-    || Users.findOne({ filters: { email: userId } }).catch(() => null);
+  return await Users.findOne({ id: userId }).catch(() => null)
+    || await Users.findOne({ filters: { userId } }).catch(() => null)
+    || await Users.findOne({ filters: { email: userId } }).catch(() => null);
 }
 
 export default createEndpoint({

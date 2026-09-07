@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import {
   getGuideUsers, getGuides, tagUserAsBvsl, assignGuide, tagUserAsFolkLead,
   tagUserAsTripCoordinator, tagUserAsBvMentor, tagUserAsSadhanaMentor, assignBvRole,
-  getActiveSadhanaMentors, assignSadhanaMentor,
+  getActiveSadhanaMentors, assignSadhanaMentor, getBvslGroups, transferBvGroupMember,
 } from '@/lib/endpoints-sdk';
 import type { GetGuideUsersOutputType, GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -27,6 +27,7 @@ import BulkUserManagement from '@/components/guide/BulkUserManagement';
 
 type User = GetGuideUsersOutputType['users'][0] & { _guideId: string; _guideName: string };
 type GuideEntry = GetGuidesOutputType['guides'][0];
+type BvGroupOption = { id: string; groupId: string; groupName: string; segment?: string | null; isActive?: boolean };
 type SortKey = 'fullName' | 'guideName' | 'ashrayLevel' | 'latestScore' | 'latestEntryDate' | 'isResident';
 type SortDir = 'asc' | 'desc';
 type ResidentLikeUser = Partial<User> & {
@@ -100,6 +101,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
   const [users, setUsers] = useState<User[]>([]);
   const [guides, setGuides] = useState<GuideEntry[]>([]);
+  const [bvGroups, setBvGroups] = useState<BvGroupOption[]>([]);
 
   const myGuideId = useMemo(() => {
     const myEmail = ((profile as any)?.email || profile?.userId || userEmail || '').toLowerCase();
@@ -131,6 +133,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   const [sadhanaMentorDialog, setSadhanaMentorDialog] = useState<{ user: User; action: 'tag' | 'untag' } | null>(null);
   const [bvRoleDialog, setBvRoleDialog] = useState<{ user: User; newRole: string; roleLabel: string } | null>(null);
   const [multiRoleUser, setMultiRoleUser] = useState<User | null>(null);
+  const [groupTransferDialog, setGroupTransferDialog] = useState<{ user: User; group: BvGroupOption } | null>(null);
   // Hierarchy parent-picker dialog — shown when assigning Supervisor/RGF/RGSF
   const [hierarchyDialog, setHierarchyDialog] = useState<{
     user: User;
@@ -156,8 +159,18 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const { guides: guideList } = await getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' });
+      const [{ guides: guideList }, groupsResult] = await Promise.all([
+        getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' }),
+        getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
+      ]);
       setGuides(guideList);
+      setBvGroups((groupsResult.groups || []).map((group: any) => ({
+        id: group.id,
+        groupId: group.groupId || group.id,
+        groupName: group.groupName || 'Unnamed Reading Group',
+        segment: group.segment,
+        isActive: group.isActive,
+      })));
 
       if (isPwAdmin) {
         const mentorsList = await getActiveSadhanaMentors({ segment: 'PW' }).catch(() => []);
@@ -225,6 +238,32 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       toast.success('Guide assigned');
     } catch { toast.error('Failed to assign guide'); }
     finally { setAssigningGuide(null); }
+  };
+
+  const handleTransferBvGroup = async () => {
+    if (!groupTransferDialog) return;
+    const { user, group } = groupTransferDialog;
+    try {
+      const result = await transferBvGroupMember({
+        userId: user.id || user.userId,
+        groupId: group.id || group.groupId,
+      });
+      setUsers(previous => previous.map(candidate =>
+        candidate.id === user.id || candidate.userId === user.userId
+          ? {
+              ...candidate,
+              isBvMember: true,
+              bvGroupId: result.groupId || group.id,
+              bvGroupName: result.groupName || group.groupName,
+            }
+          : candidate
+      ));
+      toast.success(`${user.fullName} is now a member of ${result.groupName || group.groupName}`);
+      await loadData(true);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to change the Reading Group');
+      throw error;
+    }
   };
 
   const handleBvslAction = async () => {
@@ -713,6 +752,15 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                     isBvUser ? 'MEMBER' : 'NA';
 
                   const canEditRole = isSuperAdmin || isPwAdmin || !!(profile as any)?.isBvAdmin || (profile?.role as string) === 'ADMIN';
+                  const memberSegment = String((u as any).segment || effectiveSegment || '').toUpperCase();
+                  const availableBvGroups = bvGroups.filter(group => {
+                    const groupSegment = String(group.segment || '').toUpperCase();
+                    return group.isActive !== false && (!groupSegment || !memberSegment || groupSegment === memberSegment);
+                  });
+                  const currentBvGroup = availableBvGroups.find(group =>
+                    group.id === (u as any).bvGroupId || group.groupId === (u as any).bvGroupId
+                  );
+                  const groupSelectValue = currentBvGroup?.id || (u as any).bvGroupId || '__unassigned__';
 
                   return (
                     <tr key={u.userId} className="border-b hover:bg-accent/40 cursor-pointer"
@@ -830,15 +878,28 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                         );
                       })()}
                       <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
-                        {u.isBvMember ? (
-                          <Select value={u.bvGroupId || '__unassigned__'}>
+                        {isBvUser ? (
+                          <Select
+                            value={groupSelectValue}
+                            onValueChange={(value) => {
+                              const selectedGroup = availableBvGroups.find(group => group.id === value || group.groupId === value);
+                              if (!selectedGroup || selectedGroup.id === currentBvGroup?.id) return;
+                              setGroupTransferDialog({ user: u, group: selectedGroup });
+                            }}
+                            disabled={!canEditRole || availableBvGroups.length === 0}
+                          >
                             <SelectTrigger className="h-7 text-xs w-48" aria-label={`Bhakti Vriksha Group for ${u.fullName}`}>
-                              <span className="truncate">{u.bvGroupName || (u.bvGroupId ? 'Group name unavailable' : 'Unassigned')}</span>
+                              <span className="truncate">{currentBvGroup?.groupName || (u as any).bvGroupName || ((u as any).bvGroupId ? 'Group name unavailable' : 'Unassigned')}</span>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={u.bvGroupId || '__unassigned__'}>
-                                {u.bvGroupName || (u.bvGroupId ? 'Group name unavailable' : 'Unassigned')}
-                              </SelectItem>
+                              {!currentBvGroup && (
+                                <SelectItem value={groupSelectValue}>
+                                  {(u as any).bvGroupName || ((u as any).bvGroupId ? 'Current group unavailable' : 'Unassigned')}
+                                </SelectItem>
+                              )}
+                              {availableBvGroups.map(group => (
+                                <SelectItem key={group.id} value={group.id}>{group.groupName}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         ) : (
@@ -1010,6 +1071,19 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
           : `Remove Trip Coordinator role from ${tripCoordDialog?.user.fullName}?`}
         confirmLabel="Confirm"
         onConfirm={handleTripCoordAction}
+      />
+      <ConfirmDialog
+        open={!!groupTransferDialog}
+        onOpenChange={open => !open && setGroupTransferDialog(null)}
+        title="Change Bhakti Vriksha Reading Group?"
+        description={groupTransferDialog
+          ? `Move ${groupTransferDialog.user.fullName} to ${groupTransferDialog.group.groupName}? They will be removed from their previous Reading Group and added as a member of this one.`
+          : ''}
+        confirmLabel="Confirm Group Change"
+        onConfirm={async () => {
+          await handleTransferBvGroup();
+          setGroupTransferDialog(null);
+        }}
       />
 
       {/* BV Mentor Dialog */}
