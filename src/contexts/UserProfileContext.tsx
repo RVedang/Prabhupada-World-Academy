@@ -171,7 +171,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
 
   // Roles, approvals, and account deletion now arrive through the scoped
   // Firestore invalidation stream; no focus/navigation/database polling.
-  useRealtimeRefresh(['users'], async () => {
+  useRealtimeRefresh(['users', 'groups'], async () => {
     if (user?.email) await load(user.email, 0, true);
   }, Boolean(user?.email));
 

@@ -250,7 +250,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
         groupId: group.id === '__unassigned__' ? null : (group.id || group.groupId),
       });
       setUsers(previous => previous.map(candidate =>
-        candidate.id === user.id || candidate.userId === user.userId
+        (user.id && candidate.id === user.id) || candidate.userId === user.userId
           ? {
               ...candidate,
               isBvMember: group.id !== '__unassigned__',
@@ -907,7 +907,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                               if (!selectedGroup || selectedGroup.id === currentBvGroup?.id) return;
                               setGroupTransferDialog({ user: u, group: selectedGroup });
                             }}
-                            disabled={!canEditRole || availableBvGroups.length === 0}
+                            disabled={!canEditRole}
                           >
                             <SelectTrigger className="h-7 text-xs w-48" aria-label={`Bhakti Vriksha Group for ${u.fullName}`}>
                               <span className="truncate">{currentBvGroup?.groupName || (u as any).bvGroupName || ((u as any).bvGroupId ? 'Group name unavailable' : 'Unassigned')}</span>

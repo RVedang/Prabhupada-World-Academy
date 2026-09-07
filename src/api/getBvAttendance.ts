@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, FolkResidencies } from '@/lib/backend-sdk';
+import { readBvProfileAttendance } from '../lib/bvProfileAttendance';
 
 const USER_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const USER_FIELDS = ['id', 'userId', 'email', 'fullName', 'displayName', 'name', 'residencyApproved', 'residencyGuideVerified', 'residency', 'selectedFolkResidency', 'residencyName', 'ashrayLevel', ...USER_IDENTITY_FIELDS.filter(field => !['id', 'userId', 'email'].includes(field))];
@@ -56,6 +57,8 @@ export default createEndpoint({
     userId: z.string().optional(),
     localDate: z.string().optional(),
     sinceDate: z.string().optional(),
+    untilDate: z.string().optional(),
+    historyOnly: z.boolean().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
@@ -84,6 +87,18 @@ export default createEndpoint({
       lookupId,
       ...userIdentityAliases(requestedUser),
     ].filter(Boolean).map(String))];
+
+    if (input.historyOnly) {
+      const userHistory = await readBvProfileAttendance(lookupAliases, sinceDate, input.untilDate);
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekStartStr = weekStart.toISOString().slice(0, 10);
+      return {
+        userHistory,
+        leaderboard: [],
+        userTotalPointsThisWeek: userHistory.filter(entry => entry.present && entry.attendanceDate >= weekStartStr).length,
+      };
+    }
 
     const [membershipByUser, membershipByUserId] = await Promise.all([
       BvGroupMembers.findAll({

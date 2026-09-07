@@ -18,6 +18,7 @@ import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import BvCalendarView from '@/components/bv/BvCalendarView';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function BhaktiVrikshaPage() {
   const { profile, refreshProfile } = useUserProfile();
@@ -30,6 +31,7 @@ export default function BhaktiVrikshaPage() {
   const [leavingGroup, setLeavingGroup] = useState(false);
   const [regModalOpen, setRegModalOpen] = useState(false);
   const [clearingNotice, setClearingNotice] = useState(false);
+  useRealtimeRefresh(['groups', 'users'], () => load(), !!profile?.userId);
 
   const handleAcknowledgeApproval = async () => {
     setClearingNotice(true);
@@ -286,7 +288,7 @@ export default function BhaktiVrikshaPage() {
                 <Leaf className="w-6 h-6" />
               </div>
               <div>
-                <p className="font-bold text-lg text-primary">Not a Member of Any Bhakti Vriksha Group</p>
+                <p className="font-bold text-lg text-primary">Unassigned</p>
                 <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
                   You are not a member of any Bhakti Vriksha group yet. Click <strong>Join Now</strong> to fill out your details and get assigned to a Reading Group!
                 </p>

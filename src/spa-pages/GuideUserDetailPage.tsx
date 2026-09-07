@@ -49,6 +49,7 @@ export default function GuideUserDetailPage() {
   const [data, setData] = useState<any>(null);
   const [ashrayData, setAshrayData] = useState<GetAshrayUpgradePathOutputType | null>(null);
   const [bvData, setBvData] = useState<any>(null);
+  const [bvError, setBvError] = useState(false);
   const [checklistData, setChecklistData] = useState<any>(null);
   const [progressStats, setProgressStats] = useState<any>(null);
   const [selectedEntryDate, setSelectedEntryDate] = useState<string | null>(null);
@@ -58,14 +59,26 @@ export default function GuideUserDetailPage() {
 
   useEffect(() => { if (userId) loadUserDetail(); }, [userId]);
 
+  const loadBvAttendance = async (profileId: string) => {
+    setBvError(false);
+    try {
+      return await getBvAttendance({ userId: profileId, historyOnly: true, sinceDate: '1900-01-01' });
+    } catch {
+      setBvError(true);
+      return null;
+    }
+  };
+
   const loadUserDetail = async () => {
     if (!userId) return;
     try {
-      const localDate = format(new Date(), 'yyyy-MM-dd');
+      const detailPromise = getUserDetailForGuide({ userId });
       const [result, ashrayRes, bvRes, checklistRes, progressRes, crmRes] = await Promise.all([
-        getUserDetailForGuide({ userId }),
+        detailPromise,
         getAshrayUpgradePath({}),
-        getBvAttendance({ userId, localDate }).catch(() => null),
+        // Match the exact registered profile used by the Sadhana calendar.
+        // Include older marks and marks from previous groups for month navigation.
+        detailPromise.then(result => loadBvAttendance(result.user.dbId || result.user.userId)),
         getAshrayChecklist({ userId }).catch(() => null),
         getUserProgressStats({ userId, days: 45, period: 'daily', includeToday: true }).catch(() => null),
         getUserCrmData({ userId }).catch(() => null),
@@ -246,7 +259,15 @@ export default function GuideUserDetailPage() {
             <p className="text-base font-bold mb-2 flex items-center gap-2">
               <Leaf className="w-5 h-5 text-green-600" />Bhakti Vriksha Attendance
             </p>
-            <MiniCalendar entries={bvCalendarEntries} onDayClick={() => {}} />
+            {bvError ? (
+              <Card><CardContent className="pt-6" role="alert">
+                <p className="text-sm text-destructive">Unable to load Bhakti Vriksha attendance.</p>
+                <Button variant="outline" size="sm" className="mt-3" onClick={async () => {
+                  const result = await loadBvAttendance(data.user.dbId || data.user.userId);
+                  setBvData(result);
+                }}>Retry attendance</Button>
+              </CardContent></Card>
+            ) : <MiniCalendar entries={bvCalendarEntries} onDayClick={() => {}} mode="attendance" />}
           </div>
         </div>
 

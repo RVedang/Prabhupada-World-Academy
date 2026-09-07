@@ -16,6 +16,7 @@ interface Props {
   entries: HistoryEntry[];
   onDayClick: (date: string) => void;
   isResident?: boolean;
+  mode?: 'sadhana' | 'attendance';
 }
 
 function getDayColor(entry: HistoryEntry | undefined, isResident = false): string {
@@ -39,7 +40,7 @@ function getDayEmoji(entry: HistoryEntry | undefined): string {
   return '';
 }
 
-function MiniCalendar({ entries, onDayClick, isResident = false }: Props) {
+function MiniCalendar({ entries, onDayClick, isResident = false, mode = 'sadhana' }: Props) {
   const [month, setMonth] = useState(new Date());
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -47,7 +48,7 @@ function MiniCalendar({ entries, onDayClick, isResident = false }: Props) {
   const entryMap = useMemo(() => new Map(entries.map(e => [e.entryDate.slice(0, 10), e])), [entries]);
   const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
   const firstDow = (days[0].getDay() + 6) % 7;
-  const canGoNext = month < new Date();
+  const canGoNext = startOfMonth(month) < startOfMonth(new Date());
 
   return (
     <Card>
@@ -57,11 +58,11 @@ function MiniCalendar({ entries, onDayClick, isResident = false }: Props) {
             <Calendar className="w-4 h-4" />Monthly View
           </CardTitle>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMonth(subMonths(month, 1))}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Previous month" onClick={() => setMonth(subMonths(month, 1))}>
               <ChevronLeft className="w-3 h-3" />
             </Button>
             <span className="text-xs font-medium min-w-[90px] text-center">{format(month, 'MMM yyyy')}</span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMonth(addMonths(month, 1))} disabled={!canGoNext}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Next month" onClick={() => setMonth(addMonths(month, 1))} disabled={!canGoNext}>
               <ChevronRight className="w-3 h-3" />
             </Button>
           </div>
@@ -80,21 +81,27 @@ function MiniCalendar({ entries, onDayClick, isResident = false }: Props) {
             const entry = entryMap.get(dateStr);
             const isFuture = dateStr > today;
             const isToday = dateStr === today;
+            const attendanceStatus = !entry || isFuture ? 'Not marked' : entry.scorePercent === 100 ? 'Present' : 'Absent';
             const emoji = getDayEmoji(isFuture ? undefined : entry);
             return (
               <button
                 key={dateStr}
+                aria-label={mode === 'attendance' ? `${dateStr}: ${attendanceStatus}` : dateStr}
                 disabled={isFuture}
                 onClick={() => onDayClick(dateStr)}
                 className={`
                   aspect-square rounded text-[10px] font-medium flex flex-col items-center justify-center
                   transition-opacity leading-tight
-                  ${getDayColor(isFuture ? undefined : entry, isResident)}
+                  ${mode === 'attendance'
+                    ? attendanceStatus === 'Present' ? 'bg-green-500 text-white'
+                      : attendanceStatus === 'Absent' ? 'bg-red-400 text-white'
+                      : 'bg-muted/40 text-muted-foreground/50'
+                    : getDayColor(isFuture ? undefined : entry, isResident)}
                   ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''}
                   ${!isFuture ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}
                 `}
                 title={
-                  entry
+                  mode === 'attendance' ? attendanceStatus : entry
                     ? [
                         entry.flagOs && entry.flagSick ? 'Sick & OS' : entry.flagOs ? 'Out of Station' : entry.flagSick ? 'Sick' : null,
                         entry.scorePercent != null ? `Score: ${entry.scorePercent}%` : entry.totalScore != null ? `Score: ${entry.totalScore} pts` : null,
@@ -115,10 +122,16 @@ function MiniCalendar({ entries, onDayClick, isResident = false }: Props) {
           })}
         </div>
         <div className="flex flex-wrap gap-3 mt-3 text-[10px] text-muted-foreground">
+          {mode === 'attendance' ? <>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500 inline-block" />Present</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-400 inline-block" />Absent</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-muted/40 inline-block" />Not marked</span>
+          </> : <>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500 inline-block" />{isResident ? '≥95%' : '≥75%'}</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-400 inline-block" />{isResident ? '85–94%' : '50–74%'}</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-400 inline-block" />{isResident ? '<85%' : '<50%'}</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-indigo-400 inline-block" />OS/Sick</span>
+          </>}
         </div>
       </CardContent>
     </Card>

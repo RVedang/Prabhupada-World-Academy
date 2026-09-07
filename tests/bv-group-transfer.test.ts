@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import transferBvGroupMember from '../src/api/transferBvGroupMember';
+import getUserProfile from '../src/api/getUserProfile';
+import getUserBvStatus from '../src/api/getUserBvStatus';
 import { BvGroupMembers, BvGroups, Users } from '../src/lib/app-backend-sdk';
 
 test('moving a BV member replaces old memberships and synchronizes their profile', async () => {
@@ -52,6 +54,25 @@ test('moving a BV member replaces old memberships and synchronizes their profile
     assert.equal(updatedMember?.bvGroupId, newGroup.id);
     assert.equal(updatedMember?.bvGroupName, newGroup.groupName);
     assert.equal(updatedMember?.bvReportingFacilitatorId, facilitator.userId);
+
+    // Legacy array references must also disappear, including duplicates in
+    // a different group. Profile refresh must not restore attendance access.
+    await BvGroupMembers.create({ record: {
+      id: oldMembershipId, group: oldGroup.id, user: [member.userId], role: 'Member',
+    } });
+    await transferBvGroupMember.execute({
+      input: { userId: member.userId, groupId: null },
+      context: { user: { id: 'BV-TRANSFER-ADMIN' } },
+    } as never);
+    assert.equal(await BvGroupMembers.findOne({ id: oldMembershipId }), undefined);
+    assert.equal(await BvGroupMembers.findOne({ id: newMembershipId }), undefined);
+    const context = { user: { id: member.id, userId: member.userId, email: member.email } };
+    const profile = await getUserProfile.execute({ input: {}, context } as never);
+    assert.equal(profile.user?.isBvMember, false);
+    assert.ok(!profile.user?.bvGroupId);
+    assert.ok(!profile.user?.bvGroupName);
+    const status = await getUserBvStatus.execute({ input: {}, context } as never);
+    assert.equal(status.myGroup, null);
   } finally {
     await BvGroupMembers.delete({ id: oldMembershipId }).catch(() => undefined);
     await BvGroupMembers.delete({ id: newMembershipId }).catch(() => undefined);

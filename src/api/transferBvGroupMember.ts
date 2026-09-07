@@ -30,16 +30,28 @@ export default createEndpoint({
     const user = await findUser(input.userId);
     if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'Member not found' });
 
-    const memberKeys = new Set([user.id, user.userId, user.email].flatMap(referenceValues));
-    const memberQueries = await Promise.all(['user', 'userId', 'memberId'].map(field =>
-      BvGroupMembers.findAll({
-        filters: { [field]: { in: [...memberKeys] } } as any,
+    const memberKeys = new Set([
+      user.id, user.userId, user.email, user.uid, user.authUid, user.firebaseUid,
+      user.firebaseUserId, user.firebaseAuthUid, user.authId, user.authUserId,
+      user.firebaseId, user.firebaseAuthId, user.firebase_id,
+    ].flatMap(referenceValues));
+    // Exact Firestore `in` queries miss mixed-case and array-valued legacy
+    // references. Visit every page so no surviving row can restore membership
+    // when getUserProfile next derives the user's attendance access.
+    const memberships: any[] = [];
+    let offset = 0;
+    while (true) {
+      const page = await BvGroupMembers.findAll({
         fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId', 'role'],
-        limit: 100,
-      }).catch(() => ({ records: [] }))
-    ));
-    const memberships = [...new Map(memberQueries.flatMap(result => result.records || [])
-      .map((membership: any) => [String(membership.id), membership])).values()];
+        limit: 500,
+        offset,
+      });
+      memberships.push(...page.records.filter(membership =>
+        referenceValues([membership.user, membership.userId, membership.memberId])
+          .some(ref => memberKeys.has(ref))));
+      if (!page.hasMore) break;
+      offset += page.records.length;
+    }
 
     if (input.groupId === null) {
       await Promise.all(memberships.map((membership: any) => BvGroupMembers.delete({ id: membership.id })));
@@ -49,8 +61,12 @@ export default createEndpoint({
           bvGroupId: null,
           bvGroupName: null,
           isBvMember: false,
-          bvRegistrationStatus: null,
+          bvRegistrationStatus: 'Approved',
           pendingBvGroupAssignmentNotice: false,
+          pendingBvApprovalNotice: false,
+          bvReportingFacilitatorId: '',
+          bvReportingFacilitatorName: '',
+          supervisorName: '',
         },
       });
       serverCacheInvalidate();
