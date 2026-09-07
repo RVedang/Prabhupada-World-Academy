@@ -170,9 +170,22 @@ export default createEndpoint({
     ]);
 
     const group = groupRecord as any;
+    let groupMemberRecords = [...membersByGroup.records, ...membersByGroupId.records]
+      .filter((member: any, index: number, records: any[]) => records.findIndex(item => item.id === member.id) === index);
+    // Some legacy rows store the group's custom groupId in `group` while the
+    // indexed query above uses the document ID. Recover those rows from the
+    // bounded membership collection so the dashboard count reflects reality.
+    if (groupMemberRecords.length === 0) {
+      const { records: allMemberships } = await BvGroupMembers.findAll({
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'], limit: 5000,
+      }).catch(() => ({ records: [] }));
+      const refs = new Set(groupReferences);
+      groupMemberRecords = allMemberships.filter((member: any) =>
+        referenceValues([member.group, member.groupId]).some(value => refs.has(value))
+      );
+    }
     const groupMembersRes = {
-      records: [...membersByGroup.records, ...membersByGroupId.records]
-        .filter((member: any, index: number, records: any[]) => records.findIndex(item => item.id === member.id) === index),
+      records: groupMemberRecords,
     };
     const memberCount = groupMembersRes.records.length;
     const allGroupAtt = [...attendanceByGroup.records, ...attendanceByGroupId.records]

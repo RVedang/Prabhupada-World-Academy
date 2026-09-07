@@ -19,7 +19,7 @@ export default createEndpoint({
   requiredCapabilities: 'bv.manage',
   inputSchema: z.object({
     userId: z.string().min(1),
-    groupId: z.string().min(1),
+    groupId: z.string().min(1).nullable(),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -29,6 +29,33 @@ export default createEndpoint({
   execute: async ({ input }: any) => {
     const user = await findUser(input.userId);
     if (!user) throw new AppError({ code: 'NOT_FOUND', message: 'Member not found' });
+
+    const memberKeys = new Set([user.id, user.userId, user.email].flatMap(referenceValues));
+    const memberQueries = await Promise.all(['user', 'userId', 'memberId'].map(field =>
+      BvGroupMembers.findAll({
+        filters: { [field]: { in: [...memberKeys] } } as any,
+        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId', 'role'],
+        limit: 100,
+      }).catch(() => ({ records: [] }))
+    ));
+    const memberships = [...new Map(memberQueries.flatMap(result => result.records || [])
+      .map((membership: any) => [String(membership.id), membership])).values()];
+
+    if (input.groupId === null) {
+      await Promise.all(memberships.map((membership: any) => BvGroupMembers.delete({ id: membership.id })));
+      await Users.update({
+        id: user.id,
+        record: {
+          bvGroupId: null,
+          bvGroupName: null,
+          isBvMember: false,
+          bvRegistrationStatus: null,
+          pendingBvGroupAssignmentNotice: false,
+        },
+      });
+      serverCacheInvalidate();
+      return { success: true, groupId: '', groupName: '' };
+    }
 
     const group = await BvGroups.findOne({ id: input.groupId }).catch(() => null)
       || await BvGroups.findOne({ filters: { groupId: input.groupId } }).catch(() => null);
@@ -45,17 +72,7 @@ export default createEndpoint({
       ? group.bvslLeader[0]
       : (group.bvslLeader || group.bvslId || '');
     const facilitator = rawFacilitatorId ? await findUser(String(rawFacilitatorId)) : null;
-    const memberKeys = new Set([user.id, user.userId, user.email].flatMap(referenceValues));
     const groupKeys = new Set([group.id, group.groupId].flatMap(referenceValues));
-    const memberQueries = await Promise.all(['user', 'userId', 'memberId'].map(field =>
-      BvGroupMembers.findAll({
-        filters: { [field]: { in: [...memberKeys] } } as any,
-        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId', 'role'],
-        limit: 100,
-      }).catch(() => ({ records: [] }))
-    ));
-    const memberships = [...new Map(memberQueries.flatMap(result => result.records || [])
-      .map((membership: any) => [String(membership.id), membership])).values()];
     const targetMemberships = memberships.filter((membership: any) =>
       [membership.group, membership.groupId].flatMap(referenceValues).some(value => groupKeys.has(value))
     );

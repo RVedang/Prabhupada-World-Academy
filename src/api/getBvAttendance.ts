@@ -38,13 +38,10 @@ async function findUsersForAliases(aliases: string[]): Promise<any[]> {
 
   for (let i = 0; i < uniqueAliases.length; i += 30) {
     const chunk = uniqueAliases.slice(i, i + 30);
-    const [byId, byUserId, byFirebaseUid, byEmail] = await Promise.all([
-      Users.findAll({ filters: { id: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
-      Users.findAll({ filters: { userId: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
-      Users.findAll({ filters: { firebaseUid: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
-      Users.findAll({ filters: { email: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] })),
-    ]);
-    for (const user of [...byId.records, ...byUserId.records, ...byFirebaseUid.records, ...byEmail.records]) {
+    const lookups = await Promise.all(USER_IDENTITY_FIELDS.map(field =>
+      Users.findAll({ filters: { [field]: { in: chunk } }, fields: USER_FIELDS, limit: 30 }).catch(() => ({ records: [] }))
+    ));
+    for (const user of lookups.flatMap(result => result.records)) {
       users.set(user.id, user);
     }
   }

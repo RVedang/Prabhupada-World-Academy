@@ -16,6 +16,7 @@ const groupSchema = z.object({
   meetingTime: z.string().nullable().optional(),
   segment: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
+  facilitatorIds: z.array(z.string()),
 });
 
 export default createEndpoint({
@@ -390,6 +391,10 @@ export default createEndpoint({
         // display of groups created before createBvGroup resolved custom IDs.
         segment: String(facilitatorUser?.segment || g.segment || 'PW').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW',
         isActive: g.isActive ?? true,
+        facilitatorIds: [g.bvslLeader, g.bvslId]
+          .flatMap((value: unknown) => Array.isArray(value) ? value : [value])
+          .filter(Boolean)
+          .map((value: unknown) => String(value)),
       };
     }));
 

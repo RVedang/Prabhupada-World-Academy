@@ -27,7 +27,7 @@ import BulkUserManagement from '@/components/guide/BulkUserManagement';
 
 type User = GetGuideUsersOutputType['users'][0] & { _guideId: string; _guideName: string };
 type GuideEntry = GetGuidesOutputType['guides'][0];
-type BvGroupOption = { id: string; groupId: string; groupName: string; segment?: string | null; isActive?: boolean };
+type BvGroupOption = { id: string; groupId: string; groupName: string; segment?: string | null; isActive?: boolean; facilitatorIds?: string[] };
 type SortKey = 'fullName' | 'guideName' | 'ashrayLevel' | 'latestScore' | 'latestEntryDate' | 'isResident';
 type SortDir = 'asc' | 'desc';
 type ResidentLikeUser = Partial<User> & {
@@ -170,6 +170,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
         groupName: group.groupName || 'Unnamed Reading Group',
         segment: group.segment,
         isActive: group.isActive,
+        facilitatorIds: group.facilitatorIds || [],
       })));
 
       if (isPwAdmin) {
@@ -246,19 +247,21 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     try {
       const result = await transferBvGroupMember({
         userId: user.id || user.userId,
-        groupId: group.id || group.groupId,
+        groupId: group.id === '__unassigned__' ? null : (group.id || group.groupId),
       });
       setUsers(previous => previous.map(candidate =>
         candidate.id === user.id || candidate.userId === user.userId
           ? {
               ...candidate,
-              isBvMember: true,
-              bvGroupId: result.groupId || group.id,
-              bvGroupName: result.groupName || group.groupName,
+              isBvMember: group.id !== '__unassigned__',
+              bvGroupId: result.groupId || null,
+              bvGroupName: result.groupName || null,
             }
           : candidate
       ));
-      toast.success(`${user.fullName} is now a member of ${result.groupName || group.groupName}`);
+      toast.success(group.id === '__unassigned__'
+        ? `${user.fullName} is now unassigned from all Reading Groups`
+        : `${user.fullName} is now a member of ${result.groupName || group.groupName}`);
       await loadData(true);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to change the Reading Group');
@@ -760,6 +763,16 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   const currentBvGroup = availableBvGroups.find(group =>
                     group.id === (u as any).bvGroupId || group.groupId === (u as any).bvGroupId
                   );
+                  const userRole = String((u as any).role || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
+                  const isRgf = !!((u as any).isBvFacilitator || (u as any).isBvsl || ['RGF', 'BVSL', 'FACILITATOR'].includes(userRole));
+                  const isSupervisor = !!((u as any).isBvSupervisor || (u as any).isBvMentor || ['SUPERVISOR', 'BV_SUPERVISOR', 'MENTOR'].includes(userRole));
+                  const isRgsf = !!((u as any).isBvSubFacilitator || ['RGSF', 'SUB_FACILITATOR'].includes(userRole));
+                  const roleGroup = isRgf
+                    ? availableBvGroups.find(group => (group.facilitatorIds || []).some(ref =>
+                        [u.id, u.userId, (u as any).email].filter(Boolean).map(value => String(value).toLowerCase()).includes(String(ref).toLowerCase())
+                      ))
+                    : currentBvGroup;
+                  const isRoleGroupLocked = isRgf || isSupervisor || isRgsf;
                   const groupSelectValue = currentBvGroup?.id || (u as any).bvGroupId || '__unassigned__';
 
                   return (
@@ -878,10 +891,18 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                         );
                       })()}
                       <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
-                        {isBvUser ? (
+                        {isBvUser ? isRoleGroupLocked ? (
+                          <span className="text-muted-foreground font-medium" title="This role is tied to its assigned Reading Group">
+                            {roleGroup?.groupName || (u as any).bvGroupName || 'Unassigned'}
+                          </span>
+                        ) : (
                           <Select
                             value={groupSelectValue}
                             onValueChange={(value) => {
+                              if (value === '__unassigned__') {
+                                setGroupTransferDialog({ user: u, group: { id: '__unassigned__', groupId: '__unassigned__', groupName: 'Unassigned' } });
+                                return;
+                              }
                               const selectedGroup = availableBvGroups.find(group => group.id === value || group.groupId === value);
                               if (!selectedGroup || selectedGroup.id === currentBvGroup?.id) return;
                               setGroupTransferDialog({ user: u, group: selectedGroup });
@@ -892,9 +913,10 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                               <span className="truncate">{currentBvGroup?.groupName || (u as any).bvGroupName || ((u as any).bvGroupId ? 'Group name unavailable' : 'Unassigned')}</span>
                             </SelectTrigger>
                             <SelectContent>
-                              {!currentBvGroup && (
+                              <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                              {!currentBvGroup && (u as any).bvGroupId && (
                                 <SelectItem value={groupSelectValue}>
-                                  {(u as any).bvGroupName || ((u as any).bvGroupId ? 'Current group unavailable' : 'Unassigned')}
+                                  {(u as any).bvGroupName || 'Current group unavailable'}
                                 </SelectItem>
                               )}
                               {availableBvGroups.map(group => (
@@ -1077,7 +1099,9 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
         onOpenChange={open => !open && setGroupTransferDialog(null)}
         title="Change Bhakti Vriksha Reading Group?"
         description={groupTransferDialog
-          ? `Move ${groupTransferDialog.user.fullName} to ${groupTransferDialog.group.groupName}? They will be removed from their previous Reading Group and added as a member of this one.`
+          ? groupTransferDialog.group.id === '__unassigned__'
+            ? `Remove ${groupTransferDialog.user.fullName} from all Bhakti Vriksha Reading Groups?`
+            : `Move ${groupTransferDialog.user.fullName} to ${groupTransferDialog.group.groupName}? They will be removed from their previous Reading Group and added as a member of this one.`
           : ''}
         confirmLabel="Confirm Group Change"
         onConfirm={async () => {
