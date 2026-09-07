@@ -107,7 +107,11 @@ export default createEndpoint({
 
     // Map groupId -> RGF info { id, name }
     const groupRgfMap = new Map<string, { id: string; name: string }>();
+    const groupNameMap = new Map<string, string>();
     allBvGroups.forEach((g: any) => {
+      for (const id of [g.id, g.groupId]) {
+        if (id && g.groupName) groupNameMap.set(String(id), g.groupName);
+      }
       const rawRgfId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId || g.guide || '');
       const rgfName = g.bvslName || '';
       if (g.id) groupRgfMap.set(String(g.id), { id: String(rawRgfId), name: rgfName });
@@ -354,6 +358,7 @@ export default createEndpoint({
           segment: u.segment || null,
           isPrabhupadaWorldUser: u.isPrabhupadaWorldUser === true,
           isBvsl: u.isBvsl || false,
+          isBvMember: u.isBvMember === true || !!u.bvGroupId,
           bvRegistrationStatus: u.bvRegistrationStatus || null,
           isBvSupervisor: u.isBvSupervisor || false,
           isBvFacilitator: u.isBvFacilitator || false,
@@ -410,6 +415,7 @@ export default createEndpoint({
           isResident,
           submittedToday: submittedToday.has(u.id),
           isBvsl: u.isBvsl || false,
+          isBvMember: u.isBvMember === true || !!assignedGid,
           bvRegistrationStatus: u.bvRegistrationStatus || null,
           isB: u.isB || false,
           isOtherCenter: (u as any).isOtherCenter || false,
@@ -437,7 +443,7 @@ export default createEndpoint({
           bvReportingFacilitatorName: resolvedFacName,
           supervisorName: u.supervisorName || resolvedFacName || null,
           bvGroupId: assignedGid || null,
-          bvGroupName: u.bvGroupName || null,
+          bvGroupName: groupNameMap.get(String(assignedGid || '')) || u.bvGroupName || null,
           // Fields used in UsersTab table
           selectedGuideId: guideIdVal,
           selectedGuideName: guideNameVal,

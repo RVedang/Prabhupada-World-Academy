@@ -644,6 +644,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   <Th col="fullName" label="Name" />
                   <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Bhakti Vriksha Role</th>
                   <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Parent</th>
+                  <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Bhakti Vriksha Group</th>
                   {isPwAdmin ? (
                     <>
                       <th className="text-left px-3 py-2 font-medium text-xs bg-muted">Sadhana Mentor</th>
@@ -670,7 +671,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={isPwAdmin ? 8 : 11}>
+                    <td colSpan={isPwAdmin ? 9 : 12}>
                       <EmptyState icon={Users} title="No users found" description="Try adjusting your filters." />
                     </td></tr>
                 ) : filtered.map(u => {
@@ -828,6 +829,22 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           </td>
                         );
                       })()}
+                      <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
+                        {u.isBvMember ? (
+                          <Select value={u.bvGroupId || '__unassigned__'}>
+                            <SelectTrigger className="h-7 text-xs w-48" aria-label={`Bhakti Vriksha Group for ${u.fullName}`}>
+                              <span className="truncate">{u.bvGroupName || (u.bvGroupId ? 'Group name unavailable' : 'Unassigned')}</span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={u.bvGroupId || '__unassigned__'}>
+                                {u.bvGroupName || (u.bvGroupId ? 'Group name unavailable' : 'Unassigned')}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-muted-foreground">NA</span>
+                        )}
+                      </td>
                       {/* The Guide dropdown belongs only to FOLK. PW BV ownership
                           is derived from the selected RGF/group hierarchy. */}
                       {!isPwAdmin && (
