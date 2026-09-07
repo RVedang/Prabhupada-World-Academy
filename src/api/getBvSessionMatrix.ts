@@ -84,16 +84,25 @@ export default createEndpoint({
     }
 
     // Get all members for these groups
-    const { records: memberships } = await BvGroupMembers.findAll({
-      filters: { group: { in: groupIds } } as any,
-      fields: ['id', 'user', 'group'],
-      limit: 2000,
-    });
+    const [membersByGroup, membersByGroupId] = await Promise.all([
+      BvGroupMembers.findAll({
+        filters: { group: { in: groupIds } } as any,
+        fields: ['id', 'user', 'userId', 'memberId', 'group', 'groupId'],
+        limit: 2000,
+      }),
+      BvGroupMembers.findAll({
+        filters: { groupId: { in: groupIds } } as any,
+        fields: ['id', 'user', 'userId', 'memberId', 'group', 'groupId'],
+        limit: 2000,
+      }).catch(() => ({ records: [] })),
+    ]);
+    const memberships = [...membersByGroup.records, ...membersByGroupId.records]
+      .filter((member: any, index: number, records: any[]) => records.findIndex(item => item.id === member.id) === index);
 
     const memberUserIds = [
       ...new Set(
         memberships
-          .map(m => (Array.isArray(m.user) ? m.user[0] : m.user) as string)
+      .map(m => (Array.isArray(m.user) ? m.user[0] : (m.user || (m as any).userId || (m as any).memberId)) as string)
           .filter(Boolean)
       ),
     ];
@@ -128,8 +137,8 @@ export default createEndpoint({
     const seenUserIds = new Set<string>();
     const memberGroupMap = new Map<string, string>();
     for (const m of memberships) {
-      const uid = (Array.isArray(m.user) ? m.user[0] : m.user) as string;
-      const gid = (Array.isArray(m.group) ? m.group[0] : m.group) as string;
+      const uid = (Array.isArray(m.user) ? m.user[0] : (m.user || (m as any).userId || (m as any).memberId)) as string;
+      const gid = (Array.isArray(m.group) ? m.group[0] : (m.group || (m as any).groupId)) as string;
       const canonicalGroupId = groupCanonicalId.get(String(gid)) || String(gid);
       if (uid && canonicalGroupId && !memberGroupMap.has(uid)) memberGroupMap.set(uid, canonicalGroupId);
     }
@@ -191,21 +200,27 @@ export default createEndpoint({
     // Query attendance by group+date range directly (new approach)
     let allAttendance: any[] = [];
     if (groupIds.length > 0) {
-      let offset = 0;
-      while (true) {
-        const { records, hasMore } = await BvAttendance.findAll({
-          filters: {
-            group: { in: groupIds },
-            attendanceDate: { gte: startDate, lte: endDate },
-          } as any,
-          fields: ['id', 'group', 'user', 'present', 'attendanceDate'],
-          limit: 2000,
-          offset,
-        });
-        allAttendance = allAttendance.concat(records);
-        if (!hasMore) break;
-        offset += 2000;
-      }
+      const loadAttendance = async (field: 'group' | 'groupId') => {
+        const records: any[] = [];
+        let offset = 0;
+        while (true) {
+          const result = await BvAttendance.findAll({
+            filters: {
+              [field]: { in: groupIds },
+              attendanceDate: { gte: startDate, lte: endDate },
+            } as any,
+            fields: ['id', 'group', 'groupId', 'user', 'present', 'attendanceDate'],
+            limit: 2000,
+            offset,
+          }).catch(() => ({ records: [], hasMore: false }));
+          records.push(...result.records);
+          if (!result.hasMore) return records;
+          offset += 2000;
+        }
+      };
+      const [byGroup, byGroupId] = await Promise.all([loadAttendance('group'), loadAttendance('groupId')]);
+      allAttendance = [...byGroup, ...byGroupId]
+        .filter((attendance, index, records) => records.findIndex(item => item.id === attendance.id) === index);
     }
 
     // Build attendance map: userId → date → boolean
@@ -216,7 +231,7 @@ export default createEndpoint({
     for (const a of allAttendance) {
       const uid = (Array.isArray(a.user) ? a.user[0] : a.user) as string;
       const date = String(a.attendanceDate || '').slice(0, 10);
-      const rawGroupId = (Array.isArray(a.group) ? a.group[0] : a.group) as string;
+      const rawGroupId = (Array.isArray(a.group) ? a.group[0] : (a.group || a.groupId)) as string;
       const gid = groupCanonicalId.get(String(rawGroupId)) || String(rawGroupId || '');
       if (!uid || !date) continue;
 
