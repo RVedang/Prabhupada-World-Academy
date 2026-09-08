@@ -12,7 +12,7 @@ export default function RoleAcknowledgementHandler() {
   const [groupInfo, setGroupInfo] = useState<{ groupName?: string; bvslName?: string; rgsfName?: string } | null>(null);
 
   // Determine what type of popup to show
-  let popupType: 'ashray_notice_approved' | 'ashray_notice_rejected' | 'bv_approval_notice' | 'bv_rejection_notice' | 'bv_group_assignment_notice' | 'bv_role_notice' | null = null;
+  let popupType: 'ashray_notice_approved' | 'ashray_notice_rejected' | 'bv_approval_notice' | 'bv_rejection_notice' | 'bv_group_assignment_notice' | 'bv_group_removal_notice' | 'bv_role_notice' | null = null;
 
   // This handler is mounted at the application root, so authenticated users
   // see pending account/approval notices as soon as they open any page. Do not
@@ -26,6 +26,8 @@ export default function RoleAcknowledgementHandler() {
       popupType = 'bv_rejection_notice';
     } else if ((profile as any).pendingBvGroupAssignmentNotice && !(profile as any).roleNoticeAcknowledged) {
       popupType = 'bv_group_assignment_notice';
+    } else if ((profile as any).pendingBvGroupRemovalNotice && !(profile as any).roleNoticeAcknowledged) {
+      popupType = 'bv_group_removal_notice';
     } else if ((profile as any).pendingRoleNotice && !(profile as any).roleNoticeAcknowledged) {
       popupType = 'bv_role_notice';
     } else if (profile.pendingAshrayNoticeStatus === 'approved' && !profile.ashrayNoticeAcknowledged) {
@@ -72,7 +74,7 @@ export default function RoleAcknowledgementHandler() {
         await acknowledgeBvApprovalNotice({});
       } else if (popupType === 'bv_rejection_notice') {
         await acknowledgeBvRejectionNotice({});
-      } else if (popupType === 'bv_role_notice' || popupType === 'bv_group_assignment_notice') {
+      } else if (popupType === 'bv_role_notice' || popupType === 'bv_group_assignment_notice' || popupType === 'bv_group_removal_notice') {
         await acknowledgeBvRoleNotice({});
       }
       await refreshProfile();
@@ -124,6 +126,11 @@ export default function RoleAcknowledgementHandler() {
       description = `${greeting} You have been added to the following Reading Group.`;
       icon = <CheckCircle className="w-12 h-12 text-primary mx-auto animate-bounce" />;
       break;
+    case 'bv_group_removal_notice':
+      title = 'Bhakti Vriksha Group Updated';
+      description = `${greeting} You have been removed from your Bhakti Vriksha Reading Group. Your Bhakti Vriksha status is now Unassigned.`;
+      icon = <XCircle className="w-12 h-12 text-destructive mx-auto" />;
+      break;
     case 'bv_role_notice': {
       title = roleRemoved && roleAssigned
         ? 'Roles Updated'
@@ -174,6 +181,13 @@ export default function RoleAcknowledgementHandler() {
             <p><strong>Reading Group:</strong> {groupInfo?.groupName || (profile as any).bvGroupName || 'Your assigned Reading Group'}</p>
             <p><strong>Facilitator (RGF):</strong> {groupInfo?.bvslName || 'Not assigned'}</p>
             <p><strong>Sub-Facilitator (RGSF):</strong> {groupInfo?.rgsfName || 'None'}</p>
+          </div>
+        )}
+
+        {popupType === 'bv_group_removal_notice' && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-center my-1">
+            <p className="font-semibold text-destructive">Reading Group: Unassigned</p>
+            <p className="text-muted-foreground mt-1">The Attendance tab will no longer be available unless you are added to a Reading Group again.</p>
           </div>
         )}
 

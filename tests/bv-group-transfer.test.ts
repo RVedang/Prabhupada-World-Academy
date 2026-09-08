@@ -4,6 +4,7 @@ import test from 'node:test';
 import transferBvGroupMember from '../src/api/transferBvGroupMember';
 import getUserProfile from '../src/api/getUserProfile';
 import getUserBvStatus from '../src/api/getUserBvStatus';
+import acknowledgeBvRoleNotice from '../src/api/acknowledgeBvRoleNotice';
 import { BvGroupMembers, BvGroups, Users } from '../src/lib/app-backend-sdk';
 
 test('moving a BV member replaces old memberships and synchronizes their profile', async () => {
@@ -71,8 +72,14 @@ test('moving a BV member replaces old memberships and synchronizes their profile
     assert.equal(profile.user?.isBvMember, false);
     assert.ok(!profile.user?.bvGroupId);
     assert.ok(!profile.user?.bvGroupName);
+    assert.equal(profile.user?.pendingBvGroupRemovalNotice, true);
+    assert.equal(profile.user?.roleNoticeAcknowledged, false);
     const status = await getUserBvStatus.execute({ input: {}, context } as never);
     assert.equal(status.myGroup, null);
+    await acknowledgeBvRoleNotice.execute({ input: {}, context } as never);
+    const acknowledgedProfile = await getUserProfile.execute({ input: {}, context } as never);
+    assert.equal(acknowledgedProfile.user?.pendingBvGroupRemovalNotice, false);
+    assert.equal(acknowledgedProfile.user?.roleNoticeAcknowledged, true);
   } finally {
     await BvGroupMembers.delete({ id: oldMembershipId }).catch(() => undefined);
     await BvGroupMembers.delete({ id: newMembershipId }).catch(() => undefined);

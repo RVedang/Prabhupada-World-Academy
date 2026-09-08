@@ -17,6 +17,7 @@ export default createEndpoint({
       record: {
         roleNoticeAcknowledged: true,
         pendingBvGroupAssignmentNotice: false,
+        pendingBvGroupRemovalNotice: false,
       },
     }).catch(() => {});
 
