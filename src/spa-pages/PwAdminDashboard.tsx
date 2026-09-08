@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video } from 'lucide-react';
+import { Users, CalendarCheck, LayoutGrid, AlertCircle, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video } from 'lucide-react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
@@ -18,9 +18,6 @@ const SuperStatsPanel = lazy(() => import('@/components/super/SuperStatsPanel'))
 const SendRemindersPanel = lazy(() => import('@/components/super/SendRemindersPanel'));
 const ReportsTab = lazy(() => import('@/components/guide/ReportsTab'));
 const MissingSadhanaTab = lazy(() => import('@/components/guide/MissingSadhanaTab'));
-const TagMangoConfigTab = lazy(() => import('@/components/super/TagMangoConfigTab'));
-const SuperAttendanceTab = lazy(() => import('@/components/super/SuperAttendanceTab'));
-const JigyasaTrackerTab = lazy(() => import('@/components/jigyasa/JigyasaTrackerTab'));
 const ApprovalsTab = lazy(() => import('@/components/guide/ApprovalsTab'));
 const SuperBvRegistrationsTab = lazy(() => import('@/components/super/SuperBvRegistrationsTab'));
 const BvAdminManagementTab = lazy(() => import('@/components/super/BvAdminManagementTab'));
@@ -65,7 +62,10 @@ export default function PwAdminDashboard() {
   const [adminName, setAdminName] = useState(profile?.fullName || 'Administrator');
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
 
-  const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';
+  const requestedInitialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
+  const initialTab = ['attendance', 'jigyasa', 'tagmango'].includes(requestedInitialTab)
+    ? 'sadhana'
+    : requestedInitialTab || 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
   useEffect(() => {
@@ -84,7 +84,7 @@ export default function PwAdminDashboard() {
   useEffect(() => {
     const onPop = () => {
       const hash = window.location.hash.slice(1);
-      if (hash) {
+      if (hash && !['attendance', 'jigyasa', 'tagmango'].includes(hash)) {
         setActiveTab(hash);
       }
     };
@@ -147,10 +147,7 @@ export default function PwAdminDashboard() {
     { value: 'reminders', label: 'Notifications', icon: Bell },
     ...(isSuperAdmin ? [{ value: 'stats', label: 'Stats', icon: LayoutGrid }] : []),
     { value: 'missing-sadhana', label: 'Missing Sadhana', icon: AlertCircle },
-    { value: 'attendance', label: 'Attendance', icon: ClipboardCheck },
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
-    { value: 'jigyasa', label: 'Jigyasa', icon: BookOpen },
-    { value: 'tagmango', label: 'TagMango', icon: Zap },
   ];
 
   const SidebarButton = ({ value, label, icon: Icon, badge }: { value: string; label: string; icon: any; badge?: number }) => {
@@ -348,36 +345,6 @@ export default function PwAdminDashboard() {
                 {visitedTabs.has('missing-sadhana') && (
                   <div className={activeTab === 'missing-sadhana' ? 'block' : 'hidden'}>
                     <MissingSadhanaTab guideId="ALL" />
-                  </div>
-                )}
-
-                {visitedTabs.has('attendance') && (
-                  <div className={activeTab === 'attendance' ? 'block' : 'hidden'}>
-                    <div className="space-y-1 mb-4">
-                      <h2 className="text-lg font-bold">Attendance Report</h2>
-                      <p className="text-sm text-muted-foreground">Course and session attendance records</p>
-                    </div>
-                    <SuperAttendanceTab />
-                  </div>
-                )}
-
-                {visitedTabs.has('jigyasa') && (
-                  <div className={activeTab === 'jigyasa' ? 'block' : 'hidden'}>
-                    <div className="space-y-1 mb-4">
-                      <h2 className="text-lg font-bold">Jigyasa Attendance Tracker</h2>
-                      <p className="text-sm text-muted-foreground">Upload TagMango CSVs and track session attendance</p>
-                    </div>
-                    <JigyasaTrackerTab canUpload={true} />
-                  </div>
-                )}
-
-                {visitedTabs.has('tagmango') && (
-                  <div className={activeTab === 'tagmango' ? 'block' : 'hidden'}>
-                    <div className="space-y-1 mb-4">
-                      <h2 className="text-lg font-bold">TagMango Configuration</h2>
-                      <p className="text-sm text-muted-foreground">Manage API credentials and course ID mappings for auto-enrollment</p>
-                    </div>
-                    <TagMangoConfigTab />
                   </div>
                 )}
 

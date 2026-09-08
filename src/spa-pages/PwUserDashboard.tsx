@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen, Leaf, Trophy, ClipboardCheck } from 'lucide-react';
+import { BookOpen, Leaf, Trophy } from 'lucide-react';
 import { getUserDashboardData, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -12,7 +12,6 @@ import BvTab from '@/components/dashboard/BvTab';
 import LeaderboardTab from '@/components/dashboard/LeaderboardTab';
 import { useQuery } from '@/hooks/useQuery';
 import SectionErrorBoundary from '@/components/SectionErrorBoundary';
-import AttendanceTab from '@/components/dashboard/AttendanceTab';
 import PushNotificationBanner from '@/components/dashboard/PushNotificationBanner';
 import { initReminderVisibilityCheck, scheduleSadhanaReminder, hasSubmittedToday } from '@/utils/sadhanaNotification';
 import {
@@ -109,16 +108,8 @@ export default function PwUserDashboard() {
     realtimeChannels: ['sadhana'],
   });
 
-  // The server derives isBvMember from the authoritative membership row. Do
-  // not additionally require the profile's legacy bvGroupId field: older
-  // memberships may have groupId only on BvGroupMembers, while attendance is
-  // still valid and should remain visible.
-  const canViewBvAttendance = !!profile?.isBvMember;
-  // Old bookmarks may still point to #attendance. Render the BV status page
-  // instead of leaving an unauthorized/empty tab selected.
-  const visibleActiveTab = activeTab === 'attendance' && !canViewBvAttendance
-    ? 'bv'
-    : ['sadhana', 'leaderboard', 'bv', 'attendance'].includes(activeTab) ? activeTab : 'sadhana';
+  // Old bookmarks may still point to #attendance; send them to the Sadhana tab.
+  const visibleActiveTab = ['sadhana', 'leaderboard', 'bv'].includes(activeTab) ? activeTab : 'sadhana';
 
   if (dashLoading || !profile) return <LoadingPage rows={3} />;
 
@@ -171,11 +162,6 @@ export default function PwUserDashboard() {
             <span className="sm:hidden">BV</span>
             <span className="hidden sm:inline">Bhakti Vriksha</span>
           </TabsTrigger>
-          {canViewBvAttendance && (
-            <TabsTrigger value="attendance" className="flex items-center gap-1.5">
-              <ClipboardCheck className="w-4 h-4" />Attendance
-            </TabsTrigger>
-          )}
         </TabsList>
         <TabTransition activeTab={visibleActiveTab}>
           {visibleActiveTab === 'sadhana' && (
@@ -201,11 +187,6 @@ export default function PwUserDashboard() {
           {visibleActiveTab === 'bv' && (
             <SectionErrorBoundary sectionName="Bhakti Vriksha Tab">
               <BvTab userId={profile.userId} segment="PW" />
-            </SectionErrorBoundary>
-          )}
-          {visibleActiveTab === 'attendance' && canViewBvAttendance && (
-            <SectionErrorBoundary sectionName="Attendance Tab">
-              <AttendanceTab userId={profile.userId} segment="PW" />
             </SectionErrorBoundary>
           )}
         </TabTransition>

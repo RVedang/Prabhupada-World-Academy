@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Users, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, Guides, FolkResidencies, AppError } from '@/lib/backend-sdk';
+import { bvUserAliases, resolveBvDepartmentGroups, resolveBvScopedGroups, resolveBvUsersByAliases } from '@/lib/bvGroupMemberScope';
 
 import getGuides from './getGuides';
 
@@ -99,25 +100,21 @@ export default createEndpoint({
         );
       }
       scopedUserIds = filtered.map(u => u.id);
-      if (scopedUserIds.length === 0) {
-        return {
-          records: [], stats: { totalCheckins: 0, uniqueParticipants: 0, levelBreakdown: [], centerBreakdown: [] },
-          filterOptions: {
-            guides: guideOptions,
-            centers: centersRes.records.map(c => ({ id: c.id, name: c.residencyName || '' })),
-            events: eventsRes.records.map(e => ({ id: e.id, title: e.title || '' })),
-            sessions: sessionsRes.records.map(s => ({ id: s.id, name: s.name || '', eventId: (Array.isArray(s.event) ? s.event[0] : s.event) || '' })),
-          },
-          pagination: { hasMore: false, totalCount: 0 },
-        };
-      }
       recFilters.user = { in: scopedUserIds };
     }
 
-    const bvAttFilters: any = {};
+    // Generic attendance is scoped by the Users.guide relation. BV attendance
+    // belongs to a reading group instead, and many historical rows store a
+    // public userId/email rather than a Firestore Users document ID. Resolve
+    // the permitted groups and member aliases independently.
+    const bvSegment = input.segment || 'PW';
+    const bvGroups = isSuperGuide
+      ? await resolveBvDepartmentGroups(bvSegment)
+      : await resolveBvScopedGroups(context.user, { segment: bvSegment });
+    const bvGroupAliases = new Set(bvGroups.flatMap(group => [group.id, group.groupId]).map(value => String(value).toLowerCase()));
+    const bvAttFilters: any = { present: true };
     if (input.startDate) bvAttFilters.attendanceDate = { ...(bvAttFilters.attendanceDate || {}), gte: input.startDate };
     if (input.endDate) bvAttFilters.attendanceDate = { ...(bvAttFilters.attendanceDate || {}), lte: input.endDate };
-    if (scopedUserIds && scopedUserIds.length > 0) bvAttFilters.user = { in: scopedUserIds };
 
     const [stdRes, bvRes] = await Promise.all([
       AttendanceRecords.findAll({
@@ -125,20 +122,55 @@ export default createEndpoint({
         limit: 2000,
         fields: ['id', 'session', 'date', 'user', 'source'],
       }),
-      BvAttendance.findAll({
-        filters: { ...bvAttFilters, present: true } as any,
+      // BV rows do not use AttendanceEvents/AttendanceSessions, so an Event
+      // or Session filter intentionally limits this report to generic check-ins.
+      (input.eventId || input.sessionId || bvGroupAliases.size === 0)
+        ? Promise.resolve({ records: [] })
+        : BvAttendance.findAll({
+        filters: bvAttFilters as any,
         limit: 2000,
-        fields: ['id', 'attendanceDate', 'user', 'sessionTopic', 'group'],
+        fields: ['id', 'attendanceDate', 'user', 'sessionTopic', 'group', 'groupId'],
       }).catch(() => ({ records: [] })),
     ]);
 
-    const formattedBvRecords = (bvRes.records || []).map((b: any) => ({
-      id: b.id,
-      session: b.sessionTopic || 'Bhakti Vriksha Session',
-      date: b.attendanceDate,
-      user: Array.isArray(b.user) ? b.user[0] : b.user,
-      source: 'Bhakti Vriksha',
-    }));
+    const scopedBvRows = (bvRes.records || []).filter((record: any) => {
+      const groupReferences = [record.group, record.groupId].flatMap(value => Array.isArray(value) ? value : [value]);
+      return groupReferences.some(value => bvGroupAliases.has(String(value || '').trim().toLowerCase()));
+    });
+    const bvUsers = await resolveBvUsersByAliases(
+      scopedBvRows.flatMap((record: any) => Array.isArray(record.user) ? record.user : [record.user]).filter(Boolean).map(String),
+      ['id', 'userId', 'email', 'fullName', 'phone', 'ashrayLevel', 'guide', 'residency'],
+    );
+    const bvUserByAlias = new Map<string, any>();
+    for (const user of bvUsers) {
+      for (const alias of bvUserAliases(user)) bvUserByAlias.set(alias, user);
+    }
+    const matchesBvUserFilters = (user: any) => {
+      const guide = Array.isArray(user?.guide) ? user.guide[0] : user?.guide;
+      const residency = Array.isArray(user?.residency) ? user.residency[0] : user?.residency;
+      const name = String(user?.fullName || '').toLowerCase();
+      const phone = String(user?.phone || '');
+      return (!input.ashrayLevel || user?.ashrayLevel === input.ashrayLevel) &&
+        (!input.residencyId || residency === input.residencyId) &&
+        // A selected Admin/Guide is an explicit super-admin filter. Regular
+        // admins are already restricted by their permitted BV groups above.
+        (!isSuperGuide || !guideDbId || guide === guideDbId) &&
+        (!input.search || name.includes(String(input.search).toLowerCase()) || phone.includes(String(input.search)));
+    };
+    const formattedBvRecords = scopedBvRows.flatMap((b: any) => {
+      const storedUser = String(Array.isArray(b.user) ? b.user[0] : b.user || '').trim().toLowerCase();
+      const user = bvUserByAlias.get(storedUser);
+      if (!user || !matchesBvUserFilters(user)) return [];
+      return [{
+        id: b.id,
+        session: '',
+        sessionName: b.sessionTopic || 'Bhakti Vriksha Session',
+        date: b.attendanceDate,
+        user: user.id,
+        source: 'Bhakti Vriksha',
+        isBv: true,
+      }];
+    });
 
     const allRecords = [...stdRes.records, ...formattedBvRecords];
 
@@ -148,7 +180,7 @@ export default createEndpoint({
     const recordUserIds = [...new Set(allRecords.map(r => Array.isArray(r.user) ? r.user[0] : r.user).filter(Boolean))] as string[];
 
     // Fetch user details in batches
-    const userDetails = new Map<string, any>();
+    const userDetails = new Map<string, any>(bvUsers.map((user: any) => [user.id, user]));
     for (let i = 0; i < recordUserIds.length; i += 100) {
       const batch = recordUserIds.slice(i, i + 100);
       const { records: batchUsers } = await Users.findAll({
@@ -201,8 +233,8 @@ export default createEndpoint({
         ashrayLevel: user?.ashrayLevel || '',
         guideName: gid ? guideMap.get(gid) || '' : '',
         centerName: rid ? centerMap.get(rid) || '' : '',
-        sessionName: session?.name || '',
-        eventTitle: session?.eventId ? eventMap.get(session.eventId) || '' : '',
+        sessionName: r.isBv ? r.sessionName : session?.name || '',
+        eventTitle: r.isBv ? 'Bhakti Vriksha' : session?.eventId ? eventMap.get(session.eventId) || '' : '',
         date: r.date || '',
         source: r.source || '',
       };
