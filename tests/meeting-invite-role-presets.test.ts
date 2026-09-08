@@ -16,6 +16,7 @@ test('invite role presets support every assigned role category', () => {
     [{ roles: ['SUPERVISOR'] }, 'SUPERVISOR'],
     [{ roles: ['SADHANA_MENTOR'] }, 'MENTOR'],
     [{ roles: ['FACILITATOR'] }, 'FACILITATOR'],
+    [{ roles: ['FACILITATOR'] }, 'RGF'],
     [{ roles: ['RGF'] }, 'RGF'],
     [{ roles: ['RGSF'] }, 'RGSF'],
   ] as const;

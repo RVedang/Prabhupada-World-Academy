@@ -61,11 +61,11 @@ export default createEndpoint({
     );
 
     const userFields = [
-      'id', 'userId', 'email', 'fullName', 'role', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
+      'id', 'userId', 'email', 'fullName', 'role', 'roles', 'ashrayLevel', 'residencyApproved', 'oneToOneDelegate',
       'bvReportingAdminId', 'bvReportingAdminName',
       'bvReportingSupervisorId', 'bvReportingSupervisorName',
       'bvReportingFacilitatorId', 'bvReportingFacilitatorName', 'segment',
-      'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator', 'isBvSupervisor', 'isBvMentor'
+      'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator', 'isBvSupervisor', 'isBvMentor', 'isBvAdmin', 'isBvSuperAdmin'
     ];
 
     // Fetch candidate users
@@ -323,12 +323,21 @@ export default createEndpoint({
         const hasDelegate = !!rawDelegate && String(rawDelegate).toLowerCase() !== String(u.id || '').toLowerCase();
         const delegateId = hasDelegate ? String(rawDelegate) : null;
         const delegateName = delegateId ? (userNameMap.get(delegateId.toLowerCase()) || null) : null;
-        const roleValue = String(u.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-        const roleLabel = u.isBvSubFacilitator || roleValue === 'RGSF' || roleValue === 'SUB_FACILITATOR'
-          ? 'RGSF'
-          : (u.isBvFacilitator || u.isBvsl || ['RGF', 'BVSL', 'FACILITATOR'].includes(roleValue))
-            ? 'RGF'
-            : 'Member';
+        const roleValues = (Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role])
+          .filter(Boolean)
+          .map((role: unknown) => String(role).toUpperCase().replace(/[\s-]+/g, '_'));
+        const hasRole = (...roles: string[]) => roleValues.some(role => roles.includes(role));
+        const roleLabel = u.isBvSuperAdmin || hasRole('SUPER_ADMIN', 'SUPER_GUIDE')
+          ? 'Super Admin'
+          : (u.isBvAdmin || hasRole('ADMIN', 'PW_ADMIN'))
+            ? 'Admin'
+            : (u.isBvSupervisor || u.isBvMentor || hasRole('SUPERVISOR', 'BV_SUPERVISOR', 'BV_MENTOR'))
+              ? 'Supervisor'
+              : (u.isBvFacilitator || u.isBvsl || hasRole('RGF', 'BVSL', 'FACILITATOR'))
+                ? 'RGF'
+                : (u.isBvSubFacilitator || hasRole('RGSF', 'SUB_FACILITATOR'))
+                  ? 'RGSF'
+                  : 'User';
 
         return {
           userId: u.id,

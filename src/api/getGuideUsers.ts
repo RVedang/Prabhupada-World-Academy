@@ -8,7 +8,7 @@ import { getGuideScope } from '../lib/guideScope';
 // Minimal fields for guide lookup
 const GUIDE_FIELDS = ['id', 'email', 'isActive', 'role', 'folkResidencies'];
 // Minimal fields for user listing — avoids fetching large linked-record arrays
-const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'status', 'segment',
+const USER_FIELDS = ['id', 'userId', 'fullName', 'phone', 'email', 'role', 'roles', 'status', 'segment',
   'isPrabhupadaWorldUser',
   'ashrayLevel', 'residency', 'residencyApproved', 'residencyClaimed', 'residencyGuideVerified',
   'guide', 'isBvsl', 'isBvMember', 'isSadhanaMentor', 'isServiceAllocator', 'isBvMentor',
@@ -41,10 +41,17 @@ export default createEndpoint({
     residencyId: z.string().optional(),
     residencyFilter: z.string().optional(),
     minimal: z.boolean().optional(),
+    // Meeting organizers need a complete, role-bearing directory rather than
+    // the caller's normal member-reporting scope.
+    forMeetingInvitees: z.boolean().optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     if (!context.user) throw new Error('Unauthorized');
+    const forMeetingInvitees = input.forMeetingInvitees === true;
+    if (forMeetingInvitees && !context.user.capabilities?.includes('*') && !context.user.capabilities?.includes('meetings.manage')) {
+      throw new Error('Unauthorized to view meeting invitees');
+    }
     const userRole = (context.user.role || 'User').toUpperCase().replace(/\s+/g, '_');
     const isSuperGuide = userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
@@ -178,7 +185,7 @@ export default createEndpoint({
 
     const scopedUserIds = await getScopedHierarchyUserIds(context.user).catch(() => null);
 
-    if (scopedUserIds !== null) {
+    if (!forMeetingInvitees && scopedUserIds !== null) {
       users = users.filter(u => {
         const uId = String(u.id || '').toLowerCase();
         const userIdStr = String(u.userId || '').toLowerCase();
@@ -287,7 +294,7 @@ export default createEndpoint({
     const callerEmail = String(context.user.email || '').toLowerCase();
 
     // Filter out records based on strict hierarchy and self-exclusion rules
-    const registeredUsers = users.filter(u => {
+    const registeredUsers = forMeetingInvitees ? users : users.filter(u => {
       // Basic validation
       if (!(u.userId || u.id) || (u.fullName || '').trim().length === 0) {
         return false;
@@ -354,6 +361,7 @@ export default createEndpoint({
           phone: formatPhone(u.phone),
           email: u.email || '',
           role: normalizeRole(u.role || 'User'),
+          roles: Array.isArray(u.roles) ? u.roles : (u.roles ? [u.roles] : []),
           status: normalizeStatus(u.status || 'Pending Approval'),
           segment: u.segment || null,
           isPrabhupadaWorldUser: u.isPrabhupadaWorldUser === true,
@@ -403,6 +411,7 @@ export default createEndpoint({
           phone: formatPhone(u.phone),
           email: u.email || '',
           role: normalizeRole(u.role || 'User'),
+          roles: Array.isArray(u.roles) ? u.roles : (u.roles ? [u.roles] : []),
           status: normalizeStatus(u.status || 'Pending Approval'),
           segment: u.segment || null,
           ashrayLevel: u.ashrayLevel || null,

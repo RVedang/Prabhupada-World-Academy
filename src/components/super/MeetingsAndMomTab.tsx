@@ -359,7 +359,8 @@ export function hasMeetingRole(user: any, role: 'ADMIN' | 'SUPERVISOR' | 'MENTOR
       SUPERVISOR: ['SUPERVISOR', 'BV_SUPERVISOR'],
       MENTOR: ['MENTOR', 'SADHANA_MENTOR', 'BV_MENTOR'],
       FACILITATOR: ['FACILITATOR', 'RGF', 'BVSL'],
-      RGF: ['RGF'],
+      // "Facilitator", BVSL, and RGF are the same invitee category in PW.
+      RGF: ['RGF', 'FACILITATOR', 'BVSL'],
       RGSF: ['RGSF', 'SUB_FACILITATOR'],
     };
     return roles.some(value => accepted[role].includes(value));
@@ -368,14 +369,13 @@ export function hasMeetingRole(user: any, role: 'ADMIN' | 'SUPERVISOR' | 'MENTOR
     : role === 'SUPERVISOR' ? !!(user?.isBvSupervisor || user?.isBvMentor)
     : role === 'MENTOR' ? !!(user?.isSadhanaMentor || user?.isBvMentor)
     : role === 'FACILITATOR' ? !!(user?.isBvFacilitator || user?.isBvsl)
-    : role === 'RGF' ? !!user?.isBvFacilitator
+    : role === 'RGF' ? !!(user?.isBvFacilitator || user?.isBvsl)
     : !!user?.isBvSubFacilitator;
 }
 
-const INVITE_ROLE_TYPES = ['ADMIN', 'SUPERVISOR', 'MENTOR', 'FACILITATOR', 'RGF', 'RGSF'] as const;
+const INVITE_ROLE_TYPES = ['ADMIN', 'SUPERVISOR', 'MENTOR', 'RGF', 'RGSF'] as const;
 
 const getRolePriority = (u: any) => {
-  const roleUpper = String(u.role || '').toUpperCase().replace(/[\s-]+/g, '_');
   const isAdmin = hasMeetingRole(u, 'ADMIN');
   const isSupervisor = hasMeetingRole(u, 'SUPERVISOR');
   const isFac = hasMeetingRole(u, 'FACILITATOR');
@@ -510,7 +510,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
         getMeetings({ department }),
         getMoms({ department }),
         canManageMeetings
-          ? getGuideUsers({ guideId: 'ALL', statusFilter: 'all', minimal: true }).catch(() => ({ users: [] }))
+          ? getGuideUsers({ guideId: 'ALL', statusFilter: 'all', minimal: true, forMeetingInvitees: true }).catch(() => ({ users: [] }))
           : Promise.resolve({ users: [] }),
       ]);
       const now = Date.now();
@@ -1667,7 +1667,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                             : 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
                         }`}
                       >
-                        {isPresetSelected('RGFS') ? '✓ PW Facilitators (RGFs)' : '+ PW Facilitators (RGFs)'}
+                        {isPresetSelected('RGFS') ? '✓ RGF' : '+ RGF'}
                       </button>
                       <button
                         type="button"
@@ -1707,7 +1707,8 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                       return (
                         (u.fullName || '').toLowerCase().includes(q) ||
                         (u.email || '').toLowerCase().includes(q) ||
-                        (u.role || '').toLowerCase().includes(q)
+                        (u.role || '').toLowerCase().includes(q) ||
+                        normalizedRoles(u).some(role => role.toLowerCase().includes(q))
                       );
                     }).length === 0 ? (
                       <div className="p-3 text-center text-muted-foreground text-[10px]">
@@ -1720,7 +1721,8 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                           return (
                             (u.fullName || '').toLowerCase().includes(q) ||
                             (u.email || '').toLowerCase().includes(q) ||
-                            (u.role || '').toLowerCase().includes(q)
+                            (u.role || '').toLowerCase().includes(q) ||
+                            normalizedRoles(u).some(role => role.toLowerCase().includes(q))
                           );
                         })
                         .sort((a: any, b: any) => {
@@ -1733,12 +1735,11 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                         })
                         .map((u: any) => {
                           const isSelected = selectedInviteeIds.includes(u.userId);
-                          const isSupervisor = u.isBvSupervisor || u.role?.toUpperCase().includes('SUPERVISOR');
-                          const isMentor = u.isSadhanaMentor || u.isBvMentor || u.role?.toUpperCase().includes('MENTOR');
-                          const isFac = u.isBvFacilitator || u.isBvsl || u.role?.toUpperCase() === 'BVSL' || u.role?.toUpperCase() === 'FACILITATOR';
-                          const isRgf = u.isBvFacilitator || u.role?.toUpperCase() === 'FACILITATOR';
-                          const isRgsf = u.isBvSubFacilitator || u.role?.toUpperCase() === 'SUB_FACILITATOR' || u.role?.toUpperCase() === 'SUB-FACILITATOR';
-                          const isAdmin = u.isBvAdmin || u.role?.toUpperCase() === 'ADMIN' || u.role?.toUpperCase() === 'PW_ADMIN' || u.role?.toUpperCase() === 'SUPER_ADMIN';
+                          const isSupervisor = hasMeetingRole(u, 'SUPERVISOR');
+                          const isMentor = hasMeetingRole(u, 'MENTOR');
+                          const isRgf = hasMeetingRole(u, 'RGF');
+                          const isRgsf = hasMeetingRole(u, 'RGSF');
+                          const isAdmin = hasMeetingRole(u, 'ADMIN');
 
                           return (
                             <div
@@ -1776,11 +1777,6 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                 {isMentor && (
                                   <span className="text-[7px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1 py-0.2 rounded shrink-0">
                                     MENTOR
-                                  </span>
-                                )}
-                                {isFac && (
-                                  <span className="text-[7px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1 py-0.2 rounded shrink-0">
-                                    FAC
                                   </span>
                                 )}
                                 {isRgf && (

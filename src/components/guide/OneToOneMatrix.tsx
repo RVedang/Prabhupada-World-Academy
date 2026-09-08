@@ -9,7 +9,7 @@ export interface Member {
   eligibility: string; delegateId: string | null; delegateName: string | null;
   groupId?: string | null;
   groupName?: string | null;
-  roleLabel?: 'RGF' | 'RGSF' | 'Member';
+  roleLabel?: 'User' | 'RGF' | 'RGSF' | 'Supervisor' | 'Admin' | 'Super Admin';
   rgfName?: string | null;
   supervisorName?: string | null;
   adminName?: string | null;
@@ -70,13 +70,37 @@ function EligibilityBadge({ eligibility, delegateName }: { eligibility: string; 
 }
 
 function RoleBadge({ roleLabel }: { roleLabel?: Member['roleLabel'] }) {
-  const role = roleLabel || 'Member';
-  const classes = role === 'RGF'
+  const role = roleLabel || 'User';
+  const classes = role === 'Super Admin'
+    ? 'bg-purple-50 text-purple-700 border-purple-200'
+    : role === 'Admin'
+      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+      : role === 'Supervisor'
+        ? 'bg-blue-50 text-blue-700 border-blue-200'
+        : role === 'RGF'
     ? 'bg-amber-50 text-amber-800 border-amber-200'
     : role === 'RGSF'
-      ? 'bg-blue-50 text-blue-700 border-blue-200'
+      ? 'bg-sky-50 text-sky-700 border-sky-200'
       : 'bg-green-50 text-green-700 border-green-200';
   return <span className={`text-[9px] px-1 py-0.5 rounded border font-medium ${classes}`}>{role}</span>;
+}
+
+function ParentBadge({ member }: { member: Member }) {
+  const role = member.roleLabel || 'User';
+  const parent = role === 'RGF'
+    ? { label: 'Supervisor', name: member.supervisorName }
+    : role === 'Supervisor'
+      ? { label: 'Admin', name: member.adminName }
+      : role === 'RGSF' || role === 'User'
+        ? { label: 'RGF', name: member.rgfName }
+        : null;
+
+  if (!parent) return null;
+  return (
+    <span className="text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">
+      {parent.label}: {parent.name || 'Unassigned'}
+    </span>
+  );
 }
 
 type TableRow =
@@ -174,24 +198,9 @@ export default function OneToOneMatrix({ members, meetings, weeks, groupByAshray
                       )}
                       <EligibilityBadge eligibility={member.eligibility} delegateName={member.delegateName} />
                     </div>
-                    {/* Hierarchy Badges for Supervisor, Admin, Super Admin */}
                     <div className="flex items-center gap-1 flex-wrap mt-1">
-                      {isSuperAdmin && (
-                        <>
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-medium">Admin: {member.adminName || '—'}</span>
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">Sup: {member.supervisorName || '—'}</span>
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">RGF: {member.rgfName || '—'}</span>
-                        </>
-                      )}
-                      {isAdmin && (
-                        <>
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">Sup: {member.supervisorName || '—'}</span>
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">RGF: {member.rgfName || '—'}</span>
-                        </>
-                      )}
-                      {isSupervisor && (
-                        <RoleBadge roleLabel={member.roleLabel} />
-                      )}
+                      <RoleBadge roleLabel={member.roleLabel} />
+                      <ParentBadge member={member} />
                     </div>
                   </td>
                   <td className="px-2 py-2 text-center border-b border-l border-border">

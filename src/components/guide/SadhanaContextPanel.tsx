@@ -41,6 +41,9 @@ export default function SadhanaContextPanel({ userId }: Props) {
   if (!data) return null;
 
   const scoreColors = (p: number | null) => p == null ? 'text-muted-foreground' : p >= 80 ? 'text-green-600' : p >= 60 ? 'text-amber-600' : 'text-destructive';
+  // The context is ordered oldest → newest. Show the latest reported rounds,
+  // not the first historical week that happened to contain an entry.
+  const latestRounds = [...data.weeks].reverse().find(w => w.rounds != null)?.rounds;
 
   return (
     <div className="space-y-3 pt-1">
@@ -67,7 +70,7 @@ export default function SadhanaContextPanel({ userId }: Props) {
           <p className="text-[10px] text-muted-foreground">Streak</p>
         </div>
         <div className="text-center bg-muted rounded p-2">
-          <div className="text-sm font-bold">{data.weeks.find(w => w.rounds != null)?.rounds ?? '—'}</div>
+          <div className="text-sm font-bold">{latestRounds ?? '—'}</div>
           <p className="text-[10px] text-muted-foreground">Rounds</p>
         </div>
         <div className="text-center bg-muted rounded p-2">

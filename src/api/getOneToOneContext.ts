@@ -23,23 +23,42 @@ export default createEndpoint({
     const startDate = daysAgoStr(28);
     const today = new Date().toISOString().split('T')[0];
 
-    const [user, entriesRes, bvRes] = await Promise.all([
-      Users.findOne({ id: input.userId, fields: ['id', 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved'] }),
+    // One-to-one records normally pass the Users document id, but older
+    // records can contain the app user id. Resolve it before querying Sadhana
+    // and BV attendance so the context never silently shows empty values.
+    const user = await Users.findOne({
+      id: input.userId,
+      fields: ['id', 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified'],
+    }).catch(() => undefined) || await Users.findOne({
+      filters: { userId: input.userId },
+      fields: ['id', 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified'],
+    }).catch(() => undefined);
+
+    if (!user?.id) {
+      return {
+        userName: '', streak: 0, ashrayLevel: null, isResident: false,
+        weeks: [], bvAttendanceCount: 0, totalPreachingMins: 0,
+        totalBooks: 0, improvementAreas: [],
+      };
+    }
+    const canonicalUserId = user.id;
+
+    const [entriesRes, bvRes] = await Promise.all([
       SadhanaEntries.findAll({
-        filters: { user: input.userId, entryDate: { gte: startDate, lte: today } } as any,
+        filters: { user: canonicalUserId, entryDate: { gte: startDate, lte: today } } as any,
         fields: ['id', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'templateMode',
           'roundsCount', 'spReadingMinutes', 'preachingMinutes', 'booksDistributed',
           'nrChantingRounds', 'nrReadingMinutes', 'nrHearingMinutes', 'flagSick', 'flagOs'],
         limit: 200,
       }),
       BvAttendance.findAll({
-        filters: { user: input.userId, present: true, attendanceDate: { gte: startDate, lte: today } } as any,
+        filters: { user: canonicalUserId, present: true, attendanceDate: { gte: startDate, lte: today } } as any,
         fields: ['id', 'present'],
         limit: 100,
       }),
     ]);
 
-    const isResident = user?.residencyApproved || false;
+    const isResident = !!(user.residencyApproved || user.residencyGuideVerified);
 
     // Group entries by week
     const weekMap = new Map<string, typeof entriesRes.records>();
@@ -63,8 +82,8 @@ export default createEndpoint({
       const src = entries.filter(e => !e.flagSick && !e.flagOs);
       const base = src.length > 0 ? src : entries;
       const n = base.length;
-      const earned = entries.reduce((s, e) => s + (Number(e.totalScore) || 0), 0);
-      const maxTotal = entries.reduce((s, e) => s + (Number(e.maxScore) || 0), 0);
+      const earned = base.reduce((s, e) => s + (Number(e.totalScore) || 0), 0);
+      const maxTotal = base.reduce((s, e) => s + (Number(e.maxScore) || 0), 0);
       const scorePercent = maxTotal > 0 ? Math.round((earned / maxTotal) * 100) : null;
       const rounds = isResident ? base.reduce((s, e) => s + (Number(e.roundsCount) || 0), 0) / n : base.reduce((s, e) => s + (Number(e.nrChantingRounds) || 0), 0) / n;
       const readingMins = isResident ? base.reduce((s, e) => s + (Number(e.spReadingMinutes) || 0), 0) / n : base.reduce((s, e) => s + (Number(e.nrReadingMinutes) || 0), 0) / n;
