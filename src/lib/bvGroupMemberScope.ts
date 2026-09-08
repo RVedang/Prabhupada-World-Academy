@@ -220,7 +220,7 @@ export async function resolveBvScopedGroups(
   ].flatMap(refs));
   const allUsersResult = await Users.findAll({
     fields: [
-      'id', 'userId', 'email', 'role', 'segment', 'guide',
+      'id', 'userId', 'email', 'role', 'segment', 'isPrabhupadaWorldUser', 'guide',
       'isBvSupervisor', 'isBvMentor', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator',
       'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId',
     ],
@@ -277,9 +277,9 @@ export async function resolveBvScopedGroups(
     }
   }
 
-  const segmentByUserAlias = new Map<string, string>();
+  const segmentByUserAlias = new Map<string, 'FOLK' | 'PW'>();
   for (const user of allUsers) {
-    const segment = String(user.segment || '').trim().toUpperCase();
+    const segment = departmentValue(user.segment) || (user.isPrabhupadaWorldUser === true ? 'PW' : null);
     if (!segment) continue;
     bvUserAliases(user).forEach(alias => segmentByUserAlias.set(alias, segment));
   }
@@ -293,7 +293,7 @@ export async function resolveBvScopedGroups(
     const leaderRefs = refs([group.bvslLeader, group.bvslId]);
     const rgsfRefs = refs([group.subFacilitatorId, group.rgsfId, group.subFacilitator]);
     if (options.segment) {
-      const explicitSegment = String(group.segment || '').trim().toUpperCase();
+      const explicitSegment = departmentValue(group.segment);
       const inferredSegments = leaderRefs.map(ref => segmentByUserAlias.get(ref)).filter(Boolean);
       const groupSegment = explicitSegment || inferredSegments[0] || '';
       if (groupSegment && groupSegment !== options.segment) return false;

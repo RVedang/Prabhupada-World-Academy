@@ -762,7 +762,7 @@ export default createEndpoint({
     // Get residencies for this guide
     let availableResidencies: { residencyId: string; residencyName: string }[] = [];
     let guideResidencyIds: string[] = [];
-    if (guideDbId) {
+    if (guideDbId && !facilitatorMode) {
       const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined) ||
         await Users.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined) ||
         await Users.findOne({ filters: { userId: guideDbId }, fields: ['id', 'folkResidencies'] }).catch(() => undefined);
@@ -878,7 +878,7 @@ export default createEndpoint({
     // NR-VIS FIX: Non-residents must only appear for their own assigned guide.
     // Users are fetched broadly by residency above, so without this filter an NR whose guide is
     // "Sreesha Prabhu" would show up in Manmohan Prabhu's report too — causing confusion.
-    if (guideDbId) {
+    if (guideDbId && !facilitatorMode) {
       users = users.filter(u => {
         const officialResId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
         const isOfficialResident = !!(u.residencyApproved && officialResId);

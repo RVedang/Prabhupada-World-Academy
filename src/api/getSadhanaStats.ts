@@ -373,8 +373,15 @@ export default createEndpoint({
       // Scholars use resident template — treat as resident for scoring/display purposes
       const isResident = isOfficialResident || isScholar;
       const residencyName = isOfficialResident && rawResidencyId ? (residencyNameMap.get(rawResidencyId as string) || null) : (isScholar ? 'Scholar' : null);
+      const normalizedRole = String(u.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+      const facilitatorRole = u.isBvSubFacilitator || ['RGSF', 'SUB_FACILITATOR', 'BV_SUB_FACILITATOR'].includes(normalizedRole)
+        ? 'RGSF'
+        : u.isBvFacilitator || u.isBvsl || ['RGF', 'BVSL', 'FACILITATOR', 'BV_FACILITATOR'].includes(normalizedRole)
+          ? 'RGF'
+          : undefined;
       return {
         userId: u.userId || u.id, fullName: u.fullName || u.displayName || u.name || u.userId || u.id,
+        facilitatorRole,
         ashrayLevel: u.ashrayLevel || null,
         isResident, residencyName,
         submittedCount: submitted, totalDays, avgScorePercent: avgScore, trend,

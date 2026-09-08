@@ -309,10 +309,10 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            Group Field Trends
+            {facilitatorMode ? 'Facilitator Sadhana Trends' : 'Group Field Trends'}
             {groupStats && (
               <span className="text-xs font-normal text-muted-foreground">
-                · {groupStats.totalUsers} members · {groupStats.totalSubmitted ?? 0} entries
+                · {groupStats.totalUsers} {facilitatorMode ? 'facilitators' : 'members'} · {groupStats.totalSubmitted ?? 0} entries
               </span>
             )}
           </CardTitle>
@@ -342,18 +342,28 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="text-sm font-semibold">Individual User Stats</CardTitle>
+            <div>
+              <CardTitle className="text-sm font-semibold">
+                {facilitatorMode ? 'Individual Facilitator Sadhana' : 'Individual User Stats'}
+              </CardTitle>
+              {facilitatorMode && (
+                <p className="mt-1 text-xs text-muted-foreground">Select an RGF or RGSF in this admin’s reporting hierarchy to view their personal Sadhana trends.</p>
+              )}
+            </div>
             {(() => {
               const selectedUser = userList.find((user: any) => String(user.userId) === selectedUserId);
               return (
             <Select value={selectedUserId} onValueChange={(v) => setSelectedUserId(v || '')}>
               <SelectTrigger className="h-8 w-[220px]">
-                <span className="truncate text-left">{selectedUser?.fullName || 'Select a user…'}</span>
+                <span className="truncate text-left">{selectedUser?.fullName || (facilitatorMode ? 'Select an RGF/RGSF…' : 'Select a user…')}</span>
               </SelectTrigger>
               <SelectContent className="max-h-72">
                 {userList.map((u: any) => (
                   <SelectItem key={u.userId} value={String(u.userId)}>
                     <span className="font-medium">{u.fullName}</span>
+                    {facilitatorMode && u.facilitatorRole && (
+                      <span className="ml-2 text-[10px] font-semibold text-primary">{u.facilitatorRole}</span>
+                    )}
                     {u.avgScorePercent > 0 && (
                       <span className={`ml-2 text-xs ${scoreColor(u.avgScorePercent, u.isResident)}`}> {u.avgScorePercent}%</span>
                     )}
@@ -386,7 +396,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
         <CardContent>
           {!selectedUserId ? (
             <div className="flex items-center justify-center h-28 text-muted-foreground text-sm">
-              Select a user above to view their individual field trends
+              {facilitatorMode ? 'Select an RGF or RGSF above to view their Sadhana trends' : 'Select a user above to view their individual field trends'}
             </div>
           ) : userLoading ? (
             <Skeleton className="h-72 w-full" />

@@ -1,16 +1,29 @@
 import { z } from 'zod';
 import { createEndpoint, Users, SadhanaEntries, BvAttendance } from '@/lib/backend-sdk';
+import { getTodayIST, daysAgo } from '../lib/streakUtils';
+
+const USER_IDENTITY_FIELDS = [
+  'id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId',
+  'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id',
+];
+
+function identityAliases(user: any): string[] {
+  return [...new Set(USER_IDENTITY_FIELDS
+    .flatMap(field => Array.isArray(user?.[field]) ? user[field] : [user?.[field]])
+    .filter(Boolean)
+    .map(value => String(value).trim().toLowerCase())
+    .filter(Boolean))];
+}
+
+function parseFieldValues(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  try { return JSON.parse(String(value)); } catch { return {}; }
+}
 
 function getMondayOfWeek(dateStr: string): string {
   const d = new Date(dateStr.split('T')[0] + 'T00:00:00');
   const day = d.getDay();
   d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
-  return d.toISOString().split('T')[0];
-}
-
-function daysAgoStr(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
   return d.toISOString().split('T')[0];
 }
 
@@ -20,18 +33,21 @@ export default createEndpoint({
   inputSchema: z.object({ userId: z.string() }),
   outputSchema: z.any(),
   execute: async ({ input }) => {
-    const startDate = daysAgoStr(28);
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayIST();
+    const startDate = daysAgo(today, 28);
 
     // One-to-one records normally pass the Users document id, but older
     // records can contain the app user id. Resolve it before querying Sadhana
     // and BV attendance so the context never silently shows empty values.
     const user = await Users.findOne({
       id: input.userId,
-      fields: ['id', 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified'],
+      fields: [...USER_IDENTITY_FIELDS, 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified'],
     }).catch(() => undefined) || await Users.findOne({
       filters: { userId: input.userId },
-      fields: ['id', 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified'],
+      fields: [...USER_IDENTITY_FIELDS, 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified'],
+    }).catch(() => undefined) || await Users.findOne({
+      filters: { email: input.userId },
+      fields: [...USER_IDENTITY_FIELDS, 'fullName', 'currentStreak', 'ashrayLevel', 'residencyApproved', 'residencyGuideVerified'],
     }).catch(() => undefined);
 
     if (!user?.id) {
@@ -41,28 +57,57 @@ export default createEndpoint({
         totalBooks: 0, improvementAreas: [],
       };
     }
-    const canonicalUserId = user.id;
+    const userAliases = new Set(identityAliases(user));
+    userAliases.add(String(input.userId).trim().toLowerCase());
 
-    const [entriesRes, bvRes] = await Promise.all([
-      SadhanaEntries.findAll({
-        filters: { user: canonicalUserId, entryDate: { gte: startDate, lte: today } } as any,
-        fields: ['id', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'templateMode',
-          'roundsCount', 'spReadingMinutes', 'preachingMinutes', 'booksDistributed',
-          'nrChantingRounds', 'nrReadingMinutes', 'nrHearingMinutes', 'flagSick', 'flagOs'],
-        limit: 200,
-      }),
-      BvAttendance.findAll({
-        filters: { user: canonicalUserId, present: true, attendanceDate: { gte: startDate, lte: today } } as any,
-        fields: ['id', 'present'],
-        limit: 100,
-      }),
+    const [allEntries, allAttendance] = await Promise.all([
+      (async () => {
+        const records: any[] = [];
+        for (let offset = 0; ; offset += 2000) {
+          const page = await SadhanaEntries.findAll({
+            // Query by date first to avoid a composite index and then match
+            // every supported identity alias in memory.
+            filters: { entryDate: { gte: startDate, lte: today } } as any,
+            fields: ['id', 'entryDate', 'scorePercent', 'totalScore', 'maxScore', 'templateMode',
+              'roundsCount', 'spReadingMinutes', 'preachingMinutes', 'booksDistributed',
+              'nrChantingRounds', 'nrReadingMinutes', 'nrHearingMinutes', 'fieldValuesJson', 'flagSick', 'flagOs', 'user'],
+            limit: 2000,
+            offset,
+          });
+          records.push(...page.records);
+          if (!page.hasMore) return records;
+        }
+      })(),
+      (async () => {
+        const records: any[] = [];
+        for (let offset = 0; ; offset += 2000) {
+          const page = await BvAttendance.findAll({
+            filters: { attendanceDate: { gte: startDate, lte: today } } as any,
+            fields: ['id', 'user', 'present', 'status', 'attendanceDate'],
+            limit: 2000,
+            offset,
+          });
+          records.push(...page.records);
+          if (!page.hasMore) return records;
+        }
+      })(),
     ]);
+
+    const entries = allEntries.filter((entry: any) => {
+      const owner = Array.isArray(entry.user) ? entry.user[0] : entry.user;
+      return userAliases.has(String(owner || '').trim().toLowerCase());
+    });
+    const attendance = allAttendance.filter((record: any) => {
+      const owner = Array.isArray(record.user) ? record.user[0] : record.user;
+      const isPresent = record.present === true || ['present', 'p', 'true', '1'].includes(String(record.status || '').trim().toLowerCase());
+      return isPresent && userAliases.has(String(owner || '').trim().toLowerCase());
+    });
 
     const isResident = !!(user.residencyApproved || user.residencyGuideVerified);
 
     // Group entries by week
-    const weekMap = new Map<string, typeof entriesRes.records>();
-    for (const e of entriesRes.records) {
+    const weekMap = new Map<string, typeof entries>();
+    for (const e of entries) {
       const monday = getMondayOfWeek(String(e.entryDate || today));
       if (!weekMap.has(monday)) weekMap.set(monday, []);
       weekMap.get(monday)!.push(e);
@@ -82,10 +127,19 @@ export default createEndpoint({
       const src = entries.filter(e => !e.flagSick && !e.flagOs);
       const base = src.length > 0 ? src : entries;
       const n = base.length;
+      const storedScores = base.map(e => Number(e.scorePercent)).filter(Number.isFinite);
       const earned = base.reduce((s, e) => s + (Number(e.totalScore) || 0), 0);
       const maxTotal = base.reduce((s, e) => s + (Number(e.maxScore) || 0), 0);
-      const scorePercent = maxTotal > 0 ? Math.round((earned / maxTotal) * 100) : null;
-      const rounds = isResident ? base.reduce((s, e) => s + (Number(e.roundsCount) || 0), 0) / n : base.reduce((s, e) => s + (Number(e.nrChantingRounds) || 0), 0) / n;
+      const scorePercent = storedScores.length > 0
+        ? Math.round(storedScores.reduce((sum, score) => sum + score, 0) / storedScores.length)
+        : maxTotal > 0 ? Math.round((earned / maxTotal) * 100) : null;
+      const rounds = base.reduce((sum, entry) => {
+        const fields = parseFieldValues(entry.fieldValuesJson);
+        const raw = isResident
+          ? entry.roundsCount ?? fields.rounds ?? fields.rounds_count
+          : entry.nrChantingRounds ?? fields.chanting ?? fields.rounds ?? entry.roundsCount;
+        return sum + (Number(raw) || 0);
+      }, 0) / n;
       const readingMins = isResident ? base.reduce((s, e) => s + (Number(e.spReadingMinutes) || 0), 0) / n : base.reduce((s, e) => s + (Number(e.nrReadingMinutes) || 0), 0) / n;
       const hearingMins = !isResident ? base.reduce((s, e) => s + (Number(e.nrHearingMinutes) || 0), 0) / n : null;
       const preachingMins = entries.reduce((s, e) => s + (Number(e.preachingMinutes) || 0), 0);
@@ -98,7 +152,7 @@ export default createEndpoint({
     const avgRounds = weeks.filter(w => w.rounds != null).reduce((s, w) => s + (w.rounds || 0), 0) / (weeks.filter(w => w.rounds != null).length || 1);
     const totalPreachingMins = weeks.reduce((s, w) => s + w.preachingMins, 0);
     const totalBooks = weeks.reduce((s, w) => s + w.books, 0);
-    const bvAttendanceCount = bvRes.records.length;
+    const bvAttendanceCount = attendance.length;
 
     const improvementAreas: string[] = [];
     if (avgScore !== null && avgScore < 70) improvementAreas.push('Overall Score');

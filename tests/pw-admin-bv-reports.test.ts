@@ -10,7 +10,7 @@ import getSadhanaLeaderboard from '../src/api/getSadhanaLeaderboard';
 import getSadhanaStats from '../src/api/getSadhanaStats';
 import { BvAttendance, BvGroupMembers, BvGroups, BvslPreachingEntries, SadhanaEntries, Users } from '../src/lib/app-backend-sdk';
 
-test('PW Admin BV reports return PW data across every report tab', async () => {
+test('PW Admin BV reports return only data in that admin hierarchy across every report tab', async () => {
   const date = '2026-09-08';
   const admin = {
     id: 'PW-ADMIN-REPORT-DB', userId: 'PW-ADMIN-REPORT', email: 'pw-admin-report@example.invalid',
@@ -19,6 +19,7 @@ test('PW Admin BV reports return PW data across every report tab', async () => {
   const pwRgf = {
     id: 'PW-ADMIN-REPORT-RGF-DB', userId: 'PW-ADMIN-REPORT-RGF', email: 'pw-report-rgf@example.invalid',
     fullName: 'PW Report RGF', role: 'User', status: 'Active', segment: 'PW', isBvsl: true, isBvFacilitator: true,
+    bvReportingAdminId: admin.id, guide: admin.id,
   };
   const pwMember = {
     id: 'PW-ADMIN-REPORT-MEMBER-DB', userId: 'PW-ADMIN-REPORT-MEMBER', email: 'pw-report-member@example.invalid',
@@ -34,7 +35,7 @@ test('PW Admin BV reports return PW data across every report tab', async () => {
   };
   const pwGroup = {
     id: 'PW-ADMIN-REPORT-GROUP-DB', groupId: 'PW-ADMIN-REPORT-GROUP', groupName: 'PW Report Group',
-    segment: 'Prabhupada World', isActive: true, bvslLeader: pwRgf.userId,
+    segment: 'Prabhupada World', isActive: true, bvslLeader: pwRgf.userId, guide: admin.id,
   };
   const folkGroup = {
     id: 'PW-ADMIN-REPORT-FOLK-GROUP-DB', groupId: 'PW-ADMIN-REPORT-FOLK-GROUP', groupName: 'FOLK Report Group',
@@ -58,37 +59,37 @@ test('PW Admin BV reports return PW data across every report tab', async () => {
     await BvAttendance.create({ record: { id: records.folkAttendance, group: folkGroup.id, user: folkMember.id, attendanceDate: date, present: true } });
     await BvslPreachingEntries.create({ record: { id: records.pwPreaching, user: pwRgf.email, entryDate: date, totalPreachingMinutes: 90, prCallingTime: 30 } });
     await BvslPreachingEntries.create({ record: { id: records.folkPreaching, user: folkRgf.id, entryDate: date, totalPreachingMinutes: 120, prCallingTime: 40 } });
-    await SadhanaEntries.create({ record: { id: records.pwSadhana, user: pwMember.email, entryDate: date, totalScore: 16, maxScore: 20, scorePercent: 80 } });
+    await SadhanaEntries.create({ record: { id: records.pwSadhana, user: pwRgf.email, entryDate: date, totalScore: 16, maxScore: 20, scorePercent: 80 } });
     await SadhanaEntries.create({ record: { id: records.folkSadhana, user: folkMember.id, entryDate: date, totalScore: 18, maxScore: 20, scorePercent: 90 } });
 
-    const matrix = await getBvSessionMatrix.execute({ input: { guideId: 'ALL', segment: 'PW', startDate: date, endDate: date }, context } as never);
+    const matrix = await getBvSessionMatrix.execute({ input: { guideId: admin.userId, segment: 'PW', startDate: date, endDate: date }, context } as never);
     assert.deepEqual(matrix.groups.map((group: any) => group.id), [pwGroup.id]);
     assert.deepEqual(matrix.members.map((member: any) => member.fullName), [pwMember.fullName]);
     assert.equal(matrix.attendance[pwMember.id]?.[date], true);
 
-    const preaching = await getBvPreachingReport.execute({ input: { guideId: 'ALL', segment: 'PW', date, reportType: 'daily' }, context } as never);
+    const preaching = await getBvPreachingReport.execute({ input: { guideId: admin.userId, segment: 'PW', date, reportType: 'daily' }, context } as never);
     assert.deepEqual(preaching.bvsls.map((row: any) => row.fullName), [pwRgf.fullName]);
     assert.equal(preaching.bvsls[0].totalMinutes, 90);
 
-    const stats = await getBvStats.execute({ input: { guideId: 'ALL', segment: 'PW', startDate: date, endDate: date }, context } as never);
+    const stats = await getBvStats.execute({ input: { guideId: admin.userId, segment: 'PW', startDate: date, endDate: date }, context } as never);
     assert.deepEqual(stats.userSummaries.map((row: any) => row.fullName), [pwRgf.fullName]);
     assert.equal(stats.totalSubmitted, 1);
 
-    const groups = await getGuideGroupStats.execute({ input: { guideId: 'ALL', segment: 'PW' }, context } as never);
+    const groups = await getGuideGroupStats.execute({ input: { guideId: admin.userId, segment: 'PW' }, context } as never);
     assert.deepEqual(groups.groups.map((group: any) => group.groupName), [pwGroup.groupName]);
     assert.equal(groups.groups[0].memberCount, 1);
     assert.equal(groups.groups[0].attendanceRate, 100);
 
-    const sadhana = await getGuideDetailedReport.execute({ input: { guideId: 'ALL', segment: 'PW', date, reportType: 'daily' }, context } as never);
-    assert.ok(sadhana.users.some((user: any) => user.fullName === pwMember.fullName));
+    const sadhana = await getGuideDetailedReport.execute({ input: { guideId: admin.userId, segment: 'PW', date, reportType: 'daily', facilitatorMode: true }, context } as never);
+    assert.ok(sadhana.users.some((user: any) => user.fullName === pwRgf.fullName));
     assert.ok(!sadhana.users.some((user: any) => user.fullName === folkMember.fullName));
 
-    const sadhanaStats = await getSadhanaStats.execute({ input: { guideId: 'ALL', segment: 'PW', startDate: date, endDate: date }, context } as never);
-    assert.ok(sadhanaStats.userSummaries.some((user: any) => user.fullName === pwMember.fullName));
+    const sadhanaStats = await getSadhanaStats.execute({ input: { guideId: admin.userId, segment: 'PW', startDate: date, endDate: date, facilitatorMode: true }, context } as never);
+    assert.ok(sadhanaStats.userSummaries.some((user: any) => user.fullName === pwRgf.fullName));
     assert.ok(!sadhanaStats.userSummaries.some((user: any) => user.fullName === folkMember.fullName));
 
-    const leaderboard = await getSadhanaLeaderboard.execute({ input: { guideId: 'ALL', segment: 'PW', date }, context } as never);
-    assert.ok(leaderboard.leaderboard.some((user: any) => user.displayName === pwMember.fullName));
+    const leaderboard = await getSadhanaLeaderboard.execute({ input: { guideId: admin.userId, segment: 'PW', date, facilitatorMode: true }, context } as never);
+    assert.ok(leaderboard.leaderboard.some((user: any) => user.displayName === pwRgf.fullName));
     assert.ok(!leaderboard.leaderboard.some((user: any) => user.displayName === folkMember.fullName));
   } finally {
     for (const id of Object.values(records)) {

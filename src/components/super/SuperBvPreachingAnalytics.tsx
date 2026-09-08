@@ -16,6 +16,7 @@ import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSuperBvAnalytics } from '@/lib/endpoints-sdk';
 import { useDebouncedCallback } from 'use-debounce';
+import { getBvPreachingDisplayAggregate, type BvPreachingAggregate } from '@/lib/bvPreachingAnalytics';
 import {
   format, subDays,
   startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear,
@@ -26,10 +27,7 @@ import {
 type ReportType = 'daily' | 'weekly' | 'monthly';
 type ViewMode = 'totals' | 'avgs';
 
-type AggData = {
-  callingTime: number; oneOnOneTime: number; bookDistTime: number; rduaTime: number; planTime: number;
-  booksDistributed: number; contactsCollected: number; uniqueOneOnOnes: number; totalMinutes: number;
-};
+type AggData = BvPreachingAggregate;
 type BvslDetail = {
   id: string; fullName: string; groupName: string; submitted: boolean;
   callingTime: number; oneOnOneTime: number; bookDistTime: number; rduaTime: number; planTime: number;
@@ -77,6 +75,21 @@ function totalColor(mins: number) {
 function fmtAggVal(val: number, key: AggKey): string {
   const isDur = ['callingTime','oneOnOneTime','bookDistTime','rduaTime','planTime','totalMinutes'].includes(key);
   return isDur ? minsToHHMM(val) : String(val);
+}
+function formatCount(value: number): string {
+  return Number(value || 0).toLocaleString('en-IN');
+}
+
+function AnalyticsColGroup({ detail = false }: { detail?: boolean }) {
+  return (
+    <colgroup>
+      <col style={{ width: detail ? 170 : 200 }} />
+      <col style={{ width: detail ? 150 : 120 }} />
+      {DUR_FIELDS.map(field => <col key={field.key} style={{ width: 90 }} />)}
+      {CNT_FIELDS.map(field => <col key={field.key} style={{ width: 150 }} />)}
+      <col style={{ width: 110 }} />
+    </colgroup>
+  );
 }
 
 // ── Week/month date helpers ──────────────────────────────────────────────────
@@ -232,7 +245,7 @@ export default function SuperBvPreachingAnalytics() {
               className="h-7 rounded px-2.5 text-xs"
               onClick={() => setViewMode('avgs')}
             >
-              Average per RGF
+              Averages
             </Button>
           </div>
         </div>
@@ -246,33 +259,37 @@ export default function SuperBvPreachingAnalytics() {
         <Card className={loading ? 'opacity-50 pointer-events-none' : ''}>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
+              <table className="w-full min-w-[1330px] table-fixed text-sm border-collapse">
+                <AnalyticsColGroup />
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
                     <th className="px-3 py-2.5 text-left text-xs font-bold sticky left-0 bg-muted/50 z-10 min-w-[170px]">
-                      Reporting center / admin
+                      Admin
                     </th>
                     <th className="px-3 py-2.5 text-center text-xs font-bold min-w-[112px]">
                       <span className="block">RGFs submitted</span>
                       <span className="block text-[10px] font-normal text-muted-foreground">submitted / assigned</span>
                     </th>
                     {DUR_FIELDS.map(f => (
-                      <th key={f.key} className="px-3 py-2.5 text-right text-xs font-bold min-w-[70px]">
-                        {f.label}<div className="text-[10px] font-normal text-muted-foreground">HH:MM</div>
+                      <th key={f.key} className="px-3 py-2.5 text-center text-xs font-bold">
+                        {viewMode === 'avgs' ? `Avg ${f.label}` : f.label}<div className="text-[10px] font-normal text-muted-foreground">HH:MM</div>
                       </th>
                     ))}
                     {CNT_FIELDS.map(f => (
-                      <th key={f.key} className="px-3 py-2.5 text-right text-xs font-bold min-w-[68px]">
-                        {f.label}<div className="text-[10px] font-normal text-muted-foreground">count</div>
+                      <th key={f.key} className="px-3 py-2.5 text-center text-xs font-bold">
+                        {viewMode === 'avgs' ? `Avg ${f.label}` : f.label}<div className="text-[10px] font-normal text-muted-foreground">count</div>
                       </th>
                     ))}
-                    <th className="px-3 py-2.5 text-right text-xs font-bold min-w-[90px] sticky right-0 bg-muted/50 z-10">
-                      Total Preaching<div className="text-[10px] font-normal text-muted-foreground">HH:MM</div>
+                    <th className="px-3 py-2.5 text-center text-xs font-bold sticky right-0 bg-muted/50 z-10">
+                      {viewMode === 'avgs' ? 'Avg Preaching' : 'Total Preaching'}<div className="text-[10px] font-normal text-muted-foreground">HH:MM</div>
                     </th>
                   </tr>
                   <tr>
                     <td colSpan={COL_COUNT} className="px-3 py-1 text-[10px] text-muted-foreground italic bg-muted/20 border-b border-border">
-                      Showing {viewMode === 'totals' ? 'totals across all submitted Facilitators' : 'averages per submitted Facilitator'} · Click any center row to expand individual Facilitators
+                      {viewMode === 'totals'
+                        ? 'Showing combined totals from all submitted RGFs.'
+                        : 'Showing each total divided by the number of RGFs who submitted. With one submitted RGF, the total and average are the same.'}
+                      {' '}Click an Admin row to view individual RGFs.
                     </td>
                   </tr>
                 </thead>
@@ -283,7 +300,7 @@ export default function SuperBvPreachingAnalytics() {
                   ) : (
                     data.centers.flatMap(center => {
                       const isOpen = expanded.has(center.guideId);
-                      const vals = center[viewMode];
+                      const vals = getBvPreachingDisplayAggregate(center.totals, center.submittedCount, viewMode);
                       return [
                         <tr key={center.guideId}
                           className="border-b border-border hover:bg-muted/20 cursor-pointer transition-colors"
@@ -303,12 +320,12 @@ export default function SuperBvPreachingAnalytics() {
                             </Badge>
                           </td>
                           {DUR_FIELDS.map(f => (
-                            <td key={f.key} className="px-3 py-2.5 text-right font-mono text-xs">{minsToHHMM(vals[f.key])}</td>
+                            <td key={f.key} className="px-3 py-2.5 text-center font-mono tabular-nums text-xs">{minsToHHMM(vals[f.key])}</td>
                           ))}
                           {CNT_FIELDS.map(f => (
-                            <td key={f.key} className="px-3 py-2.5 text-right text-xs">{vals[f.key]}</td>
+                            <td key={f.key} className="px-3 py-2.5 text-center tabular-nums text-xs" title={String(vals[f.key])}>{formatCount(vals[f.key])}</td>
                           ))}
-                          <td className={`px-3 py-2.5 text-right font-mono text-xs sticky right-0 bg-card z-10 ${totalColor(vals.totalMinutes)}`}>
+                          <td className={`px-3 py-2.5 text-center font-mono tabular-nums text-xs sticky right-0 bg-card z-10 ${totalColor(vals.totalMinutes)}`}>
                             {minsToHHMM(vals.totalMinutes)}
                           </td>
                         </tr>,
@@ -326,7 +343,7 @@ export default function SuperBvPreachingAnalytics() {
 
                   {/* ── Overall row ── */}
                   {data.centers.length > 0 && (() => {
-                    const ov = data.overall[viewMode];
+                    const ov = getBvPreachingDisplayAggregate(data.overall.totals, data.overall.submittedCount, viewMode);
                     return (
                       <tr className="border-t-2 border-primary/30 bg-primary/5 font-bold">
                         <td className="px-3 py-3 sticky left-0 bg-primary/5 z-10 text-primary">
@@ -336,12 +353,12 @@ export default function SuperBvPreachingAnalytics() {
                           <Badge className="text-xs">{data.overall.submittedCount} of {data.overall.bvslCount}</Badge>
                         </td>
                         {DUR_FIELDS.map(f => (
-                          <td key={f.key} className="px-3 py-3 text-right font-mono text-xs">{minsToHHMM(ov[f.key])}</td>
+                          <td key={f.key} className="px-3 py-3 text-center font-mono tabular-nums text-xs">{minsToHHMM(ov[f.key])}</td>
                         ))}
                         {CNT_FIELDS.map(f => (
-                          <td key={f.key} className="px-3 py-3 text-right text-xs">{ov[f.key]}</td>
+                          <td key={f.key} className="px-3 py-3 text-center tabular-nums text-xs" title={String(ov[f.key])}>{formatCount(ov[f.key])}</td>
                         ))}
-                        <td className={`px-3 py-3 text-right font-mono text-xs sticky right-0 bg-primary/5 z-10 ${totalColor(ov.totalMinutes)}`}>
+                        <td className={`px-3 py-3 text-center font-mono tabular-nums text-xs sticky right-0 bg-primary/5 z-10 ${totalColor(ov.totalMinutes)}`}>
                           {minsToHHMM(ov.totalMinutes)}
                         </td>
                       </tr>
@@ -360,30 +377,31 @@ export default function SuperBvPreachingAnalytics() {
 // ── Expanded RGF sub-table ───────────────────────────────────────────────────
 function BvslSubTable({ bvsls }: { bvsls: BvslDetail[] }) {
   return (
-    <div className="px-6 py-3">
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual facilitators (RGFs) — submission details</p>
+    <div className="py-3">
+      <p className="px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual facilitators (RGFs) — submission details</p>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
+        <table className="w-full min-w-[1330px] table-fixed text-xs border-collapse">
+          <AnalyticsColGroup detail />
           <thead>
             <tr className="border-b border-border/50">
-              <th className="pb-1.5 text-left font-semibold text-muted-foreground min-w-[120px]">Name</th>
-              <th className="pb-1.5 text-left font-semibold text-muted-foreground min-w-[90px]">Reading group</th>
-              {DUR_FIELDS.map(f => <th key={f.key} className="pb-1.5 text-right font-semibold text-muted-foreground min-w-[60px]">{f.label}</th>)}
-              {CNT_FIELDS.map(f => <th key={f.key} className="pb-1.5 text-right font-semibold text-muted-foreground min-w-[55px]">{f.label}</th>)}
-              <th className="pb-1.5 text-right font-semibold text-muted-foreground min-w-[72px]">Total</th>
+              <th className="px-3 pb-1.5 text-left font-semibold text-muted-foreground">Name</th>
+              <th className="px-3 pb-1.5 text-left font-semibold text-muted-foreground">Reading group</th>
+              {DUR_FIELDS.map(f => <th key={f.key} className="px-3 pb-1.5 text-center font-semibold text-muted-foreground">{f.label}</th>)}
+              {CNT_FIELDS.map(f => <th key={f.key} className="px-3 pb-1.5 text-center font-semibold text-muted-foreground">{f.label}</th>)}
+              <th className="px-3 pb-1.5 text-center font-semibold text-muted-foreground">Total</th>
             </tr>
           </thead>
           <tbody>
             {bvsls.map(bvsl => (
               <tr key={bvsl.id} className={`border-b border-border/30 last:border-0 ${!bvsl.submitted ? 'opacity-50' : ''}`}>
-                <td className="py-1.5 font-medium">
+                <td className="px-3 py-1.5 font-medium">
                   {bvsl.fullName}
                   {!bvsl.submitted && <span className="ml-1 text-destructive font-normal">(missing)</span>}
                 </td>
-                <td className="py-1.5 text-muted-foreground">{bvsl.groupName}</td>
-                {DUR_FIELDS.map(f => <td key={f.key} className="py-1.5 text-right font-mono">{minsToHHMM(bvsl[f.key])}</td>)}
-                {CNT_FIELDS.map(f => <td key={f.key} className="py-1.5 text-right">{bvsl[f.key]}</td>)}
-                <td className={`py-1.5 text-right font-mono ${totalColor(bvsl.totalMinutes)}`}>{minsToHHMM(bvsl.totalMinutes)}</td>
+                <td className="px-3 py-1.5 text-muted-foreground">{bvsl.groupName}</td>
+                {DUR_FIELDS.map(f => <td key={f.key} className="px-3 py-1.5 text-center font-mono tabular-nums">{minsToHHMM(bvsl[f.key])}</td>)}
+                {CNT_FIELDS.map(f => <td key={f.key} className="px-3 py-1.5 text-center tabular-nums" title={String(bvsl[f.key])}>{formatCount(bvsl[f.key])}</td>)}
+                <td className={`px-3 py-1.5 text-center font-mono tabular-nums ${totalColor(bvsl.totalMinutes)}`}>{minsToHHMM(bvsl.totalMinutes)}</td>
               </tr>
             ))}
           </tbody>

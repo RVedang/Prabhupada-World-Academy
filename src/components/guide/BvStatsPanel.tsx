@@ -6,7 +6,7 @@ import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getBvStats } from '@/lib/endpoints-sdk';
+import { getBvStats, getGuideGroupStats } from '@/lib/endpoints-sdk';
 import FieldTrendChart from '@/components/stats/FieldTrendChart';
 import type { FieldConfig } from '@/components/stats/FieldTrendChart';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
@@ -71,6 +71,9 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
   const [individualLoading, setIndividualLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState('all');
+  const [loadedGroupOptions, setLoadedGroupOptions] = useState<SadhanaGroupOption[]>([]);
+
+  const availableGroupOptions = groupOptions.length > 0 ? groupOptions : loadedGroupOptions;
 
   const { start, end } = useMemo(() => getPeriodDates(period), [period]);
 
@@ -98,6 +101,28 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
   // A Sadhana submission can include BV activity. Re-query on that event so
   // the chart changes immediately, without a timer or a manual refresh.
   useRealtimeRefresh(['sadhana'], () => loadGroupStats(true));
+
+  const loadGroupOptions = useCallback(async () => {
+    if (groupOptions.length > 0) return;
+    try {
+      const result = await getGuideGroupStats({
+        guideId,
+        bvslMode,
+        residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
+        segment,
+      });
+      setLoadedGroupOptions(result.groups.map((group: any) => ({
+        id: String(group.groupId),
+        groupId: String(group.groupId),
+        groupName: group.groupName || 'Reading Group',
+      })));
+    } catch {
+      setLoadedGroupOptions([]);
+    }
+  }, [guideId, bvslMode, residencyIds, segment, groupOptions.length]);
+
+  useEffect(() => { void loadGroupOptions(); }, [loadGroupOptions]);
+  useRealtimeRefresh(['groups'], loadGroupOptions, groupOptions.length === 0);
 
   const loadIndividualStats = useCallback(async (silent = false) => {
     if (!selectedUserId) {
@@ -130,14 +155,14 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
   useEffect(() => { setSelectedUserId(''); }, [period]);
 
   useEffect(() => {
-    if (selectedGroupId !== 'all' && !groupOptions.some(group => group.id === selectedGroupId || group.groupId === selectedGroupId)) {
+    if (selectedGroupId !== 'all' && !availableGroupOptions.some(group => group.id === selectedGroupId || group.groupId === selectedGroupId)) {
       setSelectedGroupId('all');
     }
-  }, [groupOptions, selectedGroupId]);
+  }, [availableGroupOptions, selectedGroupId]);
 
   const selectedGroupName = selectedGroupId === 'all'
     ? 'All Groups'
-    : groupOptions.find(group => group.id === selectedGroupId || group.groupId === selectedGroupId)?.groupName || 'Reading Group';
+    : availableGroupOptions.find(group => group.id === selectedGroupId || group.groupId === selectedGroupId)?.groupName || 'Reading Group';
 
   const groupChartData = useMemo(() => {
     if (!groupStats?.dailyTrend) return [];
@@ -178,7 +203,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
                 >{label}</button>
               ))}
             </div>
-            {groupOptions.length > 0 && (
+            {availableGroupOptions.length > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Group:</span>
                 <Select value={selectedGroupId} onValueChange={(value) => setSelectedGroupId(value || 'all')}>
@@ -187,7 +212,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Groups</SelectItem>
-                    {groupOptions.map(group => (
+                    {availableGroupOptions.map(group => (
                       <SelectItem key={group.id} value={group.id}>{group.groupName}</SelectItem>
                     ))}
                   </SelectContent>

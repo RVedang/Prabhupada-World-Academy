@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, AppError, BvGroups, BvGroupMembers, BvAttendance, Guides, Users } from '@/lib/backend-sdk';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { bvUserAliases, isBvDepartmentAdmin, isBvSuperAdminUser, resolveBvDepartmentGroups, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvGroupFacilitatorAliases, bvUserAliases, isBvDepartmentAdmin, isBvSuperAdminUser, resolveBvDepartmentGroups, resolveBvScopedGroups, resolveBvUsersByAliases } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'Get BV group stats for guide dashboard — member count, attendance rate per group',
@@ -96,12 +96,21 @@ export default createEndpoint({
 
     const callerAliases = new Set(bvUserAliases(context.user as any));
 
-    const bvslIds = [...new Set(groups.map((g: any) => Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader).filter(Boolean))] as string[];
-    const bvslMap = new Map<string, string>();
-    if (bvslIds.length > 0) {
-      const { records: bvslUsers } = await Users.findAll({ filters: { id: { in: bvslIds } }, fields: ['id', 'fullName'], limit: 200 });
-      bvslUsers.forEach((u: any) => bvslMap.set(u.id, (u.fullName as string) || ''));
-    }
+    const facilitatorUsers = await resolveBvUsersByAliases(
+      groups.flatMap((group: any) => bvGroupFacilitatorAliases(group)),
+      ['id', 'userId', 'email', 'fullName', 'status', 'role', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator'],
+    );
+    const facilitatorByAlias = new Map<string, any>();
+    facilitatorUsers.forEach((user: any) => {
+      const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+      const isActive = !user.status || String(user.status).toLowerCase() === 'active';
+      const isFacilitator = !!(
+        user.isBvFacilitator || user.isBvsl || user.isBvSubFacilitator ||
+        ['RGF', 'RGSF', 'BVSL', 'FACILITATOR', 'SUB_FACILITATOR'].includes(normalizedRole)
+      );
+      if (!isActive || !isFacilitator) return;
+      bvUserAliases(user).forEach(alias => facilitatorByAlias.set(alias, user));
+    });
 
     const stats = await Promise.all(groups.map(async (g: any) => {
       const groupIds = [...new Set([g.id, g.groupId].filter(Boolean))];
@@ -137,12 +146,15 @@ export default createEndpoint({
 
       const presentCount = attRecords.filter((a: any) => a.present).length;
       const totalPossible = memberCount * totalSessions;
-      const bvslId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : g.bvslLeader as string;
+      const facilitator = bvGroupFacilitatorAliases(g)
+        .map(alias => facilitatorByAlias.get(alias))
+        .find(Boolean);
 
       return {
         groupId: (g.groupId as string) || g.id,
         groupName: (g.groupName as string) || '',
-        bvslName: bvslId ? (bvslMap.get(bvslId) || null) : null,
+        bvslName: facilitator?.fullName || null,
+        hasValidFacilitator: !!facilitator,
         memberCount,
         totalSessions,
         presentCount,
@@ -150,6 +162,13 @@ export default createEndpoint({
       };
     }));
 
-    return { groups: stats };
+    // Suppress stale orphan records: an empty group with no resolvable active
+    // RGF/RGSF is not a usable reading group. Legitimate vacant groups remain
+    // visible when their facilitator assignment is valid.
+    return {
+      groups: stats
+        .filter(group => group.hasValidFacilitator || group.memberCount > 0 || group.totalSessions > 0)
+        .map(({ hasValidFacilitator: _hasValidFacilitator, ...group }) => group),
+    };
   },
 });
