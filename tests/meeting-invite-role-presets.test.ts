@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hasMeetingRole } from '../src/components/super/MeetingsAndMomTab';
+import { hasMeetingInviteeIdentity, hasMeetingRole, meetingInviteeLabel } from '../src/components/super/MeetingsAndMomTab';
 
 test('invite role presets use assigned roles when multi-role data exists', () => {
   const user = { roles: ['MEMBER', 'RGF'], isBvSubFacilitator: true };
@@ -47,4 +47,14 @@ test('multi-role values are all matched, including legacy serialized values', ()
   const user = { role: 'USER', roles: '["USER", "RGF"]', isBvSubFacilitator: true };
   assert.equal(hasMeetingRole(user, 'RGF'), true);
   assert.equal(hasMeetingRole(user, 'RGSF'), true);
+});
+
+test('meeting invitees exclude role-only records that have no visible identity', () => {
+  assert.equal(hasMeetingInviteeIdentity({ roles: ['ADMIN'] }), false);
+  assert.equal(hasMeetingInviteeIdentity({ fullName: '   ', email: '  ', roles: ['RGF'] }), false);
+  assert.equal(hasMeetingInviteeIdentity({ fullName: 'Hiranyavarna Das', roles: ['ADMIN'] }), true);
+  assert.equal(hasMeetingInviteeIdentity({ email: 'facilitator@example.test', roles: ['RGF'] }), true);
+  assert.equal(hasMeetingInviteeIdentity({ fullName: '\u200B\uFEFF', roles: ['RGF'] }), false);
+  assert.equal(meetingInviteeLabel({ displayName: 'Legacy RGF' }), 'Legacy RGF');
+  assert.equal(meetingInviteeLabel({ name: 'Named RGF' }), 'Named RGF');
 });

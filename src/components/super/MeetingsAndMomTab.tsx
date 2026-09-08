@@ -401,6 +401,17 @@ export function hasMeetingRole(user: any, role: 'ADMIN' | 'SUPERVISOR' | 'MENTOR
     : !!user?.isBvSubFacilitator;
 }
 
+/** Resolve legacy name fields and reject role-only placeholder records. */
+export function meetingInviteeLabel(user: any): string {
+  return String(user?.fullName || user?.name || user?.displayName || user?.email || '')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .trim();
+}
+
+export function hasMeetingInviteeIdentity(user: any): boolean {
+  return meetingInviteeLabel(user).length > 0;
+}
+
 const INVITE_ROLE_TYPES = ['ADMIN', 'SUPERVISOR', 'MENTOR', 'RGF', 'RGSF'] as const;
 
 const getRolePriority = (u: any) => {
@@ -603,13 +614,16 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
       }));
       setMoms(mappedMoms);
 
-      const departmentUsers = (usersRes.users || []).filter((u: any) => {
+      const departmentUsers = (usersRes.users || []).map((u: any) => ({
+        ...u,
+        fullName: meetingInviteeLabel(u),
+      })).filter((u: any) => {
         const emailLower = (u.email || '').toLowerCase();
         const roleUpper = (u.role || '').toUpperCase();
         const isFolk = u.segment === 'FOLK';
         const hasInviteRole = INVITE_ROLE_TYPES.some(role => hasMeetingRole(u, role));
         const isPw = u.segment === 'PW' || hasInviteRole || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('hrvd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
-        return hasInviteRole && (department === 'FOLK' ? isFolk : (isPw && !isFolk));
+        return hasMeetingInviteeIdentity(u) && hasInviteRole && (department === 'FOLK' ? isFolk : (isPw && !isFolk));
       });
       setRegisteredUsers(departmentUsers);
     } catch (err: any) {
