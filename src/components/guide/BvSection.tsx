@@ -7,6 +7,7 @@ import GuideBvTab from '@/components/guide/GuideBvTab';
 import BvSessionMatrixTab from '@/components/guide/BvSessionMatrixTab';
 import SadhanaSection from '@/components/guide/SadhanaSection';
 import BvslManagementTab from '@/components/guide/BvslManagementTab';
+import BvAdminManagementTab from '@/components/super/BvAdminManagementTab';
 import ImprovementTab from '@/components/guide/ImprovementTab';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
@@ -20,6 +21,7 @@ interface Props {
   summaryOnlyGroups?: boolean;
   /** Route for member details when this section is embedded in a scoped dashboard. */
   improvementDetailBasePath?: string;
+  segment?: 'PW' | 'FOLK';
 }
 
 type SubTab = 'report' | 'stats' | 'improvement' | 'groups' | 'bvmatrix' | 'sadhana' | 'management';
@@ -35,7 +37,7 @@ function readStoredSubTab(): SubTab {
   return 'bvmatrix';
 }
 
-export default function BvSection({ guideId, bvslMode, residencyIds, groupOptions, summaryOnlyGroups, improvementDetailBasePath }: Props) {
+export default function BvSection({ guideId, bvslMode, residencyIds, groupOptions, summaryOnlyGroups, improvementDetailBasePath, segment }: Props) {
   const { profile } = useUserProfile();
   const [subTab, setSubTab] = useState<SubTab>(readStoredSubTab);
 
@@ -91,10 +93,10 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
         ))}
       </div>
 
-      {activeSubTab === 'bvmatrix'    && <BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
-      {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />}
+      {activeSubTab === 'bvmatrix'    && <BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />}
+      {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />}
       {activeSubTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} />}
-      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} groupOptions={groupOptions} />}
+      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} groupOptions={groupOptions} segment={segment} />}
       {activeSubTab === 'improvement' && (isBvSupervisorDashboard ? (
         <div className="space-y-6">
           <div className="rounded-xl border bg-card px-4 py-3">
@@ -116,7 +118,7 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
               Facilitator preaching performance and follow-up priorities for your hierarchy.
             </p>
           </div>
-          <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />
+          <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />
         </div>
       ) : useMemberSadhanaImprovements ? (
         <ImprovementTab
@@ -126,10 +128,14 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
           detailBasePath={improvementDetailBasePath || (profile?.isBvSubFacilitator ? '/rgsf/users' : '/guide/users')}
         />
       ) : (
-        <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} />
+        <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />
       ))}
-      {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} summaryOnly={summaryOnlyGroups} />}
-      {activeSubTab === 'management'  && !bvslMode && <BvslManagementTab guideId={guideId} />}
+      {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} summaryOnly={summaryOnlyGroups} segment={segment} />}
+      {activeSubTab === 'management' && !bvslMode && (
+        guideId === 'ALL' && segment
+          ? <BvAdminManagementTab segment={segment} isSuperGuide />
+          : <BvslManagementTab guideId={guideId} />
+      )}
     </div>
   );
 }

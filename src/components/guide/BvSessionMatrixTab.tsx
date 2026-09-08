@@ -69,11 +69,11 @@ function getMonthOptions() {
 const WEEK_OPTIONS = getWeekOptions();
 const MONTH_OPTIONS = getMonthOptions();
 
-interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
+interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; segment?: 'PW' | 'FOLK'; }
 
 const BV_REPORT_LOAD_TOAST_ID = 'bv-session-matrix-load';
 
-export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: Props) {
+export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, segment }: Props) {
   const { profile } = useUserProfile();
   const navigate = useNavigate();
   const userEmail = (profile?.userId || '').toLowerCase();
@@ -107,6 +107,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
         guideId, startDate: start, endDate: end,
         groupId: groupId !== 'all' ? groupId : undefined,
         bvslMode,
+        segment,
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
       });
       if (!mountedRef.current || requestVersion !== requestVersionRef.current) return;
@@ -119,7 +120,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds }: 
     } finally {
       if (mountedRef.current && requestVersion === requestVersionRef.current) setLoading(false);
     }
-  }, [guideId, start, end, groupId, bvslMode, residencyIds]);
+  }, [guideId, start, end, groupId, bvslMode, residencyIds, segment]);
 
   const debouncedFetch = useDebouncedCallback(fetchData, 300);
   useEffect(() => {

@@ -9,7 +9,7 @@ import { getGuideGroupStats } from '@/lib/endpoints-sdk';
 import type { GetGuideGroupStatsOutputType } from '@/lib/endpoints-sdk';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; summaryOnly?: boolean; }
+interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; summaryOnly?: boolean; segment?: 'PW' | 'FOLK'; }
 
 type GroupStat = GetGuideGroupStatsOutputType['groups'][0];
 
@@ -90,17 +90,17 @@ function PerformanceChart({ groups }: { groups: GroupStat[] }) {
   );
 }
 
-export default function GuideBvTab({ guideId, bvslMode, residencyIds, summaryOnly = false }: Props) {
+export default function GuideBvTab({ guideId, bvslMode, residencyIds, summaryOnly = false, segment }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<GroupStat[]>([]);
 
-  useEffect(() => { loadGroups(); }, [guideId]);
+  useEffect(() => { loadGroups(); }, [guideId, bvslMode, residencyIds, segment]);
 
   const loadGroups = async () => {
     setLoading(true);
     try {
-      const result = await getGuideGroupStats({ guideId, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined });
+      const result = await getGuideGroupStats({ guideId, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined, segment });
       setGroups(result.groups);
     } catch {
       toast.error('Failed to load BV groups');

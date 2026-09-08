@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizzes, BvQuizSubmissions, FolkResidencies } from '@/lib/backend-sdk';
+import { createEndpoint, AppError, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizzes, BvQuizSubmissions, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 import { legacyQuizMatchesGroup, normalizeQuizDepartment } from '../lib/bvQuizAccess';
-import { bvGroupFacilitatorAliases, bvUserAliases, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvGroupFacilitatorAliases, bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentGroups, resolveBvScopedGroups, resolveBvUsersByAliases } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'BV attendance matrix with FOLK-only quiz results',
@@ -15,6 +15,7 @@ export default createEndpoint({
     groupId: z.string().optional(),
     bvslMode: z.boolean().optional(),
     residencyIds: z.array(z.string()).optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
@@ -29,7 +30,7 @@ export default createEndpoint({
       isBvSubFacilitator: context.user.isBvSubFacilitator,
     });
 
-    const { guideId, startDate, endDate, groupId, bvslMode, residencyIds } = input;
+    const { guideId, startDate, endDate, groupId, bvslMode, residencyIds, segment } = input;
 
     // Get groups
     const groupFilter: any = { isActive: true };
@@ -51,7 +52,12 @@ export default createEndpoint({
     if (groupId) groupFilter.id = groupId;
 
     let groups: any[];
-    if (bvslMode) {
+    if (guideId === 'ALL' && segment) {
+      if (!isBvDepartmentAdmin(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      }
+      groups = (await resolveBvDepartmentGroups(segment, groupId)).map(group => group.record);
+    } else if (bvslMode) {
       const rawSegment = String(context.user.segment || (context.user.isBvSupervisor ? 'FOLK' : '')).toUpperCase();
       const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;
       const scopedGroups = await resolveBvScopedGroups(context.user as any, { segment, groupId });
@@ -119,11 +125,8 @@ export default createEndpoint({
     }
 
     // Get user details
-    const { records: users } = await Users.findAll({
-      filters: { id: { in: memberUserIds } } as any,
-      fields: ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved'],
-      limit: 1000,
-    });
+    const users = await resolveBvUsersByAliases(memberUserIds,
+      ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved']);
     const callerAliases = new Set(bvUserAliases(context.user as any));
     const facilitatorAliases = new Set(groups.flatMap(group => bvGroupFacilitatorAliases(group)));
     const scopedUsers = bvslMode
@@ -131,7 +134,8 @@ export default createEndpoint({
         callerAliases.has(alias) || facilitatorAliases.has(alias)
       ))
       : users;
-    const userMap = new Map(scopedUsers.map(u => [u.id, u]));
+    const userMap = new Map<string, any>();
+    scopedUsers.forEach(user => bvUserAliases(user).forEach(alias => userMap.set(alias, user)));
 
     // Build member list
     const seenUserIds = new Set<string>();
@@ -140,7 +144,10 @@ export default createEndpoint({
       const uid = (Array.isArray(m.user) ? m.user[0] : (m.user || (m as any).userId || (m as any).memberId)) as string;
       const gid = (Array.isArray(m.group) ? m.group[0] : (m.group || (m as any).groupId)) as string;
       const canonicalGroupId = groupCanonicalId.get(String(gid)) || String(gid);
-      if (uid && canonicalGroupId && !memberGroupMap.has(uid)) memberGroupMap.set(uid, canonicalGroupId);
+      if (uid && canonicalGroupId) {
+        const user = userMap.get(String(uid).trim().toLowerCase());
+        if (user && !memberGroupMap.has(user.id)) memberGroupMap.set(user.id, canonicalGroupId);
+      }
     }
 
     // Build residency name map
@@ -169,11 +176,12 @@ export default createEndpoint({
       groupName: string;
     }[] = [];
 
-    for (const uid of memberUserIds) {
+    for (const memberReference of memberUserIds) {
+      const u = userMap.get(String(memberReference).trim().toLowerCase());
+      if (!u) continue;
+      const uid = String(u.id);
       if (seenUserIds.has(uid)) continue;
       seenUserIds.add(uid);
-      const u = userMap.get(uid);
-      if (!u) continue;
       const rawResId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
       const isResident = !!(u.residencyApproved && rawResId);
       const gid = memberGroupMap.get(uid) || '';
@@ -229,7 +237,8 @@ export default createEndpoint({
     const groupSessionDates = new Map<string, Set<string>>();
 
     for (const a of allAttendance) {
-      const uid = (Array.isArray(a.user) ? a.user[0] : a.user) as string;
+      const attendanceReference = (Array.isArray(a.user) ? a.user[0] : a.user) as string;
+      const uid = userMap.get(String(attendanceReference || '').trim().toLowerCase())?.id || attendanceReference;
       const date = String(a.attendanceDate || '').slice(0, 10);
       const rawGroupId = (Array.isArray(a.group) ? a.group[0] : (a.group || a.groupId)) as string;
       const gid = groupCanonicalId.get(String(rawGroupId)) || String(rawGroupId || '');

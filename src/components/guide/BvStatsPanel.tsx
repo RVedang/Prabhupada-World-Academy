@@ -60,9 +60,10 @@ interface Props {
   showIndividualStats?: boolean;
   /** Groups already resolved for a supervisor's hierarchy. */
   groupOptions?: SadhanaGroupOption[];
+  segment?: 'PW' | 'FOLK';
 }
 
-export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndividualStats, groupOptions = [] }: Props) {
+export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndividualStats, groupOptions = [], segment }: Props) {
   const [period, setPeriod]               = useState<Period>('30d');
   const [groupStats, setGroupStats]       = useState<any>(null);
   const [groupLoading, setGroupLoading]   = useState(false);
@@ -83,6 +84,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
         bvslMode,
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+        segment,
       });
       setGroupStats(result);
     } catch {
@@ -90,7 +92,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
     } finally {
       if (!silent) setGroupLoading(false);
     }
-  }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId]);
+  }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId, segment]);
 
   useEffect(() => { void loadGroupStats(); }, [loadGroupStats]);
   // A Sadhana submission can include BV activity. Re-query on that event so
@@ -112,6 +114,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
         subjectUserId: selectedUserId,
+        segment,
       });
       setIndividualStats(result);
     } catch {
@@ -119,7 +122,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
     } finally {
       if (!silent) setIndividualLoading(false);
     }
-  }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId, selectedUserId]);
+  }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId, selectedUserId, segment]);
 
   useEffect(() => { void loadIndividualStats(); }, [loadIndividualStats]);
   useRealtimeRefresh(['sadhana'], () => loadIndividualStats(true), Boolean(selectedUserId));

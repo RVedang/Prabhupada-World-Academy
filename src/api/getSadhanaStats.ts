@@ -86,7 +86,7 @@ export default createEndpoint({
         .filter(Boolean),
     );
 
-    let guideDbId: string | null = isPwMentor ? null : guideId;
+    let guideDbId: string | null = isPwMentor || guideId === 'ALL' ? null : guideId;
     if ((bvslMode || mentorMode) && !isPwMentor) {
       const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'guide'] });
       const gid = Array.isArray(userRec?.guide) ? userRec!.guide[0] : userRec?.guide;

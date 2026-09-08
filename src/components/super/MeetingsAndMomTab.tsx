@@ -345,16 +345,45 @@ interface Mom {
   created_at: string;
 }
 
+function normalizedRoles(user: any): string[] {
+  const values = Array.isArray(user?.roles) && user.roles.length > 0 ? user.roles : [user?.role];
+  return values.filter(Boolean).map((value: unknown) => String(value).toUpperCase().replace(/[\s-]+/g, '_'));
+}
+
+/** Match the assigned multi-role values; legacy flags are fallback only. */
+export function hasMeetingRole(user: any, role: 'ADMIN' | 'SUPERVISOR' | 'MENTOR' | 'FACILITATOR' | 'RGF' | 'RGSF'): boolean {
+  const roles = normalizedRoles(user);
+  if (roles.length > 0) {
+    const accepted: Record<typeof role, string[]> = {
+      ADMIN: ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'],
+      SUPERVISOR: ['SUPERVISOR', 'BV_SUPERVISOR'],
+      MENTOR: ['MENTOR', 'SADHANA_MENTOR', 'BV_MENTOR'],
+      FACILITATOR: ['FACILITATOR', 'RGF', 'BVSL'],
+      RGF: ['RGF'],
+      RGSF: ['RGSF', 'SUB_FACILITATOR'],
+    };
+    return roles.some(value => accepted[role].includes(value));
+  }
+  return role === 'ADMIN' ? !!user?.isBvAdmin
+    : role === 'SUPERVISOR' ? !!(user?.isBvSupervisor || user?.isBvMentor)
+    : role === 'MENTOR' ? !!(user?.isSadhanaMentor || user?.isBvMentor)
+    : role === 'FACILITATOR' ? !!(user?.isBvFacilitator || user?.isBvsl)
+    : role === 'RGF' ? !!user?.isBvFacilitator
+    : !!user?.isBvSubFacilitator;
+}
+
+const INVITE_ROLE_TYPES = ['ADMIN', 'SUPERVISOR', 'MENTOR', 'FACILITATOR', 'RGF', 'RGSF'] as const;
+
 const getRolePriority = (u: any) => {
   const roleUpper = String(u.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-  const isAdmin = u.isBvAdmin || ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(roleUpper);
-  const isSupervisor = u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
-  const isFac = u.isBvsl || roleUpper === 'BVSL' || roleUpper === 'FACILITATOR';
-  const isRgsf = u.isBvSubFacilitator || roleUpper === 'RGSF' || roleUpper.includes('SUB_FACILITATOR') || roleUpper.includes('SUB-FACILITATOR');
+  const isAdmin = hasMeetingRole(u, 'ADMIN');
+  const isSupervisor = hasMeetingRole(u, 'SUPERVISOR');
+  const isFac = hasMeetingRole(u, 'FACILITATOR');
+  const isRgsf = hasMeetingRole(u, 'RGSF');
   if (isAdmin) return 1;
   if (isSupervisor) return 2;
   if (isFac) return 3;
-  if (roleUpper === 'RGF') return 4;
+  if (hasMeetingRole(u, 'RGF')) return 4;
   if (isRgsf) return 5;
   return 6;
 };
@@ -550,8 +579,9 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
         const emailLower = (u.email || '').toLowerCase();
         const roleUpper = (u.role || '').toUpperCase();
         const isFolk = u.segment === 'FOLK';
-        const isPw = u.segment === 'PW' || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('hrvd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
-        return department === 'FOLK' ? isFolk : (isPw && !isFolk);
+        const hasInviteRole = INVITE_ROLE_TYPES.some(role => hasMeetingRole(u, role));
+        const isPw = u.segment === 'PW' || hasInviteRole || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('hrvd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
+        return hasInviteRole && (department === 'FOLK' ? isFolk : (isPw && !isFolk));
       });
       setRegisteredUsers(departmentUsers);
     } catch (err: any) {
@@ -584,7 +614,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
     });
     // Default to selecting all facilitators for a Facilitators Meeting
     const defaultFacIds = registeredUsers
-      .filter((u: any) => u.isBvFacilitator || u.isBvsl || u.role?.toUpperCase() === 'BVSL' || u.role?.toUpperCase() === 'FACILITATOR')
+      .filter((u: any) => hasMeetingRole(u, 'FACILITATOR'))
       .map((u: any) => u.userId);
     setSelectedInviteeIds(defaultFacIds);
     setInviteeSearch('');
@@ -606,7 +636,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
 
     if (newType === 'FACILITATOR') {
       const defaultFacIds = registeredUsers
-        .filter((u: any) => u.isBvFacilitator || u.isBvsl || u.role?.toUpperCase() === 'BVSL' || u.role?.toUpperCase() === 'FACILITATOR')
+        .filter((u: any) => hasMeetingRole(u, 'FACILITATOR'))
         .map((u: any) => u.userId);
       setSelectedInviteeIds(defaultFacIds);
     } else {
@@ -667,23 +697,21 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
     }
   };
 
-  const isPresetSelected = (preset: 'FACILITATORS' | 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'MENTORS' | 'ADMINS') => {
+  const isPresetSelected = (preset: 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'MENTORS' | 'ADMINS') => {
     const targetIds = registeredUsers
       .filter((u: any) => {
-        const roleUpper = (u.role || '').toUpperCase();
-        if (preset === 'FACILITATORS') return u.isBvFacilitator || u.isBvsl || roleUpper === 'BVSL' || roleUpper === 'FACILITATOR';
-        if (preset === 'RGFS') return u.isBvFacilitator || u.isBvsl || roleUpper === 'FACILITATOR' || roleUpper === 'BVSL';
-        if (preset === 'RGSFS') return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR' || roleUpper === 'RGSF';
-        if (preset === 'SUPERVISORS') return u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
-        if (preset === 'MENTORS') return u.isSadhanaMentor || u.isBvMentor || roleUpper.includes('MENTOR');
-        if (preset === 'ADMINS') return u.isBvAdmin || roleUpper === 'ADMIN' || roleUpper === 'PW_ADMIN' || roleUpper === 'SUPER_ADMIN';
+        if (preset === 'RGFS') return hasMeetingRole(u, 'RGF');
+        if (preset === 'RGSFS') return hasMeetingRole(u, 'RGSF');
+        if (preset === 'SUPERVISORS') return hasMeetingRole(u, 'SUPERVISOR');
+        if (preset === 'MENTORS') return hasMeetingRole(u, 'MENTOR');
+        if (preset === 'ADMINS') return hasMeetingRole(u, 'ADMIN');
         return false;
       })
       .map((u: any) => u.userId);
     return targetIds.length > 0 && targetIds.every(id => selectedInviteeIds.includes(id));
   };
 
-  const selectPresetGroup = (preset: 'FACILITATORS' | 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'MENTORS' | 'ADMINS' | 'CLEAR') => {
+  const selectPresetGroup = (preset: 'RGFS' | 'RGSFS' | 'SUPERVISORS' | 'MENTORS' | 'ADMINS' | 'CLEAR') => {
     if (preset === 'CLEAR') {
       setSelectedInviteeIds([]);
       return;
@@ -691,24 +719,20 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
 
     const targetIds = registeredUsers
       .filter((u: any) => {
-        const roleUpper = (u.role || '').toUpperCase();
-        if (preset === 'FACILITATORS') {
-          return u.isBvFacilitator || u.isBvsl || roleUpper === 'BVSL' || roleUpper === 'FACILITATOR';
-        }
         if (preset === 'RGFS') {
-          return u.isBvFacilitator || u.isBvsl || roleUpper === 'FACILITATOR' || roleUpper === 'BVSL';
+          return hasMeetingRole(u, 'RGF');
         }
         if (preset === 'RGSFS') {
-          return u.isBvSubFacilitator || roleUpper === 'SUB_FACILITATOR' || roleUpper === 'SUB-FACILITATOR' || roleUpper === 'RGSF';
+          return hasMeetingRole(u, 'RGSF');
         }
         if (preset === 'SUPERVISORS') {
-          return u.isBvSupervisor || roleUpper.includes('SUPERVISOR');
+          return hasMeetingRole(u, 'SUPERVISOR');
         }
         if (preset === 'MENTORS') {
-          return u.isSadhanaMentor || u.isBvMentor || roleUpper.includes('MENTOR');
+          return hasMeetingRole(u, 'MENTOR');
         }
         if (preset === 'ADMINS') {
-          return u.isBvAdmin || roleUpper === 'ADMIN' || roleUpper === 'PW_ADMIN' || roleUpper === 'SUPER_ADMIN';
+          return hasMeetingRole(u, 'ADMIN');
         }
         return false;
       })
@@ -1636,17 +1660,6 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                       </button>
                       <button
                         type="button"
-                        onClick={() => selectPresetGroup('FACILITATORS')}
-                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all cursor-pointer ${
-                          isPresetSelected('FACILITATORS')
-                            ? 'bg-primary text-primary-foreground border border-primary hover:bg-primary/95'
-                            : 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20'
-                        }`}
-                      >
-                        {isPresetSelected('FACILITATORS') ? '✓ PW Facilitators' : '+ PW Facilitators'}
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => selectPresetGroup('RGFS')}
                         className={`text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all cursor-pointer ${
                           isPresetSelected('RGFS')
@@ -1654,7 +1667,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                             : 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
                         }`}
                       >
-                        {isPresetSelected('RGFS') ? '✓ RGFs' : '+ RGFs'}
+                        {isPresetSelected('RGFS') ? '✓ PW Facilitators (RGFs)' : '+ PW Facilitators (RGFs)'}
                       </button>
                       <button
                         type="button"

@@ -123,9 +123,9 @@ function computeLowPerformers(facilitators: BvslRow[], fields: BvFieldDef[]): Lo
     });
 }
 
-interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
+interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; segment?: 'PW' | 'FOLK'; }
 
-export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Props) {
+export default function BvImprovementTab({ guideId, bvslMode, residencyIds, segment }: Props) {
   // Show the current work by default. "Previous Week" made a newly submitted
   // entry appear missing until the user manually changed the period.
   const [period, setPeriod]   = useState<Period>('this_month');
@@ -135,13 +135,13 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds }: Pr
   const load = (silent = false) => {
     const params = getPeriodParams(period);
     if (!silent) setLoading(true);
-    getBvPreachingReport({ guideId, ...params, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined })
+    getBvPreachingReport({ guideId, ...params, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined, segment })
       .then(res => setData(res as any))
       .catch(() => toast.error('Failed to load improvement data'))
       .finally(() => { if (!silent) setLoading(false); });
   };
 
-  useEffect(() => { load(); }, [guideId, period, bvslMode]);
+  useEffect(() => { load(); }, [guideId, period, bvslMode, segment]);
   // Event-driven refresh after an RGF submits the Bhakti Vriksha section of
   // Sadhana. This is not polling and keeps improvement in sync with Stats.
   useRealtimeRefresh(['sadhana'], () => load(true));

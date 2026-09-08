@@ -34,7 +34,7 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
   );
 
   const [guides, setGuides]               = useState<GetGuidesOutputType['guides']>([]);
-  const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin ? 'all' : (guideId || userEmail)));
+  const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin || isPwAdmin ? 'all' : (guideId || userEmail)));
   const [subTab, setSubTab]               = useState<SubTab>('overview');
 
   const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
@@ -47,10 +47,10 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
   });
 
   useEffect(() => {
-    if (profile && !isSuperAdmin) {
+    if (profile && !isSuperAdmin && !isPwAdmin) {
       setSelectedGuide(guideId || userEmail);
     }
-  }, [profile, isSuperAdmin, userEmail, guideId]);
+  }, [profile, isSuperAdmin, isPwAdmin, userEmail, guideId]);
 
   return (
     <div className="space-y-4">
@@ -91,9 +91,9 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
               </Select>
             </div>
           )}
-          {selectedGuide === 'all'
+          {selectedGuide === 'all' && !isPwAdmin
             ? <SuperGuideBvSection />
-            : <BvSection guideId={selectedGuide} />
+            : <BvSection guideId={selectedGuide === 'all' ? 'ALL' : selectedGuide} segment={effectiveSegment} />
           }
         </div>
       )}

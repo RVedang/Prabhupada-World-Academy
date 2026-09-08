@@ -98,9 +98,9 @@ function getMonthOptions() {
 const WEEK_OPTIONS = getWeekOptions();
 const MONTH_OPTIONS = getMonthOptions();
 
-interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; }
+interface Props { guideId: string; bvslMode?: boolean; residencyIds?: string[]; segment?: 'PW' | 'FOLK'; }
 
-export default function BvReportTab({ guideId, bvslMode, residencyIds }: Props) {
+export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }: Props) {
   const [loading, setLoading]           = useState(false);
   const [reportType, setReportType]     = useState<ReportType>('daily');
   const [selectedDate, setSelectedDate] = useState(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
@@ -125,11 +125,12 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds }: Props) 
         bvslMode,
         groupId: selectedGroup !== 'all' ? selectedGroup : undefined,
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
+        segment,
       });
       setData(result);
     } catch { toast.error('Failed to load RGF report'); }
     finally { setLoading(false); }
-  }, [guideId, selectedDate, reportType, computedStart, computedEnd, bvslMode, selectedGroup, residencyIds]);
+  }, [guideId, selectedDate, reportType, computedStart, computedEnd, bvslMode, selectedGroup, residencyIds, segment]);
 
   const debouncedFetch = useDebouncedCallback(fetchReport, 300);
   useEffect(() => {

@@ -7,7 +7,7 @@ import { requireGuideRole } from '../lib/userUtils';
 
 const ENTRY_FIELDS = ['id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'maxScore', 'flagSick', 'flagOs', 'submittedAt'];
 const STREAK_ENTRY_FIELDS = ['id', 'user', 'entryDate', 'scorePercent'];
-const USER_FIELDS = ['id', 'fullName', 'email', 'ashrayLevel', 'residency', 'residencyApproved', 'guide', 'status', 'userId', 'role', 'currentStreak', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+const USER_FIELDS = ['id', 'fullName', 'email', 'segment', 'isPrabhupadaWorldUser', 'ashrayLevel', 'residency', 'residencyApproved', 'guide', 'status', 'userId', 'role', 'currentStreak', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 
 /** Roles to exclude from the leaderboard — only administrative roles */
 const EXCLUDED_ROLES = new Set(['Guide', 'Super Guide']);
@@ -43,6 +43,7 @@ export default createEndpoint({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     page: z.number().int().min(0).optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
@@ -118,7 +119,7 @@ export default createEndpoint({
     const usersFilter: any = { status: 'Active' };
     if (!isSuperGuide && guideRecord) {
       usersFilter.guide = (guideRecord as any).id;
-    } else if (isSuperGuide && input.guideId) {
+    } else if (isSuperGuide && input.guideId && input.guideId !== 'ALL') {
       usersFilter.guide = input.guideId;
     }
     if (input.residencyId) {
@@ -162,6 +163,14 @@ export default createEndpoint({
         groupId: input.groupId,
         segment: String(context.user.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW',
         excludeCaller: true,
+      });
+    }
+    if (!input.bvslMode && input.segment) {
+      allUsers = allUsers.filter(user => {
+        const explicit = String(user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+        const userSegment = explicit === 'PW' || explicit === 'PRABHUPADAWORLD' || user.isPrabhupadaWorldUser === true ? 'PW'
+          : explicit === 'FOLK' ? 'FOLK' : '';
+        return userSegment === input.segment;
       });
     }
 

@@ -819,7 +819,12 @@ export default createEndpoint({
       users = records;
     }
 
-    const scopedUserIds = isPwMentor ? null : await getScopedHierarchyUserIds(context.user);
+    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isPwDepartmentAdmin = inputGuideId === 'ALL' && input.segment === 'PW' && !!(
+      context.user.isBvAdmin || context.user.isBvSuperAdmin || context.user.isPwAdmin ||
+      callerRole === 'ADMIN' || callerRole === 'PW_ADMIN' || callerRole === 'SUPER_ADMIN'
+    );
+    const scopedUserIds = isPwMentor || isPwDepartmentAdmin ? null : await getScopedHierarchyUserIds(context.user);
 
     // BVSL/RGSF mode applies its own strict group-membership scope below,
     // including legacy aliases for group/member references. Applying the

@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Guides, Users } from '@/lib/backend-sdk';
+import { createEndpoint, AppError, BvGroups, BvGroupMembers, BvAttendance, Guides, Users } from '@/lib/backend-sdk';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { bvUserAliases, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentGroups, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'Get BV group stats for guide dashboard — member count, attendance rate per group',
   authenticated: true,
-  inputSchema: z.object({ guideId: z.string().optional(), bvslMode: z.boolean().optional(), residencyIds: z.array(z.string()).optional() }),
+  inputSchema: z.object({ guideId: z.string().optional(), bvslMode: z.boolean().optional(), residencyIds: z.array(z.string()).optional(), segment: z.enum(['PW', 'FOLK']).optional() }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
@@ -16,7 +16,12 @@ export default createEndpoint({
     const groupFilter: any = { isActive: true };
     let hierarchyGroups: any[] | null = null;
 
-    if (isBvslMode) {
+    if (input.guideId === 'ALL' && input.segment) {
+      if (!isBvDepartmentAdmin(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      }
+      hierarchyGroups = (await resolveBvDepartmentGroups(input.segment)).map(group => group.record);
+    } else if (isBvslMode) {
       const rawSegment = String(context.user.segment || (context.user.isBvSupervisor ? 'FOLK' : '')).toUpperCase();
       const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;
       hierarchyGroups = (await resolveBvScopedGroups(context.user as any, { segment }))
@@ -96,15 +101,17 @@ export default createEndpoint({
     }
 
     const stats = await Promise.all(groups.map(async (g: any) => {
-      const [membersRes, attRes] = await Promise.all([
-        BvGroupMembers.findAll({ filters: { group: g.id }, fields: ['id', 'user', 'userId', 'memberId'], limit: 500 }),
-        // Query attendance directly by group (new approach)
-        BvAttendance.findAll({
-          filters: { group: g.id },
-          fields: ['id', 'user', 'present', 'attendanceDate'],
-          limit: 2000,
-        }),
+      const groupIds = [...new Set([g.id, g.groupId].filter(Boolean))];
+      const [membersByGroup, membersByGroupId, attendanceByGroup, attendanceByGroupId] = await Promise.all([
+        BvGroupMembers.findAll({ filters: { group: { in: groupIds } } as any, fields: ['id', 'user', 'userId', 'memberId'], limit: 500 }),
+        BvGroupMembers.findAll({ filters: { groupId: { in: groupIds } } as any, fields: ['id', 'user', 'userId', 'memberId'], limit: 500 }).catch(() => ({ records: [] })),
+        BvAttendance.findAll({ filters: { group: { in: groupIds } } as any, fields: ['id', 'user', 'present', 'attendanceDate'], limit: 2000 }),
+        BvAttendance.findAll({ filters: { groupId: { in: groupIds } } as any, fields: ['id', 'user', 'present', 'attendanceDate'], limit: 2000 }).catch(() => ({ records: [] })),
       ]);
+      const memberRows = [...membersByGroup.records, ...membersByGroupId.records]
+        .filter((row, index, rows) => rows.findIndex(candidate => candidate.id === row.id) === index);
+      const attendanceRows = [...attendanceByGroup.records, ...attendanceByGroupId.records]
+        .filter((row, index, rows) => rows.findIndex(candidate => candidate.id === row.id) === index);
 
       const isCaller = (value: unknown) => {
         const values = (Array.isArray(value) ? value : [value])
@@ -112,11 +119,11 @@ export default createEndpoint({
         return values.some(item => callerAliases.has(String(item || '').trim().toLowerCase()));
       };
       const memberRecords = isBvslMode
-        ? membersRes.records.filter(member => !isCaller([member.user, member.userId, member.memberId]))
-        : membersRes.records;
+        ? memberRows.filter(member => !isCaller([member.user, member.userId, member.memberId]))
+        : memberRows;
       const attRecords = isBvslMode
-        ? attRes.records.filter(attendance => !isCaller(attendance.user))
-        : attRes.records;
+        ? attendanceRows.filter(attendance => !isCaller(attendance.user))
+        : attendanceRows;
       const memberCount = new Set(memberRecords.map(member =>
         String(member.user || member.userId || member.memberId || member.id),
       )).size;

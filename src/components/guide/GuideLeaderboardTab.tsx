@@ -122,6 +122,7 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = 
         endDate: e,
         bvslMode,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+        segment: isFolk ? 'FOLK' : 'PW',
       }));
     }
     catch {/* ignore */} finally { if (!silent) setFolkLoading(false); }
@@ -140,7 +141,7 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = 
       }));
     }
     catch {/* ignore */} finally { if (!silent) setLbLoading(false); }
-  }, [guideId, bvslMode, selectedGroupId]);
+  }, [guideId, bvslMode, selectedGroupId, isFolk]);
 
   useEffect(() => {
     loadFolk(startDate, endDate);

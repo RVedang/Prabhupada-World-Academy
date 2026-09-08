@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { createEndpoint, Users, BvslPreachingEntries, BvGroups, Guides, SadhanaEntries } from '@/lib/backend-sdk';
+import { createEndpoint, AppError, Users, BvslPreachingEntries, BvGroups, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentFacilitatorUsers, resolveBvDepartmentGroups, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
 
@@ -31,6 +31,7 @@ export default createEndpoint({
     bvslMode: z.boolean().optional(),
     groupId: z.string().optional(),
     residencyIds: z.array(z.string()).optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: { input: any; context: any }) => {
@@ -40,7 +41,7 @@ export default createEndpoint({
     // The cache is invalidated globally by assignBvRole and other mutation
     // endpoints via serverCacheInvalidate().
     const callerSegment = String((context.user as any).segment || 'FOLK').toUpperCase();
-    const cacheKey = `bvPreachingReport:${input.guideId}:${input.date}:${input.reportType}:${input.startDate || ''}:${input.endDate || ''}:${input.bvslMode ? '1' : '0'}:${input.groupId || ''}:${(input.residencyIds || []).sort().join(',')}:${callerSegment}:${context.user.id}`;
+    const cacheKey = `bvPreachingReport:${input.guideId}:${input.date}:${input.reportType}:${input.startDate || ''}:${input.endDate || ''}:${input.bvslMode ? '1' : '0'}:${input.groupId || ''}:${(input.residencyIds || []).sort().join(',')}:${input.segment || callerSegment}:${context.user.id}`;
     return serverCacheGetOrFetch(cacheKey, () => _fetchBvPreachingReport({ input, context }), 5 * 60 * 1000);
   },
 });
@@ -49,7 +50,7 @@ async function _fetchBvPreachingReport({ input, context }: { input: any; context
   const isBvMentor = !!(context.user as any).isBvMentor;
   if (!input.bvslMode && !isBvMentor) requireGuideRole(context.user.role, { isSadhanaMentor: context.user.isSadhanaMentor, isBvsl: context.user.isBvsl, isBvMentor });
 
-  const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, groupId, residencyIds } = input;
+  const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, groupId, residencyIds, segment } = input;
   const effectiveStart = (startDate || date || '').split('T')[0];
   const effectiveEnd = (endDate || date || '').split('T')[0];
   if (!effectiveStart) throw new Error('Invalid date');
@@ -76,7 +77,17 @@ async function _fetchBvPreachingReport({ input, context }: { input: any; context
     const isMemberMode = !!bvslMode && !isSupervisorMode;
     let hierarchyGroups: any[] | null = null;
     let bvslUsers: any[] = [];
-    if (isSupervisorMode) {
+    if (inputGuideId === 'ALL' && segment) {
+      if (!isBvDepartmentAdmin(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      }
+      hierarchyGroups = (await resolveBvDepartmentGroups(segment, groupId)).map(group => group.record);
+      bvslUsers = await resolveBvDepartmentFacilitatorUsers(
+        segment,
+        ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'isBvSubFacilitator'],
+        groupId,
+      );
+    } else if (isSupervisorMode) {
       const rawSegment = String(context.user.segment || 'FOLK').toUpperCase();
       const segment = rawSegment === 'PW' ? 'PW' : 'FOLK';
       hierarchyGroups = (await resolveBvScopedGroups(context.user as any, { segment, groupId }))

@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, Users, Guides, BvslPreachingEntries, SadhanaEntries } from '@/lib/backend-sdk';
+import { createEndpoint, AppError, Users, Guides, BvslPreachingEntries, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
-import { bvUserAliases, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentFacilitatorUsers, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
 
@@ -22,12 +22,13 @@ export default createEndpoint({
     groupId: z.string().optional(),
     /** Optional selected facilitator, always verified against the caller's scoped hierarchy. */
     subjectUserId: z.string().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: { input: any; context: any }) => {
     if (!context.user) throw new Error('Unauthorized');
     const callerSegment = String((context.user as any).segment || 'FOLK').toUpperCase();
-    const cacheKey = `bvStats:${input.guideId}:${input.startDate}:${input.endDate}:${input.bvslMode ? '1' : '0'}:${input.groupId || ''}:${input.subjectUserId || ''}:${(input.residencyIds || []).sort().join(',')}:${callerSegment}:${context.user.id}`;
+    const cacheKey = `bvStats:${input.guideId}:${input.startDate}:${input.endDate}:${input.bvslMode ? '1' : '0'}:${input.groupId || ''}:${input.subjectUserId || ''}:${(input.residencyIds || []).sort().join(',')}:${input.segment || callerSegment}:${context.user.id}`;
     return serverCacheGetOrFetch(cacheKey, () => _fetchBvStats({ input, context }), 5 * 60 * 1000);
   },
 });
@@ -42,13 +43,22 @@ async function _fetchBvStats({ input, context }: { input: any; context: any }) {
       isBvSuperAdmin: context.user.isBvSuperAdmin,
       isBvSubFacilitator: context.user.isBvSubFacilitator,
     });
-    const { guideId, startDate, endDate, bvslMode, residencyIds, groupId, subjectUserId } = input;
+    const { guideId, startDate, endDate, bvslMode, residencyIds, groupId, subjectUserId, segment } = input;
 
     let bvslUsers: any[] = [];
 
     const isSupervisorMode = !!bvslMode && !!(context.user.isBvSupervisor || context.user.isBvMentor);
     const isMemberMode = !!bvslMode && !isSupervisorMode;
-    if (isSupervisorMode) {
+    if (guideId === 'ALL' && segment) {
+      if (!isBvDepartmentAdmin(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      }
+      bvslUsers = await resolveBvDepartmentFacilitatorUsers(
+        segment,
+        ['id', 'userId', 'email', 'fullName'],
+        groupId,
+      );
+    } else if (isSupervisorMode) {
       const rawSegment = String(context.user.segment || 'FOLK').toUpperCase();
       const segment = rawSegment === 'PW' ? 'PW' : 'FOLK';
       bvslUsers = await resolveBvGroupFacilitatorUsers(

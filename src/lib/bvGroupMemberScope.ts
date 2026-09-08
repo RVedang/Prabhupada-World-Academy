@@ -65,6 +65,19 @@ function roleValue(user: UserRecord | null | undefined): string {
   return String(user?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
 }
 
+export function isBvDepartmentAdmin(user: UserRecord | null | undefined): boolean {
+  const role = roleValue(user);
+  return !!(user?.isBvAdmin || user?.isBvSuperAdmin || user?.isPwAdmin ||
+    role === 'ADMIN' || role === 'PW_ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPER_GUIDE');
+}
+
+function departmentValue(value: unknown): 'FOLK' | 'PW' | null {
+  const normalized = String(value || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+  if (normalized === 'PW' || normalized === 'PRABHUPADAWORLD') return 'PW';
+  if (normalized === 'FOLK') return 'FOLK';
+  return null;
+}
+
 function groupAliases(group: UserRecord): string[] {
   return refs([group.id, group.groupId]);
 }
@@ -118,6 +131,62 @@ async function resolveCanonicalUsersByAliases(
     }
   });
   return [...canonicalUsers.values()];
+}
+
+export async function resolveBvUsersByAliases(
+  aliases: Iterable<string>,
+  userFields: string[],
+): Promise<UserRecord[]> {
+  return resolveCanonicalUsersByAliases(new Set([...aliases].flatMap(refs)), userFields);
+}
+
+export async function resolveBvDepartmentGroups(
+  segment: 'FOLK' | 'PW',
+  groupId?: string,
+): Promise<BvScopedGroup[]> {
+  const [{ records: allUsers }, { records: allGroups }] = await Promise.all([
+    Users.findAll({
+      fields: [...IDENTITY_FIELDS, 'segment', 'isPrabhupadaWorldUser'],
+      limit: 5000,
+    }),
+    BvGroups.findAll({
+      fields: ['id', 'groupId', 'groupName', 'segment', 'guide', 'isActive', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
+      limit: 1000,
+    }),
+  ]);
+  const segmentByUserAlias = new Map<string, 'FOLK' | 'PW'>();
+  for (const user of allUsers) {
+    const userSegment = departmentValue(user.segment) || (user.isPrabhupadaWorldUser === true ? 'PW' : null);
+    if (userSegment) bvUserAliases(user).forEach(alias => segmentByUserAlias.set(alias, userSegment));
+  }
+  const requestedGroup = groupId ? new Set(refs(groupId)) : null;
+  return allGroups.filter(group => {
+    if (group.isActive === false) return false;
+    if (requestedGroup && !groupAliases(group).some(alias => requestedGroup.has(alias))) return false;
+    const explicit = departmentValue(group.segment);
+    const facilitatorSegments = bvGroupFacilitatorAliases(group)
+      .map(alias => segmentByUserAlias.get(alias))
+      .filter(Boolean);
+    const groupSegment = explicit || facilitatorSegments[0];
+    return groupSegment === segment;
+  }).map(group => ({
+    id: String(group.id || ''),
+    groupId: String(group.groupId || group.id || ''),
+    groupName: String(group.groupName || 'Reading Group'),
+    record: group,
+  })).filter(group => !!group.id);
+}
+
+export async function resolveBvDepartmentFacilitatorUsers(
+  segment: 'FOLK' | 'PW',
+  userFields: string[],
+  groupId?: string,
+): Promise<UserRecord[]> {
+  const groups = await resolveBvDepartmentGroups(segment, groupId);
+  return resolveCanonicalUsersByAliases(
+    new Set(groups.flatMap(group => bvGroupFacilitatorAliases(group.record))),
+    userFields,
+  );
 }
 
 /**

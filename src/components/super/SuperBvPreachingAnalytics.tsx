@@ -211,10 +211,30 @@ export default function SuperBvPreachingAnalytics() {
           </div>
         )}
 
-        <div className="flex items-center gap-1 ml-auto">
-          <Label className="text-xs text-muted-foreground mr-1">Show:</Label>
-          <Button size="sm" variant={viewMode === 'totals' ? 'default' : 'outline'} className="h-7 text-xs px-2.5" onClick={() => setViewMode('totals')}>Totals</Button>
-          <Button size="sm" variant={viewMode === 'avgs' ? 'default' : 'outline'} className="h-7 text-xs px-2.5" onClick={() => setViewMode('avgs')}>Averages</Button>
+        <div className="flex items-center gap-2 ml-auto" aria-label="Report display mode">
+          <Label className="text-xs text-muted-foreground">Display:</Label>
+          <div className="inline-flex items-center rounded-md border border-border bg-muted/30 p-0.5" role="group" aria-label="Choose totals or averages">
+            <Button
+              size="sm"
+              variant={viewMode === 'totals' ? 'default' : 'ghost'}
+              aria-pressed={viewMode === 'totals'}
+              title="Show the combined totals for submitted RGFs"
+              className="h-7 rounded px-2.5 text-xs"
+              onClick={() => setViewMode('totals')}
+            >
+              Totals
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === 'avgs' ? 'default' : 'ghost'}
+              aria-pressed={viewMode === 'avgs'}
+              title="Show the average per submitted RGF"
+              className="h-7 rounded px-2.5 text-xs"
+              onClick={() => setViewMode('avgs')}
+            >
+              Average per RGF
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -229,8 +249,13 @@ export default function SuperBvPreachingAnalytics() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
-                    <th className="px-3 py-2.5 text-left text-xs font-bold sticky left-0 bg-muted/50 z-10 min-w-[150px]">Center</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-bold min-w-[80px]">Submitted</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-bold sticky left-0 bg-muted/50 z-10 min-w-[170px]">
+                      Reporting center / admin
+                    </th>
+                    <th className="px-3 py-2.5 text-center text-xs font-bold min-w-[112px]">
+                      <span className="block">RGFs submitted</span>
+                      <span className="block text-[10px] font-normal text-muted-foreground">submitted / assigned</span>
+                    </th>
                     {DUR_FIELDS.map(f => (
                       <th key={f.key} className="px-3 py-2.5 text-right text-xs font-bold min-w-[70px]">
                         {f.label}<div className="text-[10px] font-normal text-muted-foreground">HH:MM</div>
@@ -272,9 +297,9 @@ export default function SuperBvPreachingAnalytics() {
                               <span className="truncate max-w-[120px]" title={center.guideName}>{center.guideName}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-center">
+                          <td className="px-3 py-2.5 text-center" title={`${center.submittedCount} of ${center.bvslCount} assigned RGFs submitted`}>
                             <Badge variant={center.submittedCount === center.bvslCount ? 'default' : 'outline'} className="text-xs">
-                              {center.submittedCount}/{center.bvslCount}
+                              {center.submittedCount} of {center.bvslCount}
                             </Badge>
                           </td>
                           {DUR_FIELDS.map(f => (
@@ -307,8 +332,8 @@ export default function SuperBvPreachingAnalytics() {
                         <td className="px-3 py-3 sticky left-0 bg-primary/5 z-10 text-primary">
                           Overall
                         </td>
-                        <td className="px-3 py-3 text-center">
-                          <Badge className="text-xs">{data.overall.submittedCount}/{data.overall.bvslCount}</Badge>
+                        <td className="px-3 py-3 text-center" title={`${data.overall.submittedCount} of ${data.overall.bvslCount} assigned RGFs submitted`}>
+                          <Badge className="text-xs">{data.overall.submittedCount} of {data.overall.bvslCount}</Badge>
                         </td>
                         {DUR_FIELDS.map(f => (
                           <td key={f.key} className="px-3 py-3 text-right font-mono text-xs">{minsToHHMM(ov[f.key])}</td>
@@ -336,13 +361,13 @@ export default function SuperBvPreachingAnalytics() {
 function BvslSubTable({ bvsls }: { bvsls: BvslDetail[] }) {
   return (
     <div className="px-6 py-3">
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual Facilitators (RGFs)</p>
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual facilitators (RGFs) — submission details</p>
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="border-b border-border/50">
               <th className="pb-1.5 text-left font-semibold text-muted-foreground min-w-[120px]">Name</th>
-              <th className="pb-1.5 text-left font-semibold text-muted-foreground min-w-[90px]">Group</th>
+              <th className="pb-1.5 text-left font-semibold text-muted-foreground min-w-[90px]">Reading group</th>
               {DUR_FIELDS.map(f => <th key={f.key} className="pb-1.5 text-right font-semibold text-muted-foreground min-w-[60px]">{f.label}</th>)}
               {CNT_FIELDS.map(f => <th key={f.key} className="pb-1.5 text-right font-semibold text-muted-foreground min-w-[55px]">{f.label}</th>)}
               <th className="pb-1.5 text-right font-semibold text-muted-foreground min-w-[72px]">Total</th>
