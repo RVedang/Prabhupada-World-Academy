@@ -1,10 +1,8 @@
 import { useState, useMemo, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUpDown, ArrowUp, ArrowDown, MessageCircle, CheckCircle, Flame } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Flame } from 'lucide-react';
 import { scoreColor } from '@/lib/scoring';
-import { format, subDays } from 'date-fns';
 import { computeCell, colorTypeToClass } from '@/utils/cellRenderer';
-import { normalizePhoneForLinks } from '@/lib/userUtils';
 
 // SAD-009: Duration fields stored as raw minutes — convert to HH:MM for display
 export const DURATION_MINUTE_KEYS = new Set([
@@ -184,23 +182,6 @@ function StatusEmoji({ user }: { user: UserRow }) {
   return null;
 }
 
-function buildRelativeDateStr(dateStr: string): string {
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-  const fullDate = format(new Date(dateStr + 'T00:00:00'), 'EEEE, d MMMM yyyy');
-  if (dateStr === todayStr) return `Today, ${fullDate}`;
-  if (dateStr === yesterdayStr) return `Yesterday, ${fullDate}`;
-  return fullDate;
-}
-
-export function buildWaMessage(fullName: string, _senderName = 'FOLK Guide', isResident = false, reportDate?: string): string {
-  const firstName = (fullName || '').split(' ')[0] || fullName;
-  const honorific = isResident ? ' Prabhu' : '';
-  const targetDate = reportDate ?? format(subDays(new Date(), 1), 'yyyy-MM-dd');
-  const dateStr = buildRelativeDateStr(targetDate);
-  return `Hare Krishna ${firstName}${honorific}!\n\nKindly submit your Sadhana report for *${dateStr}*. It only takes a minute and helps track your spiritual progress. 🙏`;
-}
-
 // Shared th base style
 const TH = 'p-2 text-xs font-bold whitespace-nowrap bg-muted border-b border-border';
 const TH_CORNER = `${TH} sticky left-0 z-[30]`;
@@ -253,7 +234,7 @@ export default function SadhanaDetailTable({
   }, [users, groupByAshray]);
 
   const extraCols = showFolkColumn ? 6 : 4;
-  const totalColSpan = 3 + extraCols + orderedFieldDefs.length;
+  const totalColSpan = 2 + extraCols + orderedFieldDefs.length;
 
   // ── Single user row renderer ──────────────────────────────────────────────
   const renderUserRow = (user: UserRow, rankVal: number | null) => {
@@ -278,49 +259,8 @@ export default function SadhanaDetailTable({
               <StatusEmoji user={user} />
               <span className="truncate max-w-[110px]">{user.fullName}</span>
 
-              {/* Inline WA button — only on small screens (desktop uses the dedicated WA column) */}
-              {!user.submitted && user.phone && (
-                <a
-                  href={`https://wa.me/${normalizePhoneForLinks(user.phone)}?text=${encodeURIComponent(buildWaMessage(user.fullName, senderName, user.isResident, reportDate))}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Send WhatsApp reminder"
-                  className="md:hidden ml-1 shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors no-print"
-                  onClick={e => e.stopPropagation()}
-                >
-                  <MessageCircle className="w-3 h-3" />
-                </a>
-              )}
             </div>
             {!user.submitted && <Badge variant="destructive" className="text-xs mt-0.5">Missing</Badge>}
-          </div>
-        </td>
-        {/* WA */}
-        <td
-          className={`w-[44px] text-center sticky z-10 ${stickyBg} border-r border-border/50 no-print no-print-col`}
-          style={{ left: 216 }}
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="px-1 py-2 flex items-center justify-center">
-            {!user.submitted && user.phone ? (
-              <a
-                href={`https://wa.me/${user.phone.replace(/\D/g,'')}?text=${encodeURIComponent(buildWaMessage(user.fullName, senderName, user.isResident, reportDate))}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Send WA reminder"
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-              </a>
-            ) : !user.phone ? (
-              <span title="No phone number" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-muted text-muted-foreground/30 cursor-not-allowed">
-                <MessageCircle className="w-3.5 h-3.5" />
-              </span>
-            ) : (
-              <span title="Already submitted" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50 text-green-600 opacity-50">
-                <CheckCircle className="w-3.5 h-3.5" />
-              </span>
-            )}
           </div>
         </td>
 
@@ -427,14 +367,6 @@ export default function SadhanaDetailTable({
                 {!groupByAshray && <SortIcon col="fullName" sortKey={sortKey} sortDir={sortDir} />}
               </span>
             </th>
-            {/* WA */}
-            <th
-              className={`${TH_CORNER} w-[44px] min-w-[44px] text-center no-print no-print-col border-r border-border`}
-              style={{ left: 216 }}
-            >
-              WA
-            </th>
-
             {/* Level */}
             <th
               className={`${TH_TOP} w-[90px] min-w-[90px] text-center no-print-col ${!groupByAshray ? 'cursor-pointer select-none' : ''}`}
@@ -543,7 +475,7 @@ export default function SadhanaDetailTable({
             // ── Flat mode (existing behaviour) ────────────────────────────────
             sorted.length === 0 ? (
               <tr>
-                <td colSpan={3 + extraCols + fieldDefs.length} className="text-center py-8 text-muted-foreground text-sm">
+                <td colSpan={2 + extraCols + fieldDefs.length} className="text-center py-8 text-muted-foreground text-sm">
                   No users found
                 </td>
               </tr>

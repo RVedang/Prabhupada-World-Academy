@@ -4,6 +4,7 @@ import { getTodayIST, daysAgo } from '../lib/streakUtils';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 import { getGuideScope } from '../lib/guideScope';
+import { getReportReferenceData } from '../lib/reportReferenceData';
 
 // Minimal fields for guide lookup
 const GUIDE_FIELDS = ['id', 'email', 'isActive', 'role', 'folkResidencies'];
@@ -83,7 +84,7 @@ export default createEndpoint({
     // Run guide lookup and today's entries in parallel
     const todayStr = getTodayIST();
 
-    const [guideRecord, sadhanaRes, groupsRes, membersRes] = await Promise.all([
+    const [guideRecord, sadhanaRes, groupsRes, membersRes, reference, scopedUserIds] = await Promise.all([
       (isSuperGuide || isBvMentor)
         ? Promise.resolve(null)
         : getGuideScope(context.user.email || '').then(scope => scope ? { id: scope.guideId, folkResidencies: scope.residencyIds } : null),
@@ -98,6 +99,8 @@ export default createEndpoint({
       input.minimal
         ? Promise.resolve({ records: [] })
         : BvGroupMembers.findAll({ limit: 2000, fields: ['id', 'user', 'userId', 'group', 'groupId'] }).catch(() => ({ records: [] })),
+      input.minimal ? Promise.resolve({ residencies: [], guides: [] }) : getReportReferenceData(),
+      getScopedHierarchyUserIds(context.user).catch(() => null),
     ]);
 
     const todayEntries: any[] = sadhanaRes?.records || [];
@@ -183,8 +186,6 @@ export default createEndpoint({
       }
     }
 
-    const scopedUserIds = await getScopedHierarchyUserIds(context.user).catch(() => null);
-
     if (!forMeetingInvitees && scopedUserIds !== null) {
       users = users.filter(u => {
         const uId = String(u.id || '').toLowerCase();
@@ -243,19 +244,14 @@ export default createEndpoint({
         entriesByUser.get(uid)!.push(e);
       }
 
-      const [residenciesRes, guidesRes] = await Promise.all([
-        FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 }).catch(() => ({ records: [] })),
-        Guides.findAll({ fields: ['id', 'fullName', 'abbreviation', 'email'], limit: 500 }).catch(() => ({ records: [] }))
-      ]);
-
-      for (const r of (residenciesRes?.records || [])) {
+      for (const r of reference.residencies) {
         if (r.id) {
           residencyMap.set(r.id, (r as any).residencyName || '');
           if ((r as any).residencyId) residencyMap.set((r as any).residencyId, (r as any).residencyName || '');
         }
       }
 
-      for (const g of (guidesRes?.records || [])) {
+      for (const g of reference.guides) {
         if (g.id) {
           guideLookup.set(g.id.toLowerCase(), g.fullName || g.id);
           if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.fullName);

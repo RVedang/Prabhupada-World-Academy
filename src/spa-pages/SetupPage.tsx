@@ -62,7 +62,7 @@ export default function SetupPage() {
                   <p>This will delete any placeholder/dummy records in the <strong>AshrayLevels</strong> and <strong>Config</strong> tables and populate them with the correct FOLK data:</p>
                   <ul className="list-disc list-inside mt-2 space-y-1 text-muted-foreground">
                     <li>7 Ashray levels: Jigyasa → Harinam Diksha (with full requirements)</li>
-                    <li>Config: Next Ashray Exam date + WhatsApp reminder template</li>
+                    <li>Config: Next Ashray Exam date</li>
                   </ul>
                 </div>
               </div>

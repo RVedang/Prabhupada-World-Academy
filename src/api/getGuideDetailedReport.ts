@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getReportReferenceData } from '../lib/reportReferenceData';
 import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole, normalizeAshrayLevel } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
@@ -711,6 +712,10 @@ export default createEndpoint({
     const effectiveStart = (startDate || date || '').split('T')[0];
     const effectiveEnd = (endDate || date || '').split('T')[0];
     if (!effectiveStart) throw new Error('Invalid date: no date provided');
+    const referencePromise = getReportReferenceData();
+    // Start labels alongside scope resolution, with rejection observed even if
+    // an earlier scope check exits the report. Awaiting below still propagates it.
+    void referencePromise.catch(() => {});
 
     const isPwMentor = !!mentorMode && input.segment === 'PW';
     const mentorRecord = isPwMentor
@@ -770,7 +775,8 @@ export default createEndpoint({
         ? guide.folkResidencies as string[]
         : (guide?.folkResidencies ? [guide.folkResidencies as string] : []);
       if (guideResidencyIds.length > 0) {
-        const recs = await Promise.all(guideResidencyIds.map(id => FolkResidencies.findOne({ id, fields: ['id', 'residencyName'] })));
+        const reference = await referencePromise;
+        const recs = guideResidencyIds.map(id => reference.residencies.find(r => r.id === id));
         availableResidencies = recs.filter(Boolean).map(r => ({
           residencyId: (r as any).id,
           residencyName: (r as any).residencyName || '',
@@ -778,7 +784,7 @@ export default createEndpoint({
       }
     }
     if (!guideDbId) {
-      const { records: allRes } = await FolkResidencies.findAll({ filters: { isActive: true }, fields: ['id', 'residencyName'], limit: 200 });
+      const allRes = (await referencePromise).residencies.filter(r => r.isActive === true).slice(0, 200);
       availableResidencies = allRes.map(r => ({ residencyId: r.id, residencyName: (r as any).residencyName || '' }));
     }
 
@@ -910,9 +916,8 @@ export default createEndpoint({
     const allGuideIds = [...new Set([...(guideDbId ? [guideDbId] : []), ...guideIdsFromUsers])];
     let availableGuides: { guideId: string; guideName: string }[] = [];
     if (allGuideIds.length > 0) {
-      const guideRecs = await Promise.all(
-        allGuideIds.map(id => Guides.findOne({ id, fields: ['id', 'fullName'] }).catch(() => null))
-      );
+      const guideById = new Map((await referencePromise).guides.map(guide => [guide.id, guide]));
+      const guideRecs = allGuideIds.map(id => guideById.get(id));
       availableGuides = guideRecs
         .filter(Boolean)
         .map(r => ({ guideId: r!.id, guideName: (r as any).fullName || r!.id }));
@@ -997,10 +1002,7 @@ export default createEndpoint({
       entriesByUser.get(uid)!.push(e);
     }
 
-    const { records: residencyNameRecords } = await FolkResidencies.findAll({
-      fields: ['id', 'residencyId', 'residencyName'],
-      limit: 500,
-    }).catch(() => ({ records: [] as any[] }));
+    const residencyNameRecords = (await referencePromise).residencies;
     const residencyNameByRef = new Map<string, string>();
     for (const residency of residencyNameRecords as any[]) {
       const name = String(residency.residencyName || '').trim();

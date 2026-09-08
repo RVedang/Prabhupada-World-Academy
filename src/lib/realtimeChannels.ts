@@ -53,6 +53,20 @@ export function isReadOnlyEndpoint(name: string): boolean {
  * The API remains the authorization boundary; these channels contain no data.
  */
 export function realtimeChannelsForEndpoint(name: string): RealtimeChannel[] {
+  const reportDependencies: Record<string, RealtimeChannel[]> = {
+    getGuideDetailedReport: ['sadhana', 'users', 'groups', 'config'],
+    getGuideUsers: ['users', 'sadhana', 'groups', 'config'],
+    getMissingSadhanaReport: ['sadhana', 'users', 'groups', 'config'],
+    getBvSessionMatrix: ['attendance', 'quizzes', 'users', 'groups'],
+    getAllBvGroupsAdmin: ['attendance', 'users', 'groups'],
+    getBvslGroups: ['attendance', 'users', 'groups'],
+    getSuperGuideBvStats: ['attendance', 'sadhana', 'users', 'groups'],
+    getGuides: ['users', 'groups', 'config'],
+    getAllResidencies: ['users', 'config'],
+    getMeetings: ['meetings', 'users'],
+    getMoms: ['meetings', 'users'],
+  };
+  if (reportDependencies[name]) return reportDependencies[name];
   const lower = name.toLowerCase();
   const channels = new Set<RealtimeChannel>();
 

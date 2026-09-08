@@ -1,3 +1,4 @@
+import DashboardPanel from '@/components/DashboardPanel';
 import { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -74,7 +75,7 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
       </div>
 
       {/* ── BV Overview (existing) ── */}
-      {subTab === 'overview' && (
+      <DashboardPanel active={subTab === 'overview'}>{(
         <div className="space-y-4">
           {isSuperAdmin && (
             <div className="flex items-center gap-3 flex-wrap">
@@ -97,10 +98,10 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
             : <BvSection guideId={selectedGuide === 'all' ? 'ALL' : selectedGuide} segment={effectiveSegment} />
           }
         </div>
-      )}
+      )}</DashboardPanel>
 
       {/* ── Preaching Analytics (new) ── */}
-      {subTab === 'preaching' && <SuperBvPreachingAnalytics />}
+      <DashboardPanel active={subTab === 'preaching'}>{<SuperBvPreachingAnalytics />}</DashboardPanel>
     </div>
   );
 }

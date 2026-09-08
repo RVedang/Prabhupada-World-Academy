@@ -10,7 +10,7 @@ import {
   normalizeRealtimeDepartment,
   type RealtimeChannel,
 } from '@/lib/realtimeChannels';
-import { clearEndpointClientCache, invalidateEndpointClientCacheForChannels } from '@/lib/app-endpoints-sdk';
+import { clearEndpointClientCache, invalidateEndpointClientCacheForChannels, setEndpointPermissionScope } from '@/lib/app-endpoints-sdk';
 import { invalidateCache } from '@/utils/cache';
 
 type Versions = Partial<Record<RealtimeChannel, number>>;
@@ -20,6 +20,16 @@ export default function RealtimeSyncProvider() {
   const { profile } = useUserProfile();
   const profileSegment = profile?.segment;
   const lastIdentityRef = useRef<string>('');
+  const scopeProfile = profile as unknown as Record<string, unknown> | null;
+  const permissionScope = JSON.stringify([
+    user?.id, user?.email,
+    ...['userId', 'segment', 'role', 'roles', 'status', 'isBvAdmin', 'isBvSuperAdmin', 'isBvSupervisor', 'isBvMentor', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator', 'isSadhanaMentor', 'guideId', 'folkResidencyCustomId', 'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId']
+      .map(field => scopeProfile?.[field]),
+  ]);
+  useEffect(() => {
+    setEndpointPermissionScope(permissionScope);
+    invalidateCache();
+  }, [permissionScope]);
 
   useEffect(() => {
     const identity = String(user?.id || user?.email || '').toLowerCase();

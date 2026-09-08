@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { getBvSessionMatrix } from '@/lib/endpoints-sdk';
 import type { GetBvSessionMatrixOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear, startOfMonth, endOfMonth } from 'date-fns';
-import { useDebouncedCallback } from 'use-debounce';
+import { useEndpointQuery } from '@/hooks/useEndpointQuery';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { EmptyState } from '@/shared';
@@ -80,7 +80,6 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
   const isPw = profile?.segment === 'PW' || userEmail.includes('prabhupadaworld') || userEmail.includes('hrvd') || userEmail.includes('srilaprabhupadaworld');
   const showFolkAssessmentData = !isPw;
 
-  const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('weekly');
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -90,58 +89,22 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
   const [folkFilter, setFolkFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<'both' | 'attendance' | 'quiz'>('both');
   const reportView = isPw ? 'attendance' : viewFilter;
-  const [data, setData] = useState<GetBvSessionMatrixOutputType | null>(null);
-  const mountedRef = useRef(true);
-  const requestVersionRef = useRef(0);
 
   const { start, end } = useMemo(() => {
     if (reportType === 'weekly') return parseWeekInput(selectedWeek);
     return parseMonthInput(selectedMonth);
   }, [reportType, selectedWeek, selectedMonth]);
 
-  const fetchData = useCallback(async () => {
-    const requestVersion = ++requestVersionRef.current;
-    setLoading(true);
-    try {
-      const result = await getBvSessionMatrix({
-        guideId, startDate: start, endDate: end,
-        groupId: groupId !== 'all' ? groupId : undefined,
-        bvslMode,
-        segment,
-        residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
-      });
-      if (!mountedRef.current || requestVersion !== requestVersionRef.current) return;
-      setData(result);
-      toast.dismiss(BV_REPORT_LOAD_TOAST_ID);
-    } catch {
-      if (mountedRef.current && requestVersion === requestVersionRef.current) {
-        toast.error('Failed to load BV report', { id: BV_REPORT_LOAD_TOAST_ID });
-      }
-    } finally {
-      if (mountedRef.current && requestVersion === requestVersionRef.current) setLoading(false);
-    }
-  }, [guideId, start, end, groupId, bvslMode, residencyIds, segment]);
-
-  const debouncedFetch = useDebouncedCallback(fetchData, 300);
-  useEffect(() => {
-    mountedRef.current = true;
-    debouncedFetch();
-    return () => {
-      mountedRef.current = false;
-      requestVersionRef.current += 1;
-      debouncedFetch.cancel();
-      toast.dismiss(BV_REPORT_LOAD_TOAST_ID);
-    };
-  }, [debouncedFetch, guideId, start, end, groupId, bvslMode, residencyIds]);
-
-  // Keep an already-open report synchronized when an RGF conducts a session,
-  // changes attendance, or changes group membership. The invalidation stream
-  // contains no business data and is event-driven (no polling).
-  useRealtimeRefresh(
-    ['attendance', 'groups', 'users', 'quizzes'],
-    fetchData,
-    Boolean(guideId),
-  );
+  const reportQuery = useEndpointQuery<GetBvSessionMatrixOutputType>('getBvSessionMatrix', {
+    guideId, startDate: start, endDate: end,
+    groupId: groupId !== 'all' ? groupId : undefined,
+    bvslMode, segment,
+    residencyIds: residencyIds?.length ? residencyIds : undefined,
+  }, Boolean(guideId));
+  const data = reportQuery.data;
+  const loading = reportQuery.loading || reportQuery.fetching;
+  const fetchData = reportQuery.refetch;
+  useEffect(() => { if (reportQuery.error) toast.error('Failed to load BV report', { id: BV_REPORT_LOAD_TOAST_ID }); }, [reportQuery.error]);
 
   const groups: { id: string; name: string }[] = (data as any)?.groups ?? [];
 
@@ -421,7 +384,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
       )}
 
       {data && (
-        <div className={`space-y-3 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+        <div className="space-y-3" aria-busy={loading}>
           {/* Summary cards */}
           <div className="flex flex-wrap gap-3">
             <SummaryCard icon={Users} label="Total Members" value={filteredMembers.length} />

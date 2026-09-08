@@ -13,7 +13,7 @@ const spec = {
     version: '1.0.0',
     description:
       'REST API for the FOLK Sadhana Tracker — fetch sadhana submission status, ' +
-      'filter by guide/residency/date, and power WhatsApp reminders and bulk automation.',
+      'filter by guide/residency/date and power notification and bulk automation workflows.',
     contact: {
       name: 'FOLK Tech Team',
     },

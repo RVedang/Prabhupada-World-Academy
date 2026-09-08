@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown, ChevronRight, MessageCircle, CheckCircle2, XCircle, Flame } from 'lucide-react';
+import { ChevronDown, ChevronRight, CheckCircle2, XCircle, Flame } from 'lucide-react';
 import { format } from 'date-fns';
 type Group = { groupId: string; groupDbId: string; groupName: string; bvslName: string; bvslPhone: string; memberCount: number; filledCount: number; pendingCount: number; fillPercent: number; weeklyAvgPercent: number; members: { userId: string; fullName: string; filledToday: boolean; currentStreak: number; lastFilledDate: string | null }[] };
 
@@ -24,16 +23,6 @@ export default function BvSadhanaGroupRow({ group, targetDate }: Props) {
   const pendingMembers = group.members.filter(m => !m.filledToday);
   const filledMembers = group.members.filter(m => m.filledToday);
 
-  const sendWhatsApp = () => {
-    if (!group.bvslPhone) { alert('No phone number for this RGF'); return; }
-    const dateLabel = format(new Date(targetDate + 'T00:00:00'), 'd MMM yyyy');
-    const pendingNames = pendingMembers.map(m => m.fullName).join(', ');
-    const msg = `🙏 Hare Krishna, ${group.bvslName}!\n\nSadhana update for your group *"${group.groupName}"* (${dateLabel}):\n✅ Filled: ${group.filledCount}/${group.memberCount} members\n❌ Pending: ${pendingNames || 'None'}\n\nPlease ensure all members fill their sadhana form today.\n\nHare Krishna! 🙏`;
-    const phone = group.bvslPhone.replace(/\D/g, '');
-    const dialCode = phone.startsWith('91') ? phone : `91${phone}`;
-    window.open(`https://wa.me/${dialCode}?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
   return (
     <>
       <tr className={`border-b cursor-pointer hover:bg-muted/20 ${fillBg(group.fillPercent)}`} onClick={() => setExpanded(e => !e)}>
@@ -49,17 +38,10 @@ export default function BvSadhanaGroupRow({ group, targetDate }: Props) {
         <td className="py-2 px-3 text-sm text-center text-destructive font-medium">{group.pendingCount}</td>
         <td className={`py-2 px-3 text-sm text-center ${fillColor(group.fillPercent)}`}>{group.fillPercent}%</td>
         <td className={`py-2 px-3 text-sm text-center ${fillColor(group.weeklyAvgPercent)}`}>{group.weeklyAvgPercent}%</td>
-        <td className="py-2 px-3 text-center" onClick={e => e.stopPropagation()}>
-          {group.bvslPhone && group.pendingCount > 0 && (
-            <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 border-green-500 text-green-700 hover:bg-green-50" onClick={sendWhatsApp}>
-              <MessageCircle className="w-3 h-3" />Nudge
-            </Button>
-          )}
-        </td>
       </tr>
       {expanded && (
         <tr className="bg-muted/10">
-          <td colSpan={8} className="px-4 py-2">
+          <td colSpan={7} className="px-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
               {filledMembers.map(m => (
                 <div key={m.userId} className="flex items-center gap-2 text-xs py-0.5">

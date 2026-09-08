@@ -2,6 +2,15 @@ import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin
 import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
+import { requestQuery, invalidateRequestTable } from './requestQueries';
+import { serverCacheInvalidate } from './serverCache';
+
+function invalidateTableReads(table: string) {
+  invalidateRequestTable(table);
+  if (table === 'Guides' || table === 'FolkResidencies') serverCacheInvalidate('reportReference:');
+  if (table === 'Users' || table === 'Guides') serverCacheInvalidate('ref:guides');
+  if (['Users', 'Guides', 'BvGroups', 'BvGroupMembers', 'BvAttendance'].includes(table)) serverCacheInvalidate('allBvGroupsAdmin:');
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // app-backend-sdk.ts — Server-side Firebase Firestore Integration Layer.
@@ -71,7 +80,7 @@ function initFirestoreOnStartup() {
         } catch (adcError: any) {
           _hasValidCredentials = false;
           firestoreDb = null;
-          console.error('❌ CRITICAL ERROR: Firebase Service Account credentials not found or invalid in production environment!');
+          console.error('❌ CRITICAL ERROR: Firebase Service Account credentials not found or invalid in production environment!', adcError?.message);
         }
       } else {
         _hasValidCredentials = false;
@@ -336,6 +345,10 @@ export class Table {
   }
 
   async findOne(query: any): Promise<any> {
+    return requestQuery(this.tableName, 'findOne', query, () => this.findOneUncached(query));
+  }
+
+  private async findOneUncached(query: any): Promise<any> {
     ensureFirestoreInProduction();
     if (hasWorkingFirestore()) {
       try {
@@ -382,6 +395,10 @@ export class Table {
   }
 
   async findAll(query: any = {}): Promise<{ records: any[]; hasMore: boolean }> {
+    return requestQuery(this.tableName, 'findAll', query, () => this.findAllUncached(query));
+  }
+
+  private async findAllUncached(query: any = {}): Promise<{ records: any[]; hasMore: boolean }> {
     ensureFirestoreInProduction();
     if (hasWorkingFirestore()) {
       try {
@@ -447,6 +464,12 @@ export class Table {
   }
 
   async create({ record }: { record: any }): Promise<any> {
+    invalidateTableReads(this.tableName);
+    try { return await this.createUncached({ record }); }
+    finally { invalidateTableReads(this.tableName); }
+  }
+
+  private async createUncached({ record }: { record: any }): Promise<any> {
     ensureFirestoreInProduction();
     const id = record.id || `rec_${Math.random().toString(36).substring(2, 15)}`;
     const fullRecord = { ...record, id };
@@ -473,6 +496,12 @@ export class Table {
   }
 
   async update({ id, record }: { id: string; record: any }): Promise<any> {
+    invalidateTableReads(this.tableName);
+    try { return await this.updateUncached({ id, record }); }
+    finally { invalidateTableReads(this.tableName); }
+  }
+
+  private async updateUncached({ id, record }: { id: string; record: any }): Promise<any> {
     ensureFirestoreInProduction();
     const data: any = {};
     for (const key of Object.keys(record)) {
@@ -516,6 +545,12 @@ export class Table {
   }
 
   async delete({ id }: { id: string }): Promise<any> {
+    invalidateTableReads(this.tableName);
+    try { return await this.deleteUncached({ id }); }
+    finally { invalidateTableReads(this.tableName); }
+  }
+
+  private async deleteUncached({ id }: { id: string }): Promise<any> {
     ensureFirestoreInProduction();
     let record: any = null;
     const db = getFirestoreDb();

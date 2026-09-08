@@ -46,7 +46,7 @@ export default createEndpoint({
     // 10-minute server-side cache keyed by guideId — invalidated on group/role mutations
     // (assignBvRole already calls serverCacheInvalidate() for a full cache clear).
     const cacheKey = `allBvGroupsAdmin:${effectiveGuideId}`;
-    return serverCacheGetOrFetch(cacheKey, () => _fetchAllBvGroupsAdmin(effectiveGuideId), 10 * 60 * 1000);
+    return serverCacheGetOrFetch(cacheKey, () => _fetchAllBvGroupsAdmin(effectiveGuideId), 30_000);
   },
 });
 

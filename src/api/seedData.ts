@@ -196,10 +196,6 @@ export default createEndpoint({
           configKey: 'Next Ashray Exam',
           configValue: '4/10/2026',
         },
-        {
-          configKey: 'whatsapp_reminder',
-          configValue: 'Hare Krishna {user_name}! Please fill your Sadhana report for today. It only takes a minute and helps track your spiritual progress. Regards, {guide_name}',
-        },
       ],
     });
 

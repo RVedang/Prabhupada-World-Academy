@@ -1,3 +1,5 @@
+import DashboardPanel from '@/components/DashboardPanel';
+import { useDashboardPrefetch } from '@/hooks/useDashboardPrefetch';
 import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -67,6 +69,7 @@ export default function PwAdminDashboard() {
     ? 'sadhana'
     : requestedInitialTab || 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const prefetchTab = useDashboardPrefetch({ enabled: !!profile && isBvAdminUser && !isFolk, segment: 'PW', isSuperAdmin, guideId: adminGroupScopeId, activeTab, residencyId: (profile as any)?.folkResidencyCustomId });
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
   useEffect(() => {
     setVisitedTabs(prev => {
@@ -155,6 +158,8 @@ export default function PwAdminDashboard() {
     return (
       <button
         onClick={() => handleTabChange(value)}
+        onMouseEnter={() => prefetchTab(value)}
+        onFocus={() => prefetchTab(value)}
         className="relative w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
       >
         {isActive && (
@@ -258,17 +263,17 @@ export default function PwAdminDashboard() {
             <Suspense fallback={<LoadingPage rows={2} />}>
               <TabTransition activeTab={activeTab}>
                 {visitedTabs.has('sadhana') && (
-                  <div className={activeTab === 'sadhana' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'sadhana'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Sadhana Reports</h2>
                       <p className="text-sm text-muted-foreground">Overview of all Prabhupada World sadhana records</p>
                     </div>
                     <ReportsTab guideId="ALL" />
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {visitedTabs.has('bv') && (
-                  <div className={activeTab === 'bv' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'bv'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Bhakti Vriksha Preaching Overview</h2>
                       <p className="text-sm text-muted-foreground">Bhakti Vriksha attendance and group reports</p>
@@ -278,27 +283,27 @@ export default function PwAdminDashboard() {
                       guideId={adminGroupScopeId}
                       isSuperAdminOverride={isSuperAdmin}
                     />
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {visitedTabs.has('users') && (
-                  <div className={activeTab === 'users' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'users'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Prabhupada World Members</h2>
                       <p className="text-sm text-muted-foreground">All registered members — sortable, filterable, with role management</p>
                     </div>
                     <SuperUsersPanel isPwAdmin={true} />
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {visitedTabs.has('approvals') && (
-                  <div className={activeTab === 'approvals' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'approvals'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Registrations & Ashraya Approvals</h2>
                       <p className="text-sm text-muted-foreground">Review new registrations and Ashraya upgrade requests for Prabhupada World members</p>
                     </div>
                     <ApprovalsTab guideId="ALL" isSuperGuide={true} isPwAdmin={true} />
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {(visitedTabs.has('bhakti-vriksha') || visitedTabs.has('bv-registrations')) && (
@@ -319,7 +324,7 @@ export default function PwAdminDashboard() {
                 )}
 
                 {visitedTabs.has('reminders') && (
-                  <div className={activeTab === 'reminders' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'reminders'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Sadhana Reminders & Notifications</h2>
                       <p className="text-sm text-muted-foreground">Configure automatic Sadhana reminders, custom schedule times, and dispatch instant push notifications</p>
@@ -327,11 +332,11 @@ export default function PwAdminDashboard() {
                     <div className="space-y-6">
                       <SendRemindersPanel segment="PW" />
                     </div>
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {visitedTabs.has('stats') && isSuperAdmin && (
-                  <div className={activeTab === 'stats' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'stats'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">System Stats & Administration</h2>
                       <p className="text-sm text-muted-foreground">Aggregate metrics and data management</p>
@@ -339,33 +344,33 @@ export default function PwAdminDashboard() {
                     <div className="space-y-6">
                       <SuperStatsPanel isActive={activeTab === 'stats'} />
                     </div>
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {visitedTabs.has('missing-sadhana') && (
-                  <div className={activeTab === 'missing-sadhana' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'missing-sadhana'}>
                     <MissingSadhanaTab guideId="ALL" />
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {visitedTabs.has('meetings') && (
-                  <div className={activeTab === 'meetings' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'meetings'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">Meetings & Minutes of Meeting (MoM)</h2>
                       <p className="text-sm text-muted-foreground">Schedule meetings, track attendance, and record actionable Minutes of Meeting</p>
                     </div>
                     <MeetingsAndMomTab allowSchedule={true} />
-                  </div>
+                  </DashboardPanel>
                 )}
 
                 {visitedTabs.has('callreports') && (
-                  <div className={activeTab === 'callreports' ? 'block' : 'hidden'}>
+                  <DashboardPanel active={activeTab === 'callreports'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">1:1 Call Reports</h2>
                       <p className="text-sm text-muted-foreground">All one-on-one call logs between Facilitators (RGF) and their members</p>
                     </div>
                     <BvslOneToOneTab />
-                  </div>
+                  </DashboardPanel>
                 )}
               </TabTransition>
             </Suspense>

@@ -69,8 +69,8 @@ export default createEndpoint({
   execute: async ({ input, context }: { input: any; context: any }) => {
     const allGuides = await serverCacheGetOrFetch(CACHE_KEY, async () => {
       const [{ records: guideRecords }, { records: userRecords }] = await Promise.all([
-        Guides.findAll({ filters: { isActive: true }, limit: 500 }).catch(() => ({ records: [] })),
-        Users.findAll({ limit: 1000 }).catch(() => ({ records: [] })),
+        Guides.findAll({ filters: { isActive: true }, fields: ['id', 'guideId', 'fullName', 'name', 'email', 'abbreviation', 'abbr', 'segment'], limit: 500 }).catch(() => ({ records: [] })),
+        Users.findAll({ fields: ['id', 'userId', 'fullName', 'email', 'role', 'status', 'segment', 'isPrabhupadaWorldUser', 'isBvAdmin', 'isBvSuperAdmin'], limit: 1000 }).catch(() => ({ records: [] })),
       ]);
 
       const folkGuidesFromDb = guideRecords

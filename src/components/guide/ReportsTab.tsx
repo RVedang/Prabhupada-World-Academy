@@ -12,8 +12,7 @@ import { FileDown, Image, Users, Headphones, BookOpen, Music2, TrendingUp, Searc
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getGuideDetailedReport, GetGuideDetailedReportOutputType, recalculateScoresForDate } from '@/lib/endpoints-sdk';
-import { useDebouncedCallback } from 'use-debounce';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useEndpointQuery } from '@/hooks/useEndpointQuery';
 import { isPwSadhanaUser } from '@/lib/sadhanaDepartment';
 import { format, subDays, startOfMonth, endOfMonth, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear } from 'date-fns';
 import { ASHRAY_LEVELS } from '@/types/enums';
@@ -226,7 +225,6 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     profile?.role === 'SUPER_GUIDE'
   );
 
-  const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [selectedDate, setSelectedDate] = useState(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
   const [selectedWeek, setSelectedWeek] = useState(getDefaultWeek());
@@ -262,7 +260,6 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     }
   }, [groupOptions, selectedGroupId]);
 
-  const [rawReportData, setRawReportData] = useState<GetGuideDetailedReportOutputType | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [showScholars, setShowScholars] = useState(false);
@@ -270,8 +267,6 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   const [showRealValues, setShowRealValues] = useState(false);
   const [guideFilter, setGuideFilter] = useState<string>('all');
   const reportRef = useRef<HTMLDivElement>(null);
-  // Race-condition guard: only the latest request's result/error is applied
-  const fetchSeqRef = useRef(0);
 
   const { start: computedStart, end: computedEnd } = useMemo(() => {
     if (reportType === 'weekly' && selectedWeek) return parseWeekInput(selectedWeek);
@@ -279,70 +274,19 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     return { start: undefined as string | undefined, end: undefined as string | undefined };
   }, [reportType, selectedWeek, selectedMonth]);
 
-  const fetchReport = useCallback(async (params: {
-    guideId: string; date: string; reportType: ReportType;
-    computedStart?: string; computedEnd?: string; bvslMode?: boolean; mentorMode?: boolean; facilitatorMode?: boolean; groupId?: string;
-  }) => {
-    // Assign a unique sequence number to this request
-    const seq = ++fetchSeqRef.current;
-    setLoading(true);
-    try {
-      const result = await getGuideDetailedReport({
-        guideId: params.guideId,
-        date: params.date,
-        reportType: params.reportType,
-        startDate: params.computedStart,
-        endDate: params.computedEnd,
-        bvslMode: params.bvslMode,
-        mentorMode: params.mentorMode,
-        facilitatorMode: params.facilitatorMode,
-        groupId: params.groupId,
-        segment: isPw ? 'PW' : 'FOLK',
-      });
-      // Only apply if this is still the latest request
-      if (seq === fetchSeqRef.current) {
-        setRawReportData(result);
-      }
-    } catch (err) {
-      // Only show error toast if this is still the latest request (ignore stale failures)
-      if (seq === fetchSeqRef.current) {
-        toast.error('Failed to load report');
-      }
-    } finally {
-      if (seq === fetchSeqRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [isPw]);
-
-  const debouncedFetch = useDebouncedCallback(fetchReport, 400);
+  const reportQuery = useEndpointQuery<GetGuideDetailedReportOutputType>('getGuideDetailedReport', {
+    guideId, date: selectedDate, reportType, startDate: computedStart, endDate: computedEnd,
+    bvslMode, mentorMode, facilitatorMode,
+    groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+    segment: isPw ? 'PW' : 'FOLK',
+  }, !!profile && (isPw || isSuperAdmin || !!guideId));
+  const rawReportData = reportQuery.data;
+  const loading = reportQuery.loading || reportQuery.fetching;
+  const fetchReport = (_params?: unknown) => reportQuery.refetch();
   const realValuesForced = residencyFilter === 'non_resident' || residencyFilter === 'all';
   const effectiveShowRealValues = realValuesForced || showRealValues;
 
-  useEffect(() => {
-    debouncedFetch({
-      guideId,
-      date: selectedDate,
-      reportType,
-      computedStart,
-      computedEnd,
-      bvslMode,
-      mentorMode,
-      facilitatorMode,
-      groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
-    });
-  }, [debouncedFetch, guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, facilitatorMode, isPw, selectedGroupId]);
-  useRealtimeRefresh(['sadhana', 'users', 'groups'], () => fetchReport({
-    guideId,
-    date: selectedDate,
-    reportType,
-    computedStart,
-    computedEnd,
-    bvslMode,
-    mentorMode,
-    facilitatorMode,
-    groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
-  }));
+  useEffect(() => { if (reportQuery.error) toast.error('Failed to load report'); }, [reportQuery.error]);
 
   const residencies = rawReportData?.availableResidencies ?? [];
   const availableGuides: { guideId: string; guideName: string }[] = (rawReportData as any)?.availableGuides ?? [];
@@ -1040,7 +984,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
           </div>
         )}
         {rawReportData && (
-          <div ref={reportRef} className={`space-y-3 transition-opacity print-content ${loading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+          <div ref={reportRef} className="space-y-3 print-content" aria-busy={loading}>
 
             {/* Print-only title */}
             <div className="print-title-block" style={{ borderBottom: '2px solid #222', paddingBottom: 6, marginBottom: 10 }}>
@@ -1137,7 +1081,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
             </div>
 
             {/* Table */}
-            {loading ? (
+            {reportQuery.loading ? (
               <Card><CardContent className="p-4 space-y-2">
                 <Skeleton className="h-8 w-full" />
                 {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}

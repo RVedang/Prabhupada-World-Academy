@@ -264,24 +264,19 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
       const inAppRecipients = Number(res.inAppRecipients || 0);
       if (nativeSent > 0 || inAppRecipients > 0) {
         toast.success(
-          <div className="flex flex-col gap-1 text-sm leading-5">
-            <span className="font-semibold">Sadhana reminder sent.</span>
-            <span>
-              {nativeSent > 0
-                ? `${nativeSent} native notification${nativeSent === 1 ? '' : 's'} sent to subscribed device${nativeSent === 1 ? '' : 's'}.`
-                : 'No native notification was delivered to a subscribed device.'}
+          <div className="flex flex-col gap-1.5 text-sm leading-5">
+            <span className="font-semibold">Sadhana reminder sent</span>
+            <span className="text-xs text-muted-foreground">
+              Native <strong className="text-foreground">{nativeSent}/{stats.totalSubscriptions}</strong> devices
+              <span className="mx-1.5">•</span>
+              In-app <strong className="text-foreground">{inAppRecipients}</strong> members
             </span>
-            {inAppRecipients > 0 && (
-              <span>
-                In-app reminder published for {inAppRecipients} eligible member{inAppRecipients === 1 ? '' : 's'}.
-              </span>
-            )}
           </div>,
           { duration: 10000 }
         );
       } else if (stats.totalSubscriptions > 0) {
         toast.warning(
-          `No native notification was delivered to the ${stats.totalSubscriptions} subscribed device${stats.totalSubscriptions === 1 ? '' : 's'}. The subscriptions may be stale, or all eligible members may have already submitted today.`,
+          `Sadhana reminder: Native 0/${stats.totalSubscriptions} devices • In-app 0 members`,
           { duration: 10000 }
         );
       } else {

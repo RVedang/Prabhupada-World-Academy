@@ -14,6 +14,19 @@ const queryMetadata = new Map<string, { name: string; input: any; channels: Real
 const CACHE_TTL_MS = 60_000;
 const MAX_CACHE_ENTRIES = 250;
 let cacheGeneration = 0;
+let permissionScope = '';
+const channelVersions = new Map<RealtimeChannel, number>();
+const cacheListeners = new Set<() => void>();
+export const subscribeEndpointCache = (listener: () => void) => {
+  cacheListeners.add(listener);
+  return () => { cacheListeners.delete(listener); };
+};
+function notifyCacheListeners() { cacheListeners.forEach(listener => listener()); }
+export function setEndpointPermissionScope(scope: string) {
+  if (scope === permissionScope) return;
+  permissionScope = scope;
+  clearEndpointClientCache();
+}
 
 type EndpointPerformanceSample = {
   endpoint: string;
@@ -48,13 +61,14 @@ export const PUBLIC_ENDPOINTS = new Set([
 
 function currentIdentity(): string {
   const currentUser = auth?.currentUser;
-  return String(currentUser?.uid || currentUser?.email || 'public').toLowerCase();
+  return `${String(currentUser?.uid || currentUser?.email || 'public')}:${permissionScope}`;
 }
+export const getEndpointIdentityScope = () => currentIdentity();
 
 function stableSerialize(value: any): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
-  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`).join(',')}}`;
+  return `{${Object.keys(value).filter(key => value[key] !== undefined).sort().map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`).join(',')}}`;
 }
 
 function cacheableInput(input: any): any {
@@ -63,7 +77,7 @@ function cacheableInput(input: any): any {
   return rest;
 }
 
-function queryCacheKey(name: string, input: any): string {
+export function queryCacheKey(name: string, input: any): string {
   return `${currentIdentity()}:${name}:${stableSerialize(cacheableInput(input))}`;
 }
 
@@ -96,18 +110,41 @@ export function clearEndpointClientCache(): void {
   clientCache.clear();
   inFlightRequests.clear();
   queryMetadata.clear();
+  notifyCacheListeners();
 }
 
 export function invalidateEndpointClientCacheForChannels(channels: RealtimeChannel[]): void {
   if (channels.length === 0) return;
   const changed = new Set(channels);
-  cacheGeneration++;
+  channels.forEach(channel => channelVersions.set(channel, (channelVersions.get(channel) || 0) + 1));
   for (const [key, metadata] of queryMetadata) {
     if (metadata.channels.some(channel => changed.has(channel)) || changed.has('general')) {
       clientCache.delete(key);
-      inFlightRequests.delete(key);
     }
   }
+  notifyCacheListeners();
+}
+
+export function endpointCacheTtl(name: string): number {
+  return ['getGuides', 'getAllResidencies', 'getActiveSadhanaMentors'].includes(name) ? 300_000 : CACHE_TTL_MS;
+}
+
+// Referentially stable snapshots for useSyncExternalStore. Never mutate them.
+export function getEndpointCacheSnapshot(name: string, input: any) {
+  return clientCache.get(queryCacheKey(name, input));
+}
+
+export function isEndpointQueryFresh(name: string, input: any): boolean {
+  const cached = getEndpointCacheSnapshot(name, input);
+  return !!cached && Date.now() - cached.timestamp < endpointCacheTtl(name);
+}
+
+export function hasEndpointRequestsInFlight(): boolean { return inFlightRequests.size > 0; }
+
+/** Shared query entry point for dashboard hooks and idle prefetching. */
+export function queryEndpoint<T>(name: string, input: any): Promise<T> {
+  if (!isReadOnlyEndpoint(name)) return Promise.reject(new Error('Only read queries may be prefetched'));
+  return invokeEndpoint(name, input);
 }
 
 /**
@@ -170,7 +207,7 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
   }
   if (isQuery && !bypassCache) {
     const cached = clientCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    if (cached && (Date.now() - cached.timestamp < endpointCacheTtl(name))) {
       clientCache.delete(cacheKey);
       clientCache.set(cacheKey, cached);
       recordPerformance({ endpoint: name, source: 'cache', durationMs: 0, at: Date.now() });
@@ -179,8 +216,11 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
   }
 
   const generation = cacheGeneration;
-  const requestKey = `${generation}:${cacheKey}`;
-  const existingRequest = inFlightRequests.get(requestKey);
+  const queryChannels = realtimeChannelsForEndpoint(name);
+  const version = () => `${cacheGeneration}:${queryChannels.map(channel => channelVersions.get(channel) || 0).join(',')}:${channelVersions.get('general') || 0}`;
+  const requestVersion = version();
+  const requestKey = `${requestVersion}:${cacheKey}`;
+  const existingRequest = isQuery ? inFlightRequests.get(requestKey) : undefined;
   if (existingRequest) {
     return existingRequest.then(data => {
       const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -219,9 +259,10 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
 
     // A mutation may have completed while this query was in flight. Never put
     // a pre-mutation response back into the cache after that invalidation.
-    if (isQuery && generation === cacheGeneration) {
+    if (isQuery && generation === cacheGeneration && requestVersion === version()) {
       clientCache.set(cacheKey, { data, timestamp: Date.now() });
       pruneClientCache();
+      notifyCacheListeners();
     } else if (!isQuery) {
       // Invalidate only related cached domains after a successful mutation.
       // The Firestore metadata listener will trigger silent active-query
@@ -242,7 +283,7 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
     return data;
   })();
 
-  inFlightRequests.set(requestKey, request);
+  if (isQuery) inFlightRequests.set(requestKey, request);
   try {
     return cloneResponse(await request);
   } finally {

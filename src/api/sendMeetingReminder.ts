@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, Meetings, PushSubscriptions, Users, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Meetings, PushSubscriptions, AppError } from '@/lib/backend-sdk';
 import { storeBroadcast } from '@/lib/notificationBroadcast';
 
 // ── VAPID + Web Push helpers (pure Web Crypto — no npm packages) ──
@@ -68,9 +68,9 @@ async function generateVapidJwt(audience: string, subject: string, privateKeyBas
 }
 
 async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey('raw', ikm.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const saltBuf = salt.length ? (salt.buffer as ArrayBuffer) : new ArrayBuffer(32);
-  const prk = new Uint8Array(await crypto.subtle.sign('HMAC', key, saltBuf));
+  const saltForKey = salt.length ? salt : new Uint8Array(32);
+  const saltKey = await crypto.subtle.importKey('raw', saltForKey.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const prk = new Uint8Array(await crypto.subtle.sign('HMAC', saltKey, ikm.buffer as ArrayBuffer));
   const prkKey = await crypto.subtle.importKey('raw', prk.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const infoLen = new Uint8Array([...info, 1]);
   const okm = new Uint8Array(await crypto.subtle.sign('HMAC', prkKey, infoLen.buffer as ArrayBuffer));
@@ -85,7 +85,7 @@ function concat(...arrays: Uint8Array[]): Uint8Array {
   return result;
 }
 
-async function encryptPayload(
+export async function encryptPayload(
   p256dhKey: string,
   authSecret: string,
   payload: string,
@@ -102,25 +102,19 @@ async function encryptPayload(
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
-  const authInfo = new TextEncoder().encode('Content-Encoding: auth\0');
+  // RFC 8291 section 3.4. Chrome rejects the legacy aesgcm derivation when
+  // it is sent with the modern aes128gcm content encoding.
+  const authInfo = concat(
+    new TextEncoder().encode('WebPush: info\0'),
+    clientPublicKey,
+    localPublicKeyRaw,
+  );
   const prkCombine = await hkdf(clientAuth, sharedSecret, authInfo, 32);
 
-  const keyInfoBuf = concat(
-    new TextEncoder().encode('Content-Encoding: aes128gcm\0'),
-    new Uint8Array([0, 65]),
-    clientPublicKey,
-    new Uint8Array([0, 65]),
-    localPublicKeyRaw,
-  );
+  const keyInfoBuf = new TextEncoder().encode('Content-Encoding: aes128gcm\0');
   const contentKey = await hkdf(salt, prkCombine, keyInfoBuf, 16);
 
-  const nonceInfoBuf = concat(
-    new TextEncoder().encode('Content-Encoding: nonce\0'),
-    new Uint8Array([0, 65]),
-    clientPublicKey,
-    new Uint8Array([0, 65]),
-    localPublicKeyRaw,
-  );
+  const nonceInfoBuf = new TextEncoder().encode('Content-Encoding: nonce\0');
   const nonce = await hkdf(salt, prkCombine, nonceInfoBuf, 12);
 
   const paddedPayload = concat(new TextEncoder().encode(payload), new Uint8Array([2]));
@@ -209,18 +203,26 @@ export default createEndpoint({
       }
     }
 
-    const inviteeIds = meeting.inviteeUserIds || [];
-    if (inviteeIds.length === 0) {
+    const inviteeIds = [...new Set((meeting.inviteeUserIds || [])
+      .map((value: unknown) => String(value).trim())
+      .filter(Boolean))];
+    const inviteeEmails = [...new Set((meeting.invitees || [])
+      .map((invitee: any) => String(invitee.email || '').trim().toLowerCase())
+      .filter(Boolean))];
+    if (inviteeIds.length === 0 && inviteeEmails.length === 0) {
       return { success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message: 'No invitees to notify.' };
     }
 
     // Get all subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
 
-    // Filter subscriptions for target invitee user IDs
+    // Current subscriptions use the canonical Users document ID. Historical
+    // meetings can contain a public userId, so retain the denormalized email
+    // as a second stable match rather than silently dropping those invitees.
     const targetSubs = subs.filter(sub => {
-      const uid = Array.isArray(sub.user) ? sub.user[0] : sub.user;
-      return uid && inviteeIds.includes(uid);
+      const uid = String(Array.isArray(sub.user) ? sub.user[0] : sub.user || '').trim();
+      const email = String(sub.email || '').trim().toLowerCase();
+      return (uid && inviteeIds.includes(uid)) || (email && inviteeEmails.includes(email));
     });
 
     // Format meeting start time for notifications
@@ -258,6 +260,7 @@ export default createEndpoint({
       slot: 'meeting',
       url: targetUrl,
       inviteeIds,
+      inviteeEmails,
     };
     const payloadStr = JSON.stringify(payload);
 
@@ -302,20 +305,18 @@ export default createEndpoint({
         }
       }
     } else {
-      skipped = inviteeIds.length;
+      skipped = Math.max(inviteeIds.length, inviteeEmails.length);
     }
 
     // Publish the in-app broadcast for every invitee, independently of
     // whether they have opted in to device notifications.
-    let inAppRecipients = 0;
+    const inAppRecipients = Math.max(inviteeIds.length, inviteeEmails.length);
     try {
-      const inviteeEmails = (meeting.invitees || [])
-        .map((inv: any) => (inv.email || '').toLowerCase())
-        .filter(Boolean);
       await storeBroadcast(title, body, 'meeting', undefined, broadcastId, inviteeIds, targetUrl, inviteeEmails);
-      inAppRecipients = inviteeIds.length;
     } catch (e) {
-      console.warn('[Meeting Notification] Store broadcast failed:', e);
+      // Keep the reminder retryable if the foreground delivery channel fails.
+      console.error('[Meeting Notification] Store broadcast failed:', e);
+      throw new AppError({ code: 'INTERNAL_ERROR', message: 'Meeting reminder could not be published. It will be retried.' });
     }
 
     // Update meeting doc in database so it is marked as sent

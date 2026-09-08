@@ -32,7 +32,9 @@ export function serverCacheGet<T>(key: string): T | null {
 
 /** Write a value to the cache with a TTL. Default TTL = 1 hour. */
 export function serverCacheSet<T>(key: string, data: T, ttlMs = 60 * 60 * 1000): void {
+  store.delete(key);
   store.set(key, { data, expiresAt: Date.now() + ttlMs });
+  while (store.size > 250) store.delete(store.keys().next().value!);
 }
 
 /**

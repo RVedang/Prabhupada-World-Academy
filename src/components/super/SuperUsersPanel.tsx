@@ -111,6 +111,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   // Department admins own the complete department member directory. Starting
   // them on a guide-specific filter silently hid approved users who had not
   // yet been assigned to a Reading Group/guide.
@@ -159,12 +160,14 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [{ guides: guideList }, groupsResult] = await Promise.all([
+      const [{ guides: guideList }, groupsResult, mentorsList, allUsersRes] = await Promise.all([
         getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' }),
         (isSuperAdmin
           ? getBvslGroups({ bvslId: 'ALL' })
           : getAllBvGroupsAdmin({ guideId: profile?.userId || userEmail })
         ).catch(() => ({ groups: [] })),
+        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW' }).catch(() => []) : Promise.resolve([]),
+        getGuideUsers({ guideId: 'ALL', statusFilter: 'all' }),
       ]);
       setGuides(guideList);
       setBvGroups((groupsResult.groups || []).map((group: any) => ({
@@ -176,13 +179,9 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
         facilitatorIds: group.facilitatorIds || (group.bvslLeaderId ? [group.bvslLeaderId] : []),
       })));
 
-      if (isPwAdmin) {
-        const mentorsList = await getActiveSadhanaMentors({ segment: 'PW' }).catch(() => []);
-        setSadhanaMentors(mentorsList || []);
-      }
+      setSadhanaMentors(mentorsList || []);
 
       // Fetch all registered members (active, pending, unassigned, newly registered)
-      const allUsersRes = await getGuideUsers({ guideId: 'ALL', statusFilter: 'all' }).catch(() => ({ users: [] }));
       const rawUsers: any[] = allUsersRes.users || [];
 
       // Create comprehensive mentor lookup map (guides + raw users)
@@ -602,7 +601,12 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     });
   }, [users, guideFilter, ashrayFilter, residentFilter, search, sortKey, sortDir, isPwAdmin, isDepartmentAdmin, myGuideId, profile, userEmail]);
 
-  if (loading) return <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>;
+  useEffect(() => { setPage(1); }, [search, guideFilter, ashrayFilter, residentFilter, sortKey, sortDir]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / 50));
+  const currentPage = Math.min(page, pageCount);
+  const pageUsers = filtered.slice((currentPage - 1) * 50, currentPage * 50);
+
+  if (loading && users.length === 0) return <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>;
 
   const Th = ({ col, label }: { col: SortKey; label: string }) => (
     <th className="text-left px-3 py-2 font-medium text-xs cursor-pointer select-none whitespace-nowrap hover:text-foreground bg-muted"
@@ -682,6 +686,16 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          {filtered.length > 50 && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 border-b text-sm">
+              <span className="text-muted-foreground">{(currentPage - 1) * 50 + 1}–{Math.min(currentPage * 50, filtered.length)} of {filtered.length} members</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
+                <span>{currentPage}/{pageCount}</span>
+                <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
           <div className="overflow-x-auto overflow-y-auto max-h-[72vh]">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
@@ -719,7 +733,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                     <td colSpan={isPwAdmin ? 9 : 12}>
                       <EmptyState icon={Users} title="No users found" description="Try adjusting your filters." />
                     </td></tr>
-                ) : filtered.map(u => {
+                ) : pageUsers.map(u => {
                   const isResident = isFolkResidentUser(u);
                   const myId = ((profile as any)?.id || profile?.userId || '').toLowerCase();
                   const myEmail = ((profile as any)?.email || profile?.userId || userEmail || '').toLowerCase();

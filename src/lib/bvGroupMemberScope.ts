@@ -150,22 +150,23 @@ export async function resolveBvDepartmentGroups(
   segment: 'FOLK' | 'PW',
   groupId?: string,
 ): Promise<BvScopedGroup[]> {
-  const [{ records: allUsers }, { records: allGroups }] = await Promise.all([
-    Users.findAll({
-      fields: [...IDENTITY_FIELDS, 'segment', 'isPrabhupadaWorldUser'],
-      limit: 5000,
-    }),
-    BvGroups.findAll({
+  const { records: allGroups } = await BvGroups.findAll({
       fields: ['id', 'groupId', 'groupName', 'segment', 'guide', 'isActive', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
       limit: 1000,
-    }),
-  ]);
+  });
+  const requestedGroup = groupId ? new Set(refs(groupId)) : null;
+  const needsLegacyDepartment = allGroups.some(group => group.isActive !== false &&
+    (!requestedGroup || groupAliases(group).some(alias => requestedGroup.has(alias))) && !departmentValue(group.segment));
+  // Explicit department fields are already authoritative. Only old groups
+  // without one need a facilitator-directory scan to infer the department.
+  const allUsers = needsLegacyDepartment ? (await Users.findAll({
+    fields: [...IDENTITY_FIELDS, 'segment', 'isPrabhupadaWorldUser'], limit: 5000,
+  })).records : [];
   const segmentByUserAlias = new Map<string, 'FOLK' | 'PW'>();
   for (const user of allUsers) {
     const userSegment = departmentValue(user.segment) || (user.isPrabhupadaWorldUser === true ? 'PW' : null);
     if (userSegment) bvUserAliases(user).forEach(alias => segmentByUserAlias.set(alias, userSegment));
   }
-  const requestedGroup = groupId ? new Set(refs(groupId)) : null;
   return allGroups.filter(group => {
     if (group.isActive === false) return false;
     if (requestedGroup && !groupAliases(group).some(alias => requestedGroup.has(alias))) return false;

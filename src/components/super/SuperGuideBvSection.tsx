@@ -22,6 +22,7 @@ function getISOWeek(date: Date): { weekNum: number; year: number } {
 const RANK_STYLES = ['bg-yellow-100 text-yellow-700 border-yellow-300', 'bg-gray-100 text-gray-600 border-gray-300', 'bg-orange-100 text-orange-600 border-orange-300'];
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useEndpointQuery } from '@/hooks/useEndpointQuery';
 
 export default function SuperGuideBvSection() {
   const { profile } = useUserProfile();
@@ -38,27 +39,16 @@ export default function SuperGuideBvSection() {
     return { value: `${year}-${weekNum}`, label, weekNum, year };
   }), []);
 
-  const [loading, setLoading] = useState(true);
   const [filterGuideId, setFilterGuideId] = useState('');
   const [selectedWeek, setSelectedWeek] = useState(() => weekOptions[0].value);
-  const [data, setData] = useState<GetSuperGuideBvStatsOutputType | null>(null);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const opt = weekOptions.find(o => o.value === selectedWeek) ?? weekOptions[0];
-      const result = await getSuperGuideBvStats({
-        filterGuideId: filterGuideId || undefined,
-        weekNumber: opt.weekNum,
-        year: opt.year,
-        segment: isPw ? 'PW' : 'FOLK',
-      });
-      setData(result);
-    } catch { toast.error('Failed to load BV stats'); }
-    finally { setLoading(false); }
-  }, [filterGuideId, selectedWeek, isPw, weekOptions]);
-
-  useEffect(() => { void loadData(); }, [loadData]);
+  const opt = weekOptions.find(o => o.value === selectedWeek) ?? weekOptions[0];
+  const query = useEndpointQuery<GetSuperGuideBvStatsOutputType>('getSuperGuideBvStats', {
+    filterGuideId: filterGuideId || undefined, weekNumber: opt.weekNum, year: opt.year,
+    segment: isPw ? 'PW' : 'FOLK',
+  });
+  const data = query.data;
+  const loading = query.loading;
+  useEffect(() => { if (query.error) toast.error('Failed to load BV stats'); }, [query.error]);
 
   return (
     <div className="space-y-6 mt-8">

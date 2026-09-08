@@ -12,6 +12,7 @@ import { getMissingSadhanaReport, getAllResidencies } from '@/lib/endpoints-sdk'
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { exportToCsv } from '@/utils/exportCsv';
 import { toast } from 'sonner';
+import { useEndpointQuery } from '@/hooks/useEndpointQuery';
 import {
   startOfWeek, endOfWeek, startOfMonth, endOfMonth,
   subWeeks, subMonths, format,
@@ -545,8 +546,6 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
   const [guideFilter, setGuideFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [residencies, setResidencies] = useState<{ residencyId: string; residencyName: string }[]>([]);
-  const [data, setData] = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(false);
 
   // Default to cards on mobile
   useEffect(() => {
@@ -560,26 +559,15 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
 
   const { start, end } = getDateRange(period, customStart, customEnd);
 
-  const load = useCallback(async () => {
-    if (period === 'custom' && (!customStart || !customEnd)) return;
-    setLoading(true);
-    try {
-      const res = await getMissingSadhanaReport({
-        startDate: start,
-        endDate: end,
-        guideId: guideId === 'ALL' ? undefined : guideId,
-        residencyId: residencyId !== 'all' ? residencyId : undefined,
-        segment: isPw ? 'PW' : 'FOLK',
-      });
-      setData(res as ReportData);
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to load report');
-    } finally {
-      setLoading(false);
-    }
-  }, [start, end, guideId, residencyId, period, customStart, customEnd, isPw]);
-
-  useEffect(() => { load(); }, [load]);
+  const reportQuery = useEndpointQuery<ReportData>('getMissingSadhanaReport', {
+    startDate: start, endDate: end,
+    guideId: guideId === 'ALL' ? undefined : guideId,
+    residencyId: residencyId !== 'all' ? residencyId : undefined,
+    segment: isPw ? 'PW' : 'FOLK',
+  }, Boolean(start && end && start <= end));
+  const data = reportQuery.data;
+  const loading = reportQuery.loading;
+  useEffect(() => { if (reportQuery.error) toast.error(reportQuery.error.message || 'Failed to load report'); }, [reportQuery.error]);
 
   // Filtered data — client-side guide/status/hideZero filters and self-exclusion
   const filteredData = useMemo(() => {

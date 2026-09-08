@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { subDays } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Flame, TrendingUp, MessageCircle, Phone, Leaf, Star, Calendar, BarChart3, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { ArrowLeft, Flame, TrendingUp, Phone, Leaf, Star, Calendar, BarChart3, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import { getUserDetailForGuide, getAshrayUpgradePath, getBvAttendance, getAshrayChecklist, getUserProgressStats, getUserCrmData } from '@/lib/endpoints-sdk';
 import type { GetAshrayUpgradePathOutputType, GetUserCrmDataOutputType } from '@/lib/endpoints-sdk';
@@ -107,22 +106,6 @@ export default function GuideUserDetailPage() {
       .catch(() => {})
       .finally(() => setTrendLoading(false));
   }, [trendPeriod]);
-
-  const openWhatsApp = () => {
-    if (!data) return;
-    const firstName = (data.user.fullName || '').split(' ')[0] || data.user.fullName;
-    const honorific = data.user.isResident ? ' Prabhu' : '';
-    // Use yesterday's date — guides typically send reminders for the previous day's report
-    const yesterday = subDays(new Date(), 1);
-    const fullDate = format(yesterday, 'EEEE, d MMMM yyyy');
-    const dateStr = `Yesterday, ${fullDate}`;
-    const message = `Hare Krishna ${firstName}${honorific}!\n\nKindly submit your Sadhana report for *${dateStr}*. It only takes a minute and helps track your spiritual progress. 🙏`;
-    const phone = normalizePhoneForLinks(data.user.phone ? String(data.user.phone) : '');
-    const url = phone
-      ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-      : `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
-  };
 
   if (loading) {
     return (
@@ -233,9 +216,6 @@ export default function GuideUserDetailPage() {
                 </Button>
               </a>
             )}
-            <Button onClick={openWhatsApp} className="bg-green-600 hover:bg-green-700 text-white">
-              <MessageCircle className="w-4 h-4 mr-2" />WhatsApp Reminder
-            </Button>
           </div>
         </div>
 

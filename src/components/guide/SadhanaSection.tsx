@@ -1,3 +1,4 @@
+import DashboardPanel from '@/components/DashboardPanel';
 /**
  * SadhanaSection — wrapper with sub-tabs: Report | Stats | Improvement | Leaderboard
  * Sub-tab state is persisted in sessionStorage.
@@ -89,23 +90,23 @@ export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMo
       {/* Sub-tab content */}
       <Suspense fallback={<LoadingPage rows={2} />}>
       {visited.has('report') && (
-        <div className={subTab === 'report' ? 'block' : 'hidden'}><ReportsTab
+        <DashboardPanel active={subTab === 'report'}><ReportsTab
           guideId={guideId}
           senderName={senderName}
           bvslMode={bvslMode}
           mentorMode={mentorMode}
           facilitatorMode={facilitatorMode}
           groupOptions={groupOptions}
-        /></div>
+        /></DashboardPanel>
       )}
       {visited.has('stats') && (
-        <div className={subTab === 'stats' ? 'block' : 'hidden'}><StatsOverviewPanel guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} facilitatorMode={facilitatorMode} groupOptions={groupOptions} /></div>
+        <DashboardPanel active={subTab === 'stats'}><StatsOverviewPanel guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} facilitatorMode={facilitatorMode} groupOptions={groupOptions} /></DashboardPanel>
       )}
       {visited.has('improvement') && (
-        <div className={subTab === 'improvement' ? 'block' : 'hidden'}><ImprovementTab guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} facilitatorMode={facilitatorMode} /></div>
+        <DashboardPanel active={subTab === 'improvement'}><ImprovementTab guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} facilitatorMode={facilitatorMode} /></DashboardPanel>
       )}
       {visited.has('leaderboard') && (
-        <div className={subTab === 'leaderboard' ? 'block' : 'hidden'}><GuideLeaderboardTab guideId={guideId} bvslMode={bvslMode} facilitatorMode={facilitatorMode} groupOptions={groupOptions} /></div>
+        <DashboardPanel active={subTab === 'leaderboard'}><GuideLeaderboardTab guideId={guideId} bvslMode={bvslMode} facilitatorMode={facilitatorMode} groupOptions={groupOptions} /></DashboardPanel>
       )}
       </Suspense>
     </div>

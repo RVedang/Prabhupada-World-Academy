@@ -14,6 +14,7 @@ import {
 } from '@/lib/apiAuthorization';
 import { isReadOnlyEndpoint } from '@/lib/realtimeChannels';
 import { publishEndpointInvalidation } from '@/lib/realtimeInvalidationServer';
+import { withRequestQueries } from '@/lib/requestQueries';
 
 interface EndpointSchema {
   safeParse(input: unknown):
@@ -364,7 +365,9 @@ export async function POST(
 
     // 5. Execute endpoint handler
     const endpointStartedAt = Date.now();
-    const output = await endpointConfig.execute({ input: validatedInput, context });
+    const { result: output, metrics: queryMetrics } = await withRequestQueries(
+      async () => endpointConfig.execute({ input: validatedInput, context }),
+    );
     const endpointDurationMs = Date.now() - endpointStartedAt;
 
     if (!isReadOnlyEndpoint(endpoint)) {
@@ -379,13 +382,15 @@ export async function POST(
       }
       realtimeDurationMs = Date.now() - realtimeStartedAt;
     }
-    const totalDurationMs = Date.now() - requestStartedAt;
-
     // 6. Return response
+    const serializeStartedAt = performance.now();
     const response = NextResponse.json(output);
+    const serializeDurationMs = performance.now() - serializeStartedAt;
+    const totalDurationMs = Date.now() - requestStartedAt;
+    response.headers.set('Cache-Control', 'private, no-store');
     response.headers.set(
       'Server-Timing',
-      `auth;dur=${authDurationMs}, endpoint;dur=${endpointDurationMs}, realtime;dur=${realtimeDurationMs}, total;dur=${totalDurationMs}`,
+      `auth;dur=${authDurationMs}, endpoint;dur=${endpointDurationMs}, db;dur=${queryMetrics.durationMs.toFixed(1)};desc="sum of concurrent reads", queries;desc="${queryMetrics.count}", deduplicated;desc="${queryMetrics.deduplicated}", serialize;dur=${serializeDurationMs.toFixed(1)}, realtime;dur=${realtimeDurationMs}, total;dur=${totalDurationMs}`,
     );
     if (totalDurationMs >= 1_000) {
       console.warn(

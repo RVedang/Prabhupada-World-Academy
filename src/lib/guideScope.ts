@@ -28,13 +28,9 @@ const normalizeRefs = (value: unknown): string[] => {
 };
 
 /** Resolve legacy residency names and new document IDs to canonical IDs. */
-async function resolveResidencyIds(values: unknown): Promise<string[]> {
+function resolveResidencyIds(values: unknown, records: any[]): string[] {
   const refs = normalizeRefs(values);
   if (refs.length === 0) return [];
-  const { records } = await FolkResidencies.findAll({
-    fields: ['id', 'residencyId', 'residencyName'],
-    limit: 500,
-  }).catch(() => ({ records: [] }));
   const byRef = new Map<string, string>();
   for (const record of records as any[]) {
     for (const ref of [record.id, record.residencyId, record.residencyName]) {
@@ -89,17 +85,18 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
 
   if (!guide) return null;
 
-  let residencyIds = await resolveResidencyIds(guide.folkResidencies);
+  // One fresh projected read supplies aliases, assignments and display names.
+  // This is permission data, so it is only deduplicated within the request.
+  const { records: residencyRecords } = await FolkResidencies.findAll({
+    fields: ['id', 'residencyId', 'residencyName', 'guides', 'guideIds'], limit: 500,
+  }).catch(() => ({ records: [] }));
+  let residencyIds = resolveResidencyIds(guide.folkResidencies, residencyRecords);
 
   // A residency may also be the source of truth for assignments (especially
   // after a Super Guide edits the hostel table). Merge those links by guide
   // identity so older guide rows remain discoverable.
   const guideKeys = new Set([guide.id, guide.fullName, guide.email].filter(Boolean).map((value: any) => String(value).trim().toLowerCase()));
   if (guideKeys.size > 0) {
-    const { records: residencyRecords } = await FolkResidencies.findAll({
-      fields: ['id', 'guides', 'guideIds'],
-      limit: 500,
-    }).catch(() => ({ records: [] }));
     for (const residency of residencyRecords as any[]) {
       const refs = [...normalizeRefs(residency.guideIds), ...normalizeRefs(residency.guides)];
       if (refs.some(ref => guideKeys.has(ref.toLowerCase()))) residencyIds.push(String(residency.id));
@@ -109,9 +106,8 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
 
   const residencyNames: string[] = [];
   if (residencyIds.length > 0) {
-    const { records } = await FolkResidencies.findAll({ fields: ['id', 'residencyName'], limit: 500 }).catch(() => ({ records: [] }));
     const idSet = new Set(residencyIds.map(id => String(id).toLowerCase()));
-    for (const residency of records as any[]) {
+    for (const residency of residencyRecords as any[]) {
       if (idSet.has(String(residency.id || '').toLowerCase()) && residency.residencyName) {
         residencyNames.push(String(residency.residencyName));
       }

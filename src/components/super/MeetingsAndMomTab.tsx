@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,7 +14,7 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useEndpointQuery } from '@/hooks/useEndpointQuery';
 
 interface ProposedByDropdownProps {
   value: string;
@@ -489,13 +489,8 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
     }
   };
 
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [moms, setMoms] = useState<Mom[]>([]);
-  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
   const [selectedInviteeIds, setSelectedInviteeIds] = useState<string[]>([]);
   const [inviteeSearch, setInviteeSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Tabs & Filters
   const [viewTab, setViewTab] = useState<'meetings' | 'moms'>('meetings');
@@ -538,20 +533,16 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
   const [newActionTask, setNewActionTask] = useState('');
   const [newActionAssigneeName, setNewActionAssigneeName] = useState('');
   const [newActionAssigneeEmail, setNewActionAssigneeEmail] = useState('');
-  const activeMeetingForMom = selectedMeetingForMom || (editingMom ? meetings.find(m => m.id === editingMom.meeting_id) : null);
-  const canEditMom = canManageMeetings;
-
-  const loadData = async (options?: { silent?: boolean }) => {
-    if (!options?.silent) setLoading(true);
-    setError(null);
-    try {
-      const [mRes, momRes, usersRes] = await Promise.all([
-        getMeetings({ department }),
-        getMoms({ department }),
-        canManageMeetings
-          ? getGuideUsers({ guideId: 'ALL', statusFilter: 'all', minimal: true, forMeetingInvitees: true }).catch(() => ({ users: [] }))
-          : Promise.resolve({ users: [] }),
-      ]);
+  const meetingsQuery = useEndpointQuery<any>('getMeetings', { department });
+  const momsQuery = useEndpointQuery<any>('getMoms', { department });
+  // Directory lookup runs independently; meeting cards do not wait for it.
+  const inviteesQuery = useEndpointQuery<any>('getGuideUsers', {
+    guideId: 'ALL', statusFilter: 'all', minimal: true, forMeetingInvitees: true,
+  }, canManageMeetings);
+  const loading = viewTab === 'meetings' ? meetingsQuery.loading : momsQuery.loading;
+  const error = (viewTab === 'meetings' ? meetingsQuery.error : momsQuery.error)?.message || null;
+  const meetings: Meeting[] = useMemo(() => {
+    const mRes = meetingsQuery.data || {};
       const now = Date.now();
       const mappedMeetings = (mRes.meetings || []).map((m: any) => {
         // Compute effective display status from scheduled time, not just DB value.
@@ -585,8 +576,10 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
           status: effectiveStatus,
         };
       });
-      setMeetings(mappedMeetings);
-
+    return mappedMeetings;
+  }, [meetingsQuery.data]);
+  const moms: Mom[] = useMemo(() => {
+    const momRes = momsQuery.data || {};
       const mappedMoms = (momRes.moms || []).map((mom: any) => ({
         id: mom.id,
         meeting_id: mom.meetingId,
@@ -612,8 +605,10 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
         })),
         created_at: mom.createdAt,
       }));
-      setMoms(mappedMoms);
-
+    return mappedMoms;
+  }, [momsQuery.data]);
+  const registeredUsers = useMemo(() => {
+    const usersRes = inviteesQuery.data || {};
       const departmentUsers = (usersRes.users || []).map((u: any) => ({
         ...u,
         fullName: meetingInviteeLabel(u),
@@ -625,19 +620,13 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
         const isPw = u.segment === 'PW' || hasInviteRole || u.isBvSupervisor || u.isBvFacilitator || u.isBvsl || roleUpper.includes('SUPERVISOR') || emailLower.includes('prabhupadaworld') || emailLower.includes('hrvd') || emailLower.includes('srilaprabhupadaworld') || emailLower.includes('bvsupervisor');
         return hasMeetingInviteeIdentity(u) && hasInviteRole && (department === 'FOLK' ? isFolk : (isPw && !isFolk));
       });
-      setRegisteredUsers(departmentUsers);
-    } catch (err: any) {
-      console.error('Failed to load meetings/moms/users:', err);
-      if (!options?.silent) setError(err.message || 'Failed to load meetings and MoMs');
-    } finally {
-      if (!options?.silent) setLoading(false);
-    }
+    return departmentUsers;
+  }, [inviteesQuery.data, department]);
+  const activeMeetingForMom = selectedMeetingForMom || (editingMom ? meetings.find(m => m.id === editingMom.meeting_id) : null);
+  const canEditMom = canManageMeetings;
+  const loadData = async () => {
+    await Promise.all([meetingsQuery.refetch(), momsQuery.refetch()]);
   };
-
-  useEffect(() => {
-    void loadData();
-  }, [department]);
-  useRealtimeRefresh(['meetings', 'users'], () => loadData({ silent: true }));
 
   const openNewMeetingModal = () => {
     setEditingMeeting(null);
@@ -1648,6 +1637,9 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     onChange={e => setMeetingForm({ ...meetingForm, meeting_link: e.target.value })}
                     className="w-full p-2.5 bg-background border rounded-xl focus:ring-1 focus:ring-primary"
                   />
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Invitees are reminded 10 minutes and 1 minute before the meeting. Adding a link makes the notification directly joinable.
+                  </p>
                 </div>
 
                 <div>

@@ -1,3 +1,5 @@
+import DashboardPanel from '@/components/DashboardPanel';
+import { useDashboardPrefetch } from '@/hooks/useDashboardPrefetch';
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -76,6 +78,7 @@ export default function FolkGuideDashboard() {
 
   const initialTab = typeof window !== 'undefined' ? window.location.hash.slice(1) || 'sadhana' : 'sadhana';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const prefetchTab = useDashboardPrefetch({ enabled: !!profile && isBvAdminUser && isFolk && (isSuperAdmin || !!guideId), segment: 'FOLK', isSuperAdmin, guideId, activeTab, residencyId: (profile as any)?.folkResidencyCustomId });
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
   useEffect(() => {
     setVisitedTabs(prev => {
@@ -250,6 +253,8 @@ export default function FolkGuideDashboard() {
                 <button
                   key={item.id}
                   onClick={() => handleTabChange(item.id)}
+                  onMouseEnter={() => prefetchTab(item.id)}
+                  onFocus={() => prefetchTab(item.id)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-sm'
@@ -275,24 +280,24 @@ export default function FolkGuideDashboard() {
           <Suspense fallback={<LoadingPage rows={2} />}>
           <TabTransition activeTab={activeTab}>
             {visitedTabs.has('sadhana') && (
-              <div className={activeTab === 'sadhana' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'sadhana'}>
                 <ReportsTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('bv') && (
-              <div className={activeTab === 'bv' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'bv'}>
                 <SuperBvReportTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('users') && (
-              <div className={activeTab === 'users' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'users'}>
                 <SuperUsersPanel segment="FOLK" isSuperAdminOverride={isSuperAdmin} />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('approvals') && (
-              <div className={activeTab === 'approvals' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'approvals'}>
                 <ApprovalsTab guideId={isSuperAdmin ? 'ALL' : guideId} isSuperGuide={isSuperAdmin} />
-              </div>
+              </DashboardPanel>
             )}
             {(visitedTabs.has('bhakti-vriksha') || visitedTabs.has('bv-registrations') || visitedTabs.has('bv-admins')) && (
               <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations' || activeTab === 'bv-admins') ? 'space-y-8 block' : 'hidden'}>
@@ -312,44 +317,44 @@ export default function FolkGuideDashboard() {
               </div>
             )}
             {visitedTabs.has('residencies') && isSuperAdmin && (
-              <div className={activeTab === 'residencies' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'residencies'}>
                 <FolkResidencyManagement />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('stats') && isSuperAdmin && (
-              <div className={activeTab === 'stats' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'stats'}>
                 <SuperStatsPanel segment="FOLK" />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('missing-sadhana') && (
-              <div className={activeTab === 'missing-sadhana' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'missing-sadhana'}>
                 <MissingSadhanaTab segment="FOLK" />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('attendance') && (
-              <div className={activeTab === 'attendance' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'attendance'}>
                 <SuperAttendanceTab segment="FOLK" />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('jigyasa') && (
-              <div className={activeTab === 'jigyasa' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'jigyasa'}>
                 <JigyasaTrackerTab />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('tagmango') && isSuperAdmin && (
-              <div className={activeTab === 'tagmango' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'tagmango'}>
                 <TagMangoConfigTab />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('reminders') && isSuperAdmin && (
-              <div className={activeTab === 'reminders' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'reminders'}>
                 <SendRemindersPanel segment="FOLK" />
-              </div>
+              </DashboardPanel>
             )}
             {visitedTabs.has('callreports') && (
-              <div className={activeTab === 'callreports' ? 'block' : 'hidden'}>
+              <DashboardPanel active={activeTab === 'callreports'}>
                 <BvslOneToOneTab />
-              </div>
+              </DashboardPanel>
             )}
           </TabTransition>
           </Suspense>

@@ -1,3 +1,4 @@
+import DashboardPanel from '@/components/DashboardPanel';
 import { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Lightbulb, Users, Square as Grid3X3, Activity, Settings2 } from 'lucide-react';
 import BvReportTab from '@/components/guide/BvReportTab';
@@ -93,11 +94,11 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
         ))}
       </div>
 
-      {activeSubTab === 'bvmatrix'    && <BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />}
-      {activeSubTab === 'report'      && <BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />}
-      {activeSubTab === 'sadhana'     && <SadhanaSection guideId={guideId} bvslMode={bvslMode} facilitatorMode />}
-      {activeSubTab === 'stats'       && <BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} groupOptions={groupOptions} segment={segment} />}
-      {activeSubTab === 'improvement' && (isBvSupervisorDashboard ? (
+      <DashboardPanel active={activeSubTab === 'bvmatrix'}>{<BvSessionMatrixTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />}</DashboardPanel>
+      <DashboardPanel active={activeSubTab === 'report'}>{<BvReportTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />}</DashboardPanel>
+      <DashboardPanel active={activeSubTab === 'sadhana'}>{<SadhanaSection guideId={guideId} bvslMode={bvslMode} facilitatorMode />}</DashboardPanel>
+      <DashboardPanel active={activeSubTab === 'stats'}>{<BvStatsPanel guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} showIndividualStats={isSupervisorOrAbove} groupOptions={groupOptions} segment={segment} />}</DashboardPanel>
+      <DashboardPanel active={activeSubTab === 'improvement'}>{(isBvSupervisorDashboard ? (
         <div className="space-y-6">
           <div className="rounded-xl border bg-card px-4 py-3">
             <h3 className="text-sm font-semibold">Member Sadhana Improvement</h3>
@@ -129,13 +130,13 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
         />
       ) : (
         <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />
-      ))}
-      {activeSubTab === 'groups'      && <GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} summaryOnly={summaryOnlyGroups} segment={segment} />}
-      {activeSubTab === 'management' && !bvslMode && (
+      ))}</DashboardPanel>
+      <DashboardPanel active={activeSubTab === 'groups'}>{<GuideBvTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} summaryOnly={summaryOnlyGroups} segment={segment} />}</DashboardPanel>
+      <DashboardPanel active={activeSubTab === 'management'}>{!bvslMode && (
         guideId === 'ALL' && segment
           ? <BvAdminManagementTab segment={segment} isSuperGuide />
           : <BvslManagementTab guideId={guideId} />
-      )}
+      )}</DashboardPanel>
     </div>
   );
 }

@@ -98,7 +98,7 @@ export default function BvSadhanaMonitorPanel({ guideId }: Props) {
           )}
 
           <p className="text-xs text-muted-foreground text-center">
-            Click any group row to expand and see individual member details. Use the 💬 Nudge button to send a WhatsApp message to the RGF.
+            Click any group row to expand and see individual member details.
           </p>
         </div>
       )}

@@ -4,6 +4,7 @@ import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 import { getGuideScope } from '../lib/guideScope';
 import getGuides from './getGuides';
+import { getReportReferenceData } from '../lib/reportReferenceData';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'status', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
 
@@ -77,7 +78,11 @@ export default createEndpoint({
     }
 
     // 3. Fetch users — guide-scoped + residency-based users
-    const { records: baseUsers } = await Users.findAll({ filters, fields: USER_FIELDS, limit: 2000 });
+    const [{ records: baseUsers }, guideOptionsResult, reference] = await Promise.all([
+      Users.findAll({ filters, fields: USER_FIELDS, limit: 2000 }),
+      getGuides.execute({ input: { segment: input.segment || 'ALL' }, context }),
+      getReportReferenceData(),
+    ]);
     let allUsers: any[] = [...baseUsers];
 
     // Include residency-based users for regular guides (same logic as getGuideUsers)
@@ -109,10 +114,6 @@ export default createEndpoint({
 
     // The selector must not depend on whether members happen to exist for the
     // chosen date range. Load the department's admins/guides independently.
-    const guideOptionsResult = await getGuides.execute({
-      input: { segment: input.segment || 'ALL' },
-      context,
-    });
     const availableGuides = (guideOptionsResult.guides || []).map((g: any) => ({
       id: g.guideId,
       name: g.name,
@@ -188,10 +189,7 @@ export default createEndpoint({
     )] as string[];
     const residencyMap = new Map<string, string>();
     if (resIds.length > 0) {
-      const { records: residencies } = await FolkResidencies.findAll({
-        fields: ['id', 'residencyId', 'residencyName'],
-        limit: 200,
-      });
+      const residencies = reference.residencies.slice(0, 200);
       for (const r of residencies) {
         if (r.id) {
           residencyMap.set(r.id, (r as any).residencyName || '');
@@ -201,10 +199,7 @@ export default createEndpoint({
     }
 
     // 8. Fetch all guides and build guideLookup (extremely robust, same as getGuideUsers)
-    const { records: allGuides } = await Guides.findAll({
-      fields: ['id', 'fullName', 'abbreviation', 'email'],
-      limit: 500,
-    });
+    const allGuides = reference.guides;
     const guideLookup = new Map<string, string>();
     const addGuideLookup = (record: any) => {
       const name = String(record.fullName || record.name || '').trim();

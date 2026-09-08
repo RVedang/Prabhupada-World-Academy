@@ -15,13 +15,6 @@ export const CONFIG_KEYS = {
    */
   NEXT_ASHRAY_EXAM: 'Next Ashray Exam',
 
-  /**
-   * WhatsApp reminder message template sent to users who haven't submitted.
-   * Supports placeholders: {user_name}, {guide_name}
-   * Used by: Guide Dashboard → send reminder flow
-   */
-  WHATSAPP_REMINDER: 'whatsapp_reminder',
-
 } as const;
 
 /**
@@ -37,6 +30,4 @@ export type ConfigKey = (typeof CONFIG_KEYS)[keyof typeof CONFIG_KEYS];
 /** Default values for each config key — used when the DB row is missing */
 export const CONFIG_DEFAULTS: Record<ConfigKey, string> = {
   [CONFIG_KEYS.NEXT_ASHRAY_EXAM]: '',
-  [CONFIG_KEYS.WHATSAPP_REMINDER]:
-    'Hare Krishna {user_name}! Kindly submit your Sadhana report for *{report_date}*. It only takes a minute and helps track your spiritual progress. 🙏 Regards, {guide_name}',
 };
