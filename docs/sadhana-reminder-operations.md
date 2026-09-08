@@ -7,11 +7,11 @@ not been used in project bvpw108 before or it is disabled`. Browser timers do
 not provide closed-browser delivery. Deploy the notification changes and
 activate a server scheduler before declaring automatic reminders operational.
 
-## Proposed PW job
+## Required department jobs
 
 - Project: `bvpw108`
 - Location: `asia-southeast1`
-- Job name: `pw-sadhana-reminders`
+- Job names: `pw-sadhana-reminders` and `folk-sadhana-reminders`
 - Cron schedule: `* * * * *`
 - Time zone: `Asia/Kolkata`
 - Method: `POST`
@@ -24,17 +24,18 @@ activate a server scheduler before declaring automatic reminders operational.
 {
   "cronSecret": "<value of existing ziteCronSecret, supplied securely>",
   "reminderSlot": "night-1",
-  "segment": "PW",
+  "segment": "<PW or FOLK, matching the job>",
   "scheduled": true
 }
 ```
 
-The endpoint checks the saved enabled flag, frequency, selected weekdays, and
-IST time before querying recipients. Most minute calls return without sending.
-Settings changes take effect without editing the job. The live saved times
-observed on 2026-09-06 were 14:35, 15:15, 21:20 and 22:20 IST, daily.
+The endpoint checks the selected department's saved enabled flag, frequency,
+selected weekdays, and IST time before querying recipients. Most minute calls
+return without sending. PW and FOLK settings use separate configuration
+records, so changing one department never changes the other department's
+schedule. Settings changes take effect without editing the jobs.
 Keep the cron secret out of source control, command output and client code.
-This job targets PW only; FOLK needs an explicitly configured department job.
+Meeting reminder jobs are separate. FOLK has no meeting or MoM reminders.
 
 ## Verification after activation
 

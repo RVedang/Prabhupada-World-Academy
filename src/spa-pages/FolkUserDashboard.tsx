@@ -37,8 +37,9 @@ export default function FolkUserDashboard() {
   const pendingSavedEntryRef = useRef<SavedSadhanaEntryPayload | null>(null);
 
   useEffect(() => {
-    initReminderVisibilityCheck();
-    scheduleSadhanaReminder(hasSubmittedToday(), 'FOLK');
+    const stopVisibilityCheck = initReminderVisibilityCheck('FOLK');
+    void scheduleSadhanaReminder(hasSubmittedToday(), 'FOLK');
+    return stopVisibilityCheck;
   }, []);
 
   useEffect(() => {

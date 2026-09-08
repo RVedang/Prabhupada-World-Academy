@@ -2,9 +2,11 @@ import { z } from 'zod';
 import { createEndpoint, Config, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
-  description: 'Save PW Sadhana notification config',
+  description: 'Save department-specific Sadhana notification config',
   authenticated: true,
+  requiredCapabilities: 'notifications.send',
   inputSchema: z.object({
+    segment: z.enum(['PW', 'FOLK']).optional().default('PW'),
     enabled: z.boolean(),
     times: z.array(z.string()),
     frequency: z.enum(['daily', 'weekdays', 'custom']),
@@ -14,14 +16,18 @@ export default createEndpoint({
     updatedBy: z.string(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
-    // Check permission
+  execute: async ({ input, context }: { input: any; context: any }) => {
+    const callerSegment = String(context.user?.segment || '').trim().toUpperCase();
     const role = (context.user?.role || '').replace(/\s/g, '_').toUpperCase();
-    if (!['SUPER_GUIDE', 'SUPER_ADMIN', 'PW_ADMIN'].includes(role)) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'PW Super Admin access required' });
+    const canManageAnyDepartment = context.user?.capabilities?.includes('*');
+    const inferredCallerSegment = callerSegment === 'FOLK' || callerSegment === 'PW'
+      ? callerSegment
+      : (role === 'PW_ADMIN' ? 'PW' : null);
+    if (!canManageAnyDepartment && inferredCallerSegment !== input.segment) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You cannot change another department notification schedule' });
     }
 
-    const key = 'pw_sadhana_notification_config';
+    const key = `${input.segment.toLowerCase()}_sadhana_notification_config`;
     const recordValue = JSON.stringify({
       ...input,
       updatedAt: new Date().toISOString(),
@@ -34,6 +40,6 @@ export default createEndpoint({
       await Config.create({ record: { configKey: key, configValue: recordValue } });
     }
 
-    return { success: true };
+    return { success: true, segment: input.segment };
   },
 });

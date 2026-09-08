@@ -50,6 +50,11 @@ export default createEndpoint({
       throw new AppError({ code: 'NOT_FOUND', message: 'Meeting not found' });
     }
 
+    const meetingSegment = String(existing.segment || 'PW').trim().toUpperCase();
+    if (normalizedSegment === 'FOLK' || meetingSegment === 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Meetings and MoMs are available only in Prabhupada World' });
+    }
+
     if (!isSuperAdminOrAdmin || isReadOnlySadhanaMentor) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Only Admins and Super Admins can edit meeting details' });
     }

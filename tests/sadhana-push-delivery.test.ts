@@ -55,6 +55,32 @@ test('in-app dispatch reaches missing members with zero native subscriptions, ex
   assert.equal(result.sent, 0);
 });
 
+test('instant FOLK dispatch reaches only missing FOLK members', async t => {
+  const users = [
+    { id: 'folk-missing', status: 'Active', segment: 'FOLK', email: 'folk@example.invalid' },
+    { id: 'pw-missing', status: 'Active', segment: 'PW', email: 'pw@example.invalid' },
+  ];
+  t.mock.method(Users, 'findAll', async () => ({ records: users, hasMore: false }));
+  t.mock.method(PushSubscriptions, 'findAll', async () => ({ records: [], hasMore: false }));
+  t.mock.method(SadhanaEntries, 'findAll', async () => ({ records: [], hasMore: false }));
+  let broadcast: any;
+  t.mock.method(fs, 'writeFileSync', (_file: any, body: any) => {
+    broadcast = JSON.parse(String(body));
+  });
+
+  const result = await sendPushNotifications.execute({
+    input: { reminderSlot: 'night-1', segment: 'FOLK', checkDate: '2026-09-08' },
+    context: {
+      user: { id: 'folk-admin', segment: 'FOLK', isActive: true, capabilities: ['notifications.send'] },
+    },
+  });
+
+  assert.equal(result.inAppRecipients, 1);
+  assert.deepEqual(broadcast.inviteeIds, ['folk-missing']);
+  assert.deepEqual(broadcast.inviteeEmails, ['folk@example.invalid']);
+  assert.equal(broadcast.segment, 'FOLK');
+});
+
 test('subscribing a phone preserves existing laptop subscriptions', async t => {
   const queries: any[] = [];
   t.mock.method(PushSubscriptions, 'findOne', async () => null);

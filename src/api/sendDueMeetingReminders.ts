@@ -42,6 +42,8 @@ export default createEndpoint({
     let failed = 0;
 
     for (const meeting of meetings) {
+      const segment = String(meeting.segment || 'PW').trim().toUpperCase();
+      if (segment === 'FOLK') continue;
       if (String(meeting.status || 'SCHEDULED').toUpperCase() !== 'SCHEDULED') continue;
       const start = meetingStartMs(String(meeting.scheduledAt || ''));
       if (!Number.isFinite(start)) continue;

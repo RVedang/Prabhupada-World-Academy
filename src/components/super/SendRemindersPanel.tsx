@@ -18,9 +18,7 @@ import { toast } from 'sonner';
 import {
   getPwNotificationConfig,
   savePwNotificationConfig,
-  scheduleSadhanaReminder,
-  hasSubmittedToday,
-  DEFAULT_PW_NOTIFICATION_CONFIG,
+  getDefaultSadhanaNotificationConfig,
   type PwSadhanaNotificationConfig,
 } from '@/utils/sadhanaNotification';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -99,7 +97,9 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
   const [loading, setLoading] = useState<1 | 2 | 3 | 'smart' | null>(null);
   const [results, setResults] = useState<Record<number, RoundResult>>({});
 
-  const [config, setConfig] = useState<PwSadhanaNotificationConfig>(DEFAULT_PW_NOTIFICATION_CONFIG);
+  const [config, setConfig] = useState<PwSadhanaNotificationConfig>(() =>
+    getDefaultSadhanaNotificationConfig(activeSegment)
+  );
   const [newTimeInput, setNewTimeInput] = useState('21:20');
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
   const [loadingPushStats, setLoadingPushStats] = useState(true);
@@ -119,76 +119,21 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
   useEffect(() => {
     fetchStats();
     // Fetch DB config on mount
-    getPwNotificationConfig().then((cfg) => {
+    getPwNotificationConfig(activeSegment).then((cfg) => {
       setConfig(cfg);
     }).catch(() => {});
   }, [activeSegment]);
-
-  // Exact one-shot timers replace the old 15-second database polling loop.
-  // The existing cron-capable endpoint remains the production delivery path;
-  // this preserves the open-dashboard custom schedule without repeated reads.
-  useEffect(() => {
-    if (!config.enabled || !config.times?.length) return;
-    const timers: number[] = [];
-    const offsetMs = 5.5 * 60 * 60 * 1000;
-    const allowedDays = new Set(config.customDays || [0, 1, 2, 3, 4, 5, 6]);
-
-    const nextOccurrence = (time: string): number => {
-      const [hour, minute] = time.split(':').map(Number);
-      const istNow = new Date(Date.now() + offsetMs);
-      for (let add = 0; add < 8; add++) {
-        const candidateDay = new Date(Date.UTC(
-          istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() + add,
-          hour, minute, 0, 0,
-        ));
-        if (!allowedDays.has(candidateDay.getUTCDay())) continue;
-        const utcTime = candidateDay.getTime() - offsetMs;
-        if (utcTime > Date.now()) return utcTime;
-      }
-      return Date.now() + 24 * 60 * 60 * 1000;
-    };
-
-    const dispatch = async (time: string) => {
-      try {
-        const stats = await getPushSubscriptionStats({ segment: activeSegment });
-        setPushStats(stats);
-        const res = await sendPushNotifications({
-          reminderSlot: 'night-1', customTitle: config.title, customBody: config.body,
-          segment: activeSegment,
-        });
-        if (res.sent > 0) toast.success(`⏰ Sadhana reminder sent at ${time} to ${res.sent} device${res.sent === 1 ? '' : 's'}.`);
-      } catch (error) {
-        console.error('[Custom Reminder Scheduler] Error sending push:', error);
-      }
-    };
-
-    const scheduleTime = (time: string) => {
-      const scheduleNext = () => {
-        const delay = nextOccurrence(time) - Date.now();
-        const timer = window.setTimeout(async () => {
-          await dispatch(time);
-          scheduleNext();
-        }, Math.max(0, delay));
-        timers.push(timer);
-      };
-      scheduleNext();
-    };
-    config.times.forEach(scheduleTime);
-    return () => timers.forEach(timer => window.clearTimeout(timer));
-  }, [activeSegment, config.body, config.customDays, config.enabled, config.times, config.title]);
 
   const handleSaveConfig = async () => {
     try {
       const updated = await savePwNotificationConfig({
         ...config,
-        updatedBy: profile?.fullName || profile?.userId || 'PW Super Admin',
-      });
+        updatedBy: profile?.fullName || profile?.userId || `${activeSegment} Admin`,
+      }, activeSegment);
       setConfig(updated);
-      // Sync settings with SW and reschedule reminder timers immediately
-      scheduleSadhanaReminder(hasSubmittedToday(), 'PW');
-      toast.success('PW Sadhana Notification Settings saved! 🛡️');
+      toast.success(`${activeSegment} Sadhana Notification Settings saved! 🛡️`);
     } catch {
-      toast.error('Failed to save PW Sadhana Notification Settings');
+      toast.error(`Failed to save ${activeSegment} Sadhana Notification Settings`);
     }
   };
 
@@ -358,10 +303,10 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-primary" />
-            <CardTitle className="text-base font-semibold">PW Super Admin Notification Settings</CardTitle>
+            <CardTitle className="text-base font-semibold">{activeSegment} Admin Notification Settings</CardTitle>
           </div>
           <CardDescription>
-            Manage automatic Sadhana reminders, custom times, and push messaging for users.
+            Manage automatic Sadhana reminders, custom times, and instant notifications for {activeSegment} users.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

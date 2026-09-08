@@ -34,8 +34,9 @@ export default function PwUserDashboard() {
   const pendingSavedEntryRef = useRef<SavedSadhanaEntryPayload | null>(null);
 
   useEffect(() => {
-    initReminderVisibilityCheck();
-    scheduleSadhanaReminder(hasSubmittedToday(), 'PW');
+    const stopVisibilityCheck = initReminderVisibilityCheck('PW');
+    void scheduleSadhanaReminder(hasSubmittedToday(), 'PW');
+    return stopVisibilityCheck;
   }, []);
 
   useEffect(() => {

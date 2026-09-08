@@ -17,7 +17,7 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }: { input: any; context: any }) => {
     const role = (context.user.role || '').replace(/\s/g, '_').toUpperCase();
-    const isAllowed = ['SUPER_GUIDE', 'SUPER_ADMIN', 'PW_ADMIN', 'ADMIN'].includes(role) ||
+    const isAllowed = ['SUPER_GUIDE', 'SUPER_ADMIN', 'PW_ADMIN', 'ADMIN', 'GUIDE'].includes(role) ||
                       !!context.user.isBvSuperAdmin ||
                       !!context.user.isBvAdmin ||
                       !!context.user.isPwAdmin;
@@ -31,6 +31,11 @@ export default createEndpoint({
     // Determine target segment: explicit input > caller context.
     let targetSegment = input?.segment || context.user?.segment;
     if (!targetSegment) targetSegment = 'PW';
+    const callerSegment = String(context.user?.segment || '').trim().toUpperCase();
+    const canManageAnyDepartment = context.user?.capabilities?.includes('*');
+    if (!canManageAnyDepartment && callerSegment && callerSegment !== targetSegment) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view another department notification subscriptions' });
+    }
 
     // Get all subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });

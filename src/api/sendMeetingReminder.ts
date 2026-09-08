@@ -191,6 +191,9 @@ export default createEndpoint({
     if (!meeting) {
       throw new AppError({ code: 'NOT_FOUND', message: 'Meeting not found' });
     }
+    if (String(meeting.segment || 'PW').trim().toUpperCase() === 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'FOLK meeting reminders are disabled' });
+    }
 
     // Check if the reminder is already sent to avoid duplicate processing
     if (input.reminderType === 'ONE_MINUTE') {
@@ -203,10 +206,10 @@ export default createEndpoint({
       }
     }
 
-    const inviteeIds = [...new Set((meeting.inviteeUserIds || [])
+    const inviteeIds = [...new Set<string>((meeting.inviteeUserIds || [])
       .map((value: unknown) => String(value).trim())
       .filter(Boolean))];
-    const inviteeEmails = [...new Set((meeting.invitees || [])
+    const inviteeEmails = [...new Set<string>((meeting.invitees || [])
       .map((invitee: any) => String(invitee.email || '').trim().toLowerCase())
       .filter(Boolean))];
     if (inviteeIds.length === 0 && inviteeEmails.length === 0) {

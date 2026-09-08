@@ -311,9 +311,27 @@ export default createEndpoint({
       throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized to send push notifications' });
     }
 
-    // A server scheduler can call every minute; the saved admin schedule
-    // determines whether to send. Manual dispatch remains immediate.
-    const scheduleConfig = input.scheduled ? await getPwNotificationConfig.execute() : null;
+    if (input.scheduled && !isCron) {
+      throw new AppError({ code: 'UNAUTHORIZED', message: 'Scheduled notifications require the server scheduler' });
+    }
+    if (input.scheduled && !input.segment) {
+      throw new AppError({ code: 'BAD_REQUEST', message: 'Scheduled notifications require a department' });
+    }
+
+    // Segment comes from validated input or the trusted database-backed user context.
+    // Never infer authority or scope from email substrings.
+    const targetSegment: 'PW' | 'FOLK' = input.segment || context?.user?.segment || 'PW';
+    const callerSegment = String(context?.user?.segment || '').trim().toUpperCase();
+    const canManageAnyDepartment = context?.user?.capabilities?.includes('*');
+    if (!isCron && !canManageAnyDepartment && callerSegment && callerSegment !== targetSegment) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'You cannot notify another department' });
+    }
+
+    // A server scheduler can call every minute; each department's saved admin
+    // schedule determines whether to send. Manual dispatch remains immediate.
+    const scheduleConfig = input.scheduled
+      ? await getPwNotificationConfig.execute({ input: { segment: targetSegment }, context: {} } as never)
+      : null;
     if (scheduleConfig && !isSadhanaReminderDue(scheduleConfig)) {
       return { sent: 0, failed: 0, skipped: 0, inAppRecipients: 0 };
     }
@@ -325,10 +343,6 @@ export default createEndpoint({
 
     const senderId = context?.user?.id;
     const senderEmail = String(context?.user?.email || (isCron ? input.senderEmail : '') || '').toLowerCase();
-
-    // Segment comes from validated input or the trusted database-backed user context.
-    // Never infer authority or scope from email substrings.
-    const targetSegment = input.segment || context?.user?.segment || 'PW';
 
     const isPwTarget = targetSegment === 'PW';
 

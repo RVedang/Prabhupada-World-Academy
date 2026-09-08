@@ -102,7 +102,7 @@ export default function RgfDashboard() {
                 />
               )}
               {activeTab === 'onetone' && <BvslOneToOneTab />}
-              {activeTab === 'meetings' && <MeetingsAndMomTab />}
+              {!isFolk && activeTab === 'meetings' && <MeetingsAndMomTab department="PW" />}
             </>
           )}
         </TabRouter>

@@ -39,8 +39,8 @@ export default createEndpoint({
       context.user.isSadhanaMentor || callerRole === 'SADHANA_MENTOR'
     );
 
-    if (!isAuthorized || isReadOnlySadhanaMentor) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Only Admins and Super Admins can create meetings' });
+    if (!isAuthorized || isReadOnlySadhanaMentor || normalizedSegment === 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'Meetings and MoMs are available only in Prabhupada World' });
     }
 
     const inviteeIdsArray = Array.from(new Set<string>(input.additionalInviteeIds || []));

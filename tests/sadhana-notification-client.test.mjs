@@ -10,6 +10,7 @@ function loadClient(permission = 'denied') {
   const toasts = [];
   const exports = {};
   const config = { enabled: true, times: ['21:20'], frequency: 'daily', title: 'Reminder', body: 'Submit Sadhana' };
+  const configRequests = [];
   class Clock extends Date {
     constructor(...args) { super(...(args.length ? args : ['2026-09-06T15:49:00Z'])); }
     static now() { return new Date('2026-09-06T15:49:00Z').getTime(); }
@@ -25,13 +26,15 @@ function loadClient(permission = 'denied') {
     require: name => {
       if (name === 'react') return { createElement: (...args) => args };
       if (name === 'sonner') return { toast: value => toasts.push(value) };
-      if (name === '@/lib/endpoints-sdk') return { getPwNotificationConfig: async () => config };
+      if (name === '@/lib/endpoints-sdk') return {
+        getPwNotificationConfig: async input => { configRequests.push(input); return config; },
+      };
       throw Error(`Unexpected import ${name}`);
     },
   });
   const source = readFileSync(new URL('../src/utils/sadhanaNotification.ts', import.meta.url), 'utf8');
   vm.runInContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context);
-  return { api: exports, storage, timers, toasts };
+  return { api: exports, storage, timers, toasts, configRequests };
 }
 
 test('denied and unsupported native permission never become simulated permission', async () => {
@@ -51,6 +54,12 @@ test('foreground missing-Sadhana reminder works without native permission or a s
   assert.equal(timers[0].delay, 60_000);
   await timers[0].callback();
   assert.equal(toasts.length, 1);
+});
+
+test('FOLK users load the FOLK notification schedule', async () => {
+  const { api, configRequests } = loadClient('denied');
+  await api.scheduleSadhanaReminder(false, 'FOLK');
+  assert.equal(configRequests[0]?.segment, 'FOLK');
 });
 
 test('another user submitting on the same browser does not suppress this user reminders', () => {

@@ -170,10 +170,10 @@ export default function FolkGuideDashboard() {
     { id: 'approvals', label: 'Approvals', icon: AlertCircle, count: approvalCount },
     { id: 'bhakti-vriksha', label: 'Bhakti Vriksha', icon: ClipboardCheck, count: bvRegCount },
     { id: 'missing-sadhana', label: 'Missing Sadhana', icon: AlertCircle },
+    { id: 'reminders', label: 'Notifications', icon: Zap },
     ...(isSuperAdmin ? [
       { id: 'stats', label: 'Stats', icon: Zap },
       { id: 'residencies', label: 'Residencies / Hostels', icon: Building2 },
-      { id: 'reminders', label: 'Send Reminders', icon: Zap },
     ] : []),
     { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
     { id: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
@@ -346,7 +346,7 @@ export default function FolkGuideDashboard() {
                 <TagMangoConfigTab />
               </DashboardPanel>
             )}
-            {visitedTabs.has('reminders') && isSuperAdmin && (
+            {visitedTabs.has('reminders') && isBvAdminUser && (
               <DashboardPanel active={activeTab === 'reminders'}>
                 <SendRemindersPanel segment="FOLK" />
               </DashboardPanel>

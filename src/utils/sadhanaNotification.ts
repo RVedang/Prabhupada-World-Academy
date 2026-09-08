@@ -30,28 +30,40 @@ export const DEFAULT_PW_NOTIFICATION_CONFIG: PwSadhanaNotificationConfig = {
   updatedBy: 'PW Super Admin',
 };
 
-export async function getPwNotificationConfig(): Promise<PwSadhanaNotificationConfig> {
+export function getDefaultSadhanaNotificationConfig(segment: 'PW' | 'FOLK' = 'PW'): PwSadhanaNotificationConfig {
+  return {
+    ...DEFAULT_PW_NOTIFICATION_CONFIG,
+    updatedAt: new Date().toISOString(),
+    updatedBy: `${segment} Super Admin`,
+  };
+}
+
+export async function getPwNotificationConfig(segment: 'PW' | 'FOLK' = 'PW'): Promise<PwSadhanaNotificationConfig> {
+  const fallback = getDefaultSadhanaNotificationConfig(segment);
   try {
-    const config = await apiGetConfig({});
-    return { ...DEFAULT_PW_NOTIFICATION_CONFIG, ...config };
+    const config = await apiGetConfig({ segment });
+    return { ...fallback, ...config };
   } catch {
-    return DEFAULT_PW_NOTIFICATION_CONFIG;
+    return fallback;
   }
 }
 
-export async function savePwNotificationConfig(config: Partial<PwSadhanaNotificationConfig>): Promise<PwSadhanaNotificationConfig> {
+export async function savePwNotificationConfig(
+  config: Partial<PwSadhanaNotificationConfig>,
+  segment: 'PW' | 'FOLK' = 'PW',
+): Promise<PwSadhanaNotificationConfig> {
   try {
-    const current = await getPwNotificationConfig();
+    const current = await getPwNotificationConfig(segment);
     const updated: PwSadhanaNotificationConfig = {
       ...current,
       ...config,
       updatedAt: new Date().toISOString(),
     };
-    await apiSaveConfig(updated);
+    await apiSaveConfig({ ...updated, segment });
     return updated;
   } catch (e) {
     console.error('Failed to save config in DB:', e);
-    const current = DEFAULT_PW_NOTIFICATION_CONFIG;
+    const current = getDefaultSadhanaNotificationConfig(segment);
     const updated: PwSadhanaNotificationConfig = {
       ...current,
       ...config,
@@ -327,7 +339,8 @@ export async function registerServiceWorker(): Promise<void> {
 
   // Sync settings to service worker
   function syncSwSettings() {
-    getPwNotificationConfig().then((config) => {
+    const storedSegment = localStorage.getItem('auth_department') === 'FOLK' ? 'FOLK' : 'PW';
+    getPwNotificationConfig(storedSegment).then((config) => {
       const userDisabled = localStorage.getItem('push_notifications_disabled') === 'true';
       navigator.serviceWorker.controller?.postMessage({
         type: 'SYNC_SETTINGS',
@@ -504,12 +517,15 @@ export async function checkPushSubscriptionStatus(): Promise<boolean> {
 // ── Local notification scheduling ──
 let _reminderTimers: ReturnType<typeof setTimeout>[] = [];
 
-export async function scheduleSadhanaReminder(submittedToday: boolean, segment?: string): Promise<void> {
+export async function scheduleSadhanaReminder(
+  submittedToday: boolean,
+  segment: 'PW' | 'FOLK' = 'PW',
+): Promise<void> {
   _reminderTimers.forEach(t => clearTimeout(t));
   _reminderTimers = [];
 
-  const config = await getPwNotificationConfig();
-  if (segment === 'PW' && !config.enabled) return;
+  const config = await getPwNotificationConfig(segment);
+  if (!config.enabled) return;
 
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({
@@ -568,7 +584,7 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
 
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
       const timer = setTimeout(async () => {
-        const liveConfig = await getPwNotificationConfig().catch(() => null);
+        const liveConfig = await getPwNotificationConfig(segment).catch(() => null);
         if (!liveConfig || !liveConfig.enabled) return;
         if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') return;
 
@@ -587,13 +603,14 @@ export async function scheduleSadhanaReminder(submittedToday: boolean, segment?:
   }
 }
 
-export function initReminderVisibilityCheck(): void {
+export function initReminderVisibilityCheck(segment: 'PW' | 'FOLK' = 'PW'): () => void {
   const handler = () => {
     if (document.visibilityState === 'visible') {
-      scheduleSadhanaReminder(hasSubmittedToday()).catch(() => {});
+      scheduleSadhanaReminder(hasSubmittedToday(), segment).catch(() => {});
     }
   };
   document.addEventListener('visibilitychange', handler);
+  return () => document.removeEventListener('visibilitychange', handler);
 }
 
 // ── Helpers ──

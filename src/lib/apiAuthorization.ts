@@ -99,6 +99,7 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
 
   const capabilities = new Set<ApiCapability>();
   const role = normalizeApiRole(dbUser.role);
+  const isFolk = String(dbUser.segment || '').trim().toUpperCase() === 'FOLK';
 
   if (role === 'SUPER_ADMIN' || dbUser.isBvSuperAdmin === true) {
     return ['*'];
@@ -117,10 +118,10 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
       'attendance.manage',
       'services.manage',
       'cleanliness.manage',
-      'meetings.manage',
       'notifications.send',
       'integrations.manage',
     ]);
+    if (!isFolk) capabilities.add('meetings.manage');
   }
 
   if (role === 'SUPER_GUIDE') {
@@ -136,10 +137,10 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
       'attendance.manage',
       'services.manage',
       'cleanliness.manage',
-      'meetings.manage',
       'notifications.send',
       'integrations.manage',
     ]);
+    if (!isFolk) capabilities.add('meetings.manage');
   }
 
   if (role === 'GUIDE') {
@@ -152,18 +153,20 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
       'bv.manage',
       'bv.roles.assign',
       'attendance.manage',
-      'meetings.manage',
+      'notifications.send',
     ]);
   }
 
   if (dbUser.isBvAdmin === true) {
-    addCapabilities(capabilities, ['bv.manage', 'bv.roles.assign', 'attendance.manage', 'integrations.manage']);
+    addCapabilities(capabilities, ['bv.manage', 'bv.roles.assign', 'attendance.manage', 'notifications.send', 'integrations.manage']);
   }
   if (dbUser.isBvSupervisor === true || dbUser.isBvMentor === true) {
-    addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage', 'meetings.manage']);
+    addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage']);
+    if (!isFolk) capabilities.add('meetings.manage');
   }
   if (dbUser.isBvFacilitator === true || dbUser.isBvsl === true) {
-    addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage', 'meetings.manage']);
+    addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage']);
+    if (!isFolk) capabilities.add('meetings.manage');
   }
   // RGSFs (sub-facilitators) use the same scoped Sadhana/report APIs as
   // facilitators, but do not receive facilitator-only meeting permissions.
@@ -172,7 +175,8 @@ export function deriveApiCapabilities(dbUser: ApiDatabaseUser | null): ApiCapabi
     addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'bv.manage']);
   }
   if (dbUser.isSadhanaMentor === true) {
-    addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports', 'meetings.manage']);
+    addCapabilities(capabilities, ['users.assigned.read', 'sadhana.reports']);
+    if (!isFolk) capabilities.add('meetings.manage');
   }
   if (dbUser.isServiceAllocator === true) capabilities.add('services.manage');
   if (dbUser.isCleanlinessManager === true) capabilities.add('cleanliness.manage');

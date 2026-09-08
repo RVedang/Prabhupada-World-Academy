@@ -98,7 +98,7 @@ export default function BvSupervisorDashboard() {
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
     { value: 'sadhana', label: 'Sadhana', icon: FileText },
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
-    { value: 'meetings', label: 'Meetings & MoMs', icon: Video },
+    ...(!isFolk ? [{ value: 'meetings', label: 'Meetings & MoMs', icon: Video }] : []),
   ];
 
   return (
@@ -252,8 +252,8 @@ export default function BvSupervisorDashboard() {
                 <BvslOneToOneTab department={isFolk ? "FOLK" : "PW"} />
               )}
 
-              {activeTab === 'meetings' && (
-                <MeetingsAndMomTab department={isFolk ? "FOLK" : "PW"} />
+              {!isFolk && activeTab === 'meetings' && (
+                <MeetingsAndMomTab department="PW" />
               )}
             </>
           )}

@@ -30,6 +30,8 @@ test('CSV parser rejects malformed row widths and duplicate headers', () => {
 test('bulk capability follows active Guide and Super Guide roles only', () => {
   const active = { status: 'Active', segment: 'FOLK' };
   assert.ok(deriveApiCapabilities({ ...active, role: 'Guide' }).includes('users.bulk.manage'));
+  assert.ok(deriveApiCapabilities({ ...active, role: 'Guide' }).includes('notifications.send'));
+  assert.ok(!deriveApiCapabilities({ ...active, role: 'Guide' }).includes('meetings.manage'));
   assert.ok(deriveApiCapabilities({ ...active, role: 'Super Guide' }).includes('users.bulk.manage'));
   assert.ok(!deriveApiCapabilities({ ...active, role: 'User' }).includes('users.bulk.manage'));
   assert.ok(!deriveApiCapabilities({ status: 'Inactive', segment: 'FOLK', role: 'Guide' }).includes('users.bulk.manage'));

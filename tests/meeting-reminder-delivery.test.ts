@@ -101,6 +101,11 @@ test('server scheduler dispatches both 10-minute and 1-minute reminder windows',
         scheduledAt: new Date(now + 60_000).toISOString(),
         notification10mSent: true, notification1mSent: false,
       },
+      {
+        id: 'folk-meeting-due-in-one', status: 'SCHEDULED', segment: 'FOLK',
+        scheduledAt: new Date(now + 60_000).toISOString(),
+        notification10mSent: true, notification1mSent: false,
+      },
     ],
     hasMore: false,
   }));

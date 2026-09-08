@@ -44,9 +44,9 @@ export default createEndpoint({
     if (input.department && viewer.department && input.department !== viewer.department) {
       throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view minutes for another department' });
     }
+    if (department === 'FOLK') return { moms: [] };
 
     const { records: departmentMeetings } = await Meetings.findAll({
-      ...(department === 'FOLK' ? { filters: { segment: 'FOLK' } } : {}),
       limit: 1000,
     });
     const accessibleMeetings = departmentMeetings.filter((meeting: any) =>

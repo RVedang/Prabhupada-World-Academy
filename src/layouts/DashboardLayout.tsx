@@ -75,7 +75,7 @@ export default function DashboardLayout({
     (profile?.role as string) === 'ADMIN'
   );
   const resolvedMeetingDepartment = meetingDepartment || (isFolkUser ? 'FOLK' : 'PW');
-  useMeetingReminderScheduler(resolvedMeetingDepartment, canManageMeetings);
+  useMeetingReminderScheduler(resolvedMeetingDepartment, canManageMeetings && resolvedMeetingDepartment === 'PW');
 
   const effectiveRole = isSuperAdminUser ? 'SUPER_ADMIN' : (role || profile?.role);
   const showRoleBadge = !!(effectiveRole && ROLE_BADGE_LABELS[effectiveRole]);
