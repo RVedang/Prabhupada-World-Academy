@@ -71,25 +71,7 @@ export default createEndpoint({
       const activeType = input.type !== undefined ? input.type : (existing.type || 'OTHER');
       const activeAdditionalIds = input.additionalInviteeIds !== undefined ? input.additionalInviteeIds : (existing.inviteeUserIds || []);
 
-      let finalInviteeIds = new Set<string>(activeAdditionalIds);
-
-      // If Facilitators meeting, automatically fetch all active PW facilitators / BVSLs
-      if (activeType === 'FACILITATOR') {
-        const { records: allUsers } = await Users.findAll({ limit: 2000 });
-        const pwFacilitators = allUsers.filter((u: any) => {
-          const seg = (u.segment || '').toUpperCase();
-          const r = (u.role || '').toUpperCase();
-          return (seg === 'PW' || !seg) && (
-            u.isBvFacilitator ||
-            u.isBvsl ||
-            r === 'BVSL' ||
-            r === 'FACILITATOR'
-          );
-        });
-
-        pwFacilitators.forEach(f => finalInviteeIds.add(f.id));
-      }
-      const inviteeIdsArray = Array.from(finalInviteeIds);
+      const inviteeIdsArray = Array.from(new Set<string>(activeAdditionalIds));
 
       // Fetch details of all invitees
       let invitees: any[] = [];

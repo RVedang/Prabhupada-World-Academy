@@ -260,42 +260,11 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
         segment: activeSegment,
       });
 
-      // Native acceptance and in-app publication are separate results.
-      if (res.sent > 0) {
-        const notifWord = res.sent === 1 ? 'notification' : 'notifications';
-        const deviceWord = res.sent === 1 ? 'device' : 'devices';
+      const notificationCount = res.inAppRecipients > 0 ? res.inAppRecipients : res.sent;
+      if (notificationCount > 0) {
         toast.success(
-          <div className="flex flex-col text-[15px] sm:text-base leading-relaxed">
-            <span className="font-bold">🔔 Push broadcast sent!</span>
-            <div className="mt-2 font-semibold text-neutral-800 dark:text-neutral-200">
-              <div>{res.sent} web push {notifWord} accepted by the push service</div>
-              <div>to {res.sent} subscribed user {deviceWord}.</div>
-            </div>
-          </div>,
-          { duration: Infinity }
-        );
-      } else if (res.inAppRecipients > 0) {
-        toast.success(
-          <div className="flex items-start gap-3 py-1">
-            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-sm dark:bg-emerald-900/40 dark:text-emerald-300">
-              <BellRing className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-base font-bold leading-5">In-app reminder published</div>
-              <div className="mt-1 text-sm leading-5 opacity-90">
-                In-app notification sent to {res.inAppRecipients} {res.inAppRecipients === 1 ? 'member' : 'members'} who have not submitted.
-              </div>
-              <div className="mt-1 text-xs font-medium opacity-75">
-                {res.failed > 0
-                  ? `${res.failed} native push ${res.failed === 1 ? 'attempt' : 'attempts'} failed.`
-                  : 'No native push was sent because no enabled device subscription was available.'}
-              </div>
-            </div>
-          </div>,
-          {
-            duration: 10000,
-            className: '!min-w-[380px] !max-w-[520px] !rounded-2xl !p-4 !shadow-[0_12px_35px_-12px_rgba(16,185,129,0.35)]',
-          }
+          `${notificationCount} ${notificationCount === 1 ? 'message' : 'messages'} sent`,
+          { duration: 8000 }
         );
       } else if (stats.totalSubscriptions > 0) {
         toast.warning(

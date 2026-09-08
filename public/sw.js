@@ -98,9 +98,12 @@ function handleSwPushReceived(data) {
   var url = data.url || APP_URL;
 
   self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
-    var hasOpenApp = windowClients.length > 0;
+    var hasVisibleClient = false;
     for (var i = 0; i < windowClients.length; i++) {
       var client = windowClients[i];
+      if (client.focused || client.visibilityState === 'visible') {
+        hasVisibleClient = true;
+      }
       try {
         client.postMessage({
           type: 'PUSH_RECEIVED',
@@ -117,9 +120,9 @@ function handleSwPushReceived(data) {
       }
     }
 
-    // An open application receives an in-app reminder, including when its
-    // window is backgrounded. Native notifications are for a closed app.
-    if (!hasOpenApp && !swUserNotificationsDisabled) {
+    // Visible pages render the in-app reminder. Backgrounded or closed pages
+    // receive the browser's native notification.
+    if (!hasVisibleClient && !swUserNotificationsDisabled) {
       self.registration.showNotification(title, {
         body: body,
         icon: ICON_URL,
@@ -178,8 +181,11 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((windowClients) => {
-        const hasOpenApp = windowClients.length > 0;
+        let hasVisibleClient = false;
         for (const client of windowClients) {
+          if (client.focused || client.visibilityState === 'visible') {
+            hasVisibleClient = true;
+          }
           try {
             client.postMessage({
               type: 'PUSH_RECEIVED',
@@ -196,9 +202,9 @@ self.addEventListener('push', (event) => {
           }
         }
 
-        // An open application receives an in-app reminder. A native system
-        // notification is only needed when the application is not running.
-        if (!hasOpenApp) {
+        // Visible pages render the in-app reminder. Backgrounded or closed
+        // pages receive the browser's native notification.
+        if (!hasVisibleClient) {
           return self.registration.showNotification(titleToUse, {
             body: bodyToUse,
             icon: ICON_URL,

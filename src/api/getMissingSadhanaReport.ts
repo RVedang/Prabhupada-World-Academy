@@ -3,6 +3,7 @@ import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from '
 import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 import { getGuideScope } from '../lib/guideScope';
+import getGuides from './getGuides';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'status', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
 
@@ -106,34 +107,43 @@ export default createEndpoint({
       });
     }
 
-    // Only registered members (have userId + fullName). Guides, admins, and
-    // super admins are report administrators, not Sadhana-report participants.
-    const users = allUsers.filter(u =>
-      u.userId &&
-      (u.fullName || '').trim().length > 0 &&
-      // Sadhana monitoring applies to residents and scholars. Non-Resident
-      // registrations should not inflate the report or appear as missing.
-      (u.isScholar || ((u.residencyApproved || u.residencyGuideVerified) && u.residency)) &&
-      !isSadhanaExemptUser(u)
-    );
+    // The selector must not depend on whether members happen to exist for the
+    // chosen date range. Load the department's admins/guides independently.
+    const guideOptionsResult = await getGuides.execute({
+      input: { segment: input.segment || 'ALL' },
+      context,
+    });
+    const availableGuides = (guideOptionsResult.guides || []).map((g: any) => ({
+      id: g.guideId,
+      name: g.name,
+    }));
 
-    if (users.length === 0) {
-      return {
-        users: [],
-        dates: [],
-        matrix: {},
-        stats: { totalUsers: 0, totalDays: 0, totalMissing: 0, totalLate: 0, completionRate: 100 },
-        guides: [],
-      };
-    }
-
-    // 4. Generate dates array (inclusive)
+    // Generate the requested dates even when the member result is empty so the
+    // report still shows the correct range and number of days.
     const dates: string[] = [];
     const d = new Date(input.startDate + 'T00:00:00Z');
     const endD = new Date(input.endDate + 'T00:00:00Z');
     while (d <= endD) {
       dates.push(d.toISOString().split('T')[0]);
       d.setUTCDate(d.getUTCDate() + 1);
+    }
+
+    // Only registered members (have userId + fullName). Guides, admins, and
+    // super admins are report administrators, not Sadhana-report participants.
+    const users = allUsers.filter(u =>
+      u.userId &&
+      (u.fullName || '').trim().length > 0 &&
+      !isSadhanaExemptUser(u)
+    );
+
+    if (users.length === 0) {
+      return {
+        users: [],
+        dates,
+        matrix: {},
+        stats: { totalUsers: 0, totalDays: dates.length, totalMissing: 0, totalLate: 0, completionRate: 100 },
+        guides: availableGuides,
+      };
     }
 
     // 5. Fetch all sadhana entries in range (paginated) — include submittedAt for late detection
@@ -253,16 +263,18 @@ export default createEndpoint({
       ? Math.round(((totalFilled + totalLate) / totalCells) * 100)
       : 100;
 
-    // 10. Build guide list from users in scope
-    const seenGuideIds = new Set<string>();
-    const guidesInScope: { id: string; name: string }[] = [];
+    // 10. Keep every department admin/guide in the selector, then add any
+    // legacy guide reference found on a member that is not in the main list.
+    const guidesById = new Map<string, { id: string; name: string }>();
+    for (const guide of availableGuides) guidesById.set(String(guide.id).toLowerCase(), guide);
     for (const u of users) {
       const gid = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-      if (gid && !seenGuideIds.has(gid)) {
-        seenGuideIds.add(gid);
-        guidesInScope.push({ id: gid, name: guideLookup.get(String(gid).toLowerCase()) || 'Unknown' });
+      const key = String(gid || '').toLowerCase();
+      if (gid && !guidesById.has(key)) {
+        guidesById.set(key, { id: gid, name: guideLookup.get(key) || 'Unknown' });
       }
     }
+    const guidesInScope = Array.from(guidesById.values());
     guidesInScope.sort((a, b) => a.name.localeCompare(b.name));
 
     return {

@@ -43,28 +43,7 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'Only Admins and Super Admins can create meetings' });
     }
 
-    let finalInviteeIds = new Set<string>(input.additionalInviteeIds || []);
-
-    // If Facilitators meeting, automatically fetch all active PW facilitators / BVSLs
-    if (input.type === 'FACILITATOR') {
-      const facilitatorQueries = await Promise.all([
-        Users.findAll({ filters: { isBvFacilitator: true }, limit: 500 }),
-        Users.findAll({ filters: { isBvsl: true }, limit: 500 }),
-        Users.findAll({ filters: { role: 'BVSL' }, limit: 500 }),
-        Users.findAll({ filters: { role: 'FACILITATOR' }, limit: 500 }),
-      ]);
-      const candidates = Array.from(new Map(
-        facilitatorQueries.flatMap(result => result.records || []).map(user => [user.id, user])
-      ).values());
-      const pwFacilitators = candidates.filter((u: any) => {
-        const seg = (u.segment || '').toUpperCase();
-        return (seg === 'PW' || !seg) && String(u.status || 'Active').toUpperCase() === 'ACTIVE';
-      });
-
-      pwFacilitators.forEach(f => finalInviteeIds.add(f.id));
-    }
-
-    const inviteeIdsArray = Array.from(finalInviteeIds);
+    const inviteeIdsArray = Array.from(new Set<string>(input.additionalInviteeIds || []));
 
     // Fetch details of all invitees
     let invitees: any[] = [];

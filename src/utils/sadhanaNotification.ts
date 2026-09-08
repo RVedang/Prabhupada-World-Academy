@@ -280,22 +280,6 @@ export function triggerInAppOrNativeNotification(data: {
 
 // ── Global Service Worker Message Listener (Active as soon as client loads) ──
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  const PENDING_IN_APP_REMINDER_KEY = 'pending_in_app_reminder';
-
-  const showPendingInAppReminder = () => {
-    if (document.visibilityState !== 'visible') return;
-    const raw = sessionStorage.getItem(PENDING_IN_APP_REMINDER_KEY);
-    if (!raw) return;
-    sessionStorage.removeItem(PENDING_IN_APP_REMINDER_KEY);
-    try {
-      triggerInAppOrNativeNotification({ ...JSON.parse(raw), suppressNative: true });
-    } catch {
-      // A malformed cached notification must not prevent later reminders.
-    }
-  };
-
-  document.addEventListener('visibilitychange', showPendingInAppReminder);
-
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'GET_STATE') {
       navigator.serviceWorker.controller?.postMessage({
@@ -303,13 +287,12 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         submittedToday: hasSubmittedToday(),
       });
     } else if (event.data?.type === 'PUSH_RECEIVED') {
-      if (document.visibilityState === 'visible') {
-        triggerInAppOrNativeNotification({ ...event.data, suppressNative: true });
-      } else {
-        // Keep an open but backgrounded application in the in-app path. The
-        // reminder appears with its join action as soon as the user returns.
-        sessionStorage.setItem(PENDING_IN_APP_REMINDER_KEY, JSON.stringify(event.data));
-      }
+      // The service worker owns native delivery while the page is hidden so
+      // this listener cannot produce a duplicate notification.
+      triggerInAppOrNativeNotification({
+        ...event.data,
+        suppressNative: document.visibilityState !== 'visible',
+      });
     }
   });
 }

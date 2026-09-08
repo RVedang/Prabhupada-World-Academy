@@ -284,7 +284,7 @@ function MatrixView({ data, isPw }: { data: ReportData; isPw: boolean }) {
 
 // ─── List View ────────────────────────────────────────────────────────────────
 
-function ListView({ data }: { data: ReportData }) {
+function ListView({ data, isPw }: { data: ReportData; isPw: boolean }) {
   const { users, dates, matrix } = data;
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     const s = new Set<string>();
@@ -359,8 +359,8 @@ function ListView({ data }: { data: ReportData }) {
                                 <p className="text-xs font-medium truncate">{u.fullName}</p>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {u.guideName && <p className="text-[10px] text-muted-foreground truncate">{u.guideName}</p>}
-                                  {u.guideName && u.residencyType && <span className="text-[10px] text-muted-foreground">·</span>}
-                                  <StatusBadge type={u.residencyType} />
+                                  {!isPw && u.guideName && u.residencyType && <span className="text-[10px] text-muted-foreground">·</span>}
+                                  {!isPw && <StatusBadge type={u.residencyType} />}
                                 </div>
                               </div>
                             </div>
@@ -381,8 +381,8 @@ function ListView({ data }: { data: ReportData }) {
                                 <p className="text-xs font-medium truncate">{u.fullName}</p>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {u.guideName && <p className="text-[10px] text-muted-foreground truncate">{u.guideName}</p>}
-                                  {u.guideName && u.residencyType && <span className="text-[10px] text-muted-foreground">·</span>}
-                                  <StatusBadge type={u.residencyType} />
+                                  {!isPw && u.guideName && u.residencyType && <span className="text-[10px] text-muted-foreground">·</span>}
+                                  {!isPw && <StatusBadge type={u.residencyType} />}
                                 </div>
                               </div>
                             </div>
@@ -403,7 +403,7 @@ function ListView({ data }: { data: ReportData }) {
 
 // ─── Mobile Card View ─────────────────────────────────────────────────────────
 
-function MobileView({ data }: { data: ReportData }) {
+function MobileView({ data, isPw }: { data: ReportData; isPw: boolean }) {
   const { users, dates, matrix } = data;
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
 
@@ -450,8 +450,8 @@ function MobileView({ data }: { data: ReportData }) {
                   {u.guideName && <span className="truncate max-w-[80px]">{u.guideName}</span>}
                   {u.guideName && u.residencyName && <span>·</span>}
                   {u.residencyName && <span className="truncate max-w-[80px]">{u.residencyName.replace(/^FOLK\s+/i, '')}</span>}
-                  {(u.guideName || u.residencyName) && <span>·</span>}
-                  <StatusBadge type={u.residencyType} />
+                  {!isPw && (u.guideName || u.residencyName) && <span>·</span>}
+                  {!isPw && <StatusBadge type={u.residencyType} />}
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden flex">
@@ -663,7 +663,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
   };
 
   const showResidencyFilter = guideId === 'ALL' || residencies.length > 1;
-  const showGuideFilter = guideId === 'ALL' && data && data.guides.length > 1;
+  const showGuideFilter = guideId === 'ALL';
 
   return (
     <div className="space-y-5">
@@ -736,7 +736,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{isPw ? "All Admins / Mentors" : "All Guides"}</SelectItem>
-              {data!.guides.map((g: any) => (
+              {(data?.guides || []).map((g: any) => (
                   <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
               ))}
             </SelectContent>
@@ -838,9 +838,9 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
           ) : view === 'matrix' ? (
             <MatrixView data={filteredData} isPw={isPw} />
           ) : view === 'list' ? (
-            <ListView data={filteredData} />
+            <ListView data={filteredData} isPw={isPw} />
           ) : (
-            <MobileView data={filteredData} />
+            <MobileView data={filteredData} isPw={isPw} />
           )}
         </>
       )}
