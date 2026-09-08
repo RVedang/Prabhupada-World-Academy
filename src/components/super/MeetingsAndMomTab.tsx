@@ -1891,12 +1891,12 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     const activeM = selectedMeetingForMom || meetings.find(m => m.id === editingMom?.meeting_id);
                     const participants = activeM?.invitees || [];
                     const participantNames = participants.map((p: any) => p.fullName || p.name).filter(Boolean);
-                    
-                    const creatorName = activeM?.created_by_name || '';
-                    const allOptionsSet = new Set<string>();
-                    if (creatorName) allOptionsSet.add(creatorName);
-                    participantNames.forEach((n: string) => allOptionsSet.add(n));
-                    const proposedByOptions = Array.from(allOptionsSet);
+                    const proposedByOptions = Array.from(new Set(participantNames));
+                    const assigneeOptions = Array.from(new Set(
+                      registeredUsers
+                        .map((u: any) => u.fullName || u.name)
+                        .filter(Boolean)
+                    ));
 
                     return (
                       <>
@@ -1947,14 +1947,12 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                     />
                                   </td>
                                   <td className="p-1.5 align-top">
-                                    <input
-                                      type="text"
-                                      list="invitees-datalist"
+                                    <ProposedByDropdown
+                                      value={item.assignedToName || ''}
+                                      onChange={val => updateRowField(idx, 'assignedToName', val)}
                                       disabled={!canEditMom}
+                                      options={assigneeOptions}
                                       placeholder="Assignee"
-                                      value={item.assignedToName}
-                                      onChange={e => updateRowField(idx, 'assignedToName', e.target.value)}
-                                      className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
                                     />
                                   </td>
                                   <td className="p-1.5 align-top">
@@ -1998,11 +1996,6 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     );
                   })()}
 
-                  <datalist id="invitees-datalist">
-                    {registeredUsers.map((u: any) => (
-                      <option key={u.userId} value={u.fullName} />
-                    ))}
-                  </datalist>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

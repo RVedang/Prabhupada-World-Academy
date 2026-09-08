@@ -4,7 +4,7 @@ import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
 import { getGuideScope } from '../lib/guideScope';
 
-const USER_FIELDS = ['id', 'userId', 'fullName', 'status', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
+const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'status', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'residency', 'guide', 'isScholar', 'residencyClaimed', 'residencyApproved', 'residencyGuideVerified', 'residentSince'];
 
 // Guides and Super Guides oversee Sadhana; they are not expected to submit a
 // daily member report. Normalize legacy spacing/casing so the rule applies to
@@ -111,6 +111,9 @@ export default createEndpoint({
     const users = allUsers.filter(u =>
       u.userId &&
       (u.fullName || '').trim().length > 0 &&
+      // Sadhana monitoring applies to residents and scholars. Non-Resident
+      // registrations should not inflate the report or appear as missing.
+      (u.isScholar || ((u.residencyApproved || u.residencyGuideVerified) && u.residency)) &&
       !isSadhanaExemptUser(u)
     );
 
@@ -193,13 +196,31 @@ export default createEndpoint({
       limit: 500,
     });
     const guideLookup = new Map<string, string>();
-    for (const g of allGuides) {
-      if (g.id) {
-        guideLookup.set(g.id.toLowerCase(), g.fullName || g.id);
-        if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.fullName);
-        if (g.abbreviation) guideLookup.set(g.abbreviation.toLowerCase(), g.fullName);
-        if (g.email) guideLookup.set(g.email.toLowerCase(), g.fullName);
+    const addGuideLookup = (record: any) => {
+      const name = String(record.fullName || record.name || '').trim();
+      if (!name) return;
+      for (const ref of [record.id, record.userId, record.guideId, record.email]) {
+        if (ref) guideLookup.set(String(ref).toLowerCase(), name);
       }
+    };
+    for (const g of allGuides) {
+      addGuideLookup(g);
+      if (g.fullName) guideLookup.set(g.fullName.toLowerCase(), g.fullName);
+      if (g.abbreviation && g.fullName) guideLookup.set(g.abbreviation.toLowerCase(), g.fullName);
+    }
+    // Some legacy user records store the guide reference as a Users id/userId
+    // (for example USER-206) rather than the Guides document id. Resolve those
+    // references too so the report never exposes an internal code as a name.
+    const { records: guideUsers } = await Users.findAll({
+      filters: { status: 'Active' },
+      fields: ['id', 'userId', 'fullName', 'email', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
+      limit: 2000,
+    });
+    for (const user of guideUsers) {
+      // Legacy guide references may point to a Users record whose current
+      // role flag is absent or no longer normalized. The reference itself is
+      // authoritative here, so index every active user's stable identifiers.
+      addGuideLookup(user);
     }
 
     // 9. Sort users alphabetically and build matrix

@@ -632,16 +632,23 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
 
   const handleExport = () => {
     if (!filteredData || filteredData.users.length === 0) return;
-    const headers = ['Name', 'Guide', 'Center', 'Status', ...filteredData.dates.map(d => format(new Date(d + 'T00:00:00'), 'MMM d')), 'Days Missed', 'Days Late', 'Days Filled'];
+    const headers = [
+      'Name',
+      'Guide',
+      ...(isPw ? [] : ['Center', 'Status']),
+      ...filteredData.dates.map(d => format(new Date(d + 'T00:00:00'), 'MMM d')),
+      'Days Missed',
+      'Days Late',
+      'Days Filled',
+    ];
     const rows = filteredData.users.map(u => {
       const userDates = filteredData.matrix[u.id] || {};
       const missedCount = filteredData.dates.filter(d => userDates[d] === 'missed').length;
       const lateCount = filteredData.dates.filter(d => userDates[d] === 'late').length;
       return [
         u.fullName,
-        u.guideName,
-        u.residencyName,
-        u.residencyType,
+        u.guideName || '—',
+        ...(isPw ? [] : [u.residencyName, u.residencyType]),
         ...filteredData.dates.map(d => {
           const s = userDates[d] || 'missed';
           return s === 'filled' ? '✓' : s === 'late' ? 'L' : '✗';
@@ -729,15 +736,9 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{isPw ? "All Admins / Mentors" : "All Guides"}</SelectItem>
-              {data!.guides
-                .filter((g: any) =>
-                  isPw
-                    ? (g.isPrabhupadaWorldMentor || g.email?.includes('prabhupada') || g.email?.includes('hkmmumbai') || g.email?.includes('hrvd'))
-                    : (!g.isPrabhupadaWorldMentor && !g.email?.includes('prabhupada') && !g.email?.toLowerCase().includes('pw') && !g.name?.includes('Prabhupada World') && !g.name?.includes('PW System'))
-                )
-                .map((g: any) => (
+              {data!.guides.map((g: any) => (
                   <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                ))}
+              ))}
             </SelectContent>
           </Select>
         )}

@@ -283,10 +283,12 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
             <div className="min-w-0 flex-1">
               <div className="text-base font-bold leading-5">In-app reminder published</div>
               <div className="mt-1 text-sm leading-5 opacity-90">
-                Sent to {res.inAppRecipients} {res.inAppRecipients === 1 ? 'member' : 'members'} who have not submitted.
+                In-app notification sent to {res.inAppRecipients} {res.inAppRecipients === 1 ? 'member' : 'members'} who have not submitted.
               </div>
               <div className="mt-1 text-xs font-medium opacity-75">
-                {res.failed > 0 ? `${res.failed} native push attempts failed.` : 'Native push requires an enabled device.'}
+                {res.failed > 0
+                  ? `${res.failed} native push ${res.failed === 1 ? 'attempt' : 'attempts'} failed.`
+                  : 'No native push was sent because no enabled device subscription was available.'}
               </div>
             </div>
           </div>,

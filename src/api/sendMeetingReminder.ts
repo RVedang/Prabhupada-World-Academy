@@ -165,21 +165,32 @@ async function sendPush(
 
 export default createEndpoint({
   description: 'Send meeting reminder notifications to invitees',
-  authenticated: true,
-  requiredCapabilities: 'meetings.manage',
+  public: true,
   inputSchema: z.object({
     meetingId: z.string().min(1),
     reminderType: z.enum(['TEN_MINUTES', 'ONE_MINUTE']).optional().default('TEN_MINUTES'),
+    // Used only by the server scheduler. Interactive sends still require the
+    // caller to hold the meetings.manage capability.
+    cronSecret: z.string().min(16).max(256).optional(),
   }),
   outputSchema: z.object({
     success: z.boolean(),
     sent: z.number(),
     failed: z.number(),
     skipped: z.number(),
+    inAppRecipients: z.number(),
     message: z.string(),
   }),
   execute: async ({ input, context }: { input: any; context: any }) => {
-    if (!context.user) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
+    const validCronSecrets = [process.env.APP_CRON_SECRET, process.env.ZITE_CRON_SECRET].filter(Boolean);
+    const isCron = !!input.cronSecret && validCronSecrets.includes(input.cronSecret);
+    const canManageMeetings = !!(
+      context?.user?.isActive &&
+      (context.user.capabilities?.includes('*') || context.user.capabilities?.includes('meetings.manage'))
+    );
+    if (!isCron && !canManageMeetings) {
+      throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized to send meeting reminders' });
+    }
 
     // Load meeting details
     const meeting = await Meetings.findOne({ id: input.meetingId });
@@ -190,17 +201,17 @@ export default createEndpoint({
     // Check if the reminder is already sent to avoid duplicate processing
     if (input.reminderType === 'ONE_MINUTE') {
       if (meeting.notification1mSent) {
-        return { success: true, sent: 0, failed: 0, skipped: 0, message: '1-minute reminder already sent.' };
+        return { success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message: '1-minute reminder already sent.' };
       }
     } else {
       if (meeting.notification10mSent) {
-        return { success: true, sent: 0, failed: 0, skipped: 0, message: '10-minute reminder already sent.' };
+        return { success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message: '10-minute reminder already sent.' };
       }
     }
 
     const inviteeIds = meeting.inviteeUserIds || [];
     if (inviteeIds.length === 0) {
-      return { success: true, sent: 0, failed: 0, skipped: 0, message: 'No invitees to notify.' };
+      return { success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message: 'No invitees to notify.' };
     }
 
     // Get all subscriptions
@@ -294,12 +305,15 @@ export default createEndpoint({
       skipped = inviteeIds.length;
     }
 
-    // Write to broadcast file for long-polling tabs (participant-only)
+    // Publish the in-app broadcast for every invitee, independently of
+    // whether they have opted in to device notifications.
+    let inAppRecipients = 0;
     try {
       const inviteeEmails = (meeting.invitees || [])
         .map((inv: any) => (inv.email || '').toLowerCase())
         .filter(Boolean);
       await storeBroadcast(title, body, 'meeting', undefined, broadcastId, inviteeIds, targetUrl, inviteeEmails);
+      inAppRecipients = inviteeIds.length;
     } catch (e) {
       console.warn('[Meeting Notification] Store broadcast failed:', e);
     }
@@ -327,7 +341,8 @@ export default createEndpoint({
       sent,
       failed,
       skipped,
-      message: `Meeting notification successfully dispatched to ${sent} active devices!`,
+      inAppRecipients,
+      message: `Meeting reminder published for ${inAppRecipients} invitee${inAppRecipients === 1 ? '' : 's'} and dispatched to ${sent} active device${sent === 1 ? '' : 's'}.`,
     };
   },
 });
