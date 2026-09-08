@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { CalendarCheck, Users, TrendingUp, RefreshCw, FileDown, Image, MessageCircle } from 'lucide-react';
+import { CalendarCheck, Users, TrendingUp, RefreshCw, FileDown, Image } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBvSessionReport } from '@/lib/endpoints-sdk';
 import type { GetBvSessionReportOutputType } from '@/lib/endpoints-sdk';
@@ -53,12 +53,6 @@ export default function BvSessionReportTab({ guideId }: Props) {
     exportToCsv(`bv-sessions-${startDate}-${endDate}.csv`, headers, rows);
   };
 
-  const handleWhatsAppReminder = () => {
-    if (!sessions.length) return;
-    const groupNames = [...new Set(sessions.map(s => s.groupName))];
-    const msg = `🙏 Hare Krishna!\n\nBV Session Report (${startDate} to ${endDate}):\n• ${sessions.length} sessions conducted\n• Groups: ${groupNames.join(', ')}\n• Avg Attendance: ${sessions.length > 0 ? Math.round(sessions.reduce((s, r) => s + r.attendancePercent, 0) / sessions.length) : 0}%`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-  };
   const groups = useMemo(() => data?.groups || [], [data]);
 
   const summary = useMemo(() => {
@@ -85,9 +79,6 @@ export default function BvSessionReportTab({ guideId }: Props) {
             <div className="flex gap-2 items-center flex-wrap">
               <Button size="sm" variant="outline" className="h-8" onClick={handleExportCsv} disabled={!data || loading}>
                 <FileDown className="w-3 h-3 mr-1" />Export CSV
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 border-green-600 text-green-700 hover:bg-green-600 hover:text-white" onClick={handleWhatsAppReminder} disabled={!data || loading}>
-                <MessageCircle className="w-3 h-3 mr-1" />WhatsApp Group Reminder
               </Button>
             </div>
           </div>

@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileDown, Users, Clock, Package, Phone, UserCheck, Search, RefreshCw, MessageCircle, Image } from 'lucide-react';
+import { FileDown, Users, Clock, Package, Phone, UserCheck, Search, RefreshCw, Image } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBvPreachingReport } from '@/lib/endpoints-sdk';
 import type { GetBvPreachingReportOutputType } from '@/lib/endpoints-sdk';
@@ -197,14 +197,6 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
     }, 50);
   };
 
-  const handleWhatsAppReminder = () => {
-    if (!data) return;
-    const missing = filteredBvsls.filter(r => !r.submitted);
-    if (missing.length === 0) { toast.success('All Facilitators have submitted! 🎉'); return; }
-    const names = missing.map(r => r.fullName).join(', ');
-    toast.info(`Missing submissions: ${names}`);
-  };
-
   return (
     <div className="space-y-4">
       {/* Header card with filters */}
@@ -227,9 +219,6 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
               </Button>
               <Button size="sm" variant="outline" className="h-8" onClick={handleExportImage} disabled={!data || loading}>
                 <Image className="w-3 h-3 mr-1" />Image
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 border-green-600 text-green-700 hover:bg-green-600 hover:text-white" onClick={handleWhatsAppReminder} disabled={!data || loading}>
-                <MessageCircle className="w-3 h-3 mr-1" />Remind
               </Button>
             </div>
           </div>

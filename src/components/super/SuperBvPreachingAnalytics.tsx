@@ -288,7 +288,7 @@ export default function SuperBvPreachingAnalytics() {
                     <td colSpan={COL_COUNT} className="px-3 py-1 text-[10px] text-muted-foreground italic bg-muted/20 border-b border-border">
                       {viewMode === 'totals'
                         ? 'Showing combined totals from all submitted RGFs.'
-                        : 'Showing each total divided by the number of RGFs who submitted. With one submitted RGF, the total and average are the same.'}
+                        : 'Showing each total divided by the number of RGFs who submitted.'}
                       {' '}Click an Admin row to view individual RGFs.
                     </td>
                   </tr>

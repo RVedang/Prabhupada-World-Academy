@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileDown, Users, Clock, Package, Phone, UserCheck, Search, RefreshCw, MessageCircle } from 'lucide-react';
+import { FileDown, Users, Clock, Package, Phone, UserCheck, Search, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBvPreachingReport } from '@/lib/endpoints-sdk';
 import type { GetBvPreachingReportOutputType } from '@/lib/endpoints-sdk';
@@ -140,15 +140,6 @@ export default function BvPreachingReportTab({ guideId }: Props) {
     exportToCsv(`bv-preaching-report-${selectedDate}.csv`, headers, rows);
   };
 
-  const handleWhatsAppReminder = () => {
-    if (!data) return;
-    const missing = filteredBvsls.filter(r => !r.submitted);
-    if (missing.length === 0) { toast.success('All RGFs have submitted! 🎉'); return; }
-    const names = missing.map(r => `• ${r.fullName}`).join('\n');
-    const msg = `🙏 Hare Krishna!\n\nKindly submit your Bhakti Vriksha report.\n${window.location.origin}\n\nStill pending (${missing.length}):\n${names}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -165,9 +156,6 @@ export default function BvPreachingReportTab({ guideId }: Props) {
             <div className="flex gap-2 items-center flex-wrap">
               <Button size="sm" variant="outline" className="h-8" onClick={handleExportCsv} disabled={!data || loading}>
                 <FileDown className="w-3 h-3 mr-1" />CSV
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 border-green-600 text-green-700 hover:bg-green-600 hover:text-white" onClick={handleWhatsAppReminder} disabled={!data || loading}>
-                <MessageCircle className="w-3 h-3 mr-1" />WhatsApp Reminder
               </Button>
             </div>
           </div>

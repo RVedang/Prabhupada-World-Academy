@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Users, Calendar, CheckSquare, Brain, FileDown, MessageCircle } from 'lucide-react';
+import { RefreshCw, Users, Calendar, CheckSquare, Brain, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBvSessionMatrix } from '@/lib/endpoints-sdk';
 import type { GetBvSessionMatrixOutputType } from '@/lib/endpoints-sdk';
@@ -292,20 +292,6 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
     exportToCsv(`bv-report-${start}-${end}.csv`, headers, rows);
   };
 
-  const handleWhatsAppReminder = () => {
-    if (!data || filteredMembers.length === 0) return;
-    const absent = filteredMembers.filter(m => {
-      const att = (data.attendance as Record<string, Record<string, boolean>>)[m.userId] || {};
-      let possible = 0; let present = 0;
-      for (const d of data.sessionDates) { if (att[d] !== undefined) { possible++; if (att[d]) present++; } }
-      return possible > 0 && (present / possible) < 0.5;
-    });
-    if (absent.length === 0) { toast.success('All members have good attendance! 🎉'); return; }
-    const names = absent.slice(0, 20).map(m => `• ${m.fullName}`).join('\n');
-    const msg = `🙏 Hare Krishna!\n\nBV Report (${dateLabel}):\nThe following members have low attendance:\n${names}${absent.length > 20 ? `\n...and ${absent.length - 20} more` : ''}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -331,9 +317,6 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
                   <FileDown className="w-3 h-3 mr-1" />Export Image
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="h-8 border-green-600 text-green-700 hover:bg-green-600 hover:text-white" onClick={handleWhatsAppReminder} disabled={!data || loading}>
-                <MessageCircle className="w-3 h-3 mr-1" />WhatsApp Group Reminder
-              </Button>
             </div>
           </div>
         </CardHeader>
