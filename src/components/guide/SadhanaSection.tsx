@@ -17,6 +17,7 @@ interface SadhanaSectionProps {
   senderName?: string;
   bvslMode?: boolean;
   mentorMode?: boolean;
+  facilitatorMode?: boolean;
   groupOptions?: SadhanaGroupOption[];
 }
 
@@ -39,7 +40,7 @@ function readStoredSubTab(): SubTab {
   return 'report';
 }
 
-export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMode, groupOptions = [] }: SadhanaSectionProps) {
+export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMode, facilitatorMode, groupOptions = [] }: SadhanaSectionProps) {
   const [subTab, setSubTab] = useState<SubTab>(readStoredSubTab);
   const [visited, setVisited] = useState<Set<SubTab>>(() => new Set([readStoredSubTab()]));
 
@@ -93,17 +94,18 @@ export default function SadhanaSection({ guideId, senderName, bvslMode, mentorMo
           senderName={senderName}
           bvslMode={bvslMode}
           mentorMode={mentorMode}
+          facilitatorMode={facilitatorMode}
           groupOptions={groupOptions}
         /></div>
       )}
       {visited.has('stats') && (
-        <div className={subTab === 'stats' ? 'block' : 'hidden'}><StatsOverviewPanel guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} groupOptions={groupOptions} /></div>
+        <div className={subTab === 'stats' ? 'block' : 'hidden'}><StatsOverviewPanel guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} facilitatorMode={facilitatorMode} groupOptions={groupOptions} /></div>
       )}
       {visited.has('improvement') && (
-        <div className={subTab === 'improvement' ? 'block' : 'hidden'}><ImprovementTab guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} /></div>
+        <div className={subTab === 'improvement' ? 'block' : 'hidden'}><ImprovementTab guideId={guideId} bvslMode={bvslMode} mentorMode={mentorMode} facilitatorMode={facilitatorMode} /></div>
       )}
       {visited.has('leaderboard') && (
-        <div className={subTab === 'leaderboard' ? 'block' : 'hidden'}><GuideLeaderboardTab guideId={guideId} bvslMode={bvslMode} groupOptions={groupOptions} /></div>
+        <div className={subTab === 'leaderboard' ? 'block' : 'hidden'}><GuideLeaderboardTab guideId={guideId} bvslMode={bvslMode} facilitatorMode={facilitatorMode} groupOptions={groupOptions} /></div>
       )}
       </Suspense>
     </div>

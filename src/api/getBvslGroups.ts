@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, BvGroupRequests, Guides, Users } from '@/lib/backend-sdk';
+import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, BvGroupRequests, Guides, Users, AppError } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
+import { isBvSuperAdminUser } from '../lib/bvGroupMemberScope';
 
 const groupSchema = z.object({
   id: z.string(),
@@ -31,7 +32,7 @@ export default createEndpoint({
     pendingRequestCount: z.number(),
     error: z.string().nullable(),
   }),
-  execute: async ({ input }: any) => {
+  execute: async ({ input, context }: any) => {
     let groupRecords: any[] = [];
     let defaultBvslName = 'Reading Group Facilitator';
     const isRgsfRequest = input.viewRole === 'RGSF';
@@ -39,6 +40,9 @@ export default createEndpoint({
     let rgsfParentKeys = new Set<string>();
 
     if (input.bvslId === 'ALL' || !input.bvslId) {
+      if (!isBvSuperAdminUser(context?.user)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Viewing all BV groups requires super admin access' });
+      }
       const { records } = await BvGroups.findAll({ limit: 500 });
       groupRecords = records;
     } else {

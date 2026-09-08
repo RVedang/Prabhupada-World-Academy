@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, Guides } from '@/lib/backend-sdk';
 import { serverCacheGetOrFetch, serverCacheInvalidate } from '../lib/serverCache';
+import { isBvSuperAdminUser } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'Get all BV groups and BVSLs under a guide (admin view — for Guide/Super Guide)',
@@ -34,12 +35,18 @@ export default createEndpoint({
     })),
     error: z.string().nullable(),
   }),
-  execute: async ({ input }: { input: { guideId: string } }) => {
-    if (!input.guideId) return { bvsls: [], groups: [], error: null };
+  execute: async ({ input, context }: { input: { guideId: string }; context: any }) => {
+    // A normal admin is always scoped to their own hierarchy, even if a
+    // different guide ID is supplied by a modified client. Super admins may
+    // intentionally select another guide or department-wide view.
+    const effectiveGuideId = isBvSuperAdminUser(context?.user)
+      ? input.guideId
+      : String(context?.user?.id || '');
+    if (!effectiveGuideId) return { bvsls: [], groups: [], error: null };
     // 10-minute server-side cache keyed by guideId — invalidated on group/role mutations
     // (assignBvRole already calls serverCacheInvalidate() for a full cache clear).
-    const cacheKey = `allBvGroupsAdmin:${input.guideId}`;
-    return serverCacheGetOrFetch(cacheKey, () => _fetchAllBvGroupsAdmin(input.guideId), 10 * 60 * 1000);
+    const cacheKey = `allBvGroupsAdmin:${effectiveGuideId}`;
+    return serverCacheGetOrFetch(cacheKey, () => _fetchAllBvGroupsAdmin(effectiveGuideId), 10 * 60 * 1000);
   },
 });
 

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileDown, Image, Users, Headphones, BookOpen, Music2, TrendingUp, Search, Package, MessageCircle, Moon, Clock, RefreshCw, Zap, GraduationCap } from 'lucide-react';
+import { FileDown, Image, Users, Headphones, BookOpen, Music2, TrendingUp, Search, Package, Moon, Clock, RefreshCw, Zap, GraduationCap } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getGuideDetailedReport, GetGuideDetailedReportOutputType, recalculateScoresForDate } from '@/lib/endpoints-sdk';
@@ -38,6 +38,7 @@ interface ReportsTabProps {
   senderName?: string;
   bvslMode?: boolean;
   mentorMode?: boolean;
+  facilitatorMode?: boolean;
   isSuperAdminOverride?: boolean;
   segment?: 'PW' | 'FOLK';
   groupOptions?: SadhanaGroupOption[];
@@ -215,7 +216,7 @@ function computeSummary(users: ReportUser[], isScholarView = false) {
   };
 }
 
-export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode, isSuperAdminOverride, groupOptions = [] }: ReportsTabProps) {
+export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorMode, facilitatorMode, isSuperAdminOverride, groupOptions = [] }: ReportsTabProps) {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const isPw = isPwSadhanaUser(profile);
@@ -280,7 +281,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
 
   const fetchReport = useCallback(async (params: {
     guideId: string; date: string; reportType: ReportType;
-    computedStart?: string; computedEnd?: string; bvslMode?: boolean; mentorMode?: boolean; groupId?: string;
+    computedStart?: string; computedEnd?: string; bvslMode?: boolean; mentorMode?: boolean; facilitatorMode?: boolean; groupId?: string;
   }) => {
     // Assign a unique sequence number to this request
     const seq = ++fetchSeqRef.current;
@@ -294,6 +295,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
         endDate: params.computedEnd,
         bvslMode: params.bvslMode,
         mentorMode: params.mentorMode,
+        facilitatorMode: params.facilitatorMode,
         groupId: params.groupId,
         segment: isPw ? 'PW' : 'FOLK',
       });
@@ -326,9 +328,10 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
       computedEnd,
       bvslMode,
       mentorMode,
+      facilitatorMode,
       groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
     });
-  }, [debouncedFetch, guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, isPw, selectedGroupId]);
+  }, [debouncedFetch, guideId, reportType, selectedDate, computedStart, computedEnd, bvslMode, mentorMode, facilitatorMode, isPw, selectedGroupId]);
   useRealtimeRefresh(['sadhana', 'users', 'groups'], () => fetchReport({
     guideId,
     date: selectedDate,
@@ -337,6 +340,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     computedEnd,
     bvslMode,
     mentorMode,
+    facilitatorMode,
     groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
   }));
 
@@ -620,28 +624,6 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
     }
   };
 
-  const handleWhatsAppGroupReminder = () => {
-    if (!rawReportData) return;
-    const missing = clientFilteredUsers.filter(u => !u.submitted && !(u as any).isTempResident);
-    if (missing.length === 0) { toast.success('Everyone has submitted! 🎉'); return; }
-    let dateStr = '';
-    if (reportType === 'daily') {
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-      const fullDate = format(new Date(selectedDate + 'T00:00:00'), 'EEEE, d MMM yyyy');
-      if (selectedDate === todayStr) dateStr = `Today, ${fullDate}`;
-      else if (selectedDate === yesterdayStr) dateStr = `Yesterday, ${fullDate}`;
-      else dateStr = fullDate;
-    } else if (reportType === 'weekly' && computedStart) {
-      dateStr = `${format(new Date(computedStart + 'T00:00:00'), 'd MMM')} – ${format(new Date((computedEnd ?? computedStart) + 'T00:00:00'), 'd MMM yyyy')}`;
-    } else if (reportType === 'monthly') {
-      dateStr = format(new Date(selectedMonth + '-01'), 'MMMM yyyy');
-    }
-    const names = missing.map(u => `• ${u.fullName}`).join('\n');
-    const msg = `Hare Krishna!\n\nKindly submit your Sadhana form for *${dateStr}*.\n${window.location.origin}\n\nStill pending (${missing.length}):\n${names}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
   const handleSyncScores = async () => {
     const start = computedStart ?? selectedDate;
     const end = computedEnd ?? selectedDate;
@@ -663,6 +645,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
           computedEnd,
           bvslMode,
           mentorMode,
+          facilitatorMode,
           groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
         });
       } else {
@@ -779,6 +762,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                     computedEnd,
                     bvslMode,
                     mentorMode,
+                    facilitatorMode,
                     groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
                   })}
                   disabled={loading}
@@ -800,9 +784,6 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                 </Button>
                 <Button size="sm" variant="outline" className="h-8 border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white disabled:opacity-50" onClick={handleSyncScores} disabled={!rawReportData || loading || syncing} title="Re-sync scores from submittedAt timestamps (use after manually editing submittedAt in the database)">
                   <Zap className={`w-3 h-3 mr-1 ${syncing ? 'animate-pulse' : ''}`} />{syncing ? 'Syncing…' : 'Sync Scores'}
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 border-green-600 text-green-700 hover:bg-green-600 hover:text-white active:bg-green-700 active:text-white focus-visible:ring-green-500" onClick={handleWhatsAppGroupReminder} disabled={!rawReportData || loading}>
-                  <MessageCircle className="w-3 h-3 mr-1" />WhatsApp Group Reminder
                 </Button>
               </div>
             </div>
@@ -948,7 +929,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
               )}
 
               {/* Guide filter — shown whenever guide data is available and user is Super Admin */}
-              {isSuperAdmin && !bvslMode && !mentorMode && availableGuides.length > 0 && (
+              {isSuperAdmin && !bvslMode && !mentorMode && !facilitatorMode && availableGuides.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <Label className="text-sm font-medium whitespace-nowrap">Guide:</Label>
                   <Select value={guideFilter || 'all'} onValueChange={(v: string | null) => setGuideFilter(v === 'all' || !v ? 'all' : v)}>

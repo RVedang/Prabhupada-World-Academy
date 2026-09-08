@@ -4,6 +4,7 @@ import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
 import { bvUserAliases, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 import { requireGuideRole } from '../lib/userUtils';
+import { resolveBvAdminFacilitators } from '../lib/bvAdminFacilitatorScope';
 
 const ENTRY_FIELDS = ['id', 'user', 'entryDate', 'totalScore', 'scorePercent', 'maxScore', 'flagSick', 'flagOs', 'submittedAt'];
 const STREAK_ENTRY_FIELDS = ['id', 'user', 'entryDate', 'scorePercent'];
@@ -38,6 +39,7 @@ export default createEndpoint({
     guideId: z.string().optional(),
     scope: z.enum(['residency', 'guide', 'global']).optional(),
     bvslMode: z.boolean().optional(),
+    facilitatorMode: z.boolean().optional(),
     groupId: z.string().optional(),
     date: z.string().optional(),
     startDate: z.string().optional(),
@@ -164,6 +166,8 @@ export default createEndpoint({
         segment: String(context.user.segment || '').toUpperCase() === 'FOLK' ? 'FOLK' : 'PW',
         excludeCaller: true,
       });
+    } else if (input.facilitatorMode) {
+      allUsers = await resolveBvAdminFacilitators(context.user, input.guideId, USER_FIELDS, input.segment);
     }
     if (!input.bvslMode && input.segment) {
       allUsers = allUsers.filter(user => {

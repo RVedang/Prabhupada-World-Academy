@@ -3,6 +3,7 @@ import { createEndpoint, Users, FolkResidencies, SadhanaEntries } from '@/lib/ba
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideScope } from '../lib/guideScope';
 import { bvUserAliases, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+import { resolveBvAdminFacilitators } from '../lib/bvAdminFacilitatorScope';
 
 const MEMBER_USER_FIELDS = ['id', 'userId', 'email', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 
@@ -69,7 +70,10 @@ export default createEndpoint({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     bvslMode: z.boolean().optional(),
+    facilitatorMode: z.boolean().optional(),
+    guideId: z.string().optional(),
     groupId: z.string().optional(),
+    segment: z.enum(['PW', 'FOLK']).optional(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: { input: any; context: any }) => {
@@ -121,18 +125,20 @@ export default createEndpoint({
           segment: 'FOLK',
           excludeCaller: true,
         })
-      : allUsers;
+      : input.facilitatorMode
+        ? await resolveBvAdminFacilitators(context.user, input.guideId, MEMBER_USER_FIELDS, input.segment)
+        : allUsers;
     const residents = scopedUsers.filter(u => {
       const resId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
       const isApprovedRes = u.residencyApproved && resId && !u.temporaryResidencyEnabled;
       if (!isApprovedRes) return false;
-      if (!input.bvslMode && !isSuperGuide) {
+      if (!input.bvslMode && !input.facilitatorMode && !isSuperGuide) {
         return guideRids.includes(resId);
       }
       return true;
     });
 
-    const scopedTitle = input.bvslMode ? 'Assigned Groups' : isSuperGuide ? 'All Residencies' : 'My Residency';
+    const scopedTitle = input.facilitatorMode ? 'Facilitators' : input.bvslMode ? 'Assigned Groups' : isSuperGuide ? 'All Residencies' : 'My Residency';
     if (residents.length === 0) return { folkRows: [], fieldDefs: RESIDENT_FIELD_DEFS, title: scopedTitle };
 
     const residentAliasToId = new Map<string, string>();

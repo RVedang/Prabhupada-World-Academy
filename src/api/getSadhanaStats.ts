@@ -3,6 +3,7 @@ import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries } from '
 import { getGuideScope } from '../lib/guideScope';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
 import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+import { resolveBvAdminFacilitators } from '../lib/bvAdminFacilitatorScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'displayName', 'name', 'email', 'segment', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'sadhanaMentor', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
@@ -54,6 +55,7 @@ export default createEndpoint({
     endDate: z.string(),
     bvslMode: z.boolean().optional(),
     mentorMode: z.boolean().optional(),
+    facilitatorMode: z.boolean().optional(),
     groupId: z.string().optional(),
     residencyFilter: z.enum(['all', 'resident', 'non_resident', 'scholar']).optional(),
     folkResidencyId: z.string().optional(),
@@ -72,7 +74,7 @@ export default createEndpoint({
       isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
     });
 
-    const { guideId, startDate, endDate, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayLevel } = input;
+    const { guideId, startDate, endDate, bvslMode, mentorMode, facilitatorMode, residencyFilter, folkResidencyId, ashrayLevel } = input;
 
     const normalizedSegment = String(context.user.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
     const isPwMentor = !!mentorMode && (input.segment === 'PW' || normalizedSegment === 'PW' || normalizedSegment === 'PRABHUPADAWORLD');
@@ -96,7 +98,9 @@ export default createEndpoint({
 
     let guideResidencyIds: string[] = [];
     let users: any[] = [];
-    if (isPwMentor) {
+    if (facilitatorMode) {
+      users = await resolveBvAdminFacilitators(context.user, guideId, USER_FIELDS, input.segment);
+    } else if (isPwMentor) {
       // A PW Sadhana Mentor sees only members explicitly assigned through
       // sadhanaMentor, never every member under the mentor's linked admin.
       const { records } = await Users.findAll({ filters: { status: 'Active' }, fields: USER_FIELDS, limit: 2000 });
@@ -117,7 +121,7 @@ export default createEndpoint({
       }
     }
 
-    if (!isPwMentor && guideDbId) {
+    if (!facilitatorMode && !isPwMentor && guideDbId) {
       const promises = [
         Users.findAll({ filters: { guide: guideDbId, status: 'Active' }, fields: USER_FIELDS, limit: 2000 }),
         ...guideResidencyIds.map(rid => Users.findAll({ filters: { residency: rid, status: 'Active' }, fields: USER_FIELDS, limit: 500 })),
@@ -139,7 +143,7 @@ export default createEndpoint({
         }
       }
       users = Array.from(map.values());
-    } else if (!isPwMentor) {
+    } else if (!facilitatorMode && !isPwMentor) {
       // ALL mode — fetch all active users, scoped by segment if provided
       const allUsersFilter: any = { status: 'Active' };
       if (input.segment) allUsersFilter.segment = input.segment;

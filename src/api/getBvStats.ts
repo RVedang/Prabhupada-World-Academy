@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, AppError, Users, Guides, BvslPreachingEntries, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
-import { bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentFacilitatorUsers, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, isBvDepartmentAdmin, isBvSuperAdminUser, resolveBvDepartmentFacilitatorUsers, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
 
@@ -50,13 +50,19 @@ async function _fetchBvStats({ input, context }: { input: any; context: any }) {
     const isSupervisorMode = !!bvslMode && !!(context.user.isBvSupervisor || context.user.isBvMentor);
     const isMemberMode = !!bvslMode && !isSupervisorMode;
     if (guideId === 'ALL' && segment) {
-      if (!isBvDepartmentAdmin(context.user as any)) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      if (!isBvSuperAdminUser(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
       bvslUsers = await resolveBvDepartmentFacilitatorUsers(
         segment,
         ['id', 'userId', 'email', 'fullName'],
         groupId,
+      );
+    } else if (isBvDepartmentAdmin(context.user as any) && !isBvSuperAdminUser(context.user as any)) {
+      bvslUsers = await resolveBvGroupFacilitatorUsers(
+        context.user as any,
+        ['id', 'userId', 'email', 'fullName'],
+        { segment, groupId },
       );
     } else if (isSupervisorMode) {
       const rawSegment = String(context.user.segment || 'FOLK').toUpperCase();

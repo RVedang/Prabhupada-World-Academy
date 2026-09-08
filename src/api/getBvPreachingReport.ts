@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, AppError, Users, BvslPreachingEntries, BvGroups, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentFacilitatorUsers, resolveBvDepartmentGroups, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, isBvDepartmentAdmin, isBvSuperAdminUser, resolveBvDepartmentFacilitatorUsers, resolveBvDepartmentGroups, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 import { normaliseMemberBvActivity } from '../lib/bvMemberActivity';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
 
@@ -78,14 +78,22 @@ async function _fetchBvPreachingReport({ input, context }: { input: any; context
     let hierarchyGroups: any[] | null = null;
     let bvslUsers: any[] = [];
     if (inputGuideId === 'ALL' && segment) {
-      if (!isBvDepartmentAdmin(context.user as any)) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      if (!isBvSuperAdminUser(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
       hierarchyGroups = (await resolveBvDepartmentGroups(segment, groupId)).map(group => group.record);
       bvslUsers = await resolveBvDepartmentFacilitatorUsers(
         segment,
         ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'isBvSubFacilitator'],
         groupId,
+      );
+    } else if (isBvDepartmentAdmin(context.user as any) && !isBvSuperAdminUser(context.user as any)) {
+      hierarchyGroups = (await resolveBvScopedGroups(context.user as any, { segment, groupId }))
+        .map(group => group.record);
+      bvslUsers = await resolveBvGroupFacilitatorUsers(
+        context.user as any,
+        ['id', 'userId', 'email', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved', 'phone', 'role', 'isBvAdmin', 'isBvSuperAdmin', 'isBvSubFacilitator'],
+        { segment, groupId },
       );
     } else if (isSupervisorMode) {
       const rawSegment = String(context.user.segment || 'FOLK').toUpperCase();

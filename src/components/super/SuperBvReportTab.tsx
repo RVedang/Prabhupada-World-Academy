@@ -32,9 +32,10 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
     profile?.role === 'SUPER_ADMIN' ||
     profile?.role === 'SUPER_GUIDE'
   );
+  const scopedGuideId = guideId || userEmail;
 
   const [guides, setGuides]               = useState<GetGuidesOutputType['guides']>([]);
-  const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin || isPwAdmin ? 'all' : (guideId || userEmail)));
+  const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin ? 'all' : scopedGuideId));
   const [subTab, setSubTab]               = useState<SubTab>('overview');
 
   const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
@@ -47,10 +48,10 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
   });
 
   useEffect(() => {
-    if (profile && !isSuperAdmin && !isPwAdmin) {
-      setSelectedGuide(guideId || userEmail);
+    if (profile && !isSuperAdmin) {
+      setSelectedGuide(scopedGuideId);
     }
-  }, [profile, isSuperAdmin, isPwAdmin, userEmail, guideId]);
+  }, [profile, isSuperAdmin, scopedGuideId]);
 
   return (
     <div className="space-y-4">

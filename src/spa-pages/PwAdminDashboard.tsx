@@ -61,6 +61,7 @@ export default function PwAdminDashboard() {
   }, [profile, isBvAdminUser, isFolk, navigate]);
 
   const dashboardRole = isSuperAdmin ? "SUPER_ADMIN" : (isBvAdminUser ? "ADMIN" : "USER");
+  const adminGroupScopeId = profile?.userId || user?.email || '';
   const [adminName, setAdminName] = useState(profile?.fullName || 'Administrator');
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
 
@@ -275,7 +276,11 @@ export default function PwAdminDashboard() {
                       <h2 className="text-lg font-bold">Bhakti Vriksha Preaching Overview</h2>
                       <p className="text-sm text-muted-foreground">Bhakti Vriksha attendance and group reports</p>
                     </div>
-                    <SuperBvReportTab isPwAdmin={true} />
+                    <SuperBvReportTab
+                      isPwAdmin={true}
+                      guideId={adminGroupScopeId}
+                      isSuperAdminOverride={isSuperAdmin}
+                    />
                   </div>
                 )}
 
@@ -303,15 +308,16 @@ export default function PwAdminDashboard() {
                   <div className={(activeTab === 'bhakti-vriksha' || activeTab === 'bv-registrations') ? 'space-y-6 block' : 'hidden'}>
                     <SuperBvRegistrationsTab
                       segment="PW"
-                      // PW admins assign across the department, not a single
-                      // guide's scope. Without this, the registration panel
-                      // calls the guide-scoped group endpoint with no guide ID
-                      // and the "Show all time slots" list is empty.
-                      isSuperGuide={isBvAdminUser}
+                      guideId={adminGroupScopeId}
+                      isSuperGuide={isSuperAdmin}
                       onRegistrationResolved={handleBvRegistrationResolved}
                     />
                     <hr className="my-6 border-t" />
-                    <BvAdminManagementTab segment="PW" isSuperGuide={isBvAdminUser} />
+                    <BvAdminManagementTab
+                      segment="PW"
+                      guideId={adminGroupScopeId}
+                      isSuperGuide={isSuperAdmin}
+                    />
                   </div>
                 )}
 

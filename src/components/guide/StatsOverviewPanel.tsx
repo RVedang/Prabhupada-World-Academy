@@ -79,10 +79,11 @@ interface Props {
   guideId: string;
   bvslMode?: boolean;
   mentorMode?: boolean;
+  facilitatorMode?: boolean;
   groupOptions?: SadhanaGroupOption[];
 }
 
-export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, groupOptions = [] }: Props) {
+export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, facilitatorMode, groupOptions = [] }: Props) {
   const { profile } = useUserProfile();
   const normalizedSegment = String(profile?.segment || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
   // Only an explicit FOLK profile gets FOLK stats. This also handles legacy
@@ -123,7 +124,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, grou
     try {
       const data = await getSadhanaStats({
         guideId, startDate: start, endDate: end,
-        bvslMode, mentorMode,
+        bvslMode, mentorMode, facilitatorMode,
         residencyFilter: (residencyFilter === 'all' ? undefined : residencyFilter) as any,
         folkResidencyId: folkResidencyId === 'all' ? undefined : folkResidencyId,
         ashrayLevel: ashrayFilter === 'all' ? undefined : ashrayFilter,
@@ -137,7 +138,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, grou
       }
     } catch { /* keep cached stats visible */ }
     finally { if (!silent) setGroupLoading(false); }
-  }, [guideId, start, end, bvslMode, mentorMode, residencyFilter, folkResidencyId, ashrayFilter, effectiveGroupId, isPw]);
+  }, [guideId, start, end, bvslMode, mentorMode, facilitatorMode, residencyFilter, folkResidencyId, ashrayFilter, effectiveGroupId, isPw]);
 
   useEffect(() => { void loadGroupStats(); }, [loadGroupStats]);
   useRealtimeRefresh(['sadhana', 'users', 'groups'], () => loadGroupStats(true));

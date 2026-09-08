@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import {
   getGuideUsers, getGuides, tagUserAsBvsl, assignGuide, tagUserAsFolkLead,
   tagUserAsTripCoordinator, tagUserAsBvMentor, tagUserAsSadhanaMentor, assignBvRole,
-  getActiveSadhanaMentors, assignSadhanaMentor, getBvslGroups, transferBvGroupMember,
+  getActiveSadhanaMentors, assignSadhanaMentor, getBvslGroups, getAllBvGroupsAdmin, transferBvGroupMember,
 } from '@/lib/endpoints-sdk';
 import type { GetGuideUsersOutputType, GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -161,16 +161,19 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     try {
       const [{ guides: guideList }, groupsResult] = await Promise.all([
         getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' }),
-        getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
+        (isSuperAdmin
+          ? getBvslGroups({ bvslId: 'ALL' })
+          : getAllBvGroupsAdmin({ guideId: profile?.userId || userEmail })
+        ).catch(() => ({ groups: [] })),
       ]);
       setGuides(guideList);
       setBvGroups((groupsResult.groups || []).map((group: any) => ({
-        id: group.id,
-        groupId: group.groupId || group.id,
+        id: group.id || group.groupDbId || group.groupId,
+        groupId: group.groupId || group.id || group.groupDbId,
         groupName: group.groupName || 'Unnamed Reading Group',
-        segment: group.segment,
+        segment: group.segment || effectiveSegment,
         isActive: group.isActive,
-        facilitatorIds: group.facilitatorIds || [],
+        facilitatorIds: group.facilitatorIds || (group.bvslLeaderId ? [group.bvslLeaderId] : []),
       })));
 
       if (isPwAdmin) {
@@ -218,7 +221,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [isPwAdmin]);
+  }, [effectiveSegment, isPwAdmin, isSuperAdmin, profile?.userId, userEmail]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useRealtimeRefresh(['users', 'groups'], () => loadData(true));

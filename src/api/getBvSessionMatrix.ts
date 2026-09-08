@@ -3,7 +3,7 @@ import { createEndpoint, AppError, Users, BvGroups, BvGroupMembers, BvAttendance
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
 import { legacyQuizMatchesGroup, normalizeQuizDepartment } from '../lib/bvQuizAccess';
-import { bvGroupFacilitatorAliases, bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentGroups, resolveBvScopedGroups, resolveBvUsersByAliases } from '../lib/bvGroupMemberScope';
+import { bvGroupFacilitatorAliases, bvUserAliases, isBvDepartmentAdmin, isBvSuperAdminUser, resolveBvDepartmentGroups, resolveBvScopedGroups, resolveBvUsersByAliases } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'BV attendance matrix with FOLK-only quiz results',
@@ -53,10 +53,13 @@ export default createEndpoint({
 
     let groups: any[];
     if (guideId === 'ALL' && segment) {
-      if (!isBvDepartmentAdmin(context.user as any)) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      if (!isBvSuperAdminUser(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
       groups = (await resolveBvDepartmentGroups(segment, groupId)).map(group => group.record);
+    } else if (isBvDepartmentAdmin(context.user as any) && !isBvSuperAdminUser(context.user as any)) {
+      groups = (await resolveBvScopedGroups(context.user as any, { segment, groupId }))
+        .map(group => group.record);
     } else if (bvslMode) {
       const rawSegment = String(context.user.segment || (context.user.isBvSupervisor ? 'FOLK' : '')).toUpperCase();
       const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;

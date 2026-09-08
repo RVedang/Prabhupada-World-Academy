@@ -308,6 +308,7 @@ interface Props {
   guideId: string;
   bvslMode?: boolean;
   mentorMode?: boolean;
+  facilitatorMode?: boolean;
   /** Keeps member links within the dashboard that opened this report. */
   detailBasePath?: string;
   /** Lets embedded reports default to the period most useful for that dashboard. */
@@ -318,6 +319,7 @@ export default function ImprovementTab({
   guideId,
   bvslMode,
   mentorMode,
+  facilitatorMode,
   detailBasePath = '/guide/users',
   initialPeriod = 'prev_week',
 }: Props) {
@@ -343,6 +345,7 @@ export default function ImprovementTab({
       endDate: end,
       bvslMode,
       mentorMode,
+      facilitatorMode,
       segment: isFolk ? 'FOLK' : 'PW',
     })
       .then(res => setData(res as any))
@@ -350,7 +353,7 @@ export default function ImprovementTab({
       .finally(() => { if (!silent) setLoading(false); });
   };
 
-  useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode, isFolk]);
+  useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode, facilitatorMode, isFolk]);
   useRealtimeRefresh(['sadhana', 'users', 'groups'], () => load(true));
 
   const filteredUsers = useMemo(() => {

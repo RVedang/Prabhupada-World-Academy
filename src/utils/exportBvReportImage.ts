@@ -57,6 +57,26 @@ function totColor(mins: number, C: ReturnType<typeof buildPalette>) {
   return { bg: C.redBg, fg: C.red };
 }
 
+function drawFittedCenteredText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  centerX: number,
+  maxWidth: number,
+  weight: 'normal' | 'bold',
+  maxSize: number,
+  minSize: number,
+  y: number,
+) {
+  let size = maxSize;
+  while (size > minSize) {
+    ctx.font = `${weight} ${size}px ${FONT}`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size -= 1;
+  }
+  ctx.textAlign = 'center';
+  ctx.fillText(text, centerX, y);
+}
+
 export interface BvslRow {
   fullName: string;
   groupName: string;
@@ -100,8 +120,21 @@ export function exportBvslReportAsImage(
   const COL_NAME = 150;
   const COL_GRP  = 90;
   const COL_DUR  = 68;  // calling, 1-on-1, book-dist, rdua, plan
-  const COL_CNT  = 56;  // books, contacts, 1-on-1s
-  const COL_TOT  = 72;
+  // Expand numeric columns for large values. The fitted text below is still
+  // used so a single unusually large value cannot overlap its neighbours.
+  const maxCountDigits = Math.max(
+    1,
+    ...rows.flatMap(row => [
+      String(row.booksDistributed),
+      String(row.contactsCollected),
+      String(row.uniqueOneOnOnes),
+    ]).map(value => value.length),
+    String(summary.totalBooks).length,
+    String(summary.totalContacts).length,
+    String(summary.totalOneOnOnes).length,
+  );
+  const COL_CNT  = Math.max(56, maxCountDigits * 8 + 16); // books, contacts, 1-on-1s
+  const COL_TOT  = 78;
 
   const cols = [COL_DUR, COL_DUR, COL_DUR, COL_DUR, COL_DUR, COL_CNT, COL_CNT, COL_CNT, COL_TOT];
   const tableW = COL_RANK + COL_NAME + COL_GRP + cols.reduce((a, b) => a + b, 0);
@@ -151,10 +184,10 @@ export function exportBvslReportAsImage(
     rr(ctx, sx, y, cardW - 5, CARD_H, 5, C.card);
     ctx.strokeStyle = C.border; ctx.lineWidth = 1;
     ctx.strokeRect(sx, y, cardW - 5, CARD_H);
-    ctx.fillStyle = C.primary; ctx.font = `bold 17px ${FONT}`; ctx.textAlign = 'center';
-    ctx.fillText(s.value, sx + (cardW - 5) / 2, y + 38);
-    ctx.fillStyle = C.muted; ctx.font = `bold 9px ${FONT}`;
-    ctx.fillText(s.label, sx + (cardW - 5) / 2, y + 58);
+    ctx.fillStyle = C.primary;
+    drawFittedCenteredText(ctx, s.value, sx + (cardW - 5) / 2, cardW - 17, 'bold', 17, 8, y + 38);
+    ctx.fillStyle = C.muted;
+    drawFittedCenteredText(ctx, s.label, sx + (cardW - 5) / 2, cardW - 17, 'bold', 9, 7, y + 58);
   });
   ctx.textAlign = 'left';
   y += STATS_H;
@@ -227,8 +260,8 @@ export function exportBvslReportAsImage(
     for (const n of cntFields) {
       const { bg, fg } = cntColor(n, C);
       ctx.fillStyle = bg; ctx.fillRect(rx, ry, COL_CNT, ROW_H);
-      ctx.fillStyle = fg; ctx.font = `bold 10px ${FONT}`; ctx.textAlign = 'center';
-      ctx.fillText(String(n), rx + COL_CNT / 2, ry + ROW_H / 2 + 4);
+      ctx.fillStyle = fg;
+      drawFittedCenteredText(ctx, String(n), rx + COL_CNT / 2, COL_CNT - 8, 'bold', 10, 7, ry + ROW_H / 2 + 4);
       ctx.strokeStyle = C.border; ctx.lineWidth = 0.5;
       ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx, ry + ROW_H); ctx.stroke();
       rx += COL_CNT;
@@ -236,8 +269,8 @@ export function exportBvslReportAsImage(
     // Total
     const { bg: totBg, fg: totFg } = totColor(row.totalMinutes, C);
     ctx.fillStyle = totBg; ctx.fillRect(rx, ry, COL_TOT, ROW_H);
-    ctx.fillStyle = totFg; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'center';
-    ctx.fillText(minsToHHMM(row.totalMinutes), rx + COL_TOT / 2, ry + ROW_H / 2 + 4);
+    ctx.fillStyle = totFg;
+    drawFittedCenteredText(ctx, minsToHHMM(row.totalMinutes), rx + COL_TOT / 2, COL_TOT - 8, 'bold', 11, 8, ry + ROW_H / 2 + 4);
     ctx.textAlign = 'left';
   });
 

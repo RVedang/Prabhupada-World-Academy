@@ -13,7 +13,7 @@ import getGuideDetailedReport from '../src/api/getGuideDetailedReport';
 import getSadhanaLeaderboard from '../src/api/getSadhanaLeaderboard';
 import getSadhanaStats from '../src/api/getSadhanaStats';
 import { BvAttendance, BvGroupMembers, BvGroups, BvQuizzes, BvslPreachingEntries, SadhanaEntries, Users } from '../src/lib/app-backend-sdk';
-import { resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../src/lib/bvGroupMemberScope';
+import { isBvSuperAdminUser, resolveBvGroupMemberUsers, resolveBvScopedGroups } from '../src/lib/bvGroupMemberScope';
 import { getTodayIST } from '../src/lib/streakUtils';
 
 const supervisor = {
@@ -549,6 +549,88 @@ test('supervisor groups include only groups led by reporting RGFs with RGF card 
   }
 });
 
+test('normal PW admins see only groups under their reporting RGFs', async () => {
+  const admin = {
+    id: 'PW-ADMIN-SCOPE-DB',
+    userId: 'PW-ADMIN-SCOPE',
+    email: 'pw-admin-scope@example.invalid',
+    fullName: 'Scoped PW Admin',
+    role: 'ADMIN',
+    status: 'Active',
+    segment: 'PW',
+    isBvAdmin: true,
+  };
+  const assignedRgf = {
+    id: 'PW-ADMIN-SCOPE-RGF-DB',
+    userId: 'PW-ADMIN-SCOPE-RGF',
+    email: 'pw-admin-scope-rgf@example.invalid',
+    fullName: 'Assigned PW RGF',
+    role: 'RGF',
+    status: 'Active',
+    segment: 'PW',
+    isBvFacilitator: true,
+    bvReportingAdminId: admin.id,
+  };
+  const unrelatedRgf = {
+    id: 'PW-ADMIN-SCOPE-OTHER-RGF-DB',
+    userId: 'PW-ADMIN-SCOPE-OTHER-RGF',
+    email: 'pw-admin-scope-other-rgf@example.invalid',
+    fullName: 'Unrelated PW RGF',
+    role: 'RGF',
+    status: 'Active',
+    segment: 'PW',
+    isBvFacilitator: true,
+    bvReportingAdminId: 'ANOTHER-PW-ADMIN',
+  };
+  const assignedGroup = {
+    id: 'PW-ADMIN-SCOPE-GROUP-DB',
+    groupId: 'PW-ADMIN-SCOPE-GROUP',
+    groupName: 'Admin Assigned Group',
+    bvslId: assignedRgf.userId,
+    segment: 'PW',
+    isActive: true,
+  };
+  const unrelatedGroup = {
+    id: 'PW-ADMIN-SCOPE-OTHER-GROUP-DB',
+    groupId: 'PW-ADMIN-SCOPE-OTHER-GROUP',
+    groupName: 'Another Admin Group',
+    bvslId: unrelatedRgf.userId,
+    segment: 'PW',
+    isActive: true,
+  };
+
+  try {
+    await Users.create({ record: admin });
+    await Users.create({ record: assignedRgf });
+    await Users.create({ record: unrelatedRgf });
+    await BvGroups.create({ record: assignedGroup });
+    await BvGroups.create({ record: unrelatedGroup });
+
+    const groups = await resolveBvScopedGroups(admin, { segment: 'PW' });
+    assert.deepEqual(groups.map(group => group.id), [assignedGroup.id]);
+    const reportGroups = await getGuideGroupStats.execute({
+      input: { guideId: admin.userId, segment: 'PW' },
+      context: { user: admin },
+    } as never);
+    assert.deepEqual(reportGroups.groups.map((group: any) => group.groupId), [assignedGroup.groupId]);
+    await assert.rejects(
+      () => getGuideGroupStats.execute({
+        input: { guideId: 'ALL', segment: 'PW' },
+        context: { user: admin },
+      } as never),
+      /super admin access/,
+    );
+    assert.equal(isBvSuperAdminUser(admin), false);
+    assert.equal(isBvSuperAdminUser({ role: 'SUPER_ADMIN' }), true);
+  } finally {
+    await BvGroups.delete({ id: assignedGroup.id }).catch(() => undefined);
+    await BvGroups.delete({ id: unrelatedGroup.id }).catch(() => undefined);
+    await Users.delete({ id: admin.id }).catch(() => undefined);
+    await Users.delete({ id: assignedRgf.id }).catch(() => undefined);
+    await Users.delete({ id: unrelatedRgf.id }).catch(() => undefined);
+  }
+});
+
 test('BV group detail resolves a legacy memberId membership', async () => {
   const group = {
     id: 'BV-GROUP-DETAIL-LEGACY-DOC',
@@ -626,11 +708,11 @@ test('BV group cards count only current active members and update after a remova
       record: { id: staleMembershipId, groupId: group.id, user: removedMember.id },
     });
 
-    const initial = await getBvslGroups.execute({ input: { bvslId: 'ALL' }, context: {} } as never);
+    const initial = await getBvslGroups.execute({ input: { bvslId: 'ALL' }, context: { user: { role: 'SUPER_ADMIN' } } } as never);
     assert.equal(initial.groups.find((item: any) => item.id === group.id)?.memberCount, 1);
 
     await BvGroupMembers.delete({ id: currentMembershipId });
-    const afterRemoval = await getBvslGroups.execute({ input: { bvslId: 'ALL' }, context: {} } as never);
+    const afterRemoval = await getBvslGroups.execute({ input: { bvslId: 'ALL' }, context: { user: { role: 'SUPER_ADMIN' } } } as never);
     assert.equal(afterRemoval.groups.find((item: any) => item.id === group.id)?.memberCount, 0);
   } finally {
     await BvGroupMembers.delete({ id: currentMembershipId }).catch(() => undefined);

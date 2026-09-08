@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, AppError, BvGroups, BvGroupMembers, BvAttendance, Guides, Users } from '@/lib/backend-sdk';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
-import { bvUserAliases, isBvDepartmentAdmin, resolveBvDepartmentGroups, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
+import { bvUserAliases, isBvDepartmentAdmin, isBvSuperAdminUser, resolveBvDepartmentGroups, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 export default createEndpoint({
   description: 'Get BV group stats for guide dashboard — member count, attendance rate per group',
@@ -17,10 +17,13 @@ export default createEndpoint({
     let hierarchyGroups: any[] | null = null;
 
     if (input.guideId === 'ALL' && input.segment) {
-      if (!isBvDepartmentAdmin(context.user as any)) {
-        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require admin access' });
+      if (!isBvSuperAdminUser(context.user as any)) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
       hierarchyGroups = (await resolveBvDepartmentGroups(input.segment)).map(group => group.record);
+    } else if (isBvDepartmentAdmin(context.user as any) && !isBvSuperAdminUser(context.user as any)) {
+      hierarchyGroups = (await resolveBvScopedGroups(context.user as any, { segment: input.segment }))
+        .map(group => group.record);
     } else if (isBvslMode) {
       const rawSegment = String(context.user.segment || (context.user.isBvSupervisor ? 'FOLK' : '')).toUpperCase();
       const segment = rawSegment === 'FOLK' || rawSegment === 'PW' ? rawSegment as 'FOLK' | 'PW' : undefined;

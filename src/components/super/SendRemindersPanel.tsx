@@ -260,19 +260,32 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
         segment: activeSegment,
       });
 
-      const notificationCount = res.inAppRecipients > 0 ? res.inAppRecipients : res.sent;
-      if (notificationCount > 0) {
+      const nativeSent = Number(res.sent || 0);
+      const inAppRecipients = Number(res.inAppRecipients || 0);
+      if (nativeSent > 0 || inAppRecipients > 0) {
         toast.success(
-          `${notificationCount} ${notificationCount === 1 ? 'message' : 'messages'} sent`,
-          { duration: 8000 }
+          <div className="flex flex-col gap-1 text-sm leading-5">
+            <span className="font-semibold">Sadhana reminder sent.</span>
+            <span>
+              {nativeSent > 0
+                ? `${nativeSent} native notification${nativeSent === 1 ? '' : 's'} sent to subscribed device${nativeSent === 1 ? '' : 's'}.`
+                : 'No native notification was delivered to a subscribed device.'}
+            </span>
+            {inAppRecipients > 0 && (
+              <span>
+                In-app reminder published for {inAppRecipients} eligible member{inAppRecipients === 1 ? '' : 's'}.
+              </span>
+            )}
+          </div>,
+          { duration: 10000 }
         );
       } else if (stats.totalSubscriptions > 0) {
         toast.warning(
-          `⚠️ Push broadcast attempted: ${stats.totalSubscriptions} subscriber(s) found, but 0 notifications were delivered. Subscriptions may be stale or all users have already submitted today.`,
-          { duration: Infinity }
+          `No native notification was delivered to the ${stats.totalSubscriptions} subscribed device${stats.totalSubscriptions === 1 ? '' : 's'}. The subscriptions may be stale, or all eligible members may have already submitted today.`,
+          { duration: 10000 }
         );
       } else {
-        toast.info('ℹ️ No active subscribers found. Notification was not sent.', { duration: 8000 });
+        toast.info('No eligible members or subscribed devices were found. No notification was sent.', { duration: 8000 });
       }
 
       setResults(prev => ({

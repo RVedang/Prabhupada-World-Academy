@@ -71,6 +71,12 @@ export function isBvDepartmentAdmin(user: UserRecord | null | undefined): boolea
     role === 'ADMIN' || role === 'PW_ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPER_GUIDE');
 }
 
+/** Only these users may request every BV group in a department. */
+export function isBvSuperAdminUser(user: UserRecord | null | undefined): boolean {
+  const role = roleValue(user);
+  return !!(user?.isBvSuperAdmin || role === 'SUPER_ADMIN' || role === 'SUPER_GUIDE');
+}
+
 function departmentValue(value: unknown): 'FOLK' | 'PW' | null {
   const normalized = String(value || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
   if (normalized === 'PW' || normalized === 'PRABHUPADAWORLD') return 'PW';
@@ -200,6 +206,7 @@ export async function resolveBvScopedGroups(
 ): Promise<BvScopedGroup[]> {
   const callerFields = [
     'id', 'userId', 'email', 'role', 'segment', 'guide',
+    'isBvAdmin', 'isPwAdmin', 'isBvSuperAdmin',
     'isBvSupervisor', 'isBvMentor', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator',
     'bvReportingFacilitatorId',
   ];
@@ -215,7 +222,7 @@ export async function resolveBvScopedGroups(
     fields: [
       'id', 'userId', 'email', 'role', 'segment', 'guide',
       'isBvSupervisor', 'isBvMentor', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator',
-      'bvReportingSupervisorId', 'bvReportingFacilitatorId',
+      'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId',
     ],
     limit: 5000,
   }).catch(() => ({ records: [] }));
@@ -236,6 +243,12 @@ export async function resolveBvScopedGroups(
 
   const role = roleValue(contextUser);
   const callerRole = roleValue(caller);
+  const isAdmin = !!(
+    contextUser.isBvAdmin || contextUser.isPwAdmin ||
+    caller?.isBvAdmin || caller?.isPwAdmin ||
+    role === 'ADMIN' || role === 'PW_ADMIN' ||
+    callerRole === 'ADMIN' || callerRole === 'PW_ADMIN'
+  );
   const isSupervisor = !!(
     contextUser.isBvSupervisor || contextUser.isBvMentor ||
     caller?.isBvSupervisor || caller?.isBvMentor ||
@@ -244,18 +257,20 @@ export async function resolveBvScopedGroups(
   );
   const isRgsf = !!(contextUser.isBvSubFacilitator || caller?.isBvSubFacilitator || role.includes('RGSF'));
 
-  // Resolve every identity alias for RGFs that report to this supervisor.
-  // Older data can store either a Firestore id, public userId, or email.
+  // Resolve every identity alias for RGFs that report to this admin or
+  // supervisor. Older data can store a Firestore id, public userId, or email.
   const reportingRgfAliases = new Set<string>();
-  if (isSupervisor) {
+  if (isAdmin || isSupervisor) {
     for (const user of allUsers) {
+      const reportingAdminRefs = refs(user.bvReportingAdminId);
       const reportingSupervisorRefs = refs(user.bvReportingSupervisorId);
       const legacyGuideRefs = refs(user.guide);
       const userRole = roleValue(user);
       const isRgf = !!(user.isBvFacilitator || user.isBvsl || userRole === 'RGF' || userRole === 'BVSL' || userRole === 'FACILITATOR');
       if (!isRgf) continue;
-      const explicitlyReports = reportingSupervisorRefs.some(ref => callerAliases.has(ref));
-      const legacyReports = reportingSupervisorRefs.length === 0 && legacyGuideRefs.some(ref => callerAliases.has(ref));
+      const explicitParentRefs = isAdmin ? reportingAdminRefs : reportingSupervisorRefs;
+      const explicitlyReports = explicitParentRefs.some(ref => callerAliases.has(ref));
+      const legacyReports = explicitParentRefs.length === 0 && legacyGuideRefs.some(ref => callerAliases.has(ref));
       if (explicitlyReports || legacyReports) {
         bvUserAliases(user).forEach(alias => reportingRgfAliases.add(alias));
       }
@@ -283,7 +298,7 @@ export async function resolveBvScopedGroups(
       const groupSegment = explicitSegment || inferredSegments[0] || '';
       if (groupSegment && groupSegment !== options.segment) return false;
     }
-    if (isSupervisor) {
+    if (isAdmin || isSupervisor) {
       const legacyGuideRefs = refs(group.guide);
       return leaderRefs.some(ref => reportingRgfAliases.has(ref)) ||
         leaderRefs.some(ref => callerAliases.has(ref)) ||

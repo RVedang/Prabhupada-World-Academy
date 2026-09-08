@@ -346,26 +346,54 @@ interface Mom {
 }
 
 function normalizedRoles(user: any): string[] {
-  const values = Array.isArray(user?.roles) && user.roles.length > 0 ? user.roles : [user?.role];
-  return values.filter(Boolean).map((value: unknown) => String(value).toUpperCase().replace(/[\s-]+/g, '_'));
+  // `roles` contains the assigned multi-role values while `role` is still
+  // populated on older records. Keep both sources: a multi-role user may have
+  // `role: USER` alongside flags/values for RGF, RGSF, Supervisor, etc.
+  const values = [
+    ...(Array.isArray(user?.roles) ? user.roles : user?.roles ? [user.roles] : []),
+    user?.role,
+  ];
+  return values
+    .flatMap((value: unknown) => {
+      // Some older integrations persist a comma-separated or JSON-encoded
+      // roles value. Expand those forms so each assigned role can match.
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            return Array.isArray(parsed) ? parsed : [value];
+          } catch {
+            // Fall through to the normal string handling.
+          }
+        }
+        return trimmed.split(',');
+      }
+      return [value];
+    })
+    .filter(Boolean)
+    .map((value: unknown) => String(value).toUpperCase().replace(/[\s-]+/g, '_'));
 }
 
-/** Match the assigned multi-role values; legacy flags are fallback only. */
+/** Match a role from either assigned values or the independent BV role flags. */
 export function hasMeetingRole(user: any, role: 'ADMIN' | 'SUPERVISOR' | 'MENTOR' | 'FACILITATOR' | 'RGF' | 'RGSF'): boolean {
   const roles = normalizedRoles(user);
-  if (roles.length > 0) {
-    const accepted: Record<typeof role, string[]> = {
-      ADMIN: ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'],
-      SUPERVISOR: ['SUPERVISOR', 'BV_SUPERVISOR'],
-      MENTOR: ['MENTOR', 'SADHANA_MENTOR', 'BV_MENTOR'],
-      FACILITATOR: ['FACILITATOR', 'RGF', 'BVSL'],
-      // "Facilitator", BVSL, and RGF are the same invitee category in PW.
-      RGF: ['RGF', 'FACILITATOR', 'BVSL'],
-      RGSF: ['RGSF', 'SUB_FACILITATOR'],
-    };
-    return roles.some(value => accepted[role].includes(value));
-  }
-  return role === 'ADMIN' ? !!user?.isBvAdmin
+  const accepted: Record<typeof role, string[]> = {
+    ADMIN: ['ADMIN', 'ADMINISTRATOR', 'PW_ADMIN', 'BV_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'],
+    SUPERVISOR: ['SUPERVISOR', 'BV_SUPERVISOR'],
+    MENTOR: ['MENTOR', 'SADHANA_MENTOR', 'BV_MENTOR', 'BVSL_MENTOR'],
+    FACILITATOR: ['FACILITATOR', 'RGF', 'BVSL'],
+    // "Facilitator", BVSL, and RGF are the same invitee category in PW.
+    RGF: ['RGF', 'FACILITATOR', 'BVSL'],
+    RGSF: ['RGSF', 'SUB_FACILITATOR'],
+  };
+
+  if (roles.some(value => accepted[role].includes(value))) return true;
+
+  // Role flags are independent in the BV model. They must still be checked
+  // when a record also has a `roles` array, because that array may only contain
+  // the user's base role (for example USER/MEMBER).
+  return role === 'ADMIN' ? !!(user?.isBvAdmin || user?.isBvSuperAdmin)
     : role === 'SUPERVISOR' ? !!(user?.isBvSupervisor || user?.isBvMentor)
     : role === 'MENTOR' ? !!(user?.isSadhanaMentor || user?.isBvMentor)
     : role === 'FACILITATOR' ? !!(user?.isBvFacilitator || user?.isBvsl)
@@ -1667,7 +1695,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                             : 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
                         }`}
                       >
-                        {isPresetSelected('RGFS') ? '✓ RGF' : '+ RGF'}
+                        {isPresetSelected('RGFS') ? '✓ RGFs' : '+ RGFs'}
                       </button>
                       <button
                         type="button"

@@ -7,6 +7,7 @@ import { NON_RESIDENT_FIELDS } from '../config/sadhanaFields';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
 import { isPwSadhanaUser } from '@/lib/sadhanaDepartment';
+import { resolveBvAdminFacilitators } from '@/lib/bvAdminFacilitatorScope';
 
 const USER_FIELDS = ['id', 'userId', 'fullName', 'email', 'phone', 'segment', 'isPrabhupadaWorldUser', 'sadhanaMentor', 'ashrayLevel', 'residency', 'residencyApproved', 'temporaryResidencyEnabled', 'temporaryResidency', 'residencyJoinDate', 'scholarSince', 'residentSince', 'currentStreak', 'lastStreakUpdatedAt', 'guide', 'role', 'isBvSuperAdmin', 'isBvAdmin', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
 const ENTRY_FIELDS = [
@@ -686,6 +687,7 @@ export default createEndpoint({
     endDate: z.string().optional(),
     bvslMode: z.boolean().optional(),
     mentorMode: z.boolean().optional(),
+    facilitatorMode: z.boolean().optional(),
     groupId: z.string().optional(),
     segment: z.enum(['PW', 'FOLK']).optional(),
   }),
@@ -701,7 +703,7 @@ export default createEndpoint({
       isBvSubFacilitator: (context.user as any).isBvSubFacilitator,
     });
 
-    const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, mentorMode } = input;
+    const { guideId: inputGuideId, date, reportType, startDate, endDate, bvslMode, mentorMode, facilitatorMode } = input;
     const reportFieldDefs = input.segment === 'PW'
       ? FIELD_DEFS.filter(field => field.forNR && !['fillingSameDay', 'bhaktiVriksha'].includes(field.key))
       : FIELD_DEFS;
@@ -782,7 +784,9 @@ export default createEndpoint({
 
     // Phase 1 FIX: include both guide-assigned users AND users in any of the guide's residencies
     let users: any[] = [];
-    if (isPwMentor) {
+    if (facilitatorMode) {
+      users = await resolveBvAdminFacilitators(context.user, inputGuideId, USER_FIELDS, input.segment);
+    } else if (isPwMentor) {
       const { records } = await Users.findAll({ filters: { status: 'Active' }, fields: USER_FIELDS, limit: 2000 });
       users = records.filter(user => {
         const assignments = Array.isArray(user.sadhanaMentor) ? user.sadhanaMentor : [user.sadhanaMentor];
@@ -824,7 +828,7 @@ export default createEndpoint({
       context.user.isBvAdmin || context.user.isBvSuperAdmin || context.user.isPwAdmin ||
       callerRole === 'ADMIN' || callerRole === 'PW_ADMIN' || callerRole === 'SUPER_ADMIN'
     );
-    const scopedUserIds = isPwMentor || isPwDepartmentAdmin ? null : await getScopedHierarchyUserIds(context.user);
+    const scopedUserIds = isPwMentor || isPwDepartmentAdmin || facilitatorMode ? null : await getScopedHierarchyUserIds(context.user);
 
     // BVSL/RGSF mode applies its own strict group-membership scope below,
     // including legacy aliases for group/member references. Applying the

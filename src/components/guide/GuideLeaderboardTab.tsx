@@ -74,10 +74,11 @@ const today = format(new Date(), 'yyyy-MM-dd');
 interface Props {
   guideId?: string;
   bvslMode?: boolean;
+  facilitatorMode?: boolean;
   groupOptions?: SadhanaGroupOption[];
 }
 
-export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = [] }: Props) {
+export default function GuideLeaderboardTab({ guideId, bvslMode, facilitatorMode, groupOptions = [] }: Props) {
   const { profile } = useUserProfile();
   const isFolk = profile?.segment === 'FOLK';
   const [reportType, setReportType] = useState<ReportType>('daily');
@@ -121,12 +122,14 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = 
         startDate: s,
         endDate: e,
         bvslMode,
+        facilitatorMode,
+        guideId,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
         segment: isFolk ? 'FOLK' : 'PW',
       }));
     }
     catch {/* ignore */} finally { if (!silent) setFolkLoading(false); }
-  }, [bvslMode, selectedGroupId]);
+  }, [bvslMode, facilitatorMode, guideId, selectedGroupId, isFolk]);
 
   const loadLb = useCallback(async (s: string, e: string, silent = false) => {
     if (!silent) setLbLoading(true);
@@ -137,11 +140,13 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, groupOptions = 
         endDate: e,
         guideId,
         bvslMode,
+        facilitatorMode,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+        segment: isFolk ? 'FOLK' : 'PW',
       }));
     }
     catch {/* ignore */} finally { if (!silent) setLbLoading(false); }
-  }, [guideId, bvslMode, selectedGroupId, isFolk]);
+  }, [guideId, bvslMode, facilitatorMode, selectedGroupId, isFolk]);
 
   useEffect(() => {
     loadFolk(startDate, endDate);
