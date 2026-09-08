@@ -1886,7 +1886,9 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                   {(() => {
                     const activeM = selectedMeetingForMom || meetings.find(m => m.id === editingMom?.meeting_id);
                     const participants = activeM?.invitees || [];
-                    const participantNames = participants.map((p: any) => p.fullName || p.name).filter(Boolean);
+                    const participantNames = participants
+                      .map((p: any) => p.fullName || p.name || p.email)
+                      .filter(Boolean);
                     const proposedByOptions = Array.from(new Set(participantNames));
                     const assigneeOptions = Array.from(new Set(
                       registeredUsers
