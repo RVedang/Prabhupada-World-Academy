@@ -1646,7 +1646,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     className="w-full p-2.5 bg-background border rounded-xl focus:ring-1 focus:ring-primary"
                   />
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    Invitees are reminded 1 hour and 10 minutes before the meeting. Add a meeting link so they can join from the notification.
+                    Invitees are reminded 10 minutes and 1 minute before the meeting. Add a meeting link so they can join from the notification.
                   </p>
                 </div>
 

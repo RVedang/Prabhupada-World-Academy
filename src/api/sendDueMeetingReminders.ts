@@ -5,11 +5,11 @@ import { allReminderRecords } from '@/lib/meetingReminderRecipients';
 import sendMeetingReminder from './sendMeetingReminder';
 
 export default createEndpoint({
-  description: 'Dispatch PW 1-hour and 10-minute meeting reminders. Called by Cloud Scheduler every minute.',
+  description: 'Dispatch PW 10-minute and 1-minute meeting reminders. Called by Cloud Scheduler every minute.',
   public: true,
   inputSchema: z.object({ cronSecret: z.string().min(16).max(256) }),
   outputSchema: z.object({
-    checked: z.number(), oneHourReminders: z.number(), tenMinuteReminders: z.number(),
+    checked: z.number(), tenMinuteReminders: z.number(),
     oneMinuteReminders: z.number(), failed: z.number(),
   }),
   execute: async ({ input }: { input: any }) => {
@@ -17,8 +17,8 @@ export default createEndpoint({
     if (!secrets.includes(input.cronSecret)) throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized scheduler request' });
     const meetings = await allReminderRecords(Meetings);
     const now = Date.now();
-    let checked = 0, oneHourReminders = 0, tenMinuteReminders = 0, failed = 0;
-    const due: { meetingId: string; reminderType: 'ONE_HOUR' | 'TEN_MINUTES' }[] = [];
+    let checked = 0, oneMinuteReminders = 0, tenMinuteReminders = 0, failed = 0;
+    const due: { meetingId: string; reminderType: 'ONE_MINUTE' | 'TEN_MINUTES' }[] = [];
     for (const meeting of meetings) {
       if (String(meeting.segment || 'PW').trim().toUpperCase() === 'FOLK') continue;
       if (String(meeting.status || 'SCHEDULED').toUpperCase() !== 'SCHEDULED') continue;
@@ -36,7 +36,7 @@ export default createEndpoint({
         try {
           const result = await sendMeetingReminder.execute({ input: { ...reminder, cronSecret: input.cronSecret }, context: {} } as never);
           if (!result.success) failed++;
-          else if (reminder.reminderType === 'ONE_HOUR') oneHourReminders++;
+          else if (reminder.reminderType === 'ONE_MINUTE') oneMinuteReminders++;
           else tenMinuteReminders++;
         } catch (error) {
           failed++;
@@ -44,6 +44,6 @@ export default createEndpoint({
         }
       }));
     }
-    return { checked, oneHourReminders, tenMinuteReminders, oneMinuteReminders: 0, failed };
+    return { checked, tenMinuteReminders, oneMinuteReminders, failed };
   },
 });

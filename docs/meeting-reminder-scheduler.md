@@ -10,9 +10,9 @@ Request body:
 { "cronSecret": "<APP_CRON_SECRET>" }
 ```
 
-Use the existing `APP_CRON_SECRET` (or `ZITE_CRON_SECRET`) App Hosting secret. The endpoint sends **1-hour and 10-minute reminders** for scheduled PW meetings. Older clients requesting the retired 1-minute reminder receive a no-op response.
+Use the existing `APP_CRON_SECRET` (or `ZITE_CRON_SECRET`) App Hosting secret. The endpoint sends **10-minute and 1-minute reminders** for scheduled PW meetings.
 
-If a scheduler tick is delayed, the hour reminder can catch up until 10 minutes before the meeting; the 10-minute reminder can catch up until the meeting starts. Cancelled, completed, started and FOLK meetings are excluded. Timezone-less meeting times use IST; explicit timezone offsets are preserved.
+If a scheduler tick is delayed, the 10-minute reminder can catch up until 1 minute before the meeting; the 1-minute reminder can catch up until the meeting starts. Cancelled, completed, started and FOLK meetings are excluded. Timezone-less meeting times use IST; explicit timezone offsets are preserved.
 
 Each reminder publishes an in-app broadcast addressed to every participant's resolved account IDs and email, independently of Web Push. Native delivery requires notification permission and an enabled browser subscription. Every matching device is targeted, including when the app is hidden or closed; clicking the notification opens the meeting link. A push provider accepting a request does not confirm that the device displayed it.
 

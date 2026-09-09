@@ -1,7 +1,7 @@
 /** The PW reminder windows also allow the next scheduler tick to catch up. */
 export const MEETING_REMINDERS = [
-  { type: 'ONE_HOUR', minutes: 60, sentField: 'notification1hSent', untilMinutes: 10 },
-  { type: 'TEN_MINUTES', minutes: 10, sentField: 'notification10mSent', untilMinutes: 0 },
+  { type: 'TEN_MINUTES', minutes: 10, sentField: 'notification10mSent', untilMinutes: 1 },
+  { type: 'ONE_MINUTE', minutes: 1, sentField: 'notification1mSent', untilMinutes: 0 },
 ] as const;
 export type MeetingReminderType = typeof MEETING_REMINDERS[number]['type'];
 

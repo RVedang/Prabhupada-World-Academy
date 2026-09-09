@@ -166,7 +166,7 @@ export default createEndpoint({
   public: true,
   inputSchema: z.object({
     meetingId: z.string().min(1),
-    reminderType: z.enum(['ONE_HOUR', 'TEN_MINUTES', 'ONE_MINUTE']).optional().default('TEN_MINUTES'),
+    reminderType: z.enum(['TEN_MINUTES', 'ONE_MINUTE']).optional().default('TEN_MINUTES'),
     // Used only by the server scheduler. Interactive sends still require the
     // caller to hold the meetings.manage capability.
     cronSecret: z.string().min(16).max(256).optional(),
@@ -198,8 +198,6 @@ export async function executeMeetingReminder(input: any, context: any, db = getF
     }
 
     const empty = (message: string) => ({ success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message });
-    // Compatibility with older open tabs; the current schedule has no 1-minute send.
-    if (input.reminderType === 'ONE_MINUTE') return empty('The 1-minute reminder has been replaced by the 1-hour reminder.');
     const type = input.reminderType || 'TEN_MINUTES';
     const definition = MEETING_REMINDERS.find(item => item.type === type)!;
     const meeting = await Meetings.findOne({ id: input.meetingId });

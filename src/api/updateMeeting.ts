@@ -65,7 +65,6 @@ export default createEndpoint({
     if (input.durationMinutes !== undefined) updateFields.durationMinutes = input.durationMinutes;
     if (input.scheduledAt !== undefined && input.scheduledAt !== existing.scheduledAt) {
       updateFields.scheduledAt = input.scheduledAt;
-      updateFields.notification1hSent = false;
       updateFields.notification10mSent = false;
       updateFields.notification1mSent = false;
       updateFields.notificationSent = false;
@@ -101,7 +100,7 @@ export default createEndpoint({
       updateFields.invitees = invitees;
       if (JSON.stringify([...inviteeIdsArray].sort()) !== JSON.stringify([...(existing.inviteeUserIds || [])].sort())) {
         // Reconcile new participants; durable per-device checkpoints prevent repeat sends.
-        updateFields.notification1hSent = false;
+        updateFields.notification1mSent = false;
         updateFields.notification10mSent = false;
       }
     }

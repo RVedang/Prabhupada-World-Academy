@@ -45,6 +45,13 @@ test('native Sadhana revisions and authorized report results across five roles',
       clients.push(client);
       return { ...profile, uid, client, token: await user.getIdToken() };
     }));
+    // Existing FOLK report authorization intersects guide assignment with BV
+    // hierarchy membership. Exercise that permitted scope without expanding it.
+    for (const [guideIndex, memberIndex] of [[1, 0], [6, 7]]) {
+      const groupId = `role-group-${guideIndex}-${suffix}`;
+      await db.collection('BvGroups').doc(groupId).set({ groupId, groupName: 'Role fixture', guide: fixtures[guideIndex].uid, segment: 'FOLK', isActive: true });
+      await db.collection('BvGroupMembers').doc(`role-membership-${memberIndex}-${suffix}`).set({ group: groupId, user: fixtures[memberIndex].uid, isActive: true });
+    }
     const read = async (fixture: typeof fixtures[number]) => {
       const member = fixture.role === 'USER';
       const endpoint = member ? 'getUserHistory' : 'getGuideDetailedReport';

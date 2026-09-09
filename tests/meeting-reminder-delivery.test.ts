@@ -112,39 +112,40 @@ test('an expired device does not prevent delivery to the other devices',async t=
  const result=await s.execute();assert.equal(result.sent,2);assert.equal(result.success,true);assert.equal(result.skipped,2);
 });
 
-test('cancelled/past meetings and retired 1-minute clients never dispatch',async t=>{
+test('cancelled meetings never dispatch either reminder and unauthenticated calls are rejected',async t=>{
  const s=setup(t,{status:'CANCELLED'});t.mock.method(globalThis,'fetch',async()=>{throw new Error('Must not send');});
  assert.equal((await s.execute()).sent,0);assert.equal(s.published.length,0);
  const result=await executeMeetingReminder({meetingId:s.meeting.id,reminderType:'ONE_MINUTE'},manager,s.db);
  assert.equal(result.sent,0);
- await assert.rejects(()=>executeMeetingReminder({meetingId:s.meeting.id,reminderType:'ONE_HOUR'},{},s.db),/Unauthorized/);
+ await assert.rejects(()=>executeMeetingReminder({meetingId:s.meeting.id,reminderType:'ONE_MINUTE'},{},s.db),/Unauthorized/);
 });
 
-test('scheduler uses 1-hour and 10-minute windows, catches late ticks, paginates, and excludes FOLK and started meetings',async t=>{
+test('scheduler uses 10-minute and 1-minute windows, catches late ticks, paginates, and excludes FOLK and started meetings',async t=>{
  const previous=process.env.APP_CRON_SECRET;process.env.APP_CRON_SECRET='meeting-reminder-test-secret';
  t.after(()=>{if(previous===undefined)delete process.env.APP_CRON_SECRET;else process.env.APP_CRON_SECRET=previous;});
  const make=(id:string,minutes:number,extra:any={})=>({id,scheduledAt:new Date(Date.now()+minutes*60_000).toISOString(),status:'SCHEDULED',...extra});
- const pages=[[make('hour',60),make('late-hour',55),make('ten',10),make('late-ten',6)],
-  [make('folk',10,{segment:'FOLK'}),make('past',-1),make('early',61),make('done',9,{notification10mSent:true})]];
+ const pages=[[make('minute',1),make('late-minute',0.5),make('ten',10),make('late-ten',6)],
+  [make('folk',10,{segment:'FOLK'}),make('past',-1),make('early',11),make('hour',60),make('done',9,{notification10mSent:true}),make('minute-done',0.5,{notification1mSent:true})]];
  t.mock.method(Meetings,'findAll',async({offset}:any)=>({records:pages[offset?1:0],hasMore:!offset}));
  const calls:string[]=[];t.mock.method(sendMeetingReminder,'execute',async({input}:any)=>{calls.push(input.meetingId+':'+input.reminderType);return {success:true} as any;});
  const result=await sendDueMeetingReminders.execute({input:{cronSecret:process.env.APP_CRON_SECRET},context:{}} as never);
- assert.deepEqual(calls.sort(),['hour:ONE_HOUR','late-hour:ONE_HOUR','late-ten:TEN_MINUTES','ten:TEN_MINUTES']);
- assert.equal(result.oneHourReminders,2);assert.equal(result.tenMinuteReminders,2);assert.equal(result.oneMinuteReminders,0);
+ assert.deepEqual(calls.sort(),['late-minute:ONE_MINUTE','late-ten:TEN_MINUTES','minute:ONE_MINUTE','ten:TEN_MINUTES']);
+ assert.equal(result.tenMinuteReminders,2);assert.equal(result.oneMinuteReminders,2);
 });
 
-test('the hour reminder and the ten-minute reminder have independent checkpoints', async t => {
-  const s = setup(t, { scheduledAt: new Date(Date.now() + 59 * 60_000).toISOString() });
+test('the ten-minute reminder and the one-minute reminder have independent checkpoints', async t => {
+  const s = setup(t);
   const now = Date.now();
   t.mock.method(globalThis, 'fetch', async () => new Response(null, { status: 201 }));
   const publish = async (...args: any[]) => { s.published.push(args); };
-  const hour = await executeMeetingReminder({ meetingId: s.meeting.id, reminderType: 'ONE_HOUR' }, manager, s.db, publish);
-  assert.equal(hour.sent, 3);
-  assert.equal(s.db.documents.get('Meetings/' + s.meeting.id).notification1hSent, true);
-  assert.notEqual(s.db.documents.get('Meetings/' + s.meeting.id).notification10mSent, true);
-  t.mock.method(Date, 'now', () => now + 50 * 60_000);
   const ten = await s.execute();
   assert.equal(ten.sent, 3);
+  assert.equal(s.db.documents.get('Meetings/' + s.meeting.id).notification10mSent, true);
+  assert.notEqual(s.db.documents.get('Meetings/' + s.meeting.id).notification1mSent, true);
+  t.mock.method(Date, 'now', () => now + 8.5 * 60_000);
+  const minute = await executeMeetingReminder({ meetingId: s.meeting.id, reminderType: 'ONE_MINUTE' }, manager, s.db, publish);
+  assert.equal(minute.sent, 3);
+  assert.equal(s.db.documents.get('Meetings/' + s.meeting.id).notification1mSent, true);
   assert.equal(s.published.length, 2);
   assert.notEqual(s.published[0][4], s.published[1][4]);
 });

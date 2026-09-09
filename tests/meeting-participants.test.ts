@@ -118,6 +118,6 @@ test('editing a meeting preserves every participant beyond the Firestore 30-valu
   await updateMeeting.execute({ input: { meetingId: 'large-meeting', additionalInviteeIds: ids }, context: adminContext } as never);
   assert.deepEqual(batchSizes, [30, 30, 7]);
   assert.deepEqual(saved.invitees.map((person: any) => person.userId), ids);
-  assert.equal(saved.notification1hSent, false);
+  assert.equal(saved.notification1mSent, false);
   assert.equal(saved.notification10mSent, false);
 });

@@ -80,7 +80,6 @@ export default createEndpoint({
       invitees,
       notificationLeadMinutes: input.notificationLeadMinutes,
       notificationSent: false,
-      notification1hSent: false,
       notification10mSent: false,
       notification1mSent: false,
       status: 'SCHEDULED',

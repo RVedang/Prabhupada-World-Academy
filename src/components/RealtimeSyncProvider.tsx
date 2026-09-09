@@ -9,6 +9,7 @@ import { getRealtimeFirestore } from '@/lib/realtimeFirestore';
 import { realtimeListenerBatches } from '@/lib/realtimeListenerBatches';
 import { invalidateCache } from '@/utils/cache';
 import { triggerInAppOrNativeNotification } from '@/utils/sadhanaNotification';
+import { toast } from 'sonner';
 
 export default function RealtimeSyncProvider() {
   const { user } = useAuth();
@@ -29,6 +30,9 @@ export default function RealtimeSyncProvider() {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
     const uid = user.id;
+    const statusToast = 'realtime-connection-status';
+    const offline = () => toast.warning('Offline — showing saved data. Updates will sync when you reconnect.', { id: statusToast, duration: Infinity });
+    if (!navigator.onLine) offline();
 
     const connect = async () => {
       try {
@@ -40,7 +44,10 @@ export default function RealtimeSyncProvider() {
         const healthyStreams = new Set<string>();
         let notificationsHealthy = false;
         const checkHealthy = () => {
-          if (notificationsHealthy && [...streams.keys()].every(key => healthyStreams.has(key))) attempts = 0;
+          if (notificationsHealthy && [...streams.keys()].every(key => healthyStreams.has(key))) {
+            attempts = 0;
+            toast.dismiss(statusToast);
+          }
         };
         let batch: ReturnType<typeof setTimeout> | undefined;
         const syncStreams = () => {
@@ -95,6 +102,7 @@ export default function RealtimeSyncProvider() {
     function retry(error: unknown) {
       if (disposed) return;
       console.warn('[Realtime] Listener disconnected; existing data is retained.', (error as { code?: string })?.code || 'unavailable');
+      toast.warning('Live updates are temporarily unavailable. Existing data is retained while reconnection is attempted.', { id: statusToast, duration: Infinity });
       // Failed-listener backoff, never a periodic API freshness check.
       if (retryTimer) return;
       if (attempts++ < 5) retryTimer = setTimeout(() => { retryTimer = undefined; void connect(); }, Math.min(30_000, 1000 * 2 ** (attempts - 1)));
@@ -108,6 +116,7 @@ export default function RealtimeSyncProvider() {
       }
     };
     window.addEventListener('online', resume);
+    window.addEventListener('offline', offline);
     document.addEventListener('visibilitychange', resume);
     void connect();
     return () => {
@@ -116,6 +125,8 @@ export default function RealtimeSyncProvider() {
       unsubscribe?.();
       unsubscribeNotifications?.();
       window.removeEventListener('online', resume);
+      window.removeEventListener('offline', offline);
+      toast.dismiss(statusToast);
       document.removeEventListener('visibilitychange', resume);
     };
   }, [user?.id, permissionScope]);
