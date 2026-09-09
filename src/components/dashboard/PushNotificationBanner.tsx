@@ -55,7 +55,7 @@ export default function PushNotificationBanner() {
     <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
       <Bell className="w-5 h-5 text-primary shrink-0" />
       <p className="flex-1 text-sm text-foreground">
-        <span className="font-medium">Never miss a meeting or Sadhana reminder</span>
+        <span className="font-medium">Never miss a Sadhana reminder or admin notification</span>
         <span className="text-muted-foreground"> — enable notifications on this device.</span>
       </p>
       <Button size="sm" onClick={handleEnable} disabled={busy} className="shrink-0">
