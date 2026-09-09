@@ -11,6 +11,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { getFirestoreDb } from './app-backend-sdk';
 import { publishNotification } from './realtimeNotificationPublisher';
 
 export interface BroadcastData {
@@ -35,11 +36,11 @@ const DELIVERY_WINDOW_MS = 5 * 60_000;
 let _idCounter = 0;
 const BROADCAST_FILE = path.join('/tmp', 'pw-latest-broadcast.json');
 
-// Lazy Firestore reference — avoids import-time side effects
+// This module is imported only by server endpoints. A static binding is
+// required so Next/App Hosting includes the database SDK in the server bundle;
+// a runtime require can be omitted during bundling and silently return null.
 function getDb(): any | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getFirestoreDb } = require('./app-backend-sdk');
     return getFirestoreDb?.() ?? null;
   } catch {
     return null;
