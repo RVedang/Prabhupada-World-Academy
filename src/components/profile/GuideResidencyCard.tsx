@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -215,8 +216,8 @@ function SetFolkCenterSection({ allResidencies, onSaved }: {
 function LastOneToOneRow() {
   const [data, setData] = useState<{ guideName: string | null; guideLink: string | null; lastMeetingDate: string | null; lastMeetingWeeksAgo: number | null } | null>(null);
 
-  useEffect(() => {
-    getMyGuideOneToOne({}).then(r => setData(r as any)).catch(() => { });
+  useReactiveEffect((read) => {
+    read(() => getMyGuideOneToOne({})).then(r => !read.cancelled && setData(r as any)).catch(() => { });
   }, []);
 
   if (!data || !data.guideName) return null;

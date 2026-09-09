@@ -58,7 +58,7 @@ export default function LandingPage({ isPw = false }: { isPw?: boolean }) {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-[400px] text-center space-y-8"
       >
 
@@ -76,7 +76,7 @@ export default function LandingPage({ isPw = false }: { isPw?: boolean }) {
             <motion.h1 
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
+              transition={{ duration: 0.2 }}
               className="text-[28px] font-bold text-gray-900 tracking-tight leading-tight"
             >
               Prabhupada World Academy
@@ -105,7 +105,7 @@ export default function LandingPage({ isPw = false }: { isPw?: boolean }) {
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
+          transition={{ duration: 0.2 }}
           className="space-y-4"
         >
           {canCreateNewPwAccount && (

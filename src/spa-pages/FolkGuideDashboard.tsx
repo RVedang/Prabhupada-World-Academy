@@ -1,9 +1,10 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { MobileSectionNav } from '@/components/mobile/DashboardNavigation';
 import DashboardPanel from '@/components/DashboardPanel';
 import { useDashboardPrefetch } from '@/hooks/useDashboardPrefetch';
 import { dashboardScope } from '@/lib/dashboardScope';
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Users, CalendarCheck, BookOpen, LayoutGrid, AlertCircle, Zap, ClipboardCheck, Database, Building2, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-sdk';
@@ -12,7 +13,7 @@ import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import { DashboardLayout } from '@/layouts';
 import TabTransition from '@/components/TabTransition';
 import { motion } from 'framer-motion';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { LoadingPage } from '@/shared';
 import {
   getCurrentGuide, getPushSubscriptionStats, GetPushSubscriptionStatsOutputType,
@@ -110,27 +111,27 @@ export default function FolkGuideDashboard() {
     window.history.pushState(null, '', `${search}#${tab}`);
   };
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (user?.email) {
-      getCurrentGuide({}).then(r => {
-        if (r.guide?.fullName) setAdminName(r.guide.fullName);
+      read(() => getCurrentGuide({})).then(r => {
+        if (r.guide?.fullName) !read.cancelled && setAdminName(r.guide.fullName);
         // Use the endpoint's resolved guide identity for scoped RGF/group reads.
         const resolvedGuideId = r.guide?.guideId || '';
-        if (resolvedGuideId) setGuideId(resolvedGuideId);
+        if (resolvedGuideId) !read.cancelled && setGuideId(resolvedGuideId);
       }).catch(() => {});
 
     }
   }, [user?.email]);
 
-  const fetchCounts = useCallback(() => {
+  const fetchCounts = useReactiveLoader(async (read) => {
     if (!user?.email || (!isSuperAdmin && !guideId)) return Promise.resolve();
-    return Promise.all([
+    return read(() => Promise.all([
           getPendingApprovals({ guideId: isSuperAdmin ? 'ALL' : guideId }).catch(() => []),
           getGuideRequests({ guideId: isSuperAdmin ? 'ALL' : guideId }).catch(() => ({ guideTransfers: [], ashrayUpgrades: [] })),
           getResidencyTransferRequests({ guideId: isSuperAdmin ? 'ALL' : guideId } as any).catch(() => []),
           getCleanlinessReviews({ guideId: isSuperAdmin ? 'ALL' : guideId }).catch(() => []),
           getPendingBvRegistrations({ segment: 'FOLK', ...(!isSuperAdmin && guideId ? { guideId } : {}) }).catch(() => []),
-        ]).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
+        ])).then(([pending, requests, resTrans, cleanReviews, bvRegs]) => {
           const pendingArr = Array.isArray(pending) ? pending : (pending as any).records || [];
           const guideTransfers = Array.isArray(requests?.guideTransfers) ? requests.guideTransfers : [];
           const ashrayUpgrades = Array.isArray(requests?.ashrayUpgrades) ? requests.ashrayUpgrades : [];
@@ -159,7 +160,6 @@ export default function FolkGuideDashboard() {
   }, []);
 
   useEffect(() => { void fetchCounts(); }, [fetchCounts]);
-  useRealtimeRefresh(['users', 'groups'], fetchCounts, Boolean(user?.email && (isSuperAdmin || guideId)));
 
   const navItems = [
     { id: 'sadhana', label: 'Sadhana Report', icon: BookOpen },
@@ -191,56 +191,9 @@ export default function FolkGuideDashboard() {
       maxWidth="max-w-none"
     >
       <div className="flex flex-col md:flex-row gap-6">
-        <div className="block md:hidden w-full mb-5">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-            Navigate Dashboard
-          </label>
-          {(() => {
-            const activeItem = navItems.find(item => item.id === activeTab || (item.id === 'bhakti-vriksha' && activeTab === 'bv-registrations'));
-            return (
-              <Select value={activeTab} onValueChange={(val) => handleTabChange(val || '')}>
-                <SelectTrigger className="w-full h-11 bg-card hover:bg-muted/10 border-primary/20 rounded-xl shadow-xs transition-all flex items-center justify-between px-3.5 cursor-pointer text-sm font-semibold">
-                  <div className="flex items-center gap-2.5">
-                    {activeItem && React.createElement(activeItem.icon, { className: "w-4 h-4 text-primary shrink-0" })}
-                    <span className="text-sm font-semibold text-foreground">{activeItem?.label || 'Select Tab...'}</span>
-                    {activeItem?.count != null && activeItem.count > 0 && (
-                      <span className="bg-destructive text-destructive-foreground text-[10px] font-extrabold px-1.5 py-0.5 rounded-full leading-none">
-                        {activeItem.count}
-                      </span>
-                    )}
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border border-border bg-card shadow-lg max-h-[300px]">
-                  {navItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id || (item.id === 'bhakti-vriksha' && (activeTab === 'bv-registrations' || activeTab === 'bv-admins'));
-                    return (
-                      <SelectItem 
-                        key={item.id} 
-                        value={item.id} 
-                        className={`cursor-pointer py-2.5 px-3 rounded-lg transition-colors ${
-                          isActive ? 'bg-primary/10 text-primary font-semibold' : ''
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full gap-8">
-                          <div className="flex items-center gap-2.5">
-                            <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                            <span className="text-xs font-medium">{item.label}</span>
-                          </div>
-                          {item.count != null && item.count > 0 && (
-                            <span className="bg-destructive text-destructive-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0">
-                              {item.count}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            );
-          })()}
-        </div>
+      <MobileSectionNav items={navItems.map(item => ({ id: item.id, label: item.label, icon: item.icon, badge: item.count }))}
+        activeId={['bv-registrations', 'bv-admins'].includes(activeTab) ? 'bhakti-vriksha' : activeTab}
+        onSelect={handleTabChange} onIntent={prefetchTab} />
 
         <aside className="hidden md:block w-60 shrink-0">
           <div className="sticky top-20 space-y-1 bg-card p-3 rounded-xl border border-border shadow-sm">

@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { getMyGuideOneToOne } from '@/lib/endpoints-sdk';
 import { Button } from '@/components/ui/button';
@@ -44,11 +45,11 @@ export default function GuideOneToOneCard() {
   const [data, setData] = useState<OneToOneData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getMyGuideOneToOne({})
-      .then(r => setData(r as OneToOneData))
+  useReactiveEffect((read) => {
+    read(() => getMyGuideOneToOne({}))
+      .then(r => !read.cancelled && setData(r as OneToOneData))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, []);
 
   // Hide while loading, if hidden flag set, or no guide name

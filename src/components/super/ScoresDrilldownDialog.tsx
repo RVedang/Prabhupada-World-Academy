@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,39 +33,42 @@ export default function ScoresDrilldownDialog({ open, onClose, title, metric, en
   const [level2Records, setLevel2Records] = useState<RecordItem[]>([]);
   const [level2Loading, setLevel2Loading] = useState(false);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!open) return;
-    setLoading(true);
-    setRecords([]);
-    setVolunteers([]);
-    setSearch('');
-    setDrillVolId(null);
+    !read.background && !read.cancelled && setLoading(true);
+    !read.background && !read.cancelled && setRecords([]);
+    !read.background && !read.cancelled && setVolunteers([]);
+    !read.background && !read.cancelled && setSearch('');
+    !read.background && !read.cancelled && setDrillVolId(null);
 
     const params: any = { metric, weekStart, weekEnd };
     if (entityType === 'individual') params.volunteerId = entityId;
     else if (entityType === 'team') params.teamId = entityId;
     else params.centerId = entityId;
 
-    getScoresDrilldown(params)
+    read(() => getScoresDrilldown(params))
       .then((res: any) => {
-        setRecords(res.records || []);
-        setVolunteers(res.volunteers || []);
+        !read.cancelled && setRecords(res.records || []);
+        !read.cancelled && setVolunteers(res.volunteers || []);
       })
       .catch(() => toast.error('Failed to load details'))
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, [open, metric, entityId, entityType, weekStart, weekEnd]);
 
   const loadVolRecords = (volId: string, volName: string) => {
     setDrillVolId(volId);
     setDrillVolName(volName);
-    setLevel2Loading(true);
-    setLevel2Records([]);
     setSearch('');
-    getScoresDrilldown({ metric, volunteerId: volId, weekStart, weekEnd })
-      .then((res: any) => setLevel2Records(res.records || []))
-      .catch(() => toast.error('Failed to load records'))
-      .finally(() => setLevel2Loading(false));
   };
+
+  useReactiveEffect(read => {
+    if (!open || !drillVolId) return;
+    if (!read.background) setLevel2Loading(true);
+    read(() => getScoresDrilldown({ metric, volunteerId: drillVolId, weekStart, weekEnd }))
+      .then((res: any) => { if (!read.cancelled) setLevel2Records(res.records || []); })
+      .catch(() => toast.error('Failed to load records'))
+      .finally(() => { if (!read.cancelled) setLevel2Loading(false); });
+  }, [open, drillVolId, metric, weekStart, weekEnd]);
 
   const showingLevel2 = drillVolId !== null;
   const currentRecords = showingLevel2 ? level2Records : records;

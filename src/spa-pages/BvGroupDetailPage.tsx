@@ -1,3 +1,7 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import { useEndpointQuery } from '@/hooks/useEndpointQuery';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +12,6 @@ import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Users, CheckCircle2, Brain, ChevronDown, ChevronUp, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { deleteBvGroup, getBvGroupDetail, getBvAttendanceMatrix, getBvQuizSubmissions } from '@/lib/endpoints-sdk';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -58,7 +61,7 @@ function AttendanceMatrix({ matrix, dates }: { matrix: MatrixData; dates: string
     return <p className="text-sm text-muted-foreground text-center py-6">No attendance sessions found in the selected date range.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <TableScrollArea className="overflow-x-auto rounded-lg border">
       <table className="w-full text-xs">
         <thead>
           <tr className="bg-muted border-b sticky top-0 z-10">
@@ -95,7 +98,7 @@ function AttendanceMatrix({ matrix, dates }: { matrix: MatrixData; dates: string
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScrollArea>
   );
 }
 
@@ -109,7 +112,7 @@ function MembersTab({ members, onUserClick }: { members: GroupDetail['members'];
     );
   }
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <TableScrollArea className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10">
           <tr className="bg-muted border-b">
@@ -163,7 +166,7 @@ function MembersTab({ members, onUserClick }: { members: GroupDetail['members'];
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScrollArea>
   );
 }
 
@@ -187,16 +190,16 @@ function QuizAnalyticsCard({ quiz, groupId, memberCount }: {
   const [showParticipants, setShowParticipants] = useState(false);
   const [showQuestions, setShowQuestions] = useState(false);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     let cancelled = false;
-    setLoading(true);
-    setError('');
-    getBvQuizSubmissions({ quizId: quiz.quizId, department: 'FOLK', groupId })
-      .then(data => { if (!cancelled) setResult(data); })
+    !read.background && !read.cancelled && setLoading(true);
+    !read.background && !read.cancelled && setError('');
+    read(() => getBvQuizSubmissions({ quizId: quiz.quizId, department: 'FOLK', groupId }))
+      .then(data => { if (!cancelled) !read.cancelled && setResult(data); })
       .catch((requestError: any) => {
-        if (!cancelled) setError(requestError?.message || 'Unable to load quiz analytics.');
+        if (!cancelled) !read.background && !read.cancelled && setError(requestError?.message || 'Unable to load quiz analytics.');
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled) !read.cancelled && setLoading(false); });
     return () => { cancelled = true; };
   }, [groupId, quiz.quizId]);
 
@@ -258,7 +261,7 @@ function QuizAnalyticsCard({ quiz, groupId, memberCount }: {
               submissions.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-2">No members have attempted this quiz yet.</p>
               ) : (
-                <div className="overflow-x-auto rounded-md border">
+                <TableScrollArea className="overflow-x-auto rounded-md border">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50">
                       <tr>
@@ -281,7 +284,7 @@ function QuizAnalyticsCard({ quiz, groupId, memberCount }: {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScrollArea>
               )
             )}
 
@@ -344,13 +347,10 @@ export default function BvGroupDetailPage() {
   const { profile } = useUserProfile();
   const canViewUserProfile = canOpenBvGroupMemberProfile(profile);
   const [detail, setDetail] = useState<GroupDetail | null>(null);
-  const [matrix, setMatrix] = useState<MatrixData | null>(null);
   const [loading, setLoading] = useState(true);
   const [weekFilter, setWeekFilter] = useState<WeekFilter>('this_week');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [matrixLoading, setMatrixLoading] = useState(false);
-  const [matrixError, setMatrixError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const isDeletingRef = useRef(false);
 
@@ -364,50 +364,27 @@ export default function BvGroupDetailPage() {
 
   useEffect(() => { if (groupId) load(); }, [groupId]);
 
-  useEffect(() => {
-    if (!groupId || !dateRange) {
-      setMatrix(null);
-      setMatrixLoading(false);
-      setMatrixError('');
-      return;
-    }
-    let cancelled = false;
-    setMatrixLoading(true);
-    setMatrixError('');
-    setMatrix(null);
-    getBvAttendanceMatrix({
-      groupId,
-      startDate: dateRange.start,
-      endDate: dateRange.end,
-    })
-      .then(data => { if (!cancelled) setMatrix(data); })
-      .catch(() => {
-        if (!cancelled && !isDeletingRef.current) {
-          setMatrixError('Unable to load attendance for this date range.');
-          toast.error('Unable to refresh the attendance matrix');
-        }
-      })
-      .finally(() => { if (!cancelled) setMatrixLoading(false); });
-    return () => { cancelled = true; };
-  }, [groupId, dateRange]);
+  const matrixQuery = useEndpointQuery<MatrixData>('getBvAttendanceMatrix', {
+    groupId, startDate: dateRange?.start, endDate: dateRange?.end,
+  }, Boolean(groupId && dateRange && !deleting));
+  const matrix = matrixQuery.data || null;
+  const matrixLoading = matrixQuery.loading;
+  const matrixError = matrixQuery.error && !matrix ? 'Unable to load attendance for this date range.' : '';
 
-  const load = async (silent = false) => {
+  const load = useReactiveLoader(async (read, silent = false) => {
     if (!groupId || isDeletingRef.current) return;
-    if (!silent) setLoading(true);
+    if (!silent) !read.background && setLoading(true);
     try {
-      const detailRes = await getBvGroupDetail({ groupId });
+      const detailRes = await read(() => getBvGroupDetail({ groupId }));
       setDetail(detailRes);
     } catch {
+      if (read.cancelled) return;
       if (!isDeletingRef.current) toast.error('Failed to load group details');
     } finally {
       if (!silent) setLoading(false);
     }
-  };
-  useRealtimeRefresh(
-    profile?.segment === 'FOLK' ? ['groups', 'users', 'attendance', 'quizzes'] : ['groups', 'users', 'attendance'],
-    () => { if (!isDeletingRef.current) return load(true); },
-    Boolean(groupId) && !deleting,
-  );
+  }, []);
+
 
   const overallRate = useMemo(() => {
     if (!detail || detail.members.length === 0) return 0;

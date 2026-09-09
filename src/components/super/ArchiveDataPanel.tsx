@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,8 +30,8 @@ export default function ArchiveDataPanel() {
   const [result, setResult] = useState<{ summarized: number; deleted: number; months: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getArchiveStats({}).then(setStats).catch(() => {}).finally(() => setLoading(false));
+  useReactiveEffect((read) => {
+    read(() => getArchiveStats({})).then(setStats).catch(() => {}).finally(() => !read.cancelled && setLoading(false));
   }, []);
 
   const handleArchive = async () => {

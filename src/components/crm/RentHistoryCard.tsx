@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -186,7 +187,7 @@ export default function RentHistoryCard({ userId, rentPayments, canEdit, isOwnPr
         {rentPayments.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">No rent payments recorded.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <TableScrollArea className="overflow-x-auto">
             <table className="w-full text-sm min-w-[420px]">
               <thead><tr className="border-b text-xs text-muted-foreground">
                 <th className="text-left py-2 pr-3 font-medium">Month</th>
@@ -244,7 +245,7 @@ export default function RentHistoryCard({ userId, rentPayments, canEdit, isOwnPr
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScrollArea>
         )}
       </CardContent>
 
@@ -329,12 +330,12 @@ export default function RentHistoryCard({ userId, rentPayments, canEdit, isOwnPr
             {importRows.length > 0 && (
               <div>
                 <p className="text-sm font-medium mb-2">{importRows.length} rows found — Preview (first 3):</p>
-                <div className="overflow-x-auto border rounded">
+                <TableScrollArea className="overflow-x-auto border rounded">
                   <table className="text-xs w-full">
                     <thead><tr className="bg-muted">{Object.keys(importRows[0]).slice(0, 5).map(h => <th key={h} className="px-2 py-1 text-left font-medium">{h}</th>)}</tr></thead>
                     <tbody>{importRows.slice(0, 3).map((r, i) => <tr key={i} className="border-t">{Object.values(r).slice(0, 5).map((v, j) => <td key={j} className="px-2 py-1">{String(v).slice(0, 20)}</td>)}</tr>)}</tbody>
                   </table>
-                </div>
+                </TableScrollArea>
                 <Button className="w-full mt-3" onClick={handleImport} disabled={saving}>{saving ? 'Importing...' : `Import ${importRows.length} payments`}</Button>
               </div>
             )}

@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -153,13 +154,14 @@ export default function UserAllocationBoardTab({ userId, residencyId }: Props) {
 
   useEffect(() => { load(); }, [weekStart, residencyId]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      setData(await getAllocationBoard({ weekStartDate: weekStart, residencyId }));
-    } catch { toast.error('Failed to load board'); }
-    finally { setLoading(false); }
-  };
+      !read.cancelled && setData(await read(() => getAllocationBoard({ weekStartDate: weekStart, residencyId })));
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load board'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const handleMarkDone = async () => {
     if (!actionTarget) return;

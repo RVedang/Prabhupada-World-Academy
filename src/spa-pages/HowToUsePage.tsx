@@ -112,7 +112,7 @@ function BvslGuide() {
       </div>
 
       <div className="bg-secondary rounded-lg p-4 border border-border">
-        <p className="text-sm font-semibold text-foreground mb-2">💡 Facilitator Tips</p>
+        <p className="text-sm font-semibold text-foreground mb-2">💡 RGF Tips</p>
         <ul className="space-y-1.5 text-sm text-muted-foreground">
           <li className="flex gap-2"><ChevronRight className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />Conduct sessions promptly after each BV meeting so attendance is recorded accurately.</li>
           <li className="flex gap-2"><ChevronRight className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />You also track your own sadhana — use the User Dashboard for your daily practice.</li>
@@ -162,7 +162,7 @@ const faqs = [
   { q: "I submitted the wrong data — can I edit it?", a: "Yes. Open the Daily Sadhana form for that date (use History to navigate to it) and resubmit. The latest submission for a date is kept." },
   { q: "Why is my score lower than expected?", a: "Scores depend on your residency type (Resident vs Non-Resident), join date, and the criteria set by your guide. Check your profile to make sure your residency join date is correct." },
   { q: "My account is stuck on 'Pending Approval'", a: "Your guide needs to approve your account. Contact your guide directly. If you don't know who your guide is, reach out to the app admin." },
-  { q: "How do I join a Bhakti Vriksha group?", a: "Go to 'Bhakti Vriksha' from your dashboard and browse available groups. Click 'Request to Join' on the group you want to join. Your Facilitator (RGF) will approve the request." },
+  { q: "How do I join a Bhakti Vriksha group?", a: "Go to 'Bhakti Vriksha' from your dashboard and browse available groups. Click 'Request to Join' on the group you want to join. Your RGF will approve the request." },
   { q: "What is Ashray and how do I apply?", a: "Ashray is a spiritual upgrade level. Go to your Profile page — if you meet the criteria, an 'Apply for Ashray' section will appear. Fill the checklist and submit." },
   { q: "Can I use the app on my phone?", a: "Yes! The app is fully responsive and works on all screen sizes. Simply open it in your mobile browser for the best experience." },
 ];
@@ -202,7 +202,7 @@ export default function HowToUsePage() {
               <UserCircle className="w-4 h-4" /> Practitioner
             </TabsTrigger>
             <TabsTrigger value="bvsl" className="gap-1.5 text-xs sm:text-sm">
-              <TreePine className="w-4 h-4" /> Facilitator (RGF)
+              <TreePine className="w-4 h-4" /> RGF
             </TabsTrigger>
             <TabsTrigger value="guide" className="gap-1.5 text-xs sm:text-sm">
               <Shield className="w-4 h-4" /> Guide

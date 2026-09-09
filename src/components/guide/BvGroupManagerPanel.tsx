@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,18 +30,19 @@ export default function BvGroupManagerPanel({ guideId }: Props) {
 
   useEffect(() => { load(); }, [guideId]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
       const [adminRes, membersRes] = await Promise.all([
-        getAllBvGroupsAdmin({ guideId }),
-        getEligibleMembersForBvGroup({ guideId }),
+        read(() => getAllBvGroupsAdmin({ guideId })),
+        read(() => getEligibleMembersForBvGroup({ guideId })),
       ]);
       setGroups(adminRes.groups);
       setEligibleMembers(membersRes.members);
-    } catch { toast.error('Failed to load groups'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load groups'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
   const handleMemberAdded = (groupId: string) => {
     setMemberRefreshKeys(prev => ({ ...prev, [groupId]: (prev[groupId] || 0) + 1 }));

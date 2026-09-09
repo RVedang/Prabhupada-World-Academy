@@ -81,12 +81,12 @@ export default function BvGroupCreateDialog({ open, onClose, onCreated, guideId,
   return (
     <Dialog open={open} onOpenChange={v => !v && handleClose()}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Create BV Group for Facilitator (RGF)</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Create BV Group for RGF</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
 
           {/* Searchable RGF Facilitator combobox */}
           <div>
-            <label className="text-sm font-medium mb-1 block">Select Facilitator (RGF) *</label>
+            <label className="text-sm font-medium mb-1 block">Select RGF *</label>
             <Popover open={comboOpen} onOpenChange={setComboOpen}>
               <PopoverTrigger
                 className="w-full justify-between font-normal inline-flex items-center border rounded-md px-3 py-2 text-sm bg-background hover:bg-muted select-none cursor-pointer"

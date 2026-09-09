@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,27 +45,27 @@ export default function BvQuizTaker({ quizId, submissionId, onBack, onSubmitted 
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showReview, setShowReview] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    setResult(null);
-    setShowReview(false);
+  useReactiveEffect((read) => {
+    !read.background && !read.cancelled && setLoading(true);
+    !read.background && !read.cancelled && setResult(null);
+    !read.background && !read.cancelled && setShowReview(false);
     const request = submissionId
-      ? getMyBvQuizSubmissionReview({ submissionId })
-      : getBvQuizDetail({ quizId });
+      ? read(() => getMyBvQuizSubmissionReview({ submissionId }))
+      : read(() => getBvQuizDetail({ quizId }));
 
     request
       .then((response: any) => {
         if (submissionId) {
-          setQuiz(response.quiz);
-          setResult(response.result);
-          setShowReview(true);
+          !read.cancelled && setQuiz(response.quiz);
+          !read.cancelled && setResult(response.result);
+          !read.cancelled && setShowReview(true);
           return;
         }
-        setQuiz(response);
+        !read.cancelled && setQuiz(response);
       })
       .catch(() => toast.error('Failed to load quiz'))
-      .finally(() => setLoading(false));
-  }, [quizId, submissionId]);
+      .finally(() => !read.cancelled && setLoading(false));
+  }, [quizId, submissionId], Boolean(submissionId) || (answers.size === 0 && !submitting));
 
   const currentQ = quiz?.questions[currentIndex];
   const selected = currentQ ? (answers.get(currentQ.id) || []) : [];

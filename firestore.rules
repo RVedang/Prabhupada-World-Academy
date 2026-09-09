@@ -8,8 +8,9 @@ service cloud.firestore {
     //
     // Private application data access is routed through authenticated Next.js
     // endpoints and the Firebase Admin SDK. The browser's only direct
-    // Firestore access is read-only subscription metadata in
-    // RealtimeInvalidations; those documents contain no business data.
+    // Firestore access is read-only, UID-owned query versions and individual
+    // reminder inbox messages in RealtimeClients. Routing/recipient lists and
+    // query filters are never client-readable.
     //
     // Server-managed collection families include:
     // - Identity/PII: Users, Guides, FolkResidencies, PushSubscriptions
@@ -30,7 +31,8 @@ service cloud.firestore {
     // - Leadership/administration: Meetings, MinutesOfMeeting,
     //   OneToOneMeetings, GuideTransferRequests, PreachingReportGoals,
     //   Config, SkillCatalog, UserSkills, TagMangoSyncLog
-    // - Realtime synchronization metadata: RealtimeInvalidations
+    // - Realtime registry/clocks: RealtimeQuerySubscriptions,
+    //   RealtimeCollectionVersions, RealtimeIdentities
     //
     // These documents contain private information, role flags, operational
     // records, or system configuration. No document is client-readable or
@@ -76,13 +78,20 @@ service cloud.firestore {
     // ===============================================================
     // Default Deny
     // ===============================================================
-    // RealtimeInvalidations contains only data-free cache channel versions.
-    // It is the sole client-readable Firestore collection. Writes remain
-    // server-only through Firebase Admin SDK.
+    // The owner's explicit subcollections below are the only exceptions.
+    // Writes remain server-only through Firebase Admin SDK.
 
-    match /RealtimeInvalidations/{department} {
-      allow read: if isAuthenticated() &&
-        department in ['PW', 'FOLK', 'ALL'];
+    // Only opaque query revisions, never business data or query filters.
+    // UID ownership is enforced for both single-document and query listeners.
+    match /RealtimeClients/{uid}/queries/{queryToken} {
+      allow read: if isOwner(uid);
+      allow create, update, delete: if isValidServerOnlyDocument();
+    }
+
+    // Recipient-specific reminders only; server routing lists and source
+    // broadcasts remain private. Clients cannot create or retarget messages.
+    match /RealtimeClients/{uid}/notifications/{notificationId} {
+      allow read: if isOwner(uid);
       allow create, update, delete: if isValidServerOnlyDocument();
     }
 

@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -96,24 +97,20 @@ export default function SuperHostelsPanel() {
   const [search, setSearch] = useState('');
   const [guideFilter, setGuideFilter] = useState('All');
 
-  const reload = async () => {
+  const reload = useReactiveLoader(async (read) => {
     const [res, gs] = await Promise.all([
-      getAllResidenciesWithStats({ _nocache: true } as any),
-      fetchGuides({ segment: 'FOLK', _nocache: true } as any).then(r => r.guides),
+      read(() => getAllResidenciesWithStats({ _nocache: true } as any)),
+      read(() => fetchGuides({ segment: 'FOLK', _nocache: true } as any)).then(r => r.guides).catch(() => [] as GetGuidesOutputType['guides']),
     ]);
-    setResidencies(res);
-    setGuidesList(gs);
-  };
+    !read.cancelled && setResidencies(res);
+    !read.cancelled && setGuidesList(gs);
+  }, []);
 
   useEffect(() => {
-    Promise.all([
-      getAllResidenciesWithStats({}),
-      fetchGuides({ segment: 'FOLK' }).then(r => r.guides).catch(() => [] as GetGuidesOutputType['guides']),
-    ])
-      .then(([res, gs]) => { setResidencies(res); setGuidesList(gs); })
+    reload()
       .catch(() => toast.error('Failed to load hostels'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [reload]);
 
   const filtered = useMemo(() => residencies.filter(r => {
     // Guide filter: match if any of the residency's guides matches

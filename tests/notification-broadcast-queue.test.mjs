@@ -53,31 +53,20 @@ test('simultaneous PW and FOLK broadcasts survive across server instances and ca
   assert.equal(reader.broadcastsAfter(messages, messages[1].id).length, 0);
 });
 
-test('long polling finds the recipient message even when another department sends afterward', async () => {
-  const messages = [
-    { id: 'baseline', sentAt: 1 },
-    { id: 'folk', title: 'FOLK', inviteeIds: ['folk-user'], segment: 'FOLK', sentAt: 2 },
-    { id: 'pw', title: 'PW', inviteeIds: ['pw-user'], segment: 'PW', sentAt: 3 },
-  ];
-  const store = loadBroadcastStore(new Map());
+test('retired polling endpoint returns no recipient data and performs no database reads', async () => {
   const exports = {};
   const context = vm.createContext({
     exports, console, URL, Date, setTimeout,
     require: name => {
-      if (name === 'next/server') return { NextResponse: {json: value => value} };
-      if (name === '@/lib/notificationBroadcast') return {...store, getRecentBroadcasts: async () => messages};
-      if (name === '@/lib/backend-sdk') return {};
-      if (name === '@/lib/notificationDepartment') return {};
+      if (name === 'next/server') return { NextResponse: {json: (value, options) => ({ ...value, status: options.status })} };
       throw Error(`Unexpected import ${name}`);
     },
   });
   const source = readFileSync(new URL('../src/app/api/push-events/route.ts', import.meta.url), 'utf8');
   vm.runInContext(ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText, context);
   const response = await exports.GET({ url: 'https://example.invalid/api/push-events?lastId=baseline&userId=folk-user' });
-  assert.equal(response.type, 'PUSH_RECEIVED');
-  assert.equal(response.id, 'folk');
+  assert.equal(response.type, 'REALTIME_REQUIRED');
+  assert.equal(response.status, 410);
   assert.equal(response.inviteeIds, undefined);
-  const heartbeat = await exports.GET({ url: 'https://example.invalid/api/push-events?lastId=folk&userId=folk-user' });
-  assert.equal(heartbeat.type, 'HEARTBEAT');
-  assert.equal(heartbeat.id, 'pw');
+  assert.equal(response.title, undefined);
 });

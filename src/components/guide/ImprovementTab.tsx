@@ -18,7 +18,7 @@ import { TrendingDown, Users, RefreshCw, ChevronRight, Lightbulb, CheckCircle2, 
 import { scoreColor } from '@/lib/scoring';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { NON_RESIDENT_FIELDS, RESIDENT_FIELDS } from '@/config/sadhanaFields';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 
 type ReportUser = GetGuideDetailedReportOutputType['users'][0];
 type FieldDef = GetGuideDetailedReportOutputType['fieldDefs'][0];
@@ -334,10 +334,10 @@ export default function ImprovementTab({
   // Dialog for "who lost points on this field"
   const [fieldDialog, setFieldDialog] = useState<FieldLossRow | null>(null);
 
-  const load = (silent = false) => {
+  const load = useReactiveLoader(async (read, silent = false) => {
     const { start, end, reportType } = getPeriodDates(period);
-    if (!silent) setLoading(true);
-    getGuideDetailedReport({
+    if (!silent && !read.background) setLoading(true);
+    await read(() => getGuideDetailedReport({
       guideId,
       date: end,
       reportType,
@@ -347,14 +347,13 @@ export default function ImprovementTab({
       mentorMode,
       facilitatorMode,
       segment: isFolk ? 'FOLK' : 'PW',
-    })
+    }))
       .then(res => setData(res as any))
       .catch(() => {})
       .finally(() => { if (!silent) setLoading(false); });
-  };
+  }, []);
 
   useEffect(() => { load(); }, [guideId, period, bvslMode, mentorMode, facilitatorMode, isFolk]);
-  useRealtimeRefresh(['sadhana', 'users', 'groups'], () => load(true));
 
   const filteredUsers = useMemo(() => {
     if (!data) return [];

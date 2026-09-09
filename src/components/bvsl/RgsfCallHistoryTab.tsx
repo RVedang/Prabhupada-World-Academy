@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback } from 'react';
 import { getBvslOneToOneData } from '@/lib/endpoints-sdk';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,14 +50,15 @@ export default function RgsfCallHistoryTab() {
   const [dialog, setDialog] = useState<DialogState>({ open: false, memberId: '', memberName: '', weekDate: '', existing: null });
   const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({});
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const res = await getBvslOneToOneData({}) as any;
+      const res = await read(() => getBvslOneToOneData({})) as any;
       setMembers(res.users || []);
       setMeetings(res.meetings || []);
       setWeeks(res.weeks || []);
-    } catch { /* silent */ }
+    } catch {
+      if (read.cancelled) return; /* silent */ }
     finally { setLoading(false); }
   }, []);
 

@@ -82,8 +82,8 @@ export default createEndpoint({
 
     const ROLE_LABELS: Record<string, string> = {
       SUPERVISOR: 'BV Supervisor',
-      FACILITATOR: 'Reading Group Facilitator (RGF)',
-      SUB_FACILITATOR: 'Reading Group Sub-Facilitator (RGSF)',
+      FACILITATOR: 'RGF',
+      SUB_FACILITATOR: 'RGSF',
       ADMIN: 'BV Admin',
       MEMBER: 'Regular Member',
     };
@@ -217,15 +217,15 @@ export default createEndpoint({
     const activeRoles: string[] = [];
     if (updates.isBvAdmin) activeRoles.push('BV Admin');
     if (updates.isBvSupervisor) activeRoles.push('BV Supervisor');
-    if (updates.isBvFacilitator) activeRoles.push('Reading Group Facilitator (RGF)');
-    if (updates.isBvSubFacilitator) activeRoles.push('Reading Group Sub-Facilitator (RGSF)');
+    if (updates.isBvFacilitator) activeRoles.push('RGF');
+    if (updates.isBvSubFacilitator) activeRoles.push('RGSF');
     if (activeRoles.length === 0) activeRoles.push(input.isBvMember === false ? 'NA' : 'Regular Member');
 
     const previousRoles: string[] = [];
     if (targetUser.isBvAdmin) previousRoles.push('BV Admin');
     if (targetUser.isBvSupervisor || targetUser.isBvMentor) previousRoles.push('BV Supervisor');
-    if (targetUser.isBvFacilitator || targetUser.isBvsl) previousRoles.push('Reading Group Facilitator (RGF)');
-    if (targetUser.isBvSubFacilitator) previousRoles.push('Reading Group Sub-Facilitator (RGSF)');
+    if (targetUser.isBvFacilitator || targetUser.isBvsl) previousRoles.push('RGF');
+    if (targetUser.isBvSubFacilitator) previousRoles.push('RGSF');
     const meaningfulActiveRoles = activeRoles.filter(role => role !== 'Regular Member' && role !== 'NA');
     const addedRoles = meaningfulActiveRoles.filter(role => !previousRoles.includes(role));
     const removedRoles = previousRoles.filter(role => !meaningfulActiveRoles.includes(role));
@@ -266,7 +266,7 @@ export default createEndpoint({
         if (!parentUser || !parentIsFacilitator) {
           throw new AppError({
             code: 'BAD_REQUEST',
-            message: 'Members can only be assigned to a Reading Group Facilitator (RGF).',
+            message: 'Members can only be assigned to an RGF.',
           });
         }
 

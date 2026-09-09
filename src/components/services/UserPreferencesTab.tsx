@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -18,24 +19,27 @@ export default function UserPreferencesTab({ userId, residencyId }: Props) {
   const [togglingSkill, setTogglingSkill] = useState<string | null>(null);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hasUnsavedPrefs, setHasUnsavedPrefs] = useState(false);
+  const editRevision = useRef(0);
 
   useEffect(() => { load(); }, [userId, residencyId]);
 
-  const load = async () => {
+  const load = useReactiveLoader(async (read) => {
     try {
       const [sRes, pRes, skillsRes, catalogRes] = await Promise.all([
-        getServices({ scope: 'all', residencyId }),
-        getServicePreferences({}),
-        getUserSkills({ userId }),
-        getAvailableSkills({}),
+        read(() => getServices({ scope: 'all', residencyId })),
+        read(() => getServicePreferences({})),
+        read(() => getUserSkills({ userId })),
+        read(() => getAvailableSkills({})),
       ]);
-      setServices(sRes.services);
-      setPrefs(pRes.preferences);
-      setAvailableSkills(catalogRes.skills);
-      setMySkillRows(skillsRes.skills.filter(s => s.userId === userId && s.skillName !== '__removed__').map(s => ({ id: s.id, skillName: s.skillName })));
-    } catch { toast.error('Failed to load preferences'); }
-    finally { setLoading(false); }
-  };
+      !read.cancelled && setServices(sRes.services);
+      if (!hasUnsavedPrefs && !read.cancelled) setPrefs(pRes.preferences);
+      !read.cancelled && setAvailableSkills(catalogRes.skills);
+      !read.cancelled && setMySkillRows(skillsRes.skills.filter(s => s.userId === userId && s.skillName !== '__removed__').map(s => ({ id: s.id, skillName: s.skillName })));
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load preferences'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, [userId, residencyId], !hasUnsavedPrefs && !savingPrefs && !togglingSkill);
 
   const mySkillNames = mySkillRows.map(r => r.skillName);
 
@@ -55,6 +59,8 @@ export default function UserPreferencesTab({ userId, residencyId }: Props) {
 
   const getPref = (serviceId: string) => prefs.find(p => p.serviceId === serviceId);
   const togglePref = (serviceId: string, current: boolean) => {
+    editRevision.current++;
+    setHasUnsavedPrefs(true);
     setPrefs(prev => {
       const exists = prev.find(p => p.serviceId === serviceId);
       if (exists) return prev.map(p => p.serviceId === serviceId ? { ...p, canDo: !current } : p);
@@ -63,9 +69,11 @@ export default function UserPreferencesTab({ userId, residencyId }: Props) {
   };
 
   const savePreferences = async () => {
+    const savedRevision = editRevision.current;
     setSavingPrefs(true);
     try {
       await saveServicePreferences({ preferences: prefs.map(p => ({ serviceId: p.serviceId, canDo: p.canDo, reason: p.reason })) });
+      if (editRevision.current === savedRevision) setHasUnsavedPrefs(false);
       toast.success('Preferences saved ✓');
     } catch { toast.error('Failed to save'); }
     finally { setSavingPrefs(false); }

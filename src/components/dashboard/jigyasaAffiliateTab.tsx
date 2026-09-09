@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,11 +25,11 @@ export default function JigyasaAffiliateTab() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  useEffect(() => {
-    getMyJigyasaRegistrations({})
-      .then((res: any) => setData(res))
+  useReactiveEffect((read) => {
+    read(() => getMyJigyasaRegistrations({}))
+      .then((res: any) => !read.cancelled && setData(res))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, []);
 
   if (loading) {

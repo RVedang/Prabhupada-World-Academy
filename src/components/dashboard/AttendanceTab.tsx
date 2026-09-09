@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,22 +17,23 @@ export default function AttendanceTab({ userId, segment }: Props) {
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const fetchAttendance = async () => {
+  const fetchAttendance = useReactiveLoader(async (read) => {
     try {
-      const attendance = await getUserAttendanceCalendar({});
-      setData(attendance);
+      const attendance = await read(() => getUserAttendanceCalendar({}));
+      !read.cancelled && setData(attendance);
       if (segment === 'FOLK') {
-        const quizzes = await getMyBvQuizSubmissions({});
-        setQuizDates((quizzes.quizDates || []) as { date: string; percentage: number; quizTitle?: string }[]);
+        const quizzes = await read(() => getMyBvQuizSubmissions({}));
+        !read.cancelled && setQuizDates((quizzes.quizDates || []) as { date: string; percentage: number; quizTitle?: string }[]);
       } else {
-        setQuizDates([]);
+        !read.cancelled && setQuizDates([]);
       }
     } catch {
+      if (read.cancelled) return;
       // Keep the attendance tab usable if optional FOLK quiz history fails.
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchAttendance();

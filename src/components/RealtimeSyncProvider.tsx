@@ -1,97 +1,123 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { dashboardScope } from '@/lib/dashboardScope';
-import { firebaseApp } from '@/lib/app-auth-sdk';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import {
-  REALTIME_CHANNELS,
-  REALTIME_INVALIDATION_EVENT,
-  normalizeRealtimeDepartment,
-  type RealtimeChannel,
-} from '@/lib/realtimeChannels';
-import { clearEndpointClientCache, invalidateEndpointClientCacheForChannels, setEndpointPermissionScope } from '@/lib/app-endpoints-sdk';
+import { receiveEndpointRevision, setEndpointPermissionScope, subscribeEndpointCache, getEndpointRealtimeTokens, forgetEndpointRevisionToken } from '@/lib/app-endpoints-sdk';
+import { getRealtimeFirestore } from '@/lib/realtimeFirestore';
+import { realtimeListenerBatches } from '@/lib/realtimeListenerBatches';
 import { invalidateCache } from '@/utils/cache';
-
-type Versions = Partial<Record<RealtimeChannel, number>>;
+import { triggerInAppOrNativeNotification } from '@/utils/sadhanaNotification';
 
 export default function RealtimeSyncProvider() {
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const profileSegment = profile?.segment;
-  const lastIdentityRef = useRef<string>('');
   const permissionScope = dashboardScope(profile, user?.id || user?.email);
   useLayoutEffect(() => {
+    // Authority changes are the only reason to discard all of this user's
+    // cached data. Routine realtime updates preserve every unaffected query.
     setEndpointPermissionScope(permissionScope);
     invalidateCache();
   }, [permissionScope]);
 
   useEffect(() => {
-    const identity = String(user?.id || user?.email || '').toLowerCase();
-    if (lastIdentityRef.current && lastIdentityRef.current !== identity) {
-      clearEndpointClientCache();
-      invalidateCache();
-    }
-    lastIdentityRef.current = identity;
-    if (!identity || !profileSegment || !firebaseApp) return;
-
+    if (!user?.id) return;
     let disposed = false;
-    const unsubscribers: Array<() => void> = [];
-    const previousByDepartment = new Map<string, Versions>();
-    const department = normalizeRealtimeDepartment(profileSegment) || 'PW';
+    let unsubscribe: (() => void) | undefined;
+    let unsubscribeNotifications: (() => void) | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const uid = user.id;
 
-    void (async () => {
-      const firestore = await import('firebase/firestore');
-      if (disposed) return;
-
-      let db;
+    const connect = async () => {
       try {
-        db = firestore.initializeFirestore(firebaseApp, {
-          localCache: firestore.persistentLocalCache({
-            tabManager: firestore.persistentMultipleTabManager(),
-          }),
+        const { firestore, db } = await getRealtimeFirestore();
+        if (disposed) return;
+        unsubscribe?.();
+        unsubscribeNotifications?.();
+        const streams = new Map<string, () => void>();
+        const healthyStreams = new Set<string>();
+        let notificationsHealthy = false;
+        const checkHealthy = () => {
+          if (notificationsHealthy && [...streams.keys()].every(key => healthyStreams.has(key))) attempts = 0;
+        };
+        let batch: ReturnType<typeof setTimeout> | undefined;
+        const syncStreams = () => {
+          const chunks = realtimeListenerBatches(getEndpointRealtimeTokens(), streams.keys());
+          for (const [key, stop] of streams) if (!chunks.has(key)) { stop(); streams.delete(key); healthyStreams.delete(key); }
+          for (const [key, part] of chunks) {
+            if (streams.has(key)) continue;
+            streams.set(key, firestore.onSnapshot(
+              firestore.query(firestore.collection(db, 'RealtimeClients', uid, 'queries'), firestore.where(firestore.documentId(), 'in', part)),
+              { includeMetadataChanges: true }, snapshot => {
+                if (!snapshot.metadata.fromCache) { healthyStreams.add(key); checkHealthy(); }
+                for (const change of snapshot.docChanges()) {
+                  if (change.type === 'removed') forgetEndpointRevisionToken(change.doc.id);
+                  else receiveEndpointRevision(change.doc.id, String(change.doc.data().version || ''));
+                }
+                // TTL may have removed an abandoned query while offline.
+                // A server snapshot, not a cache-only snapshot, proves absence.
+                if (!snapshot.metadata.fromCache) for (const token of part) {
+                  if (!snapshot.docs.some(item => item.id === token)) forgetEndpointRevisionToken(token);
+                }
+              }, error => { healthyStreams.delete(key); retry(error); },
+            ));
+          }
+        };
+        const stopCache = subscribeEndpointCache(() => {
+          if (batch) return;
+          batch = setTimeout(() => { batch = undefined; if (!disposed) syncStreams(); }, 120);
         });
-      } catch {
-        // Firestore may already have been initialized by another mounted tree.
-        db = firestore.getFirestore(firebaseApp);
-      }
-
-      for (const scope of [department, 'ALL'] as const) {
-        const unsubscribe = firestore.onSnapshot(
-          firestore.doc(db, 'RealtimeInvalidations', scope),
+        syncStreams();
+        unsubscribe = () => { stopCache(); clearTimeout(batch); streams.forEach(stop => stop()); streams.clear(); };
+        unsubscribeNotifications = firestore.onSnapshot(
+          firestore.query(
+            firestore.collection(db, 'RealtimeClients', uid, 'notifications'),
+            firestore.where('sentAt', '>', Date.now() - 5 * 60_000),
+            firestore.orderBy('sentAt', 'desc'), firestore.limit(50),
+          ),
           snapshot => {
-            if (!snapshot.exists()) return;
-            const next = (snapshot.data()?.channels || {}) as Versions;
-            const previous = previousByDepartment.get(scope);
-            previousByDepartment.set(scope, next);
-            // The initial snapshot establishes the baseline. Only subsequent
-            // server writes represent changes for this mounted session.
-            if (!previous) return;
-            const changed = REALTIME_CHANNELS.filter(channel =>
-              Number(next[channel] || 0) > Number(previous[channel] || 0)
-            );
-            if (changed.length === 0) return;
-            invalidateEndpointClientCacheForChannels(changed);
-            window.dispatchEvent(new CustomEvent(REALTIME_INVALIDATION_EVENT, {
-              detail: { department: scope, channels: changed, version: snapshot.data()?.version || Date.now() },
-            }));
-          },
-          error => {
-            if (process.env.NODE_ENV !== 'production') {
-              console.warn('[Realtime] Listener unavailable; cached API data remains active.', error.code || error.message);
+            if (!snapshot.metadata.fromCache) { notificationsHealthy = true; checkHealthy(); }
+            for (const change of snapshot.docChanges()) {
+              if (change.type === 'removed') continue;
+              const message = change.doc.data();
+              if (Number(message.sentAt) < Date.now() - 5 * 60_000) continue;
+              triggerInAppOrNativeNotification({ ...message, id: change.doc.id,
+                // Native Web Push owns background/closed-browser delivery.
+                suppressNative: document.visibilityState !== 'visible',
+              });
             }
-          },
+          }, error => { notificationsHealthy = false; retry(error); },
         );
-        unsubscribers.push(unsubscribe);
+      } catch (error) { retry(error); }
+    };
+    function retry(error: unknown) {
+      if (disposed) return;
+      console.warn('[Realtime] Listener disconnected; existing data is retained.', (error as { code?: string })?.code || 'unavailable');
+      // Failed-listener backoff, never a periodic API freshness check.
+      if (retryTimer) return;
+      if (attempts++ < 5) retryTimer = setTimeout(() => { retryTimer = undefined; void connect(); }, Math.min(30_000, 1000 * 2 ** (attempts - 1)));
+    }
+    const resume = () => {
+      if (!disposed && attempts > 0 && document.visibilityState !== 'hidden') {
+        clearTimeout(retryTimer);
+        retryTimer = undefined;
+        attempts = 0;
+        void connect();
       }
-    })();
-
+    };
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', resume);
+    void connect();
     return () => {
       disposed = true;
-      unsubscribers.forEach(unsubscribe => unsubscribe());
+      clearTimeout(retryTimer);
+      unsubscribe?.();
+      unsubscribeNotifications?.();
+      window.removeEventListener('online', resume);
+      document.removeEventListener('visibilitychange', resume);
     };
-  }, [user?.id, user?.email, profileSegment]);
-
+  }, [user?.id, permissionScope]);
   return null;
 }

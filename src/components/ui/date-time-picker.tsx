@@ -268,7 +268,7 @@ export function DateTimePicker({
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="w-auto max-w-[calc(100vw-1rem)] p-3 bg-card border border-border/80 shadow-xl rounded-2xl flex flex-col sm:flex-row gap-3 overflow-hidden backdrop-blur-md"
+        className="w-auto max-w-[calc(100vw-1rem)] p-3 bg-card border border-border/80 shadow-xl rounded-2xl flex flex-col sm:flex-row gap-3 max-h-[calc(100dvh-1rem)] overflow-y-auto backdrop-blur-md"
       >
         {/* Style block to hide scrollbars completely */}
         <style dangerouslySetInnerHTML={{__html: `
@@ -283,7 +283,7 @@ export function DateTimePicker({
         `}} />
 
         {/* Calendar Picker Panel */}
-        <div className="w-[248px] flex flex-col gap-2.5">
+        <div className="w-[min(320px,calc(100vw-3rem))] sm:w-[248px] shrink-0 flex flex-col gap-2.5">
           {/* Header */}
           <div className="flex items-center justify-between pb-1">
             <span className="font-semibold text-sm tracking-tight text-foreground">
@@ -353,9 +353,11 @@ export function DateTimePicker({
                   key={idx}
                   type="button"
                   disabled={isDisabled}
+                  aria-label={cell.date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}
+                  aria-pressed={!!isSelected}
                   onClick={() => !isDisabled && handleSelectDate(cell.date)}
                   className={cn(
-                    "h-8 w-8 rounded-full flex items-center justify-center font-medium transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1",
+                    "h-11 w-full sm:h-8 sm:w-8 rounded-full flex items-center justify-center font-medium transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1",
                     isDisabled 
                       ? "text-muted-foreground/20 cursor-not-allowed hover:bg-transparent"
                         : cell.isPadding

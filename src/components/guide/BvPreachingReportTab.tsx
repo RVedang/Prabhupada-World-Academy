@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -90,16 +92,17 @@ export default function BvPreachingReportTab({ guideId }: Props) {
     return { start: undefined as string | undefined, end: undefined as string | undefined };
   }, [reportType, selectedWeek, selectedMonth]);
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
+  const fetchReport = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const result = await getBvPreachingReport({
+      const result = await read(() => getBvPreachingReport({
         guideId, date: selectedDate, reportType,
         startDate: computedStart, endDate: computedEnd,
-      });
-      setData(result);
-    } catch { toast.error('Failed to load BV preaching report'); }
-    finally { setLoading(false); }
+      }));
+      !read.cancelled && setData(result);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load BV preaching report'); }
+    finally { !read.cancelled && setLoading(false); }
   }, [guideId, selectedDate, reportType, computedStart, computedEnd]);
 
   const debouncedFetch = useDebouncedCallback(fetchReport, 300);
@@ -242,7 +245,7 @@ export default function BvPreachingReportTab({ guideId }: Props) {
           {filteredBvsls.length > 0 ? (
             <Card>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <TableScrollArea className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b bg-muted/50">
@@ -279,7 +282,7 @@ export default function BvPreachingReportTab({ guideId }: Props) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScrollArea>
               </CardContent>
             </Card>
           ) : (

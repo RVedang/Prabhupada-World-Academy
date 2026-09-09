@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -92,12 +93,12 @@ export default function SuperStatsPanel({ segment, isActive }: SuperStatsPanelPr
   const [totalHostels, setTotalHostels] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const loadData = async (showLoading = true) => {
-    if (showLoading) setLoading(true);
+  const loadData = useReactiveLoader(async (read, showLoading = true) => {
+    if (showLoading) !read.background && setLoading(true);
     try {
       const [{ guides }, hostels] = await Promise.all([
-        getGuides({ segment: effectiveSegment }),
-        getAllResidenciesWithStats({}).catch(() => [] as any[]),
+        read(() => getGuides({ segment: effectiveSegment })),
+        read(() => getAllResidenciesWithStats({})).catch(() => [] as any[]),
       ]);
       setTotalHostels((hostels as any[]).filter((h: any) => h.isActive).length);
 
@@ -107,7 +108,7 @@ export default function SuperStatsPanel({ segment, isActive }: SuperStatsPanelPr
         // Fetch all active users once and group them by the current Admin
         // dropdown assignment, with the BV reporting hierarchy as a fallback
         // for older records that do not yet have a guide assignment.
-        const allUsersRes = await getGuideUsers({ guideId: 'ALL', statusFilter: 'active' }).catch(() => ({ users: [] }));
+        const allUsersRes = await read(() => getGuideUsers({ guideId: 'ALL', statusFilter: 'active' })).catch(() => ({ users: [] }));
         const allUsers: any[] = allUsersRes.users;
 
         const adminsByIdentity = new Map<string, Guide>();
@@ -138,7 +139,7 @@ export default function SuperStatsPanel({ segment, isActive }: SuperStatsPanelPr
         // For FOLK, users are linked via the Guides table — original approach works fine
         stats = await Promise.all(
           guides.map((g: any) =>
-            getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
+            read(() => getGuideUsers({ guideId: g.guideId, statusFilter: 'active' }))
               .then(r => {
                 const scored = r.users.filter((u: any) => u.latestScore != null);
                 const avg = scored.length > 0
@@ -152,9 +153,10 @@ export default function SuperStatsPanel({ segment, isActive }: SuperStatsPanelPr
       }
 
       setGuideStats(stats);
-    } catch { toast.error('Failed to load stats'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load stats'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
 
   useEffect(() => {

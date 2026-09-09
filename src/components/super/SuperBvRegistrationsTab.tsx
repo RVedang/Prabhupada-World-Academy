@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Loader2, Users, CheckCircle2, Clock, Leaf, Phone, HeartHandshake, BookOpen, Calendar, Building } from 'lucide-react';
 import { getPendingBvRegistrations, approveAndAssignBvMember, getBvslGroups, getAllBvGroupsAdmin, rejectBvRegistration, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 import { getBvGroupAssignmentOptions, isBvGroupActive, isBvGroupTimeMatch } from '@/lib/bvGroupAssignment';
@@ -81,13 +81,13 @@ export default function SuperBvRegistrationsTab({
 
   useEffect(() => { loadData(); }, [segment, guideId, isSuperGuide]);
 
-  const loadData = async (silent = false) => {
-    if (!silent) setLoading(true);
+  const loadData = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
       const [regs, grpRes] = await Promise.all([
-        getPendingBvRegistrations({ segment }),
+        read(() => getPendingBvRegistrations({ segment })),
         !isSuperGuide && guideId
-          ? getAllBvGroupsAdmin({ guideId }).then((result: any) => ({
+          ? read(() => getAllBvGroupsAdmin({ guideId })).then((result: any) => ({
               groups: (result.groups || []).map((g: any) => ({
                 ...g,
                 id: g.groupDbId || g.groupId,
@@ -96,7 +96,7 @@ export default function SuperBvRegistrationsTab({
                 totalSessions: g.totalSessions ?? g.sessionCount ?? 0,
               })),
             }))
-          : (isSuperGuide ? getBvslGroups({ bvslId: 'ALL' }) : Promise.resolve({ groups: [] }))
+          : (isSuperGuide ? read(() => getBvslGroups({ bvslId: 'ALL' })) : Promise.resolve({ groups: [] }))
               .catch(() => ({ groups: [] })),
       ]);
       const fetchedRegistrations = Array.isArray(regs) ? regs : [];
@@ -111,12 +111,13 @@ export default function SuperBvRegistrationsTab({
       ));
       setAllGroupsState(grpRes.groups || []);
     } catch (err: any) {
+      if (read.cancelled) return;
       toast.error(err?.message || 'Failed to load pending Bhakti Vriksha registrations');
     } finally {
       if (!silent) setLoading(false);
     }
-  };
-  useRealtimeRefresh(['groups', 'users'], () => loadData(true));
+  }, []);
+
 
   const handleReject = async (reg: any) => {
     if (!window.confirm(`Are you sure you want to reject the Bhakti Vriksha registration for ${reg.fullName}?`)) return;
@@ -369,14 +370,14 @@ export default function SuperBvRegistrationsTab({
                       <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden">
                         <SelectValue placeholder="Select group..." className="truncate min-w-0">
                           {selectedGroup
-                            ? `${selectedGroup.groupName} (Facilitator: ${selectedGroup.bvslName || selectedGroup.bvslLeaderName || 'Unassigned'})`
+                            ? `${selectedGroup.groupName} (RGF: ${selectedGroup.bvslName || selectedGroup.bvslLeaderName || 'Unassigned'})`
                             : undefined}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent className="max-w-lg">
                         {filteredGroups.map(g => (
                           <SelectItem key={g.id} value={g.id} disabled={!isBvGroupActive(g)}>
-                            {g.groupName} {g.meetingTime ? `[${g.meetingTime}]` : ''} (Facilitator: {g.bvslName || g.bvslLeaderName || 'Unassigned'}){!isBvGroupActive(g) ? ' — Inactive (activate before assigning)' : ''}
+                            {g.groupName} {g.meetingTime ? `[${g.meetingTime}]` : ''} (RGF: {g.bvslName || g.bvslLeaderName || 'Unassigned'}){!isBvGroupActive(g) ? ' — Inactive (activate before assigning)' : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -387,7 +388,7 @@ export default function SuperBvRegistrationsTab({
                       <div className="bg-primary/5 border border-primary/20 p-3 rounded text-xs space-y-1 mt-2">
                         <p className="font-semibold text-primary">Selected Group Details:</p>
                         <p><strong>• Name of Reading Group:</strong> {selectedGroup.groupName}</p>
-                        <p><strong>• Reading Group Facilitator:</strong> {selectedGroup.bvslName || selectedGroup.bvslLeaderName || 'Unassigned'}</p>
+                        <p><strong>• RGF:</strong> {selectedGroup.bvslName || selectedGroup.bvslLeaderName || 'Unassigned'}</p>
                         <p><strong>• Meeting Time Slot:</strong> {selectedGroup.meetingTime || 'Flexible'}</p>
                       </div>
                     )}

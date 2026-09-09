@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -56,6 +57,7 @@ export default function DailySadhanaForm() {
   const [templateMode, setTemplateMode] = useState('RESIDENT_TEMPLATE');
   const [entryDate, setEntryDate] = useState(searchParams.get('date') || format(new Date(), 'yyyy-MM-dd'));
   const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [existingRowId, setExistingRowId] = useState<number | undefined>(undefined);
   const [existingEntryId, setExistingEntryId] = useState<string | undefined>(undefined);
@@ -64,7 +66,6 @@ export default function DailySadhanaForm() {
   const [activeTab, setActiveTab] = useState('sadhana');
   const [loadError, setLoadError] = useState(false);
   const editToastShownRef = useRef<string | null>(null);
-  const lastTemplateModeRef = useRef<string | null>(null);
   // Temporary residency state
   const [isOfficialResident, setIsOfficialResident] = useState(false);
   const [tempResidencyEnabled, setTempResidencyEnabled] = useState(false);
@@ -134,38 +135,12 @@ export default function DailySadhanaForm() {
     [fields, ashrayLevel, entryDate, residencyBucket, isResident]
   );
 
-  // OPT-7: 150ms debounce (was 400ms) + skip field update if template unchanged
+  // Date navigation and live updates share one generation-aware loader.
   const debouncedCheckEntry = useDebouncedCallback(async (date: string) => {
-    if (!userId) return;
-    try {
-      setAcknowledged(false); // reset acknowledgement when date changes
-      setDurationInputs({});
-      const result = await getSadhanaFormData({ userId, entryDate: date });
-      const newTemplate = result.templateMode ?? 'RESIDENT_TEMPLATE';
-      // Only re-render fields if template actually changed (fields are static per template)
-      if (lastTemplateModeRef.current !== newTemplate) {
-        setFields(result.fields);
-        lastTemplateModeRef.current = newTemplate;
-      }
-      setLoadError(false);
-      setTemplateMode(newTemplate);
-      setIsResident(result.isResident ?? false);
-      setIsOfficialResident(result.isOfficialResident ?? false);
-      setTempResidencyEnabled(result.tempResidencyEnabled ?? false);
-      setTempResidencyId(result.tempResidencyId ?? null);
-      if (result.userRole) setUserRoleFromDb(result.userRole);
-      applyExisting(result, date, result.fields);
-      // Re-check cleanliness auto-fill for the new date
-      if (result.isResident && profile?.selectedFolkResidency) {
-        getCleanlinessForSadhana({ userId, residencyId: profile.selectedFolkResidency, date })
-          .then(res => {
-            setCleanlinessAutoFill({ enabled: res.enabled, score: res.score ?? null, pending: res.pending ?? false, photo: res.photo, comment: res.comment, inspectionId: res.inspectionId, roomId: res.roomId, reviewStatus: res.reviewStatus });
-            if (res.enabled) {
-              setFormValues(prev => ({ ...prev, cleanliness: res.score ?? 0 }));
-            }
-          }).catch(() => {});
-      }
-    } catch { setLoadError(true); }
+    if (date !== entryDate) return;
+    setAcknowledged(false);
+    setHasUnsavedChanges(false);
+    await loadFormData();
   }, 150);
 
   useEffect(() => {
@@ -197,10 +172,10 @@ export default function DailySadhanaForm() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [getDashboardUrl, navigate]);
 
-  const loadFormData = async () => {
+  const loadFormData = useReactiveLoader(async read => {
     if (!userId) return;
     try {
-      const result = await getSadhanaFormData({ userId, entryDate });
+      const result = await read(() => getSadhanaFormData({ userId, entryDate }));
       setFields(result.fields);
       setLoadError(false);
       setUserJoinDate(result.userJoinDate || result.residencyJoinDate);
@@ -213,21 +188,22 @@ export default function DailySadhanaForm() {
       applyExisting(result, entryDate, result.fields);
       // Only fetch residencies if user might need the temp-residency dropdown
       if (isFolkUser && !result.isOfficialResident) {
-        getAllResidencies({}).then(setResidencies).catch(() => {});
+        read(() => getAllResidencies({})).then(result => { if (!read.cancelled) setResidencies(result); }).catch(() => {});
       }
       // Check cleanliness auto-fill for residents
       if (result.isResident && profile?.selectedFolkResidency) {
-        getCleanlinessForSadhana({ userId, residencyId: profile.selectedFolkResidency, date: entryDate })
+        read(() => getCleanlinessForSadhana({ userId, residencyId: profile.selectedFolkResidency!, date: entryDate }))
           .then(res => {
+            if (read.cancelled) return;
             setCleanlinessAutoFill({ enabled: res.enabled, score: res.score ?? null, pending: res.pending ?? false, photo: res.photo, comment: res.comment, inspectionId: res.inspectionId, roomId: res.roomId, reviewStatus: res.reviewStatus });
             if (res.enabled) {
               setFormValues(prev => ({ ...prev, cleanliness: res.score ?? 0 }));
             }
           }).catch(() => {});
       }
-    } catch { setLoadError(true); toast.error('Failed to load form'); }
-    finally { setLoading(false); }
-  };
+    } catch { if (!read.cancelled) { setLoadError(true); toast.error('Failed to load form'); } }
+    finally { if (!read.cancelled) setLoading(false); }
+  }, [userId, entryDate], !hasUnsavedChanges && !submitting);
 
   // SAD-H04 FIX: accept fields to initialize number fields to 0
   const applyExisting = (result: { exists: boolean; entry?: any }, date: string, fieldsForInit?: Field[]) => {
@@ -306,10 +282,12 @@ export default function DailySadhanaForm() {
   };
 
   const handleFieldChange = useCallback((key: string, value: any) => {
+    setHasUnsavedChanges(true);
     setFormValues(prev => ({ ...prev, [key]: value }));
   }, []);
 
   const handleDurationInputChange = useCallback((key: string, text: string) => {
+    setHasUnsavedChanges(true);
     setDurationInputs(prev => ({ ...prev, [key]: text }));
   }, []);
 
@@ -418,7 +396,7 @@ export default function DailySadhanaForm() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="min-h-dvh bg-background p-4">
       <div className="container mx-auto max-w-2xl space-y-3 pt-4">
         <Skeleton className="h-8 w-48" />
         {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
@@ -431,7 +409,7 @@ export default function DailySadhanaForm() {
   const bvMins = bvTotalMinutes % 60;
 
   return (
-    <div className="min-h-screen bg-muted/30 p-4 pb-10">
+    <div className="min-h-dvh bg-muted/30 p-4 pb-10">
       <div className="container mx-auto max-w-2xl">
         {/* Always navigate directly to dashboard — never use navigate(-1) which can land on auth pages */}
         <Button variant="ghost" onClick={() => navigate(getDashboardUrl())} className="mb-4 -ml-2">
@@ -444,7 +422,7 @@ export default function DailySadhanaForm() {
           {isEditMode && <span className="text-sm font-normal text-muted-foreground">(Edit)</span>}
         </h1>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} onChangeCapture={() => setHasUnsavedChanges(true)} className="space-y-3">
           {/* Entry Date */}
           <div className="bg-card border rounded-xl p-4 shadow-sm space-y-2">
             <Label className="text-base font-medium"><Calendar className="w-4 h-4 inline mr-2" />Entry Date</Label>
@@ -531,7 +509,7 @@ export default function DailySadhanaForm() {
                 {isResident && <ReportSendingIndicator entryDate={entryDate} pts={reportSendingPts} />}
               </TabsContent>
               <TabsContent value="bv" className="space-y-3 mt-0">
-                <BvslPreachingSection values={bvslValues} onChange={setBvslValues} />
+                <BvslPreachingSection values={bvslValues} onChange={values => { setHasUnsavedChanges(true); setBvslValues(values); }} />
               </TabsContent>
             </Tabs>
           ) : (
@@ -586,10 +564,10 @@ export default function DailySadhanaForm() {
                   </div>
                 </div>
                 <AcknowledgementCheckbox acknowledged={acknowledged} onToggle={setAcknowledged} />
-                <Button type="submit" size="lg" disabled={submitting || !acknowledged} className="w-full">
+                <div className="sticky-form-actions"><Button type="submit" size="lg" disabled={submitting || !acknowledged} className="w-full h-auto min-h-12 whitespace-normal py-3">
                   <Send className="w-4 h-4 mr-2" />
                   {submitting ? 'Submitting...' : isEditMode ? 'Update Sadhana & Bhakti Vriksha Report' : 'Submit Sadhana & Bhakti Vriksha Report'}
-                </Button>
+                </Button></div>
               </>
             ) : (
               <div className="space-y-4">
@@ -613,9 +591,9 @@ export default function DailySadhanaForm() {
                   </div>
                 </div>
                 <AcknowledgementCheckbox acknowledged={acknowledged} onToggle={setAcknowledged} />
-                <Button type="submit" size="lg" disabled={submitting || !acknowledged} className="w-full">
+                <div className="sticky-form-actions"><Button type="submit" size="lg" disabled={submitting || !acknowledged} className="w-full h-auto min-h-12 whitespace-normal py-3">
                   {submitting ? 'Submitting...' : isEditMode ? 'Update Sadhana' : 'Submit Sadhana'}
-                </Button>
+                </Button></div>
               </div>
             )}
           </div>

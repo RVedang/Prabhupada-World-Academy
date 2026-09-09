@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-sdk';
 import { getTodayServiceBoard, markServiceDone } from '@/lib/endpoints-sdk';
@@ -19,16 +20,17 @@ export default function PersonalServiceAlert({ residencyId }: Props) {
   const [marking, setMarking] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useReactiveLoader(async (read) => {
     try {
-      const res = await getTodayServiceBoard({ residencyId });
+      const res = await read(() => getTodayServiceBoard({ residencyId }));
       // Filter to only the current user's services using the DB record ID
       const mine = (res.services || []).filter(
         s => s.assigneeDbId === user?.id
       );
-      setServices(mine);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+      !read.cancelled && setServices(mine);
+    } catch {
+      if (read.cancelled) return; /* silent */ }
+    finally { !read.cancelled && setLoading(false); }
   }, [residencyId, user?.id]);
 
   useEffect(() => { load(); }, [load]);

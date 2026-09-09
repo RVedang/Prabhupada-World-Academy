@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Users, CheckSquare, BarChart3, FileText, Brain, CalendarClock, ClipboardList, Video } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,7 +20,6 @@ import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
 import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function RgfDashboard() {
   const { profile } = useUserProfile();
@@ -30,27 +30,28 @@ export default function RgfDashboard() {
 
   useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId]);
 
-  const loadGroups = useCallback(async (silent = false) => {
+  const loadGroups = useReactiveLoader(async (read, silent = false) => {
     const bvslId = profile?.userId;
     if (!bvslId) return;
-    if (!silent) setLoading(true);
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getBvslGroups({ bvslId });
+      const res = await read(() => getBvslGroups({ bvslId }));
       setGroups(res.groups);
     } catch {
-      toast.error('Failed to load facilitator groups');
+      if (read.cancelled) return;
+      toast.error('Failed to load RGF groups');
     } finally {
       if (!silent) setLoading(false);
     }
   }, [profile?.userId]);
-  useRealtimeRefresh(['groups', 'users'], () => loadGroups(true), Boolean(profile?.userId));
+
 
   if (!profile) return <LoadingPage />;
 
   const bvslId = profile.userId || '';
 
   const subtitle = [
-    'Reading Group Facilitator (RGF)',
+    'RGF',
     profile.ashrayLevel ? `Ashray: ${profile.ashrayLevel}` : null,
     (profile as any).bvReportingSupervisorName
       ? `Supervisor: ${(profile as any).bvReportingSupervisorName}`

@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -163,19 +165,20 @@ export default function RentTripsTab({ guideId }: { guideId: string }) {
 
   useEffect(() => { load(); }, [guideId]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getGuideRentTripsOverview({ guideId });
-      setData(res);
+      const res = await read(() => getGuideRentTripsOverview({ guideId }));
+      !read.cancelled && setData(res);
       // default to showing all if nobody has a balance
-      if (res.summary.usersWithDebt === 0) setOnlyWithBalance(false);
+      if (res.summary.usersWithDebt === 0 && !read.background) !read.cancelled && setOnlyWithBalance(false);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load rent & trips overview');
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, []);
 
   const handleExportRent = async () => {
     setExportingRent(true);
@@ -283,7 +286,7 @@ export default function RentTripsTab({ guideId }: { guideId: string }) {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <TableScrollArea className="overflow-x-auto">
               <table className="w-full text-sm min-w-[500px]">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
@@ -304,7 +307,7 @@ export default function RentTripsTab({ guideId }: { guideId: string }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScrollArea>
           )}
         </CardContent>
       </Card>

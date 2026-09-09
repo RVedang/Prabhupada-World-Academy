@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback } from 'react';
 import { getOneToOneMeetings, saveGuideOneToOneLink } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -92,18 +93,19 @@ export default function OneToOneTab({ guideId }: Props) {
   const [eligibilityOpen, setEligibilityOpen] = useState(false);
   const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({});
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getOneToOneMeetings({ guideId: selectedGuideId }) as any;
-      setMembers(res.users || []);
-      setMeetings(res.meetings || []);
-      setWeeks(res.weeks || []);
-      if (res.availableGuides?.length) setAvailableGuides(res.availableGuides);
-      if (res.availableBvsls) setAvailableBvsls(res.availableBvsls);
-      if (res.guideLink !== undefined) setGuideLink(res.guideLink || '');
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+      const res = await read(() => getOneToOneMeetings({ guideId: selectedGuideId })) as any;
+      !read.cancelled && setMembers(res.users || []);
+      !read.cancelled && setMeetings(res.meetings || []);
+      !read.cancelled && setWeeks(res.weeks || []);
+      if (res.availableGuides?.length) !read.cancelled && setAvailableGuides(res.availableGuides);
+      if (res.availableBvsls) !read.cancelled && setAvailableBvsls(res.availableBvsls);
+      if (res.guideLink !== undefined) !read.cancelled && setGuideLink(res.guideLink || '');
+    } catch {
+      if (read.cancelled) return; /* silent */ }
+    finally { !read.cancelled && setLoading(false); }
   }, [selectedGuideId]);
 
   useEffect(() => { loadData(); }, [loadData]);

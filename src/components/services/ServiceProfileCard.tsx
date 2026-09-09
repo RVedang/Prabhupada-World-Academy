@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,14 +18,15 @@ export default function ServiceProfileCard({ userId }: Props) {
     if (open && !profile) load();
   }, [open]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getServiceProfile({ userId });
-      setProfile(res);
-    } catch {}
-    finally { setLoading(false); }
-  };
+      const res = await read(() => getServiceProfile({ userId }));
+      !read.cancelled && setProfile(res);
+    } catch {
+      if (read.cancelled) return;}
+    finally { !read.cancelled && setLoading(false); }
+  }, [userId], open);
 
   const scoreColor = (score: number) =>
     score >= 90 ? 'text-green-600' : score >= 70 ? 'text-yellow-600' : 'text-destructive';

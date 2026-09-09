@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,12 +20,12 @@ export default function BvGroupMembersSection({ groupDbId, refreshKey, onMemberR
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    getGroupMembers({ groupDbId })
-      .then(res => setMembers((res as any).members))
+  useReactiveEffect((read) => {
+    !read.background && !read.cancelled && setLoading(true);
+    read(() => getGroupMembers({ groupDbId }))
+      .then(res => !read.cancelled && setMembers((res as any).members))
       .catch(() => toast.error('Failed to load members'))
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, [groupDbId, refreshKey]);
 
   const handleRemove = async (m: Member) => {

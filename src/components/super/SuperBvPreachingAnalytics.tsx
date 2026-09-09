@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 /**
  * SuperBvPreachingAnalytics — center-wise BV preaching data for the Super Guide.
  * Shows a summary table: rows = centers, columns = each BV preaching field.
@@ -152,15 +154,16 @@ export default function SuperBvPreachingAnalytics() {
     return { start: undefined as string | undefined, end: undefined as string | undefined };
   }, [reportType, selectedWeek, selectedMonth]);
 
-  const doFetch = useCallback(async () => {
-    setLoading(true);
+  const doFetch = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const result = await getSuperBvAnalytics({
+      const result = await read(() => getSuperBvAnalytics({
         date: selectedDate, reportType,
         startDate: rangeStart, endDate: rangeEnd,
-      });
+      }));
       setData(result as AnalyticsData);
-    } catch { toast.error('Failed to load BV preaching analytics'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load BV preaching analytics'); }
     finally { setLoading(false); }
   }, [reportType, selectedDate, rangeStart, rangeEnd]);
 
@@ -258,7 +261,7 @@ export default function SuperBvPreachingAnalytics() {
       {data && (
         <Card className={loading ? 'opacity-50 pointer-events-none' : ''}>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <TableScrollArea className="overflow-x-auto">
               <table className="w-full min-w-[1330px] table-fixed text-sm border-collapse">
                 <AnalyticsColGroup />
                 <thead>
@@ -366,7 +369,7 @@ export default function SuperBvPreachingAnalytics() {
                   })()}
                 </tbody>
               </table>
-            </div>
+            </TableScrollArea>
           </CardContent>
         </Card>
       )}
@@ -378,8 +381,8 @@ export default function SuperBvPreachingAnalytics() {
 function BvslSubTable({ bvsls }: { bvsls: BvslDetail[] }) {
   return (
     <div className="py-3">
-      <p className="px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual facilitators (RGFs) — submission details</p>
-      <div className="overflow-x-auto">
+      <p className="px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Individual RGFs/RGSFs — submission details</p>
+      <TableScrollArea className="overflow-x-auto">
         <table className="w-full min-w-[1330px] table-fixed text-xs border-collapse">
           <AnalyticsColGroup detail />
           <thead>
@@ -406,7 +409,7 @@ function BvslSubTable({ bvsls }: { bvsls: BvslDetail[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScrollArea>
     </div>
   );
 }

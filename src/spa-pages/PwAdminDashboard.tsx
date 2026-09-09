@@ -1,9 +1,10 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { MobileSectionNav } from '@/components/mobile/DashboardNavigation';
 import DashboardPanel from '@/components/DashboardPanel';
 import { useDashboardPrefetch } from '@/hooks/useDashboardPrefetch';
 import { dashboardScope } from '@/lib/dashboardScope';
 import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, CalendarCheck, LayoutGrid, AlertCircle, ClipboardCheck, Database, Leaf, CalendarClock, Bell, Video } from 'lucide-react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -13,7 +14,7 @@ import { LoadingPage } from '@/shared';
 import TabTransition from '@/components/TabTransition';
 import TabErrorBoundary from '@/components/TabErrorBoundary';
 import { motion } from 'framer-motion';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 
 const SuperBvReportTab = lazy(() => import('@/components/super/SuperBvReportTab'));
 const SuperUsersPanel = lazy(() => import('@/components/super/SuperUsersPanel'));
@@ -101,21 +102,21 @@ export default function PwAdminDashboard() {
     window.history.pushState(null, '', `#${tab}`);
   };
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (user?.email) {
-      getCurrentGuide({}).then(r => {
-        if (r.guide?.fullName) setAdminName(r.guide.fullName);
+      read(() => getCurrentGuide({})).then(r => {
+        if (r.guide?.fullName) !read.cancelled && setAdminName(r.guide.fullName);
       }).catch(() => {});
-      getPushSubscriptionStats({ segment: 'PW' }).then(setPushStats).catch(() => {});
+      read(() => getPushSubscriptionStats({ segment: 'PW' })).then(setPushStats).catch(() => {});
     }
   }, [user?.email]);
 
-  const fetchCounts = useCallback(() => {
-      Promise.all([
+  const fetchCounts = useReactiveLoader(async (read) => {
+      await read(() => Promise.all([
         getPendingApprovals({ guideId: 'ALL' }),
         getGuideRequests({ guideId: 'ALL' }),
         getPendingBvRegistrations({ segment: 'PW' }).catch(() => []),
-      ]).then(([pending, requests, bvRegs]) => {
+      ])).then(([pending, requests, bvRegs]) => {
         const registrations = Array.isArray(bvRegs) ? bvRegs : [];
         const fetchedIds = new Set(registrations.map(reg => String(reg.id)));
         for (const resolvedId of resolvedBvRegistrationIdsRef.current) {
@@ -139,7 +140,6 @@ export default function PwAdminDashboard() {
 
   // One initial scoped read, followed by event-driven updates from Firestore.
   useEffect(() => { void fetchCounts(); }, [fetchCounts]);
-  useRealtimeRefresh(['users', 'groups'], fetchCounts);
 
   const navItems = [
     { value: 'sadhana', label: 'Sadhana Report', icon: Database },
@@ -190,57 +190,9 @@ export default function PwAdminDashboard() {
       role={dashboardRole}
       maxWidth="max-w-none"
     >
-      {/* Mobile Select Tab Selector (Beautified Dropdown) */}
-      <div className="block md:hidden mb-5">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-          Navigate Dashboard
-        </label>
-        {(() => {
-          const activeItem = navItems.find(item => item.value === activeTab || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations'));
-          return (
-            <Select value={activeTab} onValueChange={(val) => val && handleTabChange(val)}>
-              <SelectTrigger className="w-full h-11 bg-card hover:bg-muted/10 border-primary/20 rounded-xl shadow-xs transition-all flex items-center justify-between px-3.5 cursor-pointer text-sm font-semibold">
-                <div className="flex items-center gap-2.5">
-                  {activeItem && React.createElement(activeItem.icon, { className: "w-4 h-4 text-primary shrink-0" })}
-                  <span className="text-sm font-semibold text-foreground">{activeItem?.label || 'Select Tab...'}</span>
-                  {activeItem?.badge != null && activeItem.badge > 0 && (
-                    <span className="bg-destructive text-destructive-foreground text-[10px] font-extrabold px-1.5 py-0.5 rounded-full leading-none">
-                      {activeItem.badge}
-                    </span>
-                  )}
-                </div>
-              </SelectTrigger>
-              <SelectContent className="rounded-xl border border-border bg-card shadow-lg max-h-[300px]">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.value || (item.value === 'bhakti-vriksha' && activeTab === 'bv-registrations');
-                  return (
-                    <SelectItem 
-                      key={item.value} 
-                      value={item.value} 
-                      className={`cursor-pointer py-2.5 px-3 rounded-lg transition-colors ${
-                        isActive ? 'bg-primary/10 text-primary font-semibold' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full gap-8">
-                        <div className="flex items-center gap-2.5">
-                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                          <span className="text-xs font-medium">{item.label}</span>
-                        </div>
-                        {item.badge != null && item.badge > 0 && (
-                          <span className="bg-destructive text-destructive-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0">
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          );
-        })()}
-      </div>
+      <MobileSectionNav items={navItems.map(item => ({ id: item.value, label: item.label, icon: item.icon, badge: item.badge }))}
+        activeId={['bv-registrations', 'bv-admins'].includes(activeTab) ? 'bhakti-vriksha' : activeTab}
+        onSelect={handleTabChange} onIntent={prefetchTab} />
 
       <div className="flex flex-col md:flex-row gap-6">
         {/* Desktop Sidebar Navigation */}
@@ -259,7 +211,7 @@ export default function PwAdminDashboard() {
         </div>
 
         {/* Content Pane */}
-        <div className="flex-1 min-w-0 bg-card border rounded-xl p-6 shadow-sm min-h-[500px]">
+        <div className="flex-1 min-w-0 bg-card border rounded-xl p-3 sm:p-4 lg:p-6 shadow-sm min-h-[500px]">
           <TabErrorBoundary tabName={activeTab}>
             <Suspense fallback={<LoadingPage rows={2} />}>
               <TabTransition key={dashboardScope(profile)} activeTab={activeTab}>
@@ -356,10 +308,6 @@ export default function PwAdminDashboard() {
 
                 {visitedTabs.has('meetings') && (
                   <DashboardPanel active={activeTab === 'meetings'}>
-                    <div className="space-y-1 mb-4">
-                      <h2 className="text-lg font-bold">Meetings & Minutes of Meeting (MoM)</h2>
-                      <p className="text-sm text-muted-foreground">Schedule meetings, track attendance, and record actionable Minutes of Meeting</p>
-                    </div>
                     <MeetingsAndMomTab allowSchedule={true} />
                   </DashboardPanel>
                 )}
@@ -368,7 +316,7 @@ export default function PwAdminDashboard() {
                   <DashboardPanel active={activeTab === 'callreports'}>
                     <div className="space-y-1 mb-4">
                       <h2 className="text-lg font-bold">1:1 Call Reports</h2>
-                      <p className="text-sm text-muted-foreground">All one-on-one call logs between Facilitators (RGF) and their members</p>
+                      <p className="text-sm text-muted-foreground">All one-on-one call logs between RGFs and their members</p>
                     </div>
                     <BvslOneToOneTab />
                   </DashboardPanel>

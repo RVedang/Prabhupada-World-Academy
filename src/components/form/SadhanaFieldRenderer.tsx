@@ -353,6 +353,7 @@ function SadhanaFieldRenderer({
       <div className="space-y-2">
         {fieldLabel}
         <Input
+          aria-label={field.fieldLabel}
           type="tel"
           inputMode="numeric"
           pattern="[0-9]*"

@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/auth-sdk';
 import { getUserProfile, updateLastLogin } from '@/lib/endpoints-sdk';
 import type { ProfileSummary } from '@/types/models';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { getDepartmentLandingUrl, getUserDepartment, rememberUserDepartment } from '@/lib/userDashboardRoutes';
 
 // Re-export for backward compatibility — NEW CODE should import from '@/types/models'
@@ -173,9 +173,6 @@ export default function UserProfileProvider({ children }: { children: React.Reac
 
   // Roles, approvals, and account deletion now arrive through the scoped
   // Firestore invalidation stream; no focus/navigation/database polling.
-  useRealtimeRefresh(['users', 'groups'], async () => {
-    if (user?.email) await load(user.email, 0, true);
-  }, Boolean(user?.email));
 
 
   /**
@@ -184,7 +181,8 @@ export default function UserProfileProvider({ children }: { children: React.Reac
    * @param background    - When true, skip setting isLoading/isError so existing
    *                        content stays visible (used on window focus refetch)
    */
-  const load = async (email: string, retryCount = 0, background = false) => {
+  const load: (email: string, retryCount?: number, background?: boolean) => Promise<ProfileData> = useReactiveLoader<[email: string, retryCount?: number, background?: boolean], ProfileData>(async (read, email, retryCount = 0, background = false): Promise<ProfileData> => {
+    background = background || read.background;
     // Only show the full-page loading spinner on the very first load
     if (!background && retryCount === 0 && !profileRef.current) {
       setIsLoading(true);
@@ -212,7 +210,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
     try {
       // Profile state drives authorization and one-time notices. Always bypass
       // the short client cache so opening a page cannot reuse a stale role.
-      const res = await getUserProfile({ email, _nocache: true });
+      const res = await read(() => getUserProfile({ email, _nocache: true }));
       if (timedOut) return null;
       clearTimeout(timeoutId);
       let built: ProfileData = null;
@@ -244,6 +242,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
       return built;
     } catch (e) {
       clearTimeout(timeoutId);
+      if (read.cancelled) return null;
       if (timedOut) return null;
       if (background) return null; // Silent failure — keep cached profile visible
       console.error('Profile load error:', e);
@@ -256,7 +255,7 @@ export default function UserProfileProvider({ children }: { children: React.Reac
       setIsLoading(false);
       return null;
     }
-  };
+  }, [user?.email], Boolean(user?.email));
 
   const refreshProfile = async () => {
     if (!user?.email) return null;

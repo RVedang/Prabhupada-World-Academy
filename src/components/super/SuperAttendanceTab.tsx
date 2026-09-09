@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardCheck, Download, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useDebouncedCallback } from 'use-debounce';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { getSuperGuideAttendanceReport } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { ASHRAY_LEVELS } from '@/types/enums';
@@ -42,24 +42,25 @@ export default function SuperAttendanceTab({ segment }: SuperAttendanceTabProps 
   const [offset, setOffset] = useState(0);
   const LIMIT = 50;
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+  const load = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getSuperGuideAttendanceReport({
+      const res = await read(() => getSuperGuideAttendanceReport({
         startDate: startDate || undefined, endDate: endDate || undefined,
         ashrayLevel: ashrayLevel || undefined, guideId: guideId || undefined,
         residencyId: residencyId || undefined, eventId: eventId || undefined,
         sessionId: sessionId || undefined, search: search || undefined,
         offset, limit: LIMIT,
         segment: effectiveSegment,
-      });
+      }));
       setData(res);
-    } catch { /* silent */ }
+    } catch {
+      if (read.cancelled) return; /* silent */ }
     if (!silent) setLoading(false);
   }, [startDate, endDate, ashrayLevel, guideId, residencyId, eventId, sessionId, search, offset, effectiveSegment]);
 
   useEffect(() => { load(); }, [load]);
-  useRealtimeRefresh(['attendance', 'users', 'groups'], () => load(true));
+
 
   const debouncedSearch = useDebouncedCallback((val: string) => { setSearch(val); setOffset(0); }, 400);
 

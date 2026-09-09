@@ -22,7 +22,7 @@ function setup() {
   };
   const sdk = load('app-endpoints-sdk');
   const flush = () => new Promise(resolve => setImmediate(resolve));
-  const reply = (index, value, status = 200) => pending[index].resolve({ ok: status === 200, status, json: async () => value, headers: { get: () => null } });
+  const reply = (index, value, status = 200, headers = {}) => pending[index].resolve({ ok: status === 200, status, json: async () => value, headers: { get: name => headers[name] || null } });
   return { sdk, auth, pending, flush, reply };
 }
 
@@ -40,12 +40,12 @@ test('equivalent filters and concurrent consumers share one read; cached revisit
   assert.equal(pending.length, 1);
 });
 
-test('mutations are distinct and invalidate related reads without discarding unrelated in-flight queries', async () => {
+test('committed query revisions invalidate exact reads without discarding unrelated in-flight queries', async () => {
   const { sdk, pending, flush, reply } = setup();
   const meeting = sdk.queryEndpoint('getMeetings', { department: 'PW' });
   const sadhana = sdk.queryEndpoint('getGuideDetailedReport', { guideId: 'ALL' });
   await flush();
-  sdk.invalidateEndpointClientCacheForChannels(['sadhana']);
+  sdk.invalidateEndpointQueryKeys([sdk.queryCacheKey('getGuideDetailedReport', { guideId: 'ALL' })]);
   reply(0, { meetings: [] }); reply(1, { users: ['obsolete'] });
   await Promise.all([meeting, sadhana]);
   assert.ok(sdk.isEndpointQueryFresh('getMeetings', { department: 'PW' }));
@@ -56,7 +56,23 @@ test('mutations are distinct and invalidate related reads without discarding unr
   assert.equal(pending.length, 4);
   reply(2, { success: true }); reply(3, { success: true });
   await Promise.all([a, b]);
-  assert.equal(sdk.getEndpointCacheSnapshot('getMeetings', { department: 'PW' }), undefined);
+  assert.ok(sdk.getEndpointCacheSnapshot('getMeetings', { department: 'PW' }), 'mutation responses do not broadcast broad cache invalidations');
+});
+
+test('an older in-flight response cannot roll back a reconciled query watermark', async () => {
+  const { sdk, pending, flush, reply } = setup();
+  const headers = version => ({ 'X-Realtime-Token': 'meeting-token', 'X-Realtime-Version': version });
+  const first = sdk.queryEndpoint('getMeetings', {});
+  await flush(); reply(0, { value: 1 }, 200, headers('0001')); await first;
+  const old = sdk.queryEndpoint('getMeetings', { bypassCache: true });
+  await flush();
+  sdk.receiveEndpointRevision('meeting-token', '0003');
+  const fresh = sdk.queryEndpoint('getMeetings', {});
+  await flush(); reply(2, { value: 3 }, 200, headers('0003')); await fresh;
+  reply(1, { value: 2 }, 200, headers('0002')); await old;
+  assert.equal(sdk.getEndpointCacheSnapshot('getMeetings', {}).data.value, 3);
+  assert.ok(sdk.isEndpointQueryFresh('getMeetings', {}));
+  assert.equal(sdk.getEndpointQueryRevision('getMeetings', {}), 1);
 });
 
 test('identity and role changes isolate caches and prevent old responses repopulating them', async () => {
@@ -83,4 +99,41 @@ test('failed authorization removes cached data; failed reads can be retried', as
   const retry = sdk.queryEndpoint('getMeetings', {});
   await flush(); reply(2, { meetings: [] });
   assert.deepEqual(await retry, { meetings: [] });
+});
+
+test('active consumers retain revisions through cache churn, then release subscriptions', async () => {
+  const { sdk, pending, flush, reply } = setup();
+  const key = sdk.queryCacheKey('getMeetings', { page: 'visible' });
+  const releaseA = sdk.retainEndpointQuery(key);
+  const releaseB = sdk.retainEndpointQuery(key);
+  const load = async page => {
+    const request = sdk.queryEndpoint('getMeetings', { page });
+    await flush();
+    reply(pending.length - 1, { page }, 200, { 'X-Realtime-Token': `token-${page}`, 'X-Realtime-Version': '0001' });
+    await request;
+  };
+  await load('visible');
+  for (let page = 0; page < 260; page++) await load(page);
+  releaseA(); releaseA();
+  assert.ok(sdk.getEndpointRealtimeTokens().includes('token-visible'), 'another mounted consumer still retains the query');
+  sdk.receiveEndpointRevision('token-visible', '0002');
+  assert.equal(sdk.isEndpointQueryFresh('getMeetings', { page: 'visible' }), false);
+  assert.equal(sdk.getEndpointCacheSnapshot('getMeetings', { page: 'visible' }).data.page, 'visible');
+  releaseB();
+  assert.equal(sdk.getEndpointRealtimeTokens().includes('token-visible'), false);
+  assert.ok(sdk.getEndpointRealtimeTokens().length <= 250);
+});
+
+test('an evicted in-flight request cannot overwrite the same query after re-registration', async () => {
+  const { sdk, pending, flush, reply } = setup();
+  const old = sdk.queryEndpoint('getMeetings', { page: 'evicted' });
+  await flush();
+  for (let page = 0; page < 251; page++) {
+    const read = sdk.queryEndpoint('getMeetings', { page });
+    await flush(); reply(pending.length - 1, { page }); await read;
+  }
+  const fresh = sdk.queryEndpoint('getMeetings', { page: 'evicted' });
+  await flush(); reply(pending.length - 1, { value: 'fresh' }); await fresh;
+  reply(0, { value: 'obsolete' }); await old;
+  assert.equal(sdk.getEndpointCacheSnapshot('getMeetings', { page: 'evicted' }).data.value, 'fresh');
 });

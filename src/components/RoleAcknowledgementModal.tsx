@@ -68,10 +68,10 @@ export default function RoleAcknowledgementModal() {
     }
 
     if (profile.isBvFacilitator || profile.isBvsl) {
-      activeRoles.push('RGF (Facilitator)');
+      activeRoles.push('RGF');
     }
     if (profile.isBvSubFacilitator) {
-      activeRoles.push('RGSF (Sub-Facilitator)');
+      activeRoles.push('RGSF');
     }
 
     // This popup is for role changes only. Guide details can be normalized as

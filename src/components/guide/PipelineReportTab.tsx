@@ -1,3 +1,5 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useEffect, useState, useMemo } from 'react';
 import { getPipelineReport } from '@/lib/endpoints-sdk';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -102,7 +104,7 @@ function SectionTable({ section, months, search, sortMode }: {
         <span className="font-semibold text-sm">{section.level || 'No Level'}</span>
         <Badge variant="secondary" className="text-xs">{filtered.length} members</Badge>
       </div>
-      <div className="overflow-x-auto">
+      <TableScrollArea className="overflow-x-auto">
         <table className="w-max min-w-full text-xs border-collapse">
           <thead>
             <tr className="bg-muted/60">
@@ -179,7 +181,7 @@ function SectionTable({ section, months, search, sortMode }: {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScrollArea>
     </Card>
   );
 }
@@ -195,13 +197,13 @@ export default function PipelineReportTab({ guideId }: Props) {
   const [bOnly, setBOnly] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('level');
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    getPipelineReport({ guideId })
-      .then(res => setData(res as ReportData))
-      .catch(e => setError(e?.message || 'Failed to load pipeline data'))
-      .finally(() => setLoading(false));
+  useReactiveEffect((read) => {
+    !read.background && !read.cancelled && setLoading(true);
+    !read.background && !read.cancelled && setError(null);
+    read(() => getPipelineReport({ guideId }))
+      .then(res => !read.cancelled && setData(res as ReportData))
+      .catch(e => !read.background && !read.cancelled && setError(e?.message || 'Failed to load pipeline data'))
+      .finally(() => !read.cancelled && setLoading(false));
   }, [guideId]);
 
   // Gather all unique ashray levels

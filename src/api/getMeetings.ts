@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, Meetings, AppError } from '@/lib/backend-sdk';
 import { getMeetingViewer, isMeetingVisibleToViewer, normalizeMeetingDepartment } from '@/lib/meetingAccess';
 
@@ -31,6 +32,7 @@ export default createEndpoint({
       })),
       notificationLeadMinutes: z.number(),
       notificationSent: z.boolean(),
+      notification1hSent: z.boolean().optional(),
       notification10mSent: z.boolean().optional(),
       notification1mSent: z.boolean().optional(),
       status: z.string(),
@@ -49,6 +51,9 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'You cannot view meetings for another department' });
     }
     if (department === 'FOLK') return { meetings: [] };
+
+    scopeRealtimeDependencies('Meetings', { kind: 'meetings', department, all: viewer.canViewAllMeetings,
+      identities: [...viewer.identityKeys], email: viewer.email });
 
     const meetingFilters = {
       ...(input.status && input.status !== 'ALL' ? { status: input.status } : {}),
@@ -90,6 +95,7 @@ export default createEndpoint({
         invitees: m.invitees || [],
         notificationLeadMinutes: m.notificationLeadMinutes || 10,
         notificationSent: !!m.notificationSent,
+        notification1hSent: !!m.notification1hSent,
         notification10mSent: !!m.notification10mSent,
         notification1mSent: !!m.notification1mSent,
         status: m.status || 'SCHEDULED',

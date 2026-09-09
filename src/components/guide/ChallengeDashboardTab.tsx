@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,11 +16,11 @@ export default function ChallengeDashboardTab() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getChallengeDashboard({})
-      .then(res => setChallenges(res.challenges))
+  useReactiveEffect((read) => {
+    read(() => getChallengeDashboard({}))
+      .then(res => !read.cancelled && setChallenges(res.challenges))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, []);
 
   if (loading) {

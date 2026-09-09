@@ -64,7 +64,7 @@ export default function InstallBanner() {
   const canShowInstallBtn = (platform === 'android' || platform === 'desktop') && hasNativePrompt;
 
   return (
-    <div className="fixed bottom-4 left-3 right-3 z-50 sm:left-auto sm:right-4 sm:bottom-5 sm:w-[340px] animate-in slide-in-from-bottom-4 duration-300">
+    <div className="install-banner fixed bottom-4 left-3 right-3 z-50 sm:left-auto sm:right-4 sm:bottom-5 sm:w-[340px] animate-in slide-in-from-bottom-4 duration-300">
       <div className="rounded-2xl border border-border bg-card shadow-lg p-4">
         <div className="flex items-start gap-3">
           {/* Icon */}
@@ -84,7 +84,7 @@ export default function InstallBanner() {
               <p className="font-semibold text-sm text-foreground">Install the App</p>
               <button
                 onClick={handleDismiss}
-                className="text-muted-foreground hover:text-foreground transition-colors rounded-full p-0.5 -mt-0.5 -mr-0.5"
+                className="flex size-11 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground rounded-full -mt-2 -mr-2"
                 aria-label="Dismiss"
               >
                 <X className="w-4 h-4" />

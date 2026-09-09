@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -105,24 +106,28 @@ export default function UserAvailabilityTab() {
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const editRevision = useRef(0);
+  const markDirty = () => { editRevision.current++; setHasUnsavedChanges(true); };
 
-  useEffect(() => { load(); }, [weekStart]);
+  useEffect(() => { editRevision.current++; setHasUnsavedChanges(false); load(); }, [weekStart]);
 
-  const load = async () => {
-    setLoading(true);
-    setEditing(false);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
+    !read.background && !read.cancelled && setEditing(false);
     try {
-      const res = await getMyAvailability({ weekStartDate: weekStart });
+      const res = await read(() => getMyAvailability({ weekStartDate: weekStart }));
       if (res.availability) {
-        setDayAvails(parseAvails(res.availability.availableDaysJson));
-        setSubmittedAt(res.availability.submittedAt || res.availability.updatedAt || null);
+        !read.cancelled && setDayAvails(parseAvails(res.availability.availableDaysJson));
+        !read.cancelled && setSubmittedAt(res.availability.submittedAt || res.availability.updatedAt || null);
       } else {
-        setDayAvails([]);
-        setSubmittedAt(null);
+        !read.cancelled && setDayAvails([]);
+        !read.cancelled && setSubmittedAt(null);
       }
-    } catch { toast.error('Failed to load availability'); }
-    finally { setLoading(false); }
-  };
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load availability'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, [weekStart], !hasUnsavedChanges && !saving && !editing);
 
   const usePreviousWeek = async () => {
     setLoadingPrev(true);
@@ -130,6 +135,7 @@ export default function UserAvailabilityTab() {
       const prevMonday = format(addDays(new Date(weekStart + 'T00:00:00'), -7), 'yyyy-MM-dd');
       const res = await getMyAvailability({ weekStartDate: prevMonday });
       if (res.availability) {
+        markDirty();
         setDayAvails(parseAvails(res.availability.availableDaysJson));
         toast.success('Loaded from last week ✓');
       } else toast.info('No availability found for last week');
@@ -138,21 +144,27 @@ export default function UserAvailabilityTab() {
   };
 
   const toggle = (day: string) => {
+    markDirty();
     setDayAvails(prev => prev.find(d => d.day === day) ? prev.filter(d => d.day !== day) : [...prev, { day, time: 'full_day' }]);
   };
 
   const setTime = (day: string, time: string) => {
+    markDirty();
     setDayAvails(prev => prev.map(d => d.day === day ? { ...d, time } : d));
   };
 
   const save = async () => {
+    const savedRevision = editRevision.current;
     setSaving(true);
     try {
       const payload = dayAvails.map(d => ({ day: d.day, time: d.time, situation: 'available' }));
       await submitAvailability({ weekStartDate: weekStart, availableDaysJson: JSON.stringify(payload) });
       toast.success('Availability saved! ✓');
-      setEditing(false);
-      await load();
+      if (editRevision.current === savedRevision) {
+        setHasUnsavedChanges(false);
+        setEditing(false);
+        await load();
+      }
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
   };
@@ -222,10 +234,10 @@ export default function UserAvailabilityTab() {
                 <Button size="sm" variant="outline" onClick={usePreviousWeek} disabled={loadingPrev} className="flex-1 sm:flex-none">
                   <RotateCcw className="w-3.5 h-3.5 mr-1" />{loadingPrev ? 'Loading…' : 'Use Last Week'}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setDayAvails(DAYS.map(d => ({ day: d, time: 'full_day' })))}>All</Button>
-                <Button size="sm" variant="outline" onClick={() => setDayAvails([])}>None</Button>
+                <Button size="sm" variant="outline" onClick={() => { markDirty(); setDayAvails(DAYS.map(d => ({ day: d, time: 'full_day' }))); }}>All</Button>
+                <Button size="sm" variant="outline" onClick={() => { markDirty(); setDayAvails([]); }}>None</Button>
                 {editing && (
-                  <Button size="sm" variant="ghost" onClick={() => { setEditing(false); load(); }}>Cancel</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setHasUnsavedChanges(false); setEditing(false); load(); }}>Cancel</Button>
                 )}
               </div>
             </>

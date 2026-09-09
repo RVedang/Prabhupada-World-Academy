@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -39,14 +40,15 @@ export default function ServiceCalendarTab() {
 
   useEffect(() => { load(); }, [month]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getServiceCalendar({ year: month.getFullYear(), month: month.getMonth() + 1 });
-      setEntries(res.entries);
-    } catch { toast.error('Failed to load calendar'); }
-    finally { setLoading(false); }
-  };
+      const res = await read(() => getServiceCalendar({ year: month.getFullYear(), month: month.getMonth() + 1 }));
+      !read.cancelled && setEntries(res.entries);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load calendar'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const entryMap = new Map(entries.map(e => [e.date, e.services]));
   const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });

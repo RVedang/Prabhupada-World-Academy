@@ -53,7 +53,7 @@ export default createEndpoint({
     }
 
     if (!facilitatorUser && !facilitatorGuide) {
-      throw new AppError({ code: 'NOT_FOUND', message: 'Selected Reading Group Facilitator was not found' });
+      throw new AppError({ code: 'NOT_FOUND', message: 'Selected RGF was not found' });
     }
 
     const bvslName = facilitatorUser?.fullName || facilitatorGuide?.fullName || facilitatorUser?.email || facilitatorGuide?.email || input.bvslId;

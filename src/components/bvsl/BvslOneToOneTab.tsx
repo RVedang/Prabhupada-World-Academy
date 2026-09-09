@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getBvslOneToOneData, saveBvslOneToOneLink } from '@/lib/endpoints-sdk';
 import { Input } from '@/components/ui/input';
@@ -122,16 +123,17 @@ export default function BvslOneToOneTab({ department }: { department?: 'FOLK' | 
   const [groupFilter, setGroupFilter] = useState('ALL');
   const [ashrayFilter, setAshrayFilter] = useState('ALL');
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getBvslOneToOneData({ department }) as any;
-      setMembers(res.users || []);
-      setMeetings(res.meetings || []);
-      setWeeks(res.weeks || []);
-      if (res.bvslLink !== undefined) setBvslLink(res.bvslLink || '');
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+      const res = await read(() => getBvslOneToOneData({ department })) as any;
+      !read.cancelled && setMembers(res.users || []);
+      !read.cancelled && setMeetings(res.meetings || []);
+      !read.cancelled && setWeeks(res.weeks || []);
+      if (res.bvslLink !== undefined) !read.cancelled && setBvslLink(res.bvslLink || '');
+    } catch {
+      if (read.cancelled) return; /* silent */ }
+    finally { !read.cancelled && setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

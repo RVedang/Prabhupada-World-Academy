@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,17 +98,18 @@ export default function GuideBvTab({ guideId, bvslMode, residencyIds, summaryOnl
 
   useEffect(() => { loadGroups(); }, [guideId, bvslMode, residencyIds, segment]);
 
-  const loadGroups = async () => {
-    setLoading(true);
+  const loadGroups = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const result = await getGuideGroupStats({ guideId, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined, segment });
-      setGroups(result.groups);
+      const result = await read(() => getGuideGroupStats({ guideId, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined, segment }));
+      !read.cancelled && setGroups(result.groups);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load BV groups');
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, []);
 
   if (loading) {
     return (

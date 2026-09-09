@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { endOfISOWeek, format, getISOWeek, getISOWeekYear, startOfISOWeek, subDays, subWeeks } from 'date-fns';
-import { hasEndpointRequestsInFlight, isEndpointQueryFresh, queryCacheKey, queryEndpoint } from '@/lib/app-endpoints-sdk';
+import { hasEndpointRequestsInFlight, isEndpointQueryFresh, queryCacheKey, queryEndpoint, subscribeEndpointCache } from '@/lib/app-endpoints-sdk';
 
 type Query = { tab: string; name: string; input: Record<string, unknown>; intentOnly?: boolean };
 type Options = { enabled: boolean; segment: 'PW' | 'FOLK'; isSuperAdmin: boolean; guideId: string; activeTab: string; residencyId?: string };
@@ -41,12 +41,13 @@ export function useDashboardPrefetch(options: Options) {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
     if (connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || '')) return;
     let cancelled = false;
+    completed.current.clear();
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       if (cancelled) return;
       const current = optionsRef.current;
       if (document.visibilityState !== 'visible' || hasEndpointRequestsInFlight()) {
-        timer = setTimeout(tick, 500);
+        // Resume on cache completion/visibility events, not a repeating timer.
         return;
       }
       const candidates = plan(current).filter(query => query.tab !== current.activeTab &&
@@ -63,8 +64,17 @@ export function useDashboardPrefetch(options: Options) {
       if (!cancelled && next) timer = setTimeout(tick, 250);
     };
     wake.current = () => { clearTimeout(timer); if (!cancelled) timer = setTimeout(tick, 120); };
+    const resume = () => wake.current();
+    const unsubscribe = subscribeEndpointCache(resume);
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
     timer = setTimeout(tick, 1000);
-    return () => { cancelled = true; clearTimeout(timer); wake.current = () => {}; };
+    return () => {
+      cancelled = true; clearTimeout(timer); wake.current = () => {};
+      unsubscribe();
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('online', resume);
+    };
   }, [options.enabled, scopeKey]);
   return useCallback((tab: string) => {
     intent.current = tab;

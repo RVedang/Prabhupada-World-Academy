@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -80,26 +81,28 @@ export default function UsersTab({ guideId }: UsersTabProps) {
   useEffect(() => { loadResidencies(); }, [guideId]);
   useEffect(() => { loadUsers(); }, [guideId, residencyFilter, statusFilter]);
 
-  const loadResidencies = async () => {
+  const loadResidencies = useReactiveLoader(async (read) => {
     try {
-      const res = await getResidenciesForGuide({ guideId });
+      const res = await read(() => getResidenciesForGuide({ guideId }));
       const resList = Array.isArray(res) ? res : [];
-      setResidencies(resList.map((r: any) => ({ id: r.id, residencyName: r.residencyName || '' })));
-      if (resList.length === 1) setScholarResidencyId(resList[0].id);
-    } catch { /* non-critical */ }
-  };
-
-  const loadUsers = async () => {
-    setLoading(true);
-    try {
-      const result = await getGuideUsers({ guideId, statusFilter, residencyFilter });
-      setUsers(result.users);
+      !read.cancelled && setResidencies(resList.map((r: any) => ({ id: r.id, residencyName: r.residencyName || '' })));
+      if (resList.length === 1 && !read.background) !read.cancelled && setScholarResidencyId(resList[0].id);
     } catch {
+      if (read.cancelled) return; /* non-critical */ }
+  }, []);
+
+  const loadUsers = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
+    try {
+      const result = await read(() => getGuideUsers({ guideId, statusFilter, residencyFilter }));
+      !read.cancelled && setUsers(result.users);
+    } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load users');
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, []);
 
   // ── Action handlers ───────────────────────────────────────────────────────
 
@@ -108,10 +111,10 @@ export default function UsersTab({ guideId }: UsersTabProps) {
     try {
       await tagUserAsBvsl({ userId: bvslDialog.user.userId, action: bvslDialog.action });
       toast.success(bvslDialog.action === 'tag'
-        ? `${bvslDialog.user.fullName} assigned as RGF (Facilitator)!`
-        : 'RGF (Facilitator) role removed', { duration: 8000 });
+        ? `${bvslDialog.user.fullName} assigned as RGF!`
+        : 'RGF role removed', { duration: 8000 });
       setBvslDialog(null); loadUsers();
-    } catch (err: any) { toast.error(err?.message || 'Failed to update Facilitator role'); }
+    } catch (err: any) { toast.error(err?.message || 'Failed to update RGF role'); }
   };
 
   const handleMentorAction = async () => {
@@ -759,7 +762,7 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pt-2">RGF Role</p>
                   <Button variant="outline" className={`w-full justify-start h-11 ${isBvsl ? 'border-purple-400 text-purple-700' : ''}`}
                     onClick={() => { closeSheet(); setBvslDialog({ user: u, action: isBvsl ? 'untag' : 'tag' }); }}>
-                    {isBvsl ? <><StarOff className="w-4 h-4 mr-2" />Remove RGF Role</> : <><Star className="w-4 h-4 mr-2" />Assign as RGF (Facilitator)</>}
+                    {isBvsl ? <><StarOff className="w-4 h-4 mr-2" />Remove RGF Role</> : <><Star className="w-4 h-4 mr-2" />Assign as RGF</>}
                   </Button>
 
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pt-2">Sadhana Mentor</p>
@@ -843,7 +846,7 @@ export default function UsersTab({ guideId }: UsersTabProps) {
       <ConfirmDialog open={!!bvslDialog} onOpenChange={o => !o && setBvslDialog(null)}
         title={bvslDialog?.action === 'tag' ? 'Assign RGF Role' : 'Remove RGF Role'}
         description={bvslDialog?.action === 'tag'
-          ? `Assign ${bvslDialog?.user.fullName} as an RGF (Facilitator)? They will gain access to the RGF dashboard.`
+          ? `Assign ${bvslDialog?.user.fullName} as an RGF? They will gain access to the RGF dashboard.`
           : `Remove RGF role from ${bvslDialog?.user.fullName}?`}
         confirmLabel="Confirm" onConfirm={handleBvslAction} />
 

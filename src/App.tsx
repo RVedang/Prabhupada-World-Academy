@@ -1,3 +1,4 @@
+import { MotionConfig } from 'framer-motion';
 // FOLK Sadhana Tracker — App Router (pure routing, zero logic)
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
@@ -151,7 +152,7 @@ const USER_ROLES = ['USER', 'BVSL', 'SADHANA_MENTOR'] as const;
 
 export default function App() {
   return (
-    <ErrorBoundary>
+    <MotionConfig reducedMotion="user"><ErrorBoundary>
       <Router>
         <SafeToaster />
         <VersionChecker />
@@ -237,7 +238,7 @@ export default function App() {
           </Suspense>
         </UserProfileProvider>
       </Router>
-    </ErrorBoundary>
+    </ErrorBoundary></MotionConfig>
   );
 }
 

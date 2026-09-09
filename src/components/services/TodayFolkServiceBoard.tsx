@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -348,17 +349,18 @@ export default function TodayFolkServiceBoard({ residencyId, currentUserId }: Pr
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const load = useReactiveLoader(async (read, isRefresh = false) => {
+    if (isRefresh) !read.background && !read.cancelled && setRefreshing(true);
+    else !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getTodayServiceBoard({ residencyId });
-      setData(res);
+      const res = await read(() => getTodayServiceBoard({ residencyId }));
+      !read.cancelled && setData(res);
     } catch (e: any) {
+      if (read.cancelled) return;
       toast.error(e.message || 'Failed to load service board');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      !read.cancelled && setLoading(false);
+      !read.cancelled && setRefreshing(false);
     }
   }, [residencyId]);
 

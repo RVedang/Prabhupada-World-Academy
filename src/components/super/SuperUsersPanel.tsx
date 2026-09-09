@@ -1,3 +1,6 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import FilterPanel from '@/components/mobile/FilterPanel';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -16,7 +19,6 @@ import {
 } from '@/lib/endpoints-sdk';
 import type { GetGuideUsersOutputType, GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { fmt } from '@/lib/fmt';
 import { scoreColor } from '@/lib/scoring';
@@ -79,6 +81,8 @@ interface SuperUsersPanelProps {
 
 export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdminOverride }: SuperUsersPanelProps) {
   const navigate = useNavigate();
+  const mobile = useIsMobile();
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set());
   const { profile } = useUserProfile();
   const userEmail = (profile?.userId || '').toLowerCase();
 
@@ -148,8 +152,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
   const ROLE_LABELS: Record<string, string> = {
     MEMBER: 'Regular Member',
-    SUB_FACILITATOR: 'Sub-Facilitator (RGSF)',
-    FACILITATOR: 'Facilitator (RGF)',
+    SUB_FACILITATOR: 'RGSF',
+    FACILITATOR: 'RGF',
     SUPERVISOR: 'BV Supervisor',
     ADMIN: 'BV Admin',
   };
@@ -157,17 +161,17 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   const [assigningGuide, setAssigningGuide] = useState<string | null>(null);
   const [sadhanaMentors, setSadhanaMentors] = useState<any[]>([]);
 
-  const loadData = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+  const loadData = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
       const [{ guides: guideList }, groupsResult, mentorsList, allUsersRes] = await Promise.all([
-        getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' }),
+        read(() => getGuides({ segment: isPwAdmin ? 'PW' : 'FOLK' })),
         (isSuperAdmin
-          ? getBvslGroups({ bvslId: 'ALL' })
-          : getAllBvGroupsAdmin({ guideId: profile?.userId || userEmail })
+          ? read(() => getBvslGroups({ bvslId: 'ALL' }))
+          : read(() => getAllBvGroupsAdmin({ guideId: profile?.userId || userEmail }))
         ).catch(() => ({ groups: [] })),
-        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW' }).catch(() => []) : Promise.resolve([]),
-        getGuideUsers({ guideId: 'ALL', statusFilter: 'all' }),
+        isPwAdmin ? read(() => getActiveSadhanaMentors({ segment: 'PW' })).catch(() => []) : Promise.resolve([]),
+        read(() => getGuideUsers({ guideId: 'ALL', statusFilter: 'all' })),
       ]);
       setGuides(guideList);
       setBvGroups((groupsResult.groups || []).map((group: any) => ({
@@ -216,6 +220,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
 
       setUsers(all);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load users');
     } finally {
       if (!silent) setLoading(false);
@@ -223,7 +228,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   }, [effectiveSegment, isPwAdmin, isSuperAdmin, profile?.userId, userEmail]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useRealtimeRefresh(['users', 'groups'], () => loadData(true));
+
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -478,7 +483,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       const def = opts[0] || { id: '', name: '' };
       setHierarchyDialog({
         user, newRole, roleLabel,
-        parentLabel: 'Reading Group Facilitator (will report to)',
+        parentLabel: 'RGF (will report to)',
         parentOptions: opts,
         parentId: def.id, parentName: def.name,
       });
@@ -507,7 +512,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       const opts = bvSupervisorsList;
       const def = opts[0] || { id: '', name: '' };
       setHierarchyDialog({
-        user, newRole: 'FACILITATOR', roleLabel: 'Facilitator (RGF)',
+        user, newRole: 'FACILITATOR', roleLabel: 'RGF',
         parentLabel: 'Supervisor (will report to)',
         parentOptions: opts,
         parentId: (user as any).bvReportingSupervisorId || def.id,
@@ -517,8 +522,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       const opts = bvFacilitatorsList;
       const def = opts[0] || { id: '', name: '' };
       setHierarchyDialog({
-        user, newRole: 'SUB_FACILITATOR', roleLabel: 'Sub Facilitator (RGSF)',
-        parentLabel: 'Reading Group Facilitator (will report to)',
+        user, newRole: 'SUB_FACILITATOR', roleLabel: 'RGSF',
+        parentLabel: 'RGF (will report to)',
         parentOptions: opts,
         parentId: (user as any).bvReportingFacilitatorId || def.id,
         parentName: (user as any).bvReportingFacilitatorName || def.name,
@@ -528,7 +533,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
       const def = opts[0] || { id: '', name: '' };
       setHierarchyDialog({
         user, newRole: 'MEMBER', roleLabel: 'Member',
-        parentLabel: 'Reading Group Facilitator (will assign their group)',
+        parentLabel: 'RGF (will assign their group)',
         parentOptions: opts,
         parentId: (user as any).bvReportingFacilitatorId || def.id,
         parentName: (user as any).bvReportingFacilitatorName || def.name,
@@ -602,9 +607,20 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
   }, [users, guideFilter, ashrayFilter, residentFilter, search, sortKey, sortDir, isPwAdmin, isDepartmentAdmin, myGuideId, profile, userEmail]);
 
   useEffect(() => { setPage(1); }, [search, guideFilter, ashrayFilter, residentFilter, sortKey, sortDir]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / 50));
+  const pageSize = mobile ? 10 : 50;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const pageUsers = filtered.slice((currentPage - 1) * 50, currentPage * 50);
+  const pageUsers = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pagination = filtered.length > pageSize && (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b text-sm">
+              <span className="text-muted-foreground">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} members</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
+                <span>{currentPage}/{pageCount}</span>
+                <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button>
+              </div>
+            </div>
+  );
 
   if (loading && users.length === 0) return <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>;
 
@@ -634,6 +650,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   <Input placeholder="Search by name..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
               </div>
+              <FilterPanel title="Member filters" summary={ashrayFilter === 'all' ? 'All levels' : ashrayFilter}>
+                <div className="flex flex-wrap items-end gap-3">
               {isSuperAdmin && (
                 <div className="flex flex-col gap-1 min-w-[160px]">
                   <label className="text-xs font-medium text-muted-foreground">Mentors</label>
@@ -677,6 +695,8 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   </Select>
                 </div>
               )}
+                </div>
+              </FilterPanel>
             </div>
             {(search !== '' || ashrayFilter !== 'all' || residentFilter !== 'all') && (
               <p className="text-xs text-muted-foreground">
@@ -686,18 +706,9 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filtered.length > 50 && (
-            <div className="flex items-center justify-between gap-3 px-4 py-2 border-b text-sm">
-              <span className="text-muted-foreground">{(currentPage - 1) * 50 + 1}–{Math.min(currentPage * 50, filtered.length)} of {filtered.length} members</span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
-                <span>{currentPage}/{pageCount}</span>
-                <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button>
-              </div>
-            </div>
-          )}
-          <div className="overflow-x-auto overflow-y-auto max-h-[72vh]">
-            <table className="w-full text-sm">
+          {pagination}
+          <div className="member-table-container overflow-x-auto overflow-y-auto max-h-[72dvh]">
+            <table className="mobile-member-table w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b">
                   <Th col="fullName" label="Name" />
@@ -793,14 +804,20 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                   const groupSelectValue = currentBvGroup?.id || (u as any).bvGroupId || '__unassigned__';
 
                   return (
-                    <tr key={u.userId} className="border-b hover:bg-accent/40 cursor-pointer"
+                    <tr key={u.userId} data-expanded={expandedRows.has(u.userId)} className="border-b hover:bg-accent/40 cursor-pointer"
                       onClick={() => navigate(`/guide/users/${u.userId}`)}>
                       {/* 1. Name */}
-                      <td className="px-3 py-2 font-medium sticky left-0 bg-background z-1 border-r border-border/40 shadow-sm">
-                        {u.fullName}
+                      <td data-label="Name" data-summary="true" className="px-3 py-2 font-medium sticky left-0 bg-background z-1 border-r border-border/40 shadow-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <button type="button" className="min-h-11 min-w-0 text-left font-semibold md:min-h-0" onClick={e => { e.stopPropagation(); navigate(`/guide/users/${u.userId}`); }}>{u.fullName}</button>
+                          <Button variant="ghost" size="sm" className="md:hidden shrink-0 text-primary" aria-expanded={expandedRows.has(u.userId)} aria-label={`Details for ${u.fullName}`}
+                            onClick={e => { e.stopPropagation(); setExpandedRows(current => { const next = new Set(current); if (next.has(u.userId)) next.delete(u.userId); else next.add(u.userId); return next; }); }}>
+                            {expandedRows.has(u.userId) ? 'Less' : 'Details'}
+                          </Button>
+                        </div>
                       </td>
                       {/* 2. Bhakti Vriksha Role */}
-                      <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                      <td data-label="Roles" data-summary="true" className="px-3 py-2" onClick={e => e.stopPropagation()}>
                         {currentBvRole === 'NA' ? (
                           <span className="text-muted-foreground/60 text-xs font-normal px-2.5 py-1 bg-muted/30 border border-border/50 rounded inline-block">NA</span>
                         ) : (
@@ -857,7 +874,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                         };
                         const superAdminDisplayName = formatName((u as any).bvReportingAdminName) || 'Unassigned';
                         return (
-                          <td className="px-3 py-2 text-xs" onClick={e => { e.stopPropagation(); if (canEditRole && !isUserAdmin && currentBvRole !== 'NA') openParentDialog(u); }}>
+                          <td data-label="Parent" className="px-3 py-2 text-xs" onClick={e => { e.stopPropagation(); if (canEditRole && !isUserAdmin && currentBvRole !== 'NA') openParentDialog(u); }}>
                             {isUserAdmin ? (
                               <span className="text-muted-foreground font-medium cursor-default">{superAdminDisplayName}</span>
                             ) : currentBvRole === 'NA' ? (
@@ -907,7 +924,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                           </td>
                         );
                       })()}
-                      <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
+                      <td data-label="Bhakti Vriksha Group" data-summary="true" className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
                         {isBvUser ? isRoleGroupLocked ? (
                           <span className="text-muted-foreground font-medium" title="This role is tied to its assigned Reading Group">
                             {roleGroup?.groupName || (u as any).bvGroupName || 'Unassigned'}
@@ -948,7 +965,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                       {/* The Guide dropdown belongs only to FOLK. PW BV ownership
                           is derived from the selected RGF/group hierarchy. */}
                       {!isPwAdmin && (
-                        <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                        <td data-label="FOLK Guide" className="px-3 py-2" onClick={e => e.stopPropagation()}>
                           {(() => {
                             const currentGid = u.selectedGuideId || u._guideId || '';
                             const matchedGuide = guides.find(g =>
@@ -975,12 +992,12 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                       )}
                       {isPwAdmin && (
                         <>
-                          <td className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
+                          <td data-label="Sadhana Mentor" className="px-3 py-2 text-xs" onClick={e => e.stopPropagation()}>
                             {isBvUser ? (
                               <span className="text-muted-foreground/60 font-normal">NA</span>
                             ) : (
-                              <Select 
-                                value={u.sadhanaMentor || '__unassigned__'} 
+                              <Select
+                                value={u.sadhanaMentor || '__unassigned__'}
                                 onValueChange={mentorId => handleAssignSadhanaMentor(u.userId, mentorId === '__unassigned__' ? '' : mentorId)}
                                 disabled={isSelf}
                               >
@@ -999,7 +1016,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                             )}
                           </td>
 
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                          <td data-label="Assign Sadhana Mentor Role" className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
                               onClick={() => setSadhanaMentorDialog({ user: u, action: (u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'untag' : 'tag' })}
@@ -1010,18 +1027,18 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                         </>
                       )}
                       {/* 5. Ashraya Level */}
-                      <td className="px-3 py-2 text-xs">{u.ashrayLevel || '—'}</td>
+                      <td data-label="Ashraya Level" className="px-3 py-2 text-xs">{u.ashrayLevel || '—'}</td>
                       {/* 6. Weekly Score */}
-                      <td className="px-3 py-2">
+                      <td data-label="Weekly Score" data-summary="true" className="px-3 py-2">
                         {u.latestScore != null
                           ? <span className={`font-semibold ${scoreColor(u.latestScore, isResident)}`}>{u.latestScore}%</span>
                           : <span className="text-muted-foreground">—</span>}
                       </td>
                       {/* 7. Latest Entry */}
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{fmt.date(u.latestEntryDate)}</td>
+                      <td data-label="Latest Entry" className="px-3 py-2 text-xs text-muted-foreground">{fmt.date(u.latestEntryDate)}</td>
                       {!isPwAdmin && (
                         <>
-                          <td className="px-3 py-2">
+                          <td data-label="Residency" className="px-3 py-2">
                             {isResident ? (
                               <span className="inline-flex max-w-[160px] items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
                                 <Home className="h-3.5 w-3.5 shrink-0" />
@@ -1036,7 +1053,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                             )}
                           </td>
                           {/* 1. Sadhana Mentor */}
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                          <td data-label="Sadhana Mentor Role" className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
                               onClick={() => setSadhanaMentorDialog({ user: u, action: (u.isSadhanaMentor || u.role === 'SADHANA_MENTOR') ? 'untag' : 'tag' })}>
@@ -1044,7 +1061,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                             </button>
                           </td>
                           {/* 2. FOLK Lead */}
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                          <td data-label="FOLK Lead" className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u as any).isFolkLead ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
                               onClick={() => setFolkLeadDialog({ user: u, action: (u as any).isFolkLead ? 'untag' : 'tag' })}>
@@ -1052,7 +1069,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
                             </button>
                           </td>
                           {/* 3. Trip Coord. */}
-                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                          <td data-label="Trip Coordinator" className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <button
                               className={`inline-flex items-center text-xs px-2 py-1 rounded border transition-colors ${(u as any).isTripCoordinator ? 'border-border text-foreground hover:bg-muted' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
                               onClick={() => setTripCoordDialog({ user: u, action: (u as any).isTripCoordinator ? 'untag' : 'tag' })}>
@@ -1067,6 +1084,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
               </tbody>
             </table>
           </div>
+          <div className="md:hidden">{pagination}</div>
         </CardContent>
       </Card>
 

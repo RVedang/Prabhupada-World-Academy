@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +19,6 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvQuizSection from '@/components/bv/BvQuizSection';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface Props { userId: string; segment?: 'PW' | 'FOLK'; }
 
@@ -34,16 +34,17 @@ export default function BvTab({ userId, segment }: Props) {
   const [regModalOpen, setRegModalOpen] = useState(false);
   const todayAttendance = attendance?.userHistory.find(entry => entry.attendanceDate === format(new Date(), 'yyyy-MM-dd'))?.status;
 
-  const load = useCallback(async (silent = false) => {
+  const load = useReactiveLoader(async (read, silent = false) => {
     try {
       const localDate = format(new Date(), 'yyyy-MM-dd');
       const [statusRes, attendanceRes] = await Promise.all([
-        getUserBvStatus({ userId, localDate }),
-        getBvAttendance({ userId, localDate }),
+        read(() => getUserBvStatus({ userId, localDate })),
+        read(() => getBvAttendance({ userId, localDate })),
       ]);
       setStatus(statusRes);
       setAttendance(attendanceRes);
     } catch {
+      if (read.cancelled) return;
       if (!silent) toast.error('Failed to load Bhakti Vriksha details');
     } finally {
       if (!silent) setLoading(false);
@@ -61,7 +62,7 @@ export default function BvTab({ userId, segment }: Props) {
   // Approval and group assignment are performed in another signed-in browser.
   // Reconcile this open tab through the existing scoped Firestore invalidation
   // stream without replacing its contents with another loading screen.
-  useRealtimeRefresh(['users', 'groups'], () => load(true), Boolean(userId));
+
 
   const handleLeave = async () => {
     if (!status?.myGroup) return;
@@ -110,14 +111,14 @@ export default function BvTab({ userId, segment }: Props) {
       {status?.myGroup ? (
         <Card className="border-l-4 border-l-primary">
           <CardContent className="pt-4 pb-4">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-bold text-base">{status.myGroup.groupName}</span>
                   <Badge className="bg-green-500 text-xs">Active Member</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Facilitator: <span className="font-medium">{status.myGroup.bvslName}</span> · {status.myGroup.memberCount} members
+                  RGF: <span className="font-medium">{status.myGroup.bvslName}</span> · {status.myGroup.memberCount} members
                 </p>
               </div>
 

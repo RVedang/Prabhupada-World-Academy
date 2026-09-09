@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import {
   minutesToHHMM,
   DURATION_MINUTE_KEYS,
@@ -83,7 +84,7 @@ export default function FolkReportTable({ folkRows, fieldDefs }: Props) {
 
   return (
     <div className="space-y-1.5">
-      <div className="overflow-x-auto border rounded-lg shadow-sm">
+      <TableScrollArea className="overflow-x-auto border rounded-lg shadow-sm">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-muted border-b border-border">
@@ -173,7 +174,7 @@ export default function FolkReportTable({ folkRows, fieldDefs }: Props) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScrollArea>
       <p className="text-[10px] text-muted-foreground px-1">
         Ranking: Weighted Score = Avg % × (Submitted ÷ Total Members) · Preach &amp; Books show FOLK totals for the period.
       </p>

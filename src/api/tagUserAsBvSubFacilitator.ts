@@ -29,7 +29,7 @@ export default createEndpoint({
       userEmail.includes('admin')
     );
     if (!isAuthorized) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Super Admin access required to assign Reading Group Sub-Facilitators (RGSF). Supervisors and RGFs cannot assign RGSFs.' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Super Admin access required to assign RGSFs. Supervisors and RGFs cannot assign RGSFs.' });
     }
 
     if (input.action === 'tag' && !input.facilitatorId) {
@@ -45,7 +45,7 @@ export default createEndpoint({
       record: {
         isBvSubFacilitator: shouldTag,
         role: 'User',
-        pendingRoleNotice: shouldTag ? 'Assigned role: Reading Group Sub-Facilitator (RGSF)' : 'Removed role: Reading Group Sub-Facilitator (RGSF)',
+        pendingRoleNotice: shouldTag ? 'Assigned role: RGSF' : 'Removed role: RGSF',
         roleNoticeAcknowledged: false,
         // Hierarchy: which RGF does this RGSF report to?
         bvReportingFacilitatorId: shouldTag ? (input.facilitatorId || '') : '',

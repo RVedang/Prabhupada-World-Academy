@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { getReportReferenceData } from '../lib/reportReferenceData';
 import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole, normalizeAshrayLevel } from '../lib/userUtils';
@@ -972,6 +973,7 @@ export default createEndpoint({
       }
     });
 
+    scopeRealtimeDependencies('SadhanaEntries', { kind: 'references', fields: ['user'], values: [...userDbIdSet], caseSensitive: true, firstArrayValue: true });
     const [allEntries, streakEntries] = await entriesPromise;
     availableResidencies = await availableResidenciesPromise;
     const streakEntriesByUser = new Map<string, { entryDate: string; scorePercent: number | null }[]>();

@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,7 +13,7 @@ const DETAIL_LABELS: Record<string, string> = {
   'No of Meetings': 'Meetings',
   'BV Groups Attendance': 'Group / Sessions',
   'Books Distributed': 'Books',
-  'No of BV Groups': 'Facilitator',
+  'No of BV Groups': 'RGF',
   'Boys Chanting 16 Rounds': 'Avg Rounds',
 };
 
@@ -41,14 +42,14 @@ export default function PreachingDrilldownDialog({
   const nameLabel = NAME_LABEL[metricKey] || 'Name';
   const isGroups = metricKey === 'No of BV Groups';
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!open) return;
-    setLoading(true);
-    setUsers([]);
-    getPreachingDrilldown({ metricKey, centerId, weekLabel, startDate, endDate })
-      .then(res => setUsers(res.users))
+    !read.background && !read.cancelled && setLoading(true);
+    !read.background && !read.cancelled && setUsers([]);
+    read(() => getPreachingDrilldown({ metricKey, centerId, weekLabel, startDate, endDate }))
+      .then(res => !read.cancelled && setUsers(res.users))
       .catch(() => toast.error('Failed to load details'))
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, [open, metricKey, centerId, weekLabel, startDate, endDate]);
 
   return (

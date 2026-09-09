@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,10 +29,10 @@ export default function GuideAttendanceTab({ guideId }: Props) {
   const [offset, setOffset] = useState(0);
   const LIMIT = 50;
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const res = await getGuideAttendanceReport({
+      const res = await read(() => getGuideAttendanceReport({
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         ashrayLevel: ashrayLevel || undefined,
@@ -40,9 +41,10 @@ export default function GuideAttendanceTab({ guideId }: Props) {
         search: search || undefined,
         offset,
         limit: LIMIT,
-      });
+      }));
       setData(res);
-    } catch { /* silent */ }
+    } catch {
+      if (read.cancelled) return; /* silent */ }
     setLoading(false);
   }, [startDate, endDate, ashrayLevel, eventId, sessionId, search, offset]);
 

@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { acknowledgeBvRoleNotice, acknowledgeBvApprovalNotice, acknowledgeBvRejectionNotice, acknowledgeAshrayNotice, getUserBvStatus } from '@/lib/endpoints-sdk';
@@ -38,12 +39,12 @@ export default function RoleAcknowledgementHandler() {
   }
 
   // Fetch Reading Group details when approval popup is triggered
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (popupType === 'bv_approval_notice' || popupType === 'bv_group_assignment_notice') {
-      getUserBvStatus({})
+      read(() => getUserBvStatus({}))
         .then(res => {
           if (res?.myGroup) {
-            setGroupInfo({
+            !read.cancelled && setGroupInfo({
               groupName: res.myGroup.groupName,
               bvslName: res.myGroup.bvslName,
               rgsfName: res.myGroup.rgsfName,
@@ -183,8 +184,8 @@ export default function RoleAcknowledgementHandler() {
         {popupType === 'bv_group_assignment_notice' && (
           <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm text-left my-1 space-y-1">
             <p><strong>Reading Group:</strong> {groupInfo?.groupName || (profile as any).bvGroupName || 'Your assigned Reading Group'}</p>
-            <p><strong>Facilitator (RGF):</strong> {groupInfo?.bvslName || 'Not assigned'}</p>
-            <p><strong>Sub-Facilitator (RGSF):</strong> {groupInfo?.rgsfName || 'None'}</p>
+            <p><strong>RGF:</strong> {groupInfo?.bvslName || 'Not assigned'}</p>
+            <p><strong>RGSF:</strong> {groupInfo?.rgsfName || 'None'}</p>
           </div>
         )}
 
@@ -198,8 +199,8 @@ export default function RoleAcknowledgementHandler() {
         {popupType === 'bv_approval_notice' && (
           <div className="bg-muted/50 border rounded-lg p-3 text-xs text-left space-y-1.5 my-1">
             <p><strong>• Name of Reading Group:</strong> {groupInfo?.groupName || (profile as any).bvGroupName || 'Assigned Group'}</p>
-            <p><strong>• Reading Group Facilitator:</strong> {groupInfo?.bvslName || (profile as any).bvslLeaderName || (profile as any).bvslName || 'Facilitator'}</p>
-            <p><strong>• Sub-facilitators:</strong> {groupInfo?.rgsfName || 'None'}</p>
+            <p><strong>• RGF:</strong> {groupInfo?.bvslName || (profile as any).bvslLeaderName || (profile as any).bvslName || 'Unassigned'}</p>
+            <p><strong>• RGSF:</strong> {groupInfo?.rgsfName || 'None'}</p>
           </div>
         )}
 

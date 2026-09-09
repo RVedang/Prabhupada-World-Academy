@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, AppError, Users, Guides, BvslPreachingEntries, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { bvUserAliases, isBvDepartmentAdmin, isBvSuperAdminUser, resolveBvDepartmentFacilitatorUsers, resolveBvGroupFacilitatorUsers, resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
@@ -158,6 +159,7 @@ async function _fetchBvStats({ input, context }: { input: any; context: any }) {
       bvUserAliases(user).forEach(alias => canonicalByAlias.set(alias, user.id));
     });
 
+    scopeRealtimeDependencies(isMemberMode ? 'SadhanaEntries' : 'BvslPreachingEntries', { kind: 'references', fields: ['user'], values: [...canonicalByAlias.keys()] });
     let allEntries: any[] = [];
     let offset = 0;
     const entryDateFilter = startDate === endDate

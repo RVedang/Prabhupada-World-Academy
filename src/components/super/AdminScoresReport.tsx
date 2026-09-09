@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,13 +47,14 @@ export default function AdminScoresReport() {
   const [viewMode, setViewMode] = useState<ViewMode>('points');
   const [drill, setDrill] = useState<DrillState | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const res = await getScoresReport({ from: startDate, to: endDate }) as any;
+      const res = await read(() => getScoresReport({ from: startDate, to: endDate })) as any;
       setScores(res.scores || []);
       setWeeks(res.weeks || []);
-    } catch { toast.error('Failed to load scores'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load scores'); }
     finally { setLoading(false); }
   }, [startDate, endDate]);
 

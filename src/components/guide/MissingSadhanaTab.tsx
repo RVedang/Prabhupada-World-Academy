@@ -1,3 +1,6 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
+import FilterPanel from '@/components/mobile/FilterPanel';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -98,12 +101,12 @@ function StatsRow({ stats }: { stats: ReportData['stats'] }) {
     { label: 'Completion Rate', value: `${stats.completionRate}%`, icon: TrendingUp, sub: 'filled (incl. late)', rateVal: stats.completionRate },
   ];
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
       {cards.map(c => {
         const Icon = c.icon;
         return (
-          <div key={c.label} className="rounded-xl border border-border bg-card px-4 py-3 flex items-start gap-3">
-            <div className="p-1.5 rounded-md bg-muted shrink-0 mt-0.5">
+          <div key={c.label} className="rounded-xl border border-border bg-card px-3 py-3 flex items-start gap-3">
+            <div className="hidden xl:block p-1.5 rounded-md bg-muted shrink-0 mt-0.5">
               <Icon className="w-4 h-4 text-muted-foreground" />
             </div>
             <div className="min-w-0">
@@ -153,7 +156,7 @@ function MatrixView({ data, isPw }: { data: ReportData; isPw: boolean }) {
   if (users.length === 0) return <p className="text-center text-sm text-muted-foreground py-8">No users found.</p>;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <TableScrollArea className="overflow-x-auto rounded-lg border border-border">
       <table className="text-xs w-full">
         <thead>
           <tr className="bg-muted">
@@ -280,7 +283,7 @@ function MatrixView({ data, isPw }: { data: ReportData; isPw: boolean }) {
           </tr>
         </tbody>
       </table>
-    </div>
+    </TableScrollArea>
   );
 }
 
@@ -554,8 +557,8 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
   }, []);
 
   // Fetch residency list — pass segment so PW is excluded for FOLK dashboards
-  useEffect(() => {
-    getAllResidencies({ segment: isPw ? 'PW' : 'FOLK' } as any).then(setResidencies).catch(() => {});
+  useReactiveEffect((read) => {
+    read(() => getAllResidencies({ segment: isPw ? 'PW' : 'FOLK' } as any)).then(setResidencies).catch(() => {});
   }, [isPw]);
 
   const { start, end } = getDateRange(period, customStart, customEnd);
@@ -680,7 +683,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
           ))}
         </div>
         {period === 'custom' && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="h-8 text-xs w-36" />
             <span className="text-muted-foreground text-xs">to</span>
             <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="h-8 text-xs w-36" />
@@ -690,6 +693,8 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
 
       {/* Controls row 2: Filters + view toggle + export */}
       <div className="flex flex-wrap gap-2 items-center">
+        <FilterPanel title="Missing Sadhana filters"><div className="flex flex-wrap items-center gap-2">
+
         {/* Server-side residency filter — hidden for Prabhupada World */}
         {!isPw && showResidencyFilter && isSuperAdmin && (
           <Select value={residencyId} onValueChange={(v: string | null) => { if (v) setResidencyId(v); }}>
@@ -762,6 +767,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
           </Label>
         </div>
 
+</div></FilterPanel>
         {/* Spacer */}
         <div className="flex-1" />
 
@@ -771,19 +777,19 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
             onClick={() => setView('matrix')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors ${view === 'matrix' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted/50'}`}
           >
-            <LayoutGrid className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Matrix</span>
+            <LayoutGrid className="w-3.5 h-3.5" /> <span>Matrix</span>
           </button>
           <button
             onClick={() => setView('list')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors border-l border-border ${view === 'list' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted/50'}`}
           >
-            <List className="w-3.5 h-3.5" /> <span className="hidden sm:inline">List</span>
+            <List className="w-3.5 h-3.5" /> <span>List</span>
           </button>
           <button
             onClick={() => setView('cards')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors border-l border-border ${view === 'cards' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted/50'}`}
           >
-            <Smartphone className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Cards</span>
+            <Smartphone className="w-3.5 h-3.5" /> <span>Cards</span>
           </button>
         </div>
 
@@ -809,7 +815,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
       {/* Loading skeleton */}
       {loading && (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
             {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
           </div>
           <Skeleton className="h-48 rounded-lg" />

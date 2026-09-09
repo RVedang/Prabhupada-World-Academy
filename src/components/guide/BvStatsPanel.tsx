@@ -1,6 +1,7 @@
 /**
  * BvStatsPanel — BV preaching trend charts, mirrors StatsOverviewPanel.
  */
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +11,6 @@ import { getBvStats, getGuideGroupStats } from '@/lib/endpoints-sdk';
 import FieldTrendChart from '@/components/stats/FieldTrendChart';
 import type { FieldConfig } from '@/components/stats/FieldTrendChart';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type Period = '7d' | '30d' | '90d' | 'current_month' | 'prev_month';
 
@@ -77,10 +77,10 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
 
   const { start, end } = useMemo(() => getPeriodDates(period), [period]);
 
-  const loadGroupStats = useCallback(async (silent = false) => {
-    if (!silent) setGroupLoading(true);
+  const loadGroupStats = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setGroupLoading(true);
     try {
-      const result = await getBvStats({
+      const result = await read(() => getBvStats({
         guideId,
         startDate: start,
         endDate: end,
@@ -88,9 +88,10 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
         segment,
-      });
+      }));
       setGroupStats(result);
     } catch {
+      if (read.cancelled) return;
       // Keep the last successful trend visible if a background refresh fails.
     } finally {
       if (!silent) setGroupLoading(false);
@@ -100,38 +101,39 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
   useEffect(() => { void loadGroupStats(); }, [loadGroupStats]);
   // A Sadhana submission can include BV activity. Re-query on that event so
   // the chart changes immediately, without a timer or a manual refresh.
-  useRealtimeRefresh(['sadhana'], () => loadGroupStats(true));
 
-  const loadGroupOptions = useCallback(async () => {
+
+  const loadGroupOptions = useReactiveLoader(async (read) => {
     if (groupOptions.length > 0) return;
     try {
-      const result = await getGuideGroupStats({
+      const result = await read(() => getGuideGroupStats({
         guideId,
         bvslMode,
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
         segment,
-      });
+      }));
       setLoadedGroupOptions(result.groups.map((group: any) => ({
         id: String(group.groupId),
         groupId: String(group.groupId),
         groupName: group.groupName || 'Reading Group',
       })));
     } catch {
+      if (read.cancelled) return;
       setLoadedGroupOptions([]);
     }
   }, [guideId, bvslMode, residencyIds, segment, groupOptions.length]);
 
   useEffect(() => { void loadGroupOptions(); }, [loadGroupOptions]);
-  useRealtimeRefresh(['groups'], loadGroupOptions, groupOptions.length === 0);
 
-  const loadIndividualStats = useCallback(async (silent = false) => {
+
+  const loadIndividualStats = useReactiveLoader(async (read, silent = false) => {
     if (!selectedUserId) {
       setIndividualStats(null);
       return;
     }
-    if (!silent) setIndividualLoading(true);
+    if (!silent) !read.background && setIndividualLoading(true);
     try {
-      const result = await getBvStats({
+      const result = await read(() => getBvStats({
         guideId,
         startDate: start,
         endDate: end,
@@ -140,9 +142,10 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
         subjectUserId: selectedUserId,
         segment,
-      });
+      }));
       setIndividualStats(result);
     } catch {
+      if (read.cancelled) return;
       // Keep the previous successful individual trend visible during a refresh failure.
     } finally {
       if (!silent) setIndividualLoading(false);
@@ -150,7 +153,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
   }, [guideId, start, end, bvslMode, residencyIds, selectedGroupId, selectedUserId, segment]);
 
   useEffect(() => { void loadIndividualStats(); }, [loadIndividualStats]);
-  useRealtimeRefresh(['sadhana'], () => loadIndividualStats(true), Boolean(selectedUserId));
+
 
   useEffect(() => { setSelectedUserId(''); }, [period]);
 
@@ -232,7 +235,7 @@ export default function BvStatsPanel({ guideId, bvslMode, residencyIds, showIndi
               <span className="text-xs font-normal text-muted-foreground">
                 · {groupStats.totalUsers} {isMemberScope
                   ? (groupStats.totalUsers === 1 ? 'Member' : 'Members')
-                  : (groupStats.totalUsers === 1 ? 'Facilitator' : 'Facilitators')} · {groupStats.totalSubmitted ?? 0} entries
+                  : 'RGFs/RGSFs'} · {groupStats.totalSubmitted ?? 0} entries
               </span>
             )}
           </CardTitle>

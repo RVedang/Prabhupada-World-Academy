@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, BvGroupMembers, Users } from '@/lib/backend-sdk';
 
 const USER_IDENTITY_FIELDS = [
@@ -80,6 +81,10 @@ export default createEndpoint({
         userKeys.add(String(key).trim().toLowerCase());
       }
     }
+
+    scopeRealtimeDependencies('BvAttendance', { kind: 'references', fields: ['user'], values: [...userKeys], firstArrayValue: true });
+    scopeRealtimeDependencies('AttendanceRecords', { kind: 'references', fields: ['user'], values: [...userKeys], firstArrayValue: true });
+    scopeRealtimeDependencies('BvGroupMembers', { kind: 'references', fields: ['id', 'user', 'userId', 'memberId'], values: initialKeys });
 
     // Fetch BvAttendance records for user
     const { records: allBv } = await BvAttendance.findAll({

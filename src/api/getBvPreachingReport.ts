@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, AppError, Users, BvslPreachingEntries, BvGroups, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
@@ -220,6 +221,8 @@ async function _fetchBvPreachingReport({ input, context }: { input: any; context
     filteredBvslUsers.forEach(user => {
       bvUserAliases(user).forEach((alias: string) => canonicalByAlias.set(alias, user.id));
     });
+
+    scopeRealtimeDependencies(isMemberMode ? 'SadhanaEntries' : 'BvslPreachingEntries', { kind: 'references', fields: ['user'], values: [...canonicalByAlias.keys()] });
 
     // Group entries by user
     const entriesByUser = new Map<string, any[]>();

@@ -1,3 +1,5 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Users, CheckSquare, BarChart3, BookOpen, FileText, Brain, GraduationCap, CalendarClock, ClipboardList, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +24,6 @@ import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
 import SuperBvRegistrationsTab from '@/components/super/SuperBvRegistrationsTab';
 import { Toaster } from '@/components/ui/sonner';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function BvslDashboard() {
   const { profile } = useUserProfile();
@@ -43,27 +44,28 @@ export default function BvslDashboard() {
     !profile?.isBvSuperAdmin
   );
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (authUser?.email && !isSuperAdmin) {
-      getCurrentGuide({}).then(r => {
-        if (r.guide?.fullName) setDisplayName(r.guide.fullName);
+      read(() => getCurrentGuide({})).then(r => {
+        if (r.guide?.fullName) !read.cancelled && setDisplayName(r.guide.fullName);
       }).catch(() => {});
     }
   }, [authUser?.email, isSuperAdmin]);
 
-  const loadGroups = useCallback(async (silent = false) => {
+  const loadGroups = useReactiveLoader(async (read, silent = false) => {
     const bvslId = profile?.userId;
     if (!bvslId) return;
-    if (!silent) setLoading(true);
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getBvslGroups({ bvslId, viewRole: isSubFacilitatorOnly ? 'RGSF' : 'RGF' });
+      const res = await read(() => getBvslGroups({ bvslId, viewRole: isSubFacilitatorOnly ? 'RGSF' : 'RGF' }));
       setGroups(res.groups);
-    } catch { toast.error('Failed to load groups'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load groups'); }
     finally { if (!silent) setLoading(false); }
   }, [profile?.userId, isSubFacilitatorOnly]);
 
   useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId, loadGroups]);
-  useRealtimeRefresh(['groups', 'users'], () => loadGroups(true), Boolean(profile?.userId));
+
 
   if (!profile) return <LoadingPage />;
 
@@ -85,10 +87,10 @@ export default function BvslDashboard() {
 
   const defaultName = isFolk ? 'FOLK' : 'Prabhupada World';
   const headerName = isSuperAdmin ? defaultName : (displayName || defaultName);
-  const roleTitle = isSubFacilitatorOnly ? 'Reading Group Sub-Facilitator Dashboard' : 'Reading Group Facilitator Dashboard';
+  const roleTitle = isSubFacilitatorOnly ? 'RGSF Dashboard' : 'RGF Dashboard';
   const subtitle = [
     `Hare Krishna, ${headerName}!`,
-    isSubFacilitatorOnly ? 'Sub-Facilitator (RGSF)' : 'Facilitator (RGF)',
+    isSubFacilitatorOnly ? 'RGSF' : 'RGF',
     profile.ashrayLevel ? `Ashray: ${profile.ashrayLevel}` : null,
     profile.guideName ? `Guide: ${profile.guideName}` : null,
     profile.residencyName ? `FOLK: ${profile.residencyName}` : null,

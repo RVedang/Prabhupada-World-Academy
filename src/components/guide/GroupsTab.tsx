@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,19 +40,20 @@ export default function GroupsTab({ guideId }: GroupsTabProps) {
     loadData();
   }, [guideId]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const result = await getGuideGroups({ guideId });
+      const result = await read(() => getGuideGroups({ guideId }));
       setGroups(result.groups);
       setAvailableUsers(result.availableUsers);
     } catch (error) {
+      if (read.cancelled) return;
       console.error('Failed to load groups:', error);
       toast.error('Failed to load groups');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {

@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 /**
  * BvFieldBreakdown — collapsible per-field detail tables for the guide's RGF Preaching Report.
  * Shown below the main preaching table. Each field accordion shows individual RGF values
@@ -120,7 +121,7 @@ export default function BvFieldBreakdown({ bvsls }: Props) {
 
             {/* Accordion Body */}
             {isOpen && (
-              <div className="border-t border-border overflow-x-auto">
+              <TableScrollArea className="border-t border-border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted/40 border-b border-border">
@@ -173,7 +174,7 @@ export default function BvFieldBreakdown({ bvsls }: Props) {
                     </tr>
                   </tbody>
                 </table>
-              </div>
+              </TableScrollArea>
             )}
           </div>
         );

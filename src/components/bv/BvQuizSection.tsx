@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import { toast } from 'sonner';
 import { getMyBvQuizSubmissions } from '@/lib/endpoints-sdk';
 import BvQuizTaker from './BvQuizTaker';
 import { format } from 'date-fns';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface Props {
   userId: string;
@@ -42,14 +42,15 @@ export default function BvQuizSection({ userId }: Props) {
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
   const [reviewQuizTitle, setReviewQuizTitle] = useState('');
 
-  const load = useCallback(async (showLoading = true) => {
-    if (showLoading) setLoading(true);
+  const load = useReactiveLoader(async (read, showLoading = true) => {
+    if (showLoading) !read.background && setLoading(true);
     try {
       // Quiz publication can change from another signed-in browser. Never
       // reuse an earlier empty result when this view is reopened.
-      const r = await getMyBvQuizSubmissions({ _nocache: true });
+      const r = await read(() => getMyBvQuizSubmissions({ _nocache: true }));
       setData(r as QuizData);
-    } catch { toast.error('Failed to load quizzes'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load quizzes'); }
     finally { if (showLoading) setLoading(false); }
   }, []);
 
@@ -58,7 +59,7 @@ export default function BvQuizSection({ userId }: Props) {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [userId, load]);
   // FOLK quiz publication updates are event-driven, without polling.
-  useRealtimeRefresh(['quizzes', 'groups'], () => { void load(false); }, Boolean(userId));
+
 
   // Reconcile after the user returns to this browser/app. This covers a quiz
   // toggle made while the tab was suspended, without introducing polling.

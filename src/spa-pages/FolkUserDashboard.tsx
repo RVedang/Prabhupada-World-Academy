@@ -1,9 +1,8 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { MemberBottomNav } from '@/components/mobile/DashboardNavigation';
+import { lazy, Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BookOpen, Leaf, Trophy, ClipboardCheck, Sparkles, Building2, Settings2 } from 'lucide-react';
 import { FEATURES } from '@/config/features';
-import UserServicesTab from '@/components/services/UserServicesTab';
-import GuideServicesTab from '@/components/services/GuideServicesTab';
 import { getUserDashboardData, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
 import { format } from 'date-fns';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -11,14 +10,9 @@ import { DashboardLayout } from '@/layouts';
 import { LoadingPage } from '@/shared';
 import TabTransition from '@/components/TabTransition';
 import SadhanaTab from '@/components/dashboard/SadhanaTab';
-import BvTab from '@/components/dashboard/BvTab';
-import LeaderboardTab from '@/components/dashboard/LeaderboardTab';
 import { useQuery } from '@/hooks/useQuery';
 import SectionErrorBoundary from '@/components/SectionErrorBoundary';
-import AttendanceTab from '@/components/dashboard/AttendanceTab';
 import PushNotificationBanner from '@/components/dashboard/PushNotificationBanner';
-import CleanlinessCalendarTab from '@/components/cleanliness/CleanlinessCalendarTab';
-import CleanlinessManagerDashboard from '@/components/cleanliness/CleanlinessManagerDashboard';
 import { initReminderVisibilityCheck, scheduleSadhanaReminder, hasSubmittedToday } from '@/utils/sadhanaNotification';
 import {
   consumePendingSadhanaEntrySaved,
@@ -26,6 +20,14 @@ import {
   SADHANA_ENTRY_SAVED_EVENT,
   type SavedSadhanaEntryPayload,
 } from '@/utils/sadhanaDashboardRefresh';
+
+const UserServicesTab = lazy(() => import('@/components/services/UserServicesTab'));
+const GuideServicesTab = lazy(() => import('@/components/services/GuideServicesTab'));
+const BvTab = lazy(() => import('@/components/dashboard/BvTab'));
+const LeaderboardTab = lazy(() => import('@/components/dashboard/LeaderboardTab'));
+const AttendanceTab = lazy(() => import('@/components/dashboard/AttendanceTab'));
+const CleanlinessCalendarTab = lazy(() => import('@/components/cleanliness/CleanlinessCalendarTab'));
+const CleanlinessManagerDashboard = lazy(() => import('@/components/cleanliness/CleanlinessManagerDashboard'));
 
 export default function FolkUserDashboard() {
   const { profile } = useUserProfile();
@@ -148,10 +150,20 @@ export default function FolkUserDashboard() {
     <DashboardLayout
       title={`Hare Krishna, ${profile.fullName}!`}
       subtitle={subtitle}
+      hasBottomNavigation
     >
       <PushNotificationBanner />
+      <MemberBottomNav activeId={activeTab} onSelect={handleTabChange} items={[
+          { id: 'sadhana', label: 'Sadhana', icon: BookOpen },
+          { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+          { id: 'bv', label: 'Bhakti Vriksha', icon: Leaf },
+          ...(profile.isBvMember ? [{ id: 'attendance', label: 'Attendance', icon: ClipboardCheck }] : []),
+          ...(isResident && profile.selectedFolkResidency ? [{ id: 'cleanliness', label: 'Cleanliness', icon: Sparkles }] : []),
+          ...(FEATURES.SERVICE_ALLOCATION && isResident && profile.selectedFolkResidency ? [{ id: 'services', label: 'FOLK Services', icon: Building2 }] : []),
+          ...(FEATURES.SERVICE_ALLOCATION && profile.isServiceAllocator ? [{ id: 'folk-mgmt', label: 'FOLK Management', icon: Settings2 }] : []),
+        ]} />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="mb-6 w-full md:w-auto flex-wrap h-auto gap-1">
+        <TabsList className="hidden md:flex mb-6 w-full md:w-auto flex-wrap h-auto gap-1">
           <TabsTrigger value="sadhana" className="flex items-center gap-1.5">
             <BookOpen className="w-4 h-4" />Sadhana
           </TabsTrigger>
@@ -186,7 +198,7 @@ export default function FolkUserDashboard() {
             </TabsTrigger>
           )}
         </TabsList>
-        <TabTransition activeTab={activeTab}>
+        <Suspense fallback={<LoadingPage rows={2} />}><TabTransition activeTab={activeTab}>
           {activeTab === 'sadhana' && (
             <SectionErrorBoundary sectionName="Sadhana Tab">
               <SadhanaTab
@@ -237,7 +249,7 @@ export default function FolkUserDashboard() {
               <GuideServicesTab residencyId={(profile as any).folkResidencyCustomId ?? undefined} />
             </SectionErrorBoundary>
           )}
-        </TabTransition>
+        </TabTransition></Suspense>
       </Tabs>
     </DashboardLayout>
   );

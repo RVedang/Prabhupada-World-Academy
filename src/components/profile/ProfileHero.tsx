@@ -97,7 +97,7 @@ export default function ProfileHero({ fullName, email, isResident, ashrayLevel, 
               </Badge>
             );
           })()}
-          {isBvsl && <Badge className="bg-primary/10 text-primary border border-primary/30">📖 RGF (Facilitator)</Badge>}
+          {isBvsl && <Badge className="bg-primary/10 text-primary border border-primary/30">📖 RGF</Badge>}
           {isSadhanaMentor && <Badge className="bg-amber-100 text-amber-800 border border-amber-300">🎓 Sadhana Mentor</Badge>}
           {isBvMentor && <Badge className="bg-purple-100 text-purple-800 border border-purple-300">👁️ Supervisor</Badge>}
           {isFolkLead && <Badge className="bg-blue-100 text-blue-800 border border-blue-300">👑 FOLK Lead</Badge>}

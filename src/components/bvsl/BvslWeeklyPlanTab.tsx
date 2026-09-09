@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, Save, BookOpen, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,8 @@ export default function BvslWeeklyPlanTab({ userEmail }: Props) {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const editRevision = useRef(0);
   const [books, setBooks] = useState<{ date: string; bookName: string; quantity: number }[]>([]);
   const [totalBooks, setTotalBooks] = useState(0);
 
@@ -57,38 +60,42 @@ export default function BvslWeeklyPlanTab({ userEmail }: Props) {
     return `${format(s, 'd MMM')} – ${format(e, 'd MMM yyyy')}`;
   })();
 
-  const loadPlan = useCallback(async () => {
-    setLoading(true);
+  const loadPlan = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getBvslWeeklyPlan({ weekStart });
+      const res = await read(() => getBvslWeeklyPlan({ weekStart }));
       if (res.plan) {
         const d: any = {};
         DAYS.forEach(dd => d[dd.key] = (res.plan as any)[dd.key]);
-        setDays(d);
+        !read.cancelled && setDays(d);
       } else {
         const d: any = {};
         DAYS.forEach(dd => d[dd.key] = emptyDay());
-        setDays(d);
+        !read.cancelled && setDays(d);
       }
-    } catch { toast.error('Failed to load plan'); }
-    finally { setLoading(false); }
-  }, [weekStart]);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load plan'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, [weekStart], !hasUnsavedChanges && !saving);
 
-  const loadBooks = useCallback(async () => {
+  const loadBooks = useReactiveLoader(async (read) => {
     try {
       const endDate = format(addDays(new Date(weekStart + 'T00:00:00'), 6), 'yyyy-MM-dd');
-      const res = await getBvslBooksSummary({ email: userEmail, startDate: weekStart, endDate });
-      setBooks(res.books);
-      setTotalBooks(res.totalBooks);
-    } catch { /* silent */ }
+      const res = await read(() => getBvslBooksSummary({ email: userEmail, startDate: weekStart, endDate }));
+      !read.cancelled && setBooks(res.books);
+      !read.cancelled && setTotalBooks(res.totalBooks);
+    } catch {
+      if (read.cancelled) return; /* silent */ }
   }, [weekStart, userEmail]);
 
-  useEffect(() => { loadPlan(); loadBooks(); }, [loadPlan, loadBooks]);
+  useEffect(() => { editRevision.current++; setHasUnsavedChanges(false); loadPlan(); loadBooks(); }, [loadPlan, loadBooks]);
 
   const handleSave = async () => {
+    const savedRevision = editRevision.current;
     setSaving(true);
     try {
       await saveBvslWeeklyPlan({ weekStart, ...days } as any);
+      if (editRevision.current === savedRevision) setHasUnsavedChanges(false);
       toast.success('Weekly plan saved!');
     } catch { toast.error('Failed to save plan'); }
     finally { setSaving(false); }
@@ -104,6 +111,8 @@ export default function BvslWeeklyPlanTab({ userEmail }: Props) {
   };
 
   const updateDay = (key: DayKey, field: keyof DayData, value: any) => {
+    editRevision.current++;
+    setHasUnsavedChanges(true);
     setDays(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
   };
 

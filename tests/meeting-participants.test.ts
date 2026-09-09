@@ -102,3 +102,22 @@ test('meeting edits validate and persist duration without resetting scheduled re
   assert.equal(Object.hasOwn(updatedRecord, 'inviteeUserIds'), false);
   assert.equal(updateMeeting.inputSchema.safeParse({ meetingId: 'meeting-1', durationMinutes: 0 }).success, false);
 });
+
+test('editing a meeting preserves every participant beyond the Firestore 30-value query limit', async t => {
+  const ids = Array.from({ length: 67 }, (_, index) => `participant-${index}`);
+  let saved: any;
+  const batchSizes: number[] = [];
+  t.mock.method(Meetings, 'findOne', async () => ({ id: 'large-meeting', segment: 'PW', inviteeUserIds: [] }));
+  t.mock.method(Users, 'findAll', async ({ filters }: any) => {
+    const batch = filters.id.in;
+    batchSizes.push(batch.length);
+    assert.ok(batch.length <= 30);
+    return { records: batch.map((id: string) => ({ id, fullName: id, email: `${id}@example.invalid` })), hasMore: false };
+  });
+  t.mock.method(Meetings, 'update', async ({ record }: any) => { saved = record; return { id: 'large-meeting' }; });
+  await updateMeeting.execute({ input: { meetingId: 'large-meeting', additionalInviteeIds: ids }, context: adminContext } as never);
+  assert.deepEqual(batchSizes, [30, 30, 7]);
+  assert.deepEqual(saved.invitees.map((person: any) => person.userId), ids);
+  assert.equal(saved.notification1hSent, false);
+  assert.equal(saved.notification10mSent, false);
+});

@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -46,7 +47,7 @@ export default function ScoresMetricSection({ metric, emoji, rows, weeks, defaul
       </div>
 
       {open && sorted.length > 0 && (
-        <div className="overflow-x-auto border-t border-border">
+        <TableScrollArea className="overflow-x-auto border-t border-border">
           <table className="w-max min-w-full text-xs border-collapse">
             <thead>
               <tr className="bg-muted/50">
@@ -75,7 +76,7 @@ export default function ScoresMetricSection({ metric, emoji, rows, weeks, defaul
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollArea>
       )}
     </Card>
   );

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +30,8 @@ export default function AshrayCriteriaGrid({ currentLevel, userId, practiceGroup
   const [loading, setLoading] = useState(true);
   const [applyLoading, setApplyLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
+  const editVersion = useRef(0);
 
   // All required items for the current level
   const requiredKeys = practiceGroups
@@ -42,31 +45,36 @@ export default function AshrayCriteriaGrid({ currentLevel, userId, practiceGroup
     loadChecklist();
   }, [userId, currentLevel]);
 
-  const loadChecklist = async () => {
-    setLoading(true);
+  const loadChecklist = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getAshrayChecklist({ userId });
+      const res = await read(() => getAshrayChecklist({ userId }));
       // If saved checklist is for a different level, start fresh
       const items = res.ashrayLevel === currentLevel ? res.checkedItems : [];
-      setCheckedItems(new Set(items));
-      setNextExamDate(res.nextExamDate);
-      setSubmitted(!!res.hasPendingUpgrade);
+      !read.cancelled && setCheckedItems(new Set(items));
+      !read.cancelled && setNextExamDate(res.nextExamDate);
+      !read.cancelled && setSubmitted(!!res.hasPendingUpgrade);
     } catch {
+      if (read.cancelled) return;
       // silent — checklist just starts empty
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, [userId, currentLevel], !pendingSave);
 
   const debouncedSave = useDebouncedCallback(async (keys: string[]) => {
+    const savingVersion = editVersion.current;
     try {
       await saveAshrayChecklist({ userId, ashrayLevel: currentLevel, checkedItems: keys });
+      if (editVersion.current === savingVersion) setPendingSave(false);
     } catch {
       toast.error('Failed to save checklist');
     }
   }, 800);
 
   const handleToggle = useCallback((fieldKey: string, checked: boolean) => {
+    editVersion.current++;
+    setPendingSave(true);
     setCheckedItems(prev => {
       const next = new Set(prev);
       checked ? next.add(fieldKey) : next.delete(fieldKey);

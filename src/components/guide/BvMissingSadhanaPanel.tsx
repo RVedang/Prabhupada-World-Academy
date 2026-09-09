@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,7 +103,7 @@ function DesktopTable({
     );
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <TableScrollArea className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-muted text-xs text-muted-foreground">
@@ -207,7 +209,7 @@ function DesktopTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScrollArea>
   );
 }
 
@@ -306,16 +308,17 @@ export default function BvMissingSadhanaPanel({ guideId }: Props) {
   const [loading, setLoading] = useState(false);
   const [deactivating, setDeactivating] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useReactiveLoader(async (read) => {
     if (!startDate || !endDate || startDate > endDate) return;
-    setLoading(true);
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getBvMissingSadhana({ guideId, startDate, endDate });
-      setData(res as GetBvMissingSadhanaOutputType);
+      const res = await read(() => getBvMissingSadhana({ guideId, startDate, endDate }));
+      !read.cancelled && setData(res as GetBvMissingSadhanaOutputType);
     } catch (e: any) {
+      if (read.cancelled) return;
       toast.error(e.message || 'Failed to load missing sadhana data');
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
   }, [guideId, startDate, endDate]);
 

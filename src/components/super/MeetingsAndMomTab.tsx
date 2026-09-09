@@ -1,3 +1,5 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
+import { useModalSurface } from '@/hooks/useModalSurface';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -231,7 +233,7 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
                       : 'text-foreground hover:bg-muted/70'
                 }`}
               >
-                <span className={`grid place-items-center w-7 h-7 rounded-full text-[9px] font-bold shrink-0 transition-colors ${
+                <span aria-hidden="true" className={`grid place-items-center w-7 h-7 rounded-full text-[9px] font-bold shrink-0 transition-colors ${
                   isSelected
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'bg-primary/8 text-primary group-hover:bg-primary/15'
@@ -269,6 +271,7 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
           disabled={disabled}
           readOnly
           placeholder={placeholder}
+          aria-label={placeholder === "Assignee" ? "Assigned to" : "Proposed by"}
           value={value}
           onKeyDown={handlePickerKeyDown}
           onFocus={openDropdown}
@@ -283,7 +286,7 @@ function ProposedByDropdown({ value, onChange, disabled, options, placeholder = 
           type="button"
           disabled={disabled}
           onClick={() => isOpen ? setIsOpen(false) : openDropdown()}
-          aria-label={isOpen ? 'Close proposed by options' : 'Open proposed by options'}
+          aria-label={`${isOpen ? 'Close' : 'Open'} ${placeholder === 'Assignee' ? 'assigned to' : 'proposed by'} options`}
           className="absolute right-1.5 grid place-items-center w-5 h-5 rounded-md text-muted-foreground/70 hover:text-primary hover:bg-primary/10 disabled:opacity-50 transition-colors"
         >
           <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
@@ -482,7 +485,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
   const getCategoryLabel = (val: string) => {
     switch (val) {
       case 'all': return 'All Meeting Types';
-      case 'FACILITATOR': return 'Facilitators Meeting';
+      case 'FACILITATOR': return 'RGF Meeting';
       case 'EXECUTIVE': return 'Executive Meeting';
       case 'OTHER': return 'Other Meeting';
       default: return val;
@@ -503,6 +506,10 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
 
   const [showMomModal, setShowMomModal] = useState(false);
+  const meetingModalRef = React.useRef<HTMLDivElement>(null);
+  const momModalRef = React.useRef<HTMLDivElement>(null);
+  useModalSurface(showMeetingModal, meetingModalRef, () => setShowMeetingModal(false));
+  useModalSurface(showMomModal, momModalRef, () => setShowMomModal(false));
   const [selectedMeetingForMom, setSelectedMeetingForMom] = useState<Meeting | null>(null);
   const [editingMom, setEditingMom] = useState<Mom | null>(null);
 
@@ -635,7 +642,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
     // Format YYYY-MM-DDTHH:mm
     const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     setMeetingForm({
-      title: 'Facilitators Meeting',
+      title: 'RGF Meeting',
       description: '',
       type: 'FACILITATOR',
       custom_category_name: '',
@@ -657,10 +664,10 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
       ...prev,
       type: newType,
       title: newType === 'FACILITATOR'
-        ? 'Facilitators Meeting'
+        ? 'RGF Meeting'
         : newType === 'EXECUTIVE'
         ? 'Executive Meeting'
-        : prev.title === 'Facilitators Meeting' || prev.title === 'Executive Meeting'
+        : prev.title === 'RGF Meeting' || prev.title === 'Facilitators Meeting' || prev.title === 'Executive Meeting'
         ? ''
         : prev.title
     }));
@@ -1087,10 +1094,11 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
+              aria-label="Search meetings or MoMs"
               placeholder="Search meetings or MoMs..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-xs bg-card border border-input rounded-xl w-48 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="pl-8 pr-3 py-1.5 text-xs bg-card border border-input rounded-xl w-full sm:w-48 focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
@@ -1115,7 +1123,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Meeting Types</SelectItem>
-                  <SelectItem value="FACILITATOR">Facilitators Meeting</SelectItem>
+                  <SelectItem value="FACILITATOR">RGF Meeting</SelectItem>
                   <SelectItem value="EXECUTIVE">Executive Meeting</SelectItem>
                   <SelectItem value="OTHER">Other Meeting</SelectItem>
                 </SelectContent>
@@ -1180,7 +1188,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                             {m.type === 'OTHER' && m.custom_category_name
                               ? m.custom_category_name
                               : m.type === 'FACILITATOR'
-                              ? 'Facilitators Meeting'
+                              ? 'RGF Meeting'
                               : m.type === 'EXECUTIVE'
                               ? 'Executive Meeting'
                               : 'Other Meeting'}
@@ -1431,7 +1439,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                         </span>
                       </div>
 
-                      <div className="overflow-x-auto border border-border rounded-xl shadow-xs">
+                      <TableScrollArea className="overflow-x-auto border border-border rounded-xl shadow-xs">
                         <table className="w-full text-left border-collapse text-[11px] leading-relaxed">
                           <thead>
                             <tr className="bg-muted/40 text-muted-foreground uppercase text-[9px] font-bold tracking-wider">
@@ -1511,7 +1519,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                             ))}
                           </tbody>
                         </table>
-                      </div>
+                      </TableScrollArea>
                     </div>
                   )}
 
@@ -1531,12 +1539,12 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
       {/* SCHEDULE / EDIT MEETING MODAL */}
       <AnimatePresence>
         {showMeetingModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="meeting-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-card border rounded-2xl p-6 w-full max-w-xl shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto custom-scrollbar"
+              ref={meetingModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Meeting details" className="bg-card border rounded-2xl p-6 w-full max-w-xl shadow-2xl space-y-4 my-8 max-h-[90dvh] overflow-y-auto custom-scrollbar"
             >
               {/* Local style block to override default scrollbars with premium thin grey track/thumb */}
               <style dangerouslySetInnerHTML={{__html: `
@@ -1564,7 +1572,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                   <Video className="w-5 h-5 text-primary" />
                   <h3 className="text-lg font-bold">{editingMeeting ? 'Edit Meeting' : 'Schedule New Meeting'}</h3>
                 </div>
-                <button onClick={() => setShowMeetingModal(false)} className="text-muted-foreground hover:text-foreground">
+                <button aria-label="Close meeting details" onClick={() => setShowMeetingModal(false)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1572,7 +1580,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
               <form onSubmit={handleSaveMeeting} className="space-y-4 text-xs">
                 <div>
                   <label className="font-bold text-foreground block mb-1.5">Meeting Type *</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {(['FACILITATOR', 'EXECUTIVE', 'OTHER'] as const).map(t => (
                       <button
                         key={t}
@@ -1584,7 +1592,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                             : 'bg-background hover:bg-accent text-foreground'
                         }`}
                       >
-                        {t === 'FACILITATOR' ? 'Facilitators' : t === 'EXECUTIVE' ? 'Executive' : 'Other'}
+                        {t === 'FACILITATOR' ? 'RGF' : t === 'EXECUTIVE' ? 'Executive' : 'Other'}
                       </button>
                     ))}
                   </div>
@@ -1604,7 +1612,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="font-bold text-foreground block mb-1">Scheduled Date & Time *</label>
                     <DateTimePicker
@@ -1638,7 +1646,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     className="w-full p-2.5 bg-background border rounded-xl focus:ring-1 focus:ring-primary"
                   />
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    Invitees are reminded 10 minutes and 1 minute before the meeting. Adding a link makes the notification directly joinable.
+                    Invitees are reminded 1 hour and 10 minutes before the meeting. Add a meeting link so they can join from the notification.
                   </p>
                 </div>
 
@@ -1831,7 +1839,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                   </div>
                 </div>
 
-                <div className="pt-3 border-t flex justify-end gap-2">
+                <div className="sticky-form-actions flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setShowMeetingModal(false)}
@@ -1855,25 +1863,25 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
       {/* CREATE / EDIT MOM MODAL */}
       <AnimatePresence>
         {showMomModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="meeting-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-card border rounded-2xl p-6 w-full max-w-2xl shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto"
+              ref={momModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Minutes of meeting" className="bg-card border rounded-2xl p-6 w-full max-w-2xl shadow-2xl space-y-4 my-8 max-h-[90dvh] overflow-y-auto"
             >
               <div className="flex items-center justify-between pb-3 border-b">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
                   <h3 className="text-lg font-bold">{canEditMom ? (editingMom ? 'Edit Minutes of Meeting' : 'Create Minutes of Meeting (MoM)') : 'View Minutes of Meeting'}</h3>
                 </div>
-                <button onClick={() => setShowMomModal(false)} className="text-muted-foreground hover:text-foreground">
+                <button aria-label="Close minutes of meeting" onClick={() => setShowMomModal(false)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <form onSubmit={handleSaveMom} className="space-y-4 text-xs">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="col-span-2 sm:col-span-1">
                     <label className="font-bold text-foreground block mb-1">MoM Title *</label>
                     <input
@@ -1933,7 +1941,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                     return (
                       <>
                         <div className="overflow-x-auto border border-border rounded-xl">
-                          <table className="w-full text-left border-collapse text-[11px]">
+                          <table className="mobile-mom-table w-full text-left border-collapse text-[11px]">
                             <thead>
                               <tr className="bg-muted text-muted-foreground uppercase text-[9px] font-bold tracking-wider">
                                 <th className="p-2 border-b min-w-[120px]">Proposed By</th>
@@ -1948,7 +1956,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                             <tbody className="divide-y bg-card">
                               {momForm.action_items.map((item, idx) => (
                                 <tr key={idx} className="hover:bg-muted/5">
-                                  <td className="p-1.5 align-top">
+                                  <td data-label="Proposed by" className="p-1.5 align-top">
                                     <ProposedByDropdown
                                       value={item.proposedBy}
                                       onChange={val => updateRowField(idx, 'proposedBy', val)}
@@ -1957,7 +1965,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                       placeholder="Name"
                                     />
                                   </td>
-                                  <td className="p-1.5 align-top">
+                                  <td data-label="Discussion (required)" className="p-1.5 align-top">
                                     <textarea
                                       rows={1}
                                       required
@@ -1968,7 +1976,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                       className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
                                     />
                                   </td>
-                                  <td className="p-1.5 align-top">
+                                  <td data-label="Action item" className="p-1.5 align-top">
                                     <input
                                       type="text"
                                       disabled={!canEditMom}
@@ -1978,7 +1986,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                       className="w-full p-1.5 bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
                                     />
                                   </td>
-                                  <td className="p-1.5 align-top">
+                                  <td data-label="Assigned to" className="p-1.5 align-top">
                                     <ProposedByDropdown
                                       value={item.assignedToName || ''}
                                       onChange={val => updateRowField(idx, 'assignedToName', val)}
@@ -1987,7 +1995,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                       placeholder="Assignee"
                                     />
                                   </td>
-                                  <td className="p-1.5 align-top">
+                                  <td data-label="Deadline" className="p-1.5 align-top">
                                     <DateTimePicker
                                       value={item.deadline}
                                       onChange={val => updateRowField(idx, 'deadline', val)}
@@ -1997,7 +2005,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                       className="h-[27px] py-1 px-2.5 text-[11px] rounded-lg shadow-none border-border"
                                     />
                                   </td>
-                                  <td className="p-1.5 align-top">
+                                  <td data-label="Remarks" className="p-1.5 align-top">
                                     <input
                                       type="text"
                                       disabled={!canEditMom}
@@ -2008,9 +2016,10 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                                     />
                                   </td>
                                   {canEditMom && (
-                                    <td className="p-1.5 align-top text-center">
+                                    <td data-label="Remove item" className="p-1.5 align-top text-center">
                                       <button
                                         type="button"
+                                        aria-label={`Remove action item ${idx + 1}`}
                                         onClick={() => removeActionItem(idx)}
                                         className="text-destructive hover:bg-destructive/10 p-1 rounded-md mt-0.5"
                                         disabled={momForm.action_items.length <= 1}
@@ -2030,7 +2039,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
 
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="font-bold text-foreground block mb-1">Next Meeting Date (Optional)</label>
                     <DateTimePicker
@@ -2055,7 +2064,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                   </div>
                 </div>
 
-                <div className="pt-3 border-t flex justify-end gap-2">
+                <div className="sticky-form-actions flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setShowMomModal(false)}

@@ -9,6 +9,8 @@
  * from an admin endpoint whenever the underlying DB data changes.
  */
 
+import { isReactiveRequest } from './requestQueries';
+
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
@@ -69,6 +71,11 @@ export async function serverCacheGetOrFetch<T>(
   fetcher: () => Promise<T>,
   ttlMs = 60 * 60 * 1000
 ): Promise<T> {
+  // Process-local TTLs cannot establish a cross-instance committed read
+  // version. Reactive reads use request-level deduplication instead, ensuring
+  // both current data and complete dependency capture. Non-reactive callers
+  // retain the existing reference cache.
+  if (isReactiveRequest()) return fetcher();
   const cached = serverCacheGet<T>(key);
   if (cached !== null) return cached;
   const pending = inFlight.get(key) as Promise<T> | undefined;

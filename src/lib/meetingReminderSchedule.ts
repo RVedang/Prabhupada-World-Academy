@@ -1,0 +1,17 @@
+/** The PW reminder windows also allow the next scheduler tick to catch up. */
+export const MEETING_REMINDERS = [
+  { type: 'ONE_HOUR', minutes: 60, sentField: 'notification1hSent', untilMinutes: 10 },
+  { type: 'TEN_MINUTES', minutes: 10, sentField: 'notification10mSent', untilMinutes: 0 },
+] as const;
+export type MeetingReminderType = typeof MEETING_REMINDERS[number]['type'];
+
+export function meetingStartMs(value: string): number {
+  // Stored datetime-local values are IST. Preserve explicit positive/negative offsets.
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+  return new Date(value.includes('T') && !hasZone ? `${value}+05:30` : value).getTime();
+}
+
+export function reminderWindow(start: number, type: MeetingReminderType) {
+  const reminder = MEETING_REMINDERS.find(item => item.type === type)!;
+  return { from: start - reminder.minutes * 60_000, until: start - reminder.untilMinutes * 60_000 };
+}

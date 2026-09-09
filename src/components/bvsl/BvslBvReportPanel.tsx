@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,14 +29,15 @@ export default function BvslBvReportPanel({ bvslId }: Props) {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [data, setData] = useState<GetBvslOwnReportOutputType | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const result = await getBvslOwnReport({ startDate, endDate });
-      setData(result);
-    } catch { toast.error('Failed to load BV report'); }
-    finally { setLoading(false); }
-  };
+      const result = await read(() => getBvslOwnReport({ startDate, endDate }));
+      !read.cancelled && setData(result);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load BV report'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   useEffect(() => { fetchData(); }, [startDate, endDate]);
 
@@ -78,7 +81,7 @@ export default function BvslBvReportPanel({ bvslId }: Props) {
             </CardHeader>
             <CardContent className="p-0">
               {data.preachingEntries.length > 0 ? (
-                <div className="overflow-x-auto">
+                <TableScrollArea className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b bg-muted/50">
@@ -109,7 +112,7 @@ export default function BvslBvReportPanel({ bvslId }: Props) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScrollArea>
               ) : (
                 <div className="py-4"><EmptyState title="No preaching entries in this period" /></div>
               )}
@@ -123,7 +126,7 @@ export default function BvslBvReportPanel({ bvslId }: Props) {
             </CardHeader>
             <CardContent className="p-0">
               {data.sessions.length > 0 ? (
-                <div className="overflow-x-auto">
+                <TableScrollArea className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b bg-muted/50">
@@ -153,7 +156,7 @@ export default function BvslBvReportPanel({ bvslId }: Props) {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </TableScrollArea>
               ) : (
                 <div className="py-4"><EmptyState title="No sessions conducted in this period" /></div>
               )}

@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,14 +31,15 @@ export default function ServiceAnalyticsTab({ residencyId }: Props) {
 
   useEffect(() => { load(); }, [weeksBack, residencyId]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getServiceAnalytics({ residencyId, weeksBack: parseInt(weeksBack) });
-      setData(res);
-    } catch { toast.error('Failed to load analytics'); }
-    finally { setLoading(false); }
-  };
+      const res = await read(() => getServiceAnalytics({ residencyId, weeksBack: parseInt(weeksBack) }));
+      !read.cancelled && setData(res);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load analytics'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   return (
     <div className="space-y-4">

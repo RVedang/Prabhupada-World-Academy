@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,19 +32,20 @@ export default function PendingApprovalPage() {
     else setLoading(false);
   }, [user?.email, isPw]);
 
-  const loadGuideInfo = async () => {
+  const loadGuideInfo = useReactiveLoader(async (read) => {
     try {
-      const guidesRes = await getGuides({});
+      const guidesRes = await read(() => getGuides({}));
       if (profile?.selectedGuideId) {
         const guide = guidesRes.guides.find((g: any) => g.guideId === profile.selectedGuideId);
-        if (guide) setGuideName(guide.name);
+        if (guide) !read.cancelled && setGuideName(guide.name);
       }
     } catch {
+      if (read.cancelled) return;
       // silently fail
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, []);
 
   const handleCheckStatus = async () => {
     setChecking(true);

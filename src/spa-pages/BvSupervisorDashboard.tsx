@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, UserCheck, ShieldCheck, BarChart3, CalendarClock, FileText, Layers, ChevronRight, Video } from 'lucide-react';
@@ -13,7 +14,6 @@ import SadhanaSection from '@/components/guide/SadhanaSection';
 import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
 import TabRouter, { TabConfig } from '@/shared/TabRouter';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface SupervisorGroup {
   id: string;
@@ -77,24 +77,25 @@ export default function BvSupervisorDashboard() {
     loadOverview();
   }, []);
 
-  const loadOverview = async (silent = false) => {
-    if (!silent) setLoading(true);
+  const loadOverview = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getBvSupervisorOverview({});
+      const res = await read(() => getBvSupervisorOverview({}));
       setData(res);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load BV Supervisor data');
     } finally {
       if (!silent) setLoading(false);
     }
-  };
-  useRealtimeRefresh(['groups', 'users'], () => loadOverview(true));
+  }, []);
+
 
   const isFolk = String(profile?.segment || '').trim().toUpperCase() === 'FOLK';
 
   const tabs: TabConfig[] = [
     { value: 'overview', label: 'Overview', icon: Layers },
-    { value: 'rgfs', label: 'Facilitators (RGF) & Groups', icon: Users },
+    { value: 'rgfs', label: 'RGFs & Groups', icon: Users },
     { value: 'bvreport', label: 'BV Report', icon: BarChart3 },
     { value: 'sadhana', label: 'Sadhana', icon: FileText },
     { value: 'callreports', label: '1:1 Call Reports', icon: CalendarClock },
@@ -137,7 +138,7 @@ export default function BvSupervisorDashboard() {
                       <CardContent className="pt-4 pb-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-xs text-muted-foreground font-medium">Facilitators (RGF)</p>
+                            <p className="text-xs text-muted-foreground font-medium">RGFs</p>
                             <p className="text-2xl font-bold text-foreground mt-1">{data?.rgfCount || 0}</p>
                           </div>
                           <UserCheck className="w-8 h-8 text-primary/70" />
@@ -176,7 +177,7 @@ export default function BvSupervisorDashboard() {
                         <Users className="w-4 h-4 text-primary" /> Supervised Reading Groups
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        An overview of active Reading Groups and their facilitators.
+                        An overview of active Reading Groups and their RGFs.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -198,10 +199,10 @@ export default function BvSupervisorDashboard() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-primary" /> Facilitators (RGF) & Groups
+                      <UserCheck className="w-4 h-4 text-primary" /> RGFs & Groups
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      All active Reading Group Facilitators and their assigned Bhakti Vriksha groups. Click any card to view group details.
+                      All active RGFs and their assigned Bhakti Vriksha groups. Click any card to view group details.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

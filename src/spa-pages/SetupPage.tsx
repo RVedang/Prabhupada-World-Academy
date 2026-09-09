@@ -93,7 +93,7 @@ export default function SetupPage() {
                 <div className="text-sm space-y-1">
                   <p>This will upsert all users from the PDF into the <strong>Users</strong> table (matched by userId). Includes:</p>
                   <ul className="list-disc list-inside mt-2 space-y-1 text-muted-foreground">
-                    <li>52 users: Guides, Facilitators (RGFs), Sadhana Mentors, and regular Users</li>
+                    <li>52 users: Guides, RGFs, Sadhana Mentors, and regular Users</li>
                     <li>Ashray levels, residency status, roles, and status fields</li>
                     <li>Existing records are updated (not duplicated)</li>
                   </ul>

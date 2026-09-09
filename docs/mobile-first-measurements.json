@@ -1,0 +1,139 @@
+{
+  "scope": "Frontend presentation only; synthetic API responses; no production writes",
+  "viewportChecks": {
+    "dashboards": 286,
+    "members": 130,
+    "public": 65
+  },
+  "totalViewportChecks": 481,
+  "viewports": [
+    [
+      320,
+      568
+    ],
+    [
+      360,
+      800
+    ],
+    [
+      375,
+      812
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      393,
+      873
+    ],
+    [
+      412,
+      915
+    ],
+    [
+      430,
+      932
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      820,
+      1180
+    ],
+    [
+      1280,
+      720
+    ],
+    [
+      1440,
+      900
+    ],
+    [
+      1920,
+      1080
+    ],
+    [
+      844,
+      390
+    ]
+  ],
+  "staffFlows": [
+    {
+      "role": "PW admin",
+      "flows": "navigation, member search/details/pagination, report filtering, meeting save, participant picker, MoM save",
+      "runtimeErrors": 0
+    },
+    {
+      "role": "PW super admin",
+      "flows": "navigation, member search/details/pagination, report filtering, meeting save, participant picker, MoM save",
+      "runtimeErrors": 0
+    },
+    {
+      "role": "FOLK guide",
+      "flows": "navigation, member search/details/pagination, report filtering",
+      "runtimeErrors": 0
+    },
+    {
+      "role": "FOLK super guide",
+      "flows": "navigation, member search/details/pagination, report filtering",
+      "runtimeErrors": 0
+    }
+  ],
+  "memberFlows": [
+    {
+      "segment": "PW",
+      "flows": "redirects, primary navigation, residency menu, BV cancellation, numeric input, reduced motion, short viewport, save and refresh passed"
+    },
+    {
+      "segment": "FOLK",
+      "flows": "redirects, primary navigation, residency menu, BV cancellation, numeric input, reduced motion, short viewport, save and refresh passed"
+    }
+  ],
+  "bundle": {
+    "measurement": "Sum of all production JS chunks; not the initial page download",
+    "before": {
+      "jsFiles": 130,
+      "bytes": 6276834,
+      "gzipBytes": 1872210
+    },
+    "after": {
+      "jsFiles": 140,
+      "bytes": 5889820,
+      "gzipBytes": 1792604
+    }
+  },
+  "publicPerformance": {
+    "conditions": "login, 4x CPU, 150ms latency, 1.6Mbps download",
+    "cls": 0,
+    "longTasks": [],
+    "paint": [
+      {
+        "name": "first-paint",
+        "start": 1356
+      },
+      {
+        "name": "first-contentful-paint",
+        "start": 3352
+      }
+    ],
+    "encodedScriptBytes": 353794
+  },
+  "cachedDesktopRevisits": {
+    "count": 22,
+    "minimumMs": 58,
+    "maximumMs": 128,
+    "medianMs": 79.5,
+    "requests": 0
+  },
+  "limitations": [
+    "Desktop Chromium with touch/viewport emulation, not physical phones",
+    "Keyboard checks shrink the viewport to 390x420, not an operating-system keyboard",
+    "Google OAuth and production Firebase data were not exercised",
+    "Repository-wide ESLint still has pre-existing findings; new UI files introduce no errors",
+    "Separate concurrent realtime/backend edits are outside this frontend validation"
+  ],
+  "newFrontendLintFindings": []
+}

@@ -13,8 +13,9 @@ import {
   type ApiUserContext,
 } from '@/lib/apiAuthorization';
 import { isReadOnlyEndpoint } from '@/lib/realtimeChannels';
-import { publishEndpointInvalidation } from '@/lib/realtimeInvalidationServer';
 import { withRequestQueries } from '@/lib/requestQueries';
+import { registerRealtimeQuery } from '@/lib/realtimeQueryRegistration';
+import { registerRealtimeIdentity } from '@/lib/realtimeIdentityRegistration';
 
 interface EndpointSchema {
   safeParse(input: unknown):
@@ -152,15 +153,15 @@ const resolvedUserInFlight = new Map<string, Promise<ApiDatabaseUser | null>>();
 const RESOLVED_USER_BURST_TTL_MS = 2_000;
 const MAX_RESOLVED_USER_CACHE_ENTRIES = 500;
 
-async function resolveDatabaseUser(decodedUser: VerifiedUser): Promise<ApiDatabaseUser | null> {
+async function resolveDatabaseUser(decodedUser: VerifiedUser, freshAuthority = false): Promise<ApiDatabaseUser | null> {
   const cacheKey = `${decodedUser.uid}:${decodedUser.email.toLowerCase()}`;
   const now = Date.now();
   const cached = resolvedUserBurstCache.get(cacheKey);
-  if (cached && cached.expiresAt > now) return cached.user;
+  if (!freshAuthority && cached && cached.expiresAt > now) return cached.user;
   if (cached) resolvedUserBurstCache.delete(cacheKey);
 
   const existing = resolvedUserInFlight.get(cacheKey);
-  if (existing) return existing;
+  if (!freshAuthority && existing) return existing;
 
   const resolution = (async (): Promise<ApiDatabaseUser | null> => {
     const emailLower = decodedUser.email.toLowerCase();
@@ -320,6 +321,7 @@ export async function POST(
 
     // 3. Setup context
     const context: { user: ApiUserContext | null } = { user: null };
+    let resolvedProfile: unknown;
 
     if (token) {
       const authStartedAt = Date.now();
@@ -329,7 +331,10 @@ export async function POST(
           return NextResponse.json({ message: 'A verified email is required' }, { status: 403 });
         }
 
-        const dbUser = await resolveDatabaseUser(decodedUser);
+        // A role-revocation event can arrive inside the old burst-cache TTL.
+        // Reactive reads must reauthorize against the current stored profile.
+        const dbUser = await resolveDatabaseUser(decodedUser, req.headers.get('X-Realtime-Query') === '1');
+        resolvedProfile = dbUser;
         context.user = buildApiUserContext(decodedUser, dbUser);
         authDurationMs = Date.now() - authStartedAt;
       } catch (authError: unknown) {
@@ -365,29 +370,43 @@ export async function POST(
 
     // 5. Execute endpoint handler
     const endpointStartedAt = Date.now();
-    const { result: output, metrics: queryMetrics } = await withRequestQueries(
+    const reactive = req.headers.get('X-Realtime-Query') === '1' && isReadOnlyEndpoint(endpoint) && !!context.user;
+    const { result: output, metrics: queryMetrics, dependencies, readVersion } = await withRequestQueries(
       async () => endpointConfig.execute({ input: validatedInput, context }),
+      reactive,
     );
     const endpointDurationMs = Date.now() - endpointStartedAt;
 
-    if (!isReadOnlyEndpoint(endpoint)) {
+    if (context.user) {
+      try { await registerRealtimeIdentity(context.user, resolvedProfile); }
+      catch (error) { console.warn('[Realtime] Notification routing registration unavailable', error); }
+    }
+
+    let realtimeQuery: { token: string; version: string } | undefined;
+    if (reactive && context.user) {
       const realtimeStartedAt = Date.now();
       try {
-        await publishEndpointInvalidation(endpoint, validatedInput, context.user);
-      } catch (realtimeError) {
-        // The business mutation already succeeded. Realtime invalidation is a
-        // performance enhancement and must never turn that success into an
-        // error response.
-        console.warn(`[Realtime] Failed to publish ${endpoint} invalidation`, realtimeError);
+        realtimeQuery = await registerRealtimeQuery(context.user, endpoint, validatedInput, dependencies, readVersion);
+      } catch (error) {
+        // Reading business data must still work during a transport outage.
+        console.warn('[Realtime] Query registration unavailable', error);
       }
       realtimeDurationMs = Date.now() - realtimeStartedAt;
     }
+
+    // Native Firestore write events cover committed mutations, including
+    // imports and background jobs, with durable managed retries. No broad
+    // department broadcast or unreliable post-response publish is needed.
     // 6. Return response
     const serializeStartedAt = performance.now();
     const response = NextResponse.json(output);
     const serializeDurationMs = performance.now() - serializeStartedAt;
     const totalDurationMs = Date.now() - requestStartedAt;
     response.headers.set('Cache-Control', 'private, no-store');
+    if (realtimeQuery) {
+      response.headers.set('X-Realtime-Token', realtimeQuery.token);
+      response.headers.set('X-Realtime-Version', realtimeQuery.version);
+    }
     response.headers.set(
       'Server-Timing',
       `auth;dur=${authDurationMs}, endpoint;dur=${endpointDurationMs}, db;dur=${queryMetrics.durationMs.toFixed(1)};desc="sum of concurrent reads", queries;desc="${queryMetrics.count}", deduplicated;desc="${queryMetrics.deduplicated}", serialize;dur=${serializeDurationMs.toFixed(1)}, realtime;dur=${realtimeDurationMs}, total;dur=${totalDurationMs}`,

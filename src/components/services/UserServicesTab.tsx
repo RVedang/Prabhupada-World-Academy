@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LayoutGrid, CalendarDays, CalendarCheck, Settings2, Building2, Brush, Heart, Sparkles, Star, Trophy, Bell } from 'lucide-react';
 import { getWeeklySchedule, checkAllocationPublished } from '@/lib/endpoints-sdk';
@@ -30,16 +31,17 @@ export default function UserServicesTab({ userId, residencyId }: Props) {
 
   useEffect(() => { init(); }, [userId, residencyId]);
 
-  const init = async () => {
+  const init = useReactiveLoader(async read => {
     const currentWeek = getCurrentServiceWeekStart();
 
     // Display reads should not wait behind maintenance mutations. The board
     // derives overdue state from dates, while allocation generation belongs to
     // the guide workflow and must not run whenever a resident opens this tab.
     const [pubRes, schedRes] = await Promise.all([
-      checkAllocationPublished({ weekStartDate: currentWeek, residencyId }).catch(() => null),
-      getWeeklySchedule({ weekStartDate: currentWeek }).catch(() => null),
+      read(() => checkAllocationPublished({ weekStartDate: currentWeek, residencyId })).catch(() => null),
+      read(() => getWeeklySchedule({ weekStartDate: currentWeek })).catch(() => null),
     ]);
+    if (read.cancelled) return;
 
     if (pubRes?.published && pubRes.publishedAt) {
       const seenKey = `svc_pub_seen_${currentWeek}`;
@@ -68,7 +70,7 @@ export default function UserServicesTab({ userId, residencyId }: Props) {
         setShowRatingPrompt(true);
       }
     }
-  };
+  }, [userId, residencyId]);
 
   const dismissPublishBanner = () => {
     const currentWeek = getCurrentServiceWeekStart();

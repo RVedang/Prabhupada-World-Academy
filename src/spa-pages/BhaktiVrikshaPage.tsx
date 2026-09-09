@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,6 @@ import { getUserDashboardPath } from '@/lib/userDashboardRoutes';
 import BvCalendarView from '@/components/bv/BvCalendarView';
 import BvLeaderboard from '@/components/dashboard/BvLeaderboard';
 import BvRegistrationModal from '@/components/bv/BvRegistrationModal';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function BhaktiVrikshaPage() {
   const { profile, refreshProfile } = useUserProfile();
@@ -31,7 +31,7 @@ export default function BhaktiVrikshaPage() {
   const [leavingGroup, setLeavingGroup] = useState(false);
   const [regModalOpen, setRegModalOpen] = useState(false);
   const [clearingNotice, setClearingNotice] = useState(false);
-  useRealtimeRefresh(['groups', 'users'], () => load(), !!profile?.userId);
+
 
   const handleAcknowledgeApproval = async () => {
     setClearingNotice(true);
@@ -59,21 +59,22 @@ export default function BhaktiVrikshaPage() {
 
   useEffect(() => { if (profile?.userId) load(); }, [profile?.userId]);
 
-  const load = async () => {
+  const load = useReactiveLoader(async (read) => {
     if (!profile?.userId) return;
-    setLoading(true);
+    !read.background && setLoading(true);
     try {
       const localDate = format(new Date(), 'yyyy-MM-dd');
       const sinceDate = format(subDays(new Date(), 90), 'yyyy-MM-dd'); // BUG-057 FIX: last 90 days
       const [status, bv] = await Promise.all([
-        getUserBvStatus({ userId: profile.userId, localDate }), // BUG-014 FIX
-        getBvAttendance({ userId: profile.userId, localDate, sinceDate }),
+        read(() => getUserBvStatus({ userId: profile.userId, localDate })), // BUG-014 FIX
+        read(() => getBvAttendance({ userId: profile.userId, localDate, sinceDate })),
       ]);
       setBvStatus(status);
       setBvData(bv);
-    } catch { toast.error('Failed to load BhaktiVriksha data'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load BhaktiVriksha data'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
   const handleLeaveGroup = async () => {
     if (!profile?.userId || !bvStatus?.myGroup) return;
@@ -160,8 +161,8 @@ export default function BhaktiVrikshaPage() {
                     Your Bhakti Vriksha application has been accepted! You have been successfully assigned to the reading group: <strong>{bvStatus.myGroup.groupName}</strong>.
                   </p>
                   <div className="pt-2 text-xs space-y-1 text-green-700 dark:text-green-300">
-                    <p>👨‍🏫 <strong>Reading Group Facilitator (RGF):</strong> {bvStatus.myGroup.bvslName || 'Unassigned'}</p>
-                    <p>👥 <strong>Sub-Facilitator (RGSF):</strong> {bvStatus.myGroup.rgsfName || 'None'}</p>
+                    <p>👨‍🏫 <strong>RGF:</strong> {bvStatus.myGroup.bvslName || 'Unassigned'}</p>
+                    <p>👥 <strong>RGSF:</strong> {bvStatus.myGroup.rgsfName || 'None'}</p>
                   </div>
                 </div>
               </div>
@@ -225,11 +226,11 @@ export default function BhaktiVrikshaPage() {
                     <Badge className="bg-green-500 text-xs">Active Member</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Facilitator: <span className="font-medium">{bvStatus.myGroup.bvslName}</span>
+                    RGF: <span className="font-medium">{bvStatus.myGroup.bvslName}</span>
                     {' · '}{bvStatus.myGroup.memberCount} members
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    ℹ️ Attendance is marked by your Facilitator during BV sessions.
+                    ℹ️ Attendance is marked by your RGF during BV sessions.
                   </p>
                   <div className="mt-3">
                     <AlertDialog>
@@ -381,7 +382,7 @@ export default function BhaktiVrikshaPage() {
                         <div className="min-w-0">
                           <p className="font-medium">{g.groupName}</p>
                           <p className="text-sm text-muted-foreground">
-                            Facilitator: {g.bvslName} · {g.memberCount} members
+                            RGF: {g.bvslName} · {g.memberCount} members
                           </p>
                           {g.description && (
                             <p className="text-xs text-muted-foreground mt-0.5">{g.description}</p>

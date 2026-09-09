@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,6 @@ import { useNavigate } from 'react-router-dom';
 import { fmt } from '@/lib/fmt';
 import { EmptyState, ConfirmDialog, AsyncButton } from '@/shared';
 import { ASHRAY_LEVELS } from '@/types/enums';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type PendingUser = GetPendingApprovalsOutputType[0];
 type GuideRequest = any;
@@ -64,18 +64,18 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
   const [sadhanaMentors, setSadhanaMentors] = useState<any[]>([]);
   const [makeResident, setMakeResident] = useState(false);
 
-  const loadAll = async ({ background = false }: { background?: boolean } = {}) => {
-    if (!background) setLoading(true);
+  const loadAll = useReactiveLoader(async (read, { background = false }: { background?: boolean } = {}) => {
+    if (!background) !read.background && setLoading(true);
     try {
       const residencyFetchId = guideId === 'ALL' ? (reviewerGuideId || guideId) : guideId;
       const [pendingRes, residencyRes, requestsRes, residencyTransferRes, guidesRes, cleanReviews, sadhanaMentorsRes] = await Promise.all([
-        getPendingApprovals({ guideId } as any),
-        getResidenciesForGuide({ guideId: residencyFetchId } as any),
-        getGuideRequests({ guideId } as any),
-        getResidencyTransferRequests({ guideId } as any),
-        getGuides({} as any),
-        !isPwAdmin ? getCleanlinessReviews({ guideId } as any).catch(() => []) : Promise.resolve([]),
-        isPwAdmin ? getActiveSadhanaMentors({ segment: 'PW' } as any).catch(() => []) : Promise.resolve([]),
+        read(() => getPendingApprovals({ guideId } as any)),
+        read(() => getResidenciesForGuide({ guideId: residencyFetchId } as any)),
+        read(() => getGuideRequests({ guideId } as any)),
+        read(() => getResidencyTransferRequests({ guideId } as any)),
+        read(() => getGuides({} as any)),
+        !isPwAdmin ? read(() => getCleanlinessReviews({ guideId } as any)).catch(() => []) : Promise.resolve([]),
+        isPwAdmin ? read(() => getActiveSadhanaMentors({ segment: 'PW' } as any)).catch(() => []) : Promise.resolve([]),
       ]);
       setPendingUsers(pendingRes);
       setResidencies(residencyRes);
@@ -87,16 +87,17 @@ export default function ApprovalsTab({ guideId = '', reviewerGuideId, isSuperGui
       setSadhanaMentors(sadhanaMentorsRes || []);
       onCountLoaded?.(pendingRes.length + requestsRes.guideTransfers.length + requestsRes.ashrayUpgrades.length + residencyTransferRes.length + (!isPwAdmin ? (Array.isArray(cleanReviews) ? cleanReviews.length : 0) : 0));
     } catch {
+      if (read.cancelled) return;
       if (!background) toast.error('Failed to load approvals');
     } finally {
       if (!background) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadAll();
   }, [guideId, reviewerGuideId, isPwAdmin]);
-  useRealtimeRefresh(['users', 'groups'], () => loadAll({ background: true }));
+
 
   const openEdit = (user: PendingUser) => {
     setEditUser(user);

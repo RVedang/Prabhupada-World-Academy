@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -75,8 +76,8 @@ export default function ServiceFormDialog({ open, service, serviceType: propServ
   const [preferredDays, setPreferredDays] = useState<string[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
 
-  useEffect(() => {
-    if (open) getAvailableSkills({}).then(res => setAvailableSkills(res.skills)).catch(() => {});
+  useReactiveEffect((read) => {
+    if (open) read(() => getAvailableSkills({})).then(res => !read.cancelled && setAvailableSkills(res.skills)).catch(() => {});
   }, [open]);
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -78,12 +79,12 @@ export default function GuideServicesTab({ guideId, residencyId: residencyIdProp
   const navigate = useNavigate();
   const [residencyId, setResidencyId] = useState<string | undefined>(residencyIdProp);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (residencyIdProp) {
-      setResidencyId(residencyIdProp);
+      !read.background && !read.cancelled && setResidencyId(residencyIdProp);
     } else if (guideId) {
-      getResidenciesForGuide({ guideId }).then(res => {
-        if (res && res.length > 0) setResidencyId(res[0].residencyId);
+      read(() => getResidenciesForGuide({ guideId })).then(res => {
+        if (!read.cancelled) setResidencyId(current => res?.some(item => item.residencyId === current) ? current : res?.[0]?.residencyId);
       }).catch(() => {});
     }
   }, [guideId, residencyIdProp]);

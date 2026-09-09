@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, subDays, startOfISOWeek, endOfISOWeek, startOfMonth, endOfMonth, getISOWeek, getISOWeekYear } from 'date-fns';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,6 @@ import GuideLeaderboardDisplay from '@/components/guide/GuideLeaderboardDisplay'
 import { getFolkSadhanaReport, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type ReportType = 'daily' | 'weekly' | 'monthly';
 
@@ -114,10 +114,10 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, facilitatorMode
     }
   }, [groupOptions, selectedGroupId]);
 
-  const loadFolk = useCallback(async (s: string, e: string, silent = false) => {
-    if (!silent) setFolkLoading(true);
+  const loadFolk = useReactiveLoader(async (read, s: string, e: string, silent = false) => {
+    if (!silent) !read.background && setFolkLoading(true);
     try {
-      setFolkData(await getFolkSadhanaReport({
+      setFolkData(await read(() => getFolkSadhanaReport({
         date: s,
         startDate: s,
         endDate: e,
@@ -126,15 +126,16 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, facilitatorMode
         guideId,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
         segment: isFolk ? 'FOLK' : 'PW',
-      }));
+      })));
     }
-    catch {/* ignore */} finally { if (!silent) setFolkLoading(false); }
+    catch {
+      if (read.cancelled) return;/* ignore */} finally { if (!silent) setFolkLoading(false); }
   }, [bvslMode, facilitatorMode, guideId, selectedGroupId, isFolk]);
 
-  const loadLb = useCallback(async (s: string, e: string, silent = false) => {
-    if (!silent) setLbLoading(true);
+  const loadLb = useReactiveLoader(async (read, s: string, e: string, silent = false) => {
+    if (!silent) !read.background && setLbLoading(true);
     try {
-      setLbData(await getSadhanaLeaderboard({
+      setLbData(await read(() => getSadhanaLeaderboard({
         date: s,
         startDate: s,
         endDate: e,
@@ -143,21 +144,17 @@ export default function GuideLeaderboardTab({ guideId, bvslMode, facilitatorMode
         facilitatorMode,
         groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
         segment: isFolk ? 'FOLK' : 'PW',
-      }));
+      })));
     }
-    catch {/* ignore */} finally { if (!silent) setLbLoading(false); }
+    catch {
+      if (read.cancelled) return;/* ignore */} finally { if (!silent) setLbLoading(false); }
   }, [guideId, bvslMode, facilitatorMode, selectedGroupId, isFolk]);
 
   useEffect(() => {
     loadFolk(startDate, endDate);
     loadLb(startDate, endDate);
   }, [startDate, endDate, loadFolk, loadLb]);
-  useRealtimeRefresh(['sadhana', 'users', 'groups'], async () => {
-    await Promise.all([
-      loadFolk(startDate, endDate, true),
-      loadLb(startDate, endDate, true),
-    ]);
-  });
+
 
   const handleRefresh = () => { loadFolk(startDate, endDate); loadLb(startDate, endDate); };
 

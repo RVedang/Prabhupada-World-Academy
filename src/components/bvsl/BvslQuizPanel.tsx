@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,6 @@ import {
   BookOpen, ArrowLeft, BarChart2, Users, Loader2, GripVertical, FileDown, Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   createBvQuiz,
   deleteBvQuiz,
@@ -430,13 +430,14 @@ function QuizResultsPanel({
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadResults = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+  const loadResults = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
-      const result = await getBvQuizSubmissions({ quizId: quiz.id, department: 'FOLK', groupId });
+      const result = await read(() => getBvQuizSubmissions({ quizId: quiz.id, department: 'FOLK', groupId }));
       setSubs(result.submissions);
       setAnalytics(result.analytics);
     } catch {
+      if (read.cancelled) return;
       if (!silent) toast.error('Failed to load submissions');
     } finally {
       if (!silent) setLoading(false);
@@ -446,7 +447,7 @@ function QuizResultsPanel({
   useEffect(() => {
     void loadResults();
   }, [loadResults]);
-  useRealtimeRefresh(['quizzes'], () => loadResults(true));
+
 
   const handleExportCsv = () => {
     if (subs.length === 0) return toast.error('No submissions to export');
@@ -581,24 +582,25 @@ export default function BvslQuizPanel({
   const [editingQuiz, setEditingQuiz] = useState<QuizListItem | null>(null);
   const [viewingQuiz, setViewingQuiz] = useState<QuizListItem | null>(null);
 
-  const loadQuizzes = useCallback(async (gId: string, silent = false) => {
+  const loadQuizzes = useReactiveLoader(async (read, gId: string, silent = false) => {
     if (!gId) return;
-    if (!silent) setLoading(true);
+    if (!silent) !read.background && setLoading(true);
     try {
-      const r = await getBvQuizzes({
+      const r = await read(() => getBvQuizzes({
         department: 'FOLK',
         groupId: gId,
-      });
+      }));
       setQuizzes(r.quizzes);
       setPermissions(r.permissions);
-    } catch { toast.error('Failed to load quizzes'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load quizzes'); }
     finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => {
     if (selectedGroupId) loadQuizzes(selectedGroupId);
   }, [selectedGroupId, loadQuizzes]);
-  useRealtimeRefresh(['quizzes'], () => loadQuizzes(selectedGroupId, true), Boolean(selectedGroupId));
+
 
   const handleDelete = async (quizId: string) => {
     try {

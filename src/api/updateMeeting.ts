@@ -65,6 +65,7 @@ export default createEndpoint({
     if (input.durationMinutes !== undefined) updateFields.durationMinutes = input.durationMinutes;
     if (input.scheduledAt !== undefined && input.scheduledAt !== existing.scheduledAt) {
       updateFields.scheduledAt = input.scheduledAt;
+      updateFields.notification1hSent = false;
       updateFields.notification10mSent = false;
       updateFields.notification1mSent = false;
       updateFields.notificationSent = false;
@@ -83,11 +84,10 @@ export default createEndpoint({
       // Fetch details of all invitees
       let invitees: any[] = [];
       if (inviteeIdsArray.length > 0) {
-        const { records: inviteeUsers } = await Users.findAll({
-          filters: { id: { in: inviteeIdsArray } },
-          fields: ['id', 'fullName', 'email', 'role'],
-          limit: 2000,
-        });
+        const batches = await Promise.all(Array.from({ length: Math.ceil(inviteeIdsArray.length / 30) }, (_, index) =>
+          Users.findAll({ filters: { id: { in: inviteeIdsArray.slice(index * 30, index * 30 + 30) } },
+            fields: ['id', 'fullName', 'email', 'role'], limit: 30 })));
+        const inviteeUsers = batches.flatMap(batch => batch.records);
         invitees = inviteeUsers.map(u => ({
           userId: u.id,
           fullName: u.fullName || u.email || 'Devotee',
@@ -99,6 +99,11 @@ export default createEndpoint({
       updateFields.type = activeType;
       updateFields.inviteeUserIds = inviteeIdsArray;
       updateFields.invitees = invitees;
+      if (JSON.stringify([...inviteeIdsArray].sort()) !== JSON.stringify([...(existing.inviteeUserIds || [])].sort())) {
+        // Reconcile new participants; durable per-device checkpoints prevent repeat sends.
+        updateFields.notification1hSent = false;
+        updateFields.notification10mSent = false;
+      }
     }
 
     if (input.sendReminderNow) {

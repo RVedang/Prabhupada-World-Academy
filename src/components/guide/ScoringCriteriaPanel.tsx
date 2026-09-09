@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useState, useEffect } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
@@ -111,7 +112,7 @@ function CriteriaTable({ title, rows }: { title: string; rows: typeof RESIDENT_C
   return (
     <div>
       <p className="text-xs font-bold text-foreground mb-2 uppercase tracking-wide">{title}</p>
-      <div className="overflow-x-auto rounded border border-border">
+      <TableScrollArea className="overflow-x-auto rounded border border-border">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr>
@@ -132,7 +133,7 @@ function CriteriaTable({ title, rows }: { title: string; rows: typeof RESIDENT_C
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScrollArea>
     </div>
   );
 }

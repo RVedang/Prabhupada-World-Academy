@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 /**
  * BvReportTab — color-coded BV preaching report (RGF Report), mirrors SadhanaDetailTable style.
  * Duration thresholds: green ≥30 min, amber 15-29 min, red <15 min
@@ -116,19 +118,20 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
     return { start: undefined as string | undefined, end: undefined as string | undefined };
   }, [reportType, selectedWeek, selectedMonth]);
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
+  const fetchReport = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const result = await getBvPreachingReport({
+      const result = await read(() => getBvPreachingReport({
         guideId, date: selectedDate, reportType,
         startDate: computedStart, endDate: computedEnd,
         bvslMode,
         groupId: selectedGroup !== 'all' ? selectedGroup : undefined,
         residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined,
         segment,
-      });
+      }));
       setData(result);
-    } catch { toast.error('Failed to load RGF report'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load RGF report'); }
     finally { setLoading(false); }
   }, [guideId, selectedDate, reportType, computedStart, computedEnd, bvslMode, selectedGroup, residencyIds, segment]);
 
@@ -204,9 +207,9 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <CardTitle className="text-base">RGF / RGSF Preaching Report</CardTitle>
+              <CardTitle className="text-base">RGF/RGSF Preaching Report</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Overview of daily preaching entries submitted by Reading Group Facilitators.
+                Overview of daily preaching entries submitted by RGFs and RGSFs.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -303,10 +306,10 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
           {/* Summary */}
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Summary</span>
-            <span className="text-xs text-muted-foreground">{summary.submitted} of {summary.total} Facilitators submitted</span>
+            <span className="text-xs text-muted-foreground">{summary.submitted} of {summary.total} RGFs/RGSFs submitted</span>
           </div>
           <div className="flex flex-wrap gap-3">
-            <SummaryCard icon={Users}     label="Total Facilitators"     value={summary.total} />
+            <SummaryCard icon={Users}     label="Total RGFs/RGSFs"       value={summary.total} />
             <SummaryCard icon={Clock}     label="Total Preaching"  value={minutesToHHMM(summary.totalMins)} color="text-primary" />
             <SummaryCard icon={Clock}     label="Avg Preaching"    value={minutesToHHMM(summary.avgMins)} color="text-primary" />
             <SummaryCard icon={Package}   label="Total Books"      value={summary.totalBooks} color="text-primary" />
@@ -329,7 +332,7 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
             <>
             <Card>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <TableScrollArea className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b bg-muted/50">
@@ -353,12 +356,12 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScrollArea>
               </CardContent>
             </Card>
             </>
           ) : (
-            <Card><CardContent className="py-2"><EmptyState title={searchQuery ? `No Facilitators found matching "${searchQuery}"` : 'No Facilitators found.'} /></CardContent></Card>
+            <Card><CardContent className="py-2"><EmptyState title={searchQuery ? `No RGFs/RGSFs found matching "${searchQuery}"` : 'No RGFs/RGSFs found.'} /></CardContent></Card>
           )}
         </div>
       )}

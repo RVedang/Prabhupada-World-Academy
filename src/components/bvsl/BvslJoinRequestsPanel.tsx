@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,14 +24,15 @@ export default function BvslJoinRequestsPanel({ bvslId, onRefresh }: Props) {
 
   useEffect(() => { loadRequests(); }, [bvslId]);
 
-  const loadRequests = async () => {
-    setLoading(true);
+  const loadRequests = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const res = await getPendingBvJoinRequests({ bvslId } as any);
+      const res = await read(() => getPendingBvJoinRequests({ bvslId } as any));
       setRequests(res.requests);
-    } catch { toast.error('Failed to load join requests'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load join requests'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
   const handleDecision = async (req: Request, action: 'approve' | 'reject') => {
     setProcessing(req.logId);

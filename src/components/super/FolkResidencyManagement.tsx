@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import SuperHostelsPanel from './SuperHostelsPanel';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-sdk';
@@ -5,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Check, X } from 'lucide-react';
 import { getGuideResidencyAssignmentRequests, reviewGuideResidencyAssignment } from '@/lib/endpoints-sdk';
 
@@ -13,18 +13,19 @@ export default function FolkResidencyManagement() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
 
-  const loadRequests = async () => {
+  const loadRequests = useReactiveLoader(async (read) => {
     try {
-      const result: any = await getGuideResidencyAssignmentRequests({ status: 'Pending' } as any);
+      const result: any = await read(() => getGuideResidencyAssignmentRequests({ status: 'Pending' } as any));
       setRequests(Array.isArray(result) ? result : []);
     } catch {
+      if (read.cancelled) return;
       // Regular guides do not have access to this panel.
       setRequests([]);
     }
-  };
+  }, []);
 
   useEffect(() => { if (user) loadRequests(); }, [user]);
-  useRealtimeRefresh(['users'], loadRequests, Boolean(user));
+
 
   const review = async (requestId: string, action: 'approve' | 'reject') => {
     try {

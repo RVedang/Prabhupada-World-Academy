@@ -1,18 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, BookOpen, Users, Award, Network, Compass, ShieldAlert } from 'lucide-react';
+import { Menu, LogOut, User, BookOpen, Users, Award, Network, Compass, ShieldAlert } from 'lucide-react';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import TransferNoticeModal from '@/components/TransferNoticeModal';
 import { useMeetingReminderScheduler } from '@/hooks/useMeetingReminderScheduler';
 import { getDepartmentLandingUrl, getUserDashboardPath } from '@/lib/userDashboardRoutes';
 
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 const FOLK_LOGO = 'https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png';
 
 interface DashboardLayoutProps {
+  hasBottomNavigation?: boolean;
   title: string;
   subtitle?: string;
   role?: string;
@@ -25,6 +27,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({
   title,
+  hasBottomNavigation = false,
   subtitle,
   role,
   headerActions,
@@ -34,6 +37,8 @@ export default function DashboardLayout({
   meetingDepartment,
 }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
 
@@ -51,8 +56,8 @@ export default function DashboardLayout({
     SUPERVISOR: 'Supervisor', 'Supervisor': 'Supervisor', 'BV_SUPERVISOR': 'Supervisor',
     BV_MENTOR: 'BV Mentor', 'BV Mentor': 'BV Mentor', 'BB_MENTOR': 'BV Mentor', 'BB Mentor': 'BV Mentor',
     BVSL: 'RGF',
-    RGF: 'RGF (Facilitator)',
-    RGSF: 'RGSF (Sub-Facilitator)',
+    RGF: 'RGF',
+    RGSF: 'RGSF',
     SADHANA_MENTOR: 'Sadhana Mentor', 'Sadhana Mentor': 'Sadhana Mentor',
     USER: 'User', 'User': 'User',
   };
@@ -181,16 +186,16 @@ export default function DashboardLayout({
     }
   }
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`dashboard-shell bg-background ${hasBottomNavigation ? "dashboard-with-bottom-nav" : ""}`}>
       <TransferNoticeModal />
-      <header className="border-b bg-card sticky top-0 z-50 no-print">
-        <div className="container mx-auto px-4 py-3">
+      <header className="dashboard-header border-b bg-card sticky top-0 z-40 no-print">
+        <div className="mx-auto px-3 py-2 md:px-6 md:py-3">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <img src={FOLK_LOGO} alt="FOLK" className="w-9 h-9 object-contain shrink-0" />
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-base md:text-lg font-bold text-primary truncate leading-tight">{title}</h1>
+                  <h1 className="text-sm md:text-lg font-bold text-primary leading-tight line-clamp-2">{title}</h1>
                   {showRoleBadge && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-medium shrink-0">
                       {ROLE_BADGE_LABELS[effectiveRole!]}
@@ -200,11 +205,12 @@ export default function DashboardLayout({
                 {subtitle && <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>}
               </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0 flex-wrap">
+            <div className="hidden md:flex items-center gap-1 shrink-0 flex-wrap">
               {headerActions}
               {tabItems.map((item) => (
                 <Button
                   key={item.path}
+                  aria-label={item.label}
                   variant={item.active ? "default" : "ghost"}
                   size="sm"
                   onClick={() => navigate(item.path)}
@@ -230,15 +236,27 @@ export default function DashboardLayout({
                 <span className="hidden md:inline">Logout</span>
               </Button>
             </div>
+            <Sheet open={accountOpen} onOpenChange={setAccountOpen}>
+              <Button variant="ghost" size="icon" className="ml-2 md:hidden" aria-label="Open account menu" onClick={() => setAccountOpen(true)}><Menu className="size-5" /></Button>
+              <SheetContent side="right" className="w-[min(88vw,360px)] gap-0">
+                <SheetHeader className="border-b px-5 py-6 pr-14"><SheetTitle>My account</SheetTitle><SheetDescription className="break-words">{profile?.fullName || title}</SheetDescription></SheetHeader>
+                <nav aria-label="Account and dashboards" className="space-y-2 overflow-y-auto p-4">
+                  {headerActions && <div className="flex flex-wrap gap-2">{headerActions}</div>}
+                  {tabItems.map(item => <Button key={item.path} variant={item.active ? 'secondary' : 'ghost'} className="w-full justify-start whitespace-normal text-left" onClick={() => { navigate(item.path); setAccountOpen(false); }}>{item.icon}{item.label}</Button>)}
+                  {showProfile && <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/profile'); setAccountOpen(false); }}><User className="size-4" />Profile</Button>}
+                  <Button variant="ghost" className="w-full justify-start" onClick={() => logout({ returnTo: getDepartmentLandingUrl(profile) })}><LogOut className="size-4" />Logout</Button>
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </header>
       <motion.main
         key={currentPath}
-        initial={{ opacity: 0, y: 12 }}
+        initial={reducedMotion ? false : { opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className={maxWidth === 'max-w-none' || maxWidth === 'max-w-full' ? `w-full px-4 md:px-8 py-6 md:py-8` : `container mx-auto px-4 py-6 md:py-8 ${maxWidth}`}
+        transition={{ duration: reducedMotion ? 0 : 0.18, ease: 'easeOut' }}
+        className={`dashboard-main mx-auto ${maxWidth}`}
       >
         {children}
       </motion.main>

@@ -7,7 +7,7 @@ const BADGE_URL = '/icons/icon-192.png';
 
 // ── Top-level state declarations ──
 let swUserNotificationsDisabled = false;
-// Track processed broadcast IDs to avoid duplicates from push events and polling fallback
+// Track processed broadcast IDs to avoid duplicate Web Push deliveries.
 const processedBroadcastIds = new Set();
 
 function notificationTag(slot, id) {
@@ -21,107 +21,8 @@ const SLOT_MESSAGES = {
   'morning': { title: '⏰ Last Chance!', body: "Submit yesterday's Sadhana before the morning deadline!" },
 };
 
-// ── Long-poll state for broadcast delivery ──
-let swUserEmail = '';
-let swUserId = '';
-let swLastId = '';
-let isPolling = false;
-
-/**
- * Long-poll /api/push-events inside the service worker.
- * This ensures background tabs (where the page JS is frozen) still receive
- * push broadcasts without relying solely on native Web Push delivery.
- */
-async function startPollingLoop() {
-  if (isPolling) return;
-  isPolling = true;
-
-  async function poll() {
-    if (!isPolling || !swUserEmail) {
-      isPolling = false;
-      return;
-    }
-    try {
-      const url = '/api/push-events?lastId=' + encodeURIComponent(swLastId) + '&email=' + encodeURIComponent(swUserEmail) + '&userId=' + encodeURIComponent(swUserId);
-      const res = await fetch(url, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.id) swLastId = data.id;
-        if (data && data.type === 'PUSH_RECEIVED') {
-          handleSwPushReceived(data);
-        }
-      }
-    } catch (e) {
-      // Network error: back off 5s
-      await new Promise((r) => setTimeout(r, 5000));
-    }
-    // Reconnect immediately (server holds the socket for up to 25s)
-    poll();
-  }
-
-  poll();
-}
-
-/**
- * Handle a broadcast received via the long-poll channel inside the SW.
- * Forward it to all open page clients; show a native notification if none are visible.
- */
-function handleSwPushReceived(data) {
-  if (!data || !data.title) return;
-
-  // Deduplication
-  if (data.id) {
-    if (processedBroadcastIds.has(data.id)) return;
-    processedBroadcastIds.add(data.id);
-    if (processedBroadcastIds.size > 100) {
-      var first = processedBroadcastIds.values().next().value;
-      if (first !== undefined) processedBroadcastIds.delete(first);
-    }
-  }
-
-  var slot = data.slot || 'broadcast';
-  var title = data.title || '📿 Sadhana Reminder';
-  var body = data.body || 'You have a new Sadhana reminder.';
-  var url = data.url || APP_URL;
-
-  self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
-    var hasVisibleClient = false;
-    for (var i = 0; i < windowClients.length; i++) {
-      var client = windowClients[i];
-      if (client.focused || client.visibilityState === 'visible') {
-        hasVisibleClient = true;
-      }
-      try {
-        client.postMessage({
-          type: 'PUSH_RECEIVED',
-          id: data.id || '',
-          title: title,
-          body: body,
-          slot: slot,
-          senderEmail: data.senderEmail || '',
-          url: url,
-          inviteeIds: data.inviteeIds || [],
-        });
-      } catch (e) {
-        // Ignore postMessage failures
-      }
-    }
-
-    // Visible pages render the in-app reminder. Backgrounded or closed pages
-    // receive the browser's native notification.
-    if (!hasVisibleClient && !swUserNotificationsDisabled) {
-      self.registration.showNotification(title, {
-        body: body,
-        icon: ICON_URL,
-        badge: BADGE_URL,
-        tag: notificationTag(slot, data.id),
-        data: { url: url, slot: slot },
-        renotify: false,
-        requireInteraction: true,
-      });
-    }
-  });
-}
+// Foreground delivery uses the authenticated Firestore inbox. Background and
+// closed-browser delivery uses native Web Push; no service-worker API polling.
 
 // ── Push event (server-sent Web Push delivery) ──
 self.addEventListener('push', (event) => {
@@ -254,30 +155,11 @@ self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data) return;
 
-  if (data.type === 'SYNC_USER') {
-    swUserEmail = (data.email || '').toLowerCase();
-    swUserId = data.userId || '';
-    if (swUserEmail) {
-      startPollingLoop();
-    } else {
-      isPolling = false;
-    }
-  }
   if (data.type === 'SYNC_SETTINGS') {
-    const wasUserDisabled = swUserNotificationsDisabled;
     if (data.userDisabled !== undefined) {
       swUserNotificationsDisabled = !!data.userDisabled;
     } else if (data.disabled !== undefined) {
       swUserNotificationsDisabled = !!data.disabled;
-    }
-    if (wasUserDisabled && !swUserNotificationsDisabled) {
-      // User enabled notifications — reset swLastId so they immediately fetch the current broadcast if any
-      swLastId = '';
-    }
-  }
-  if (data.type === 'PAGE_VISIBLE') {
-    if (swUserEmail && !isPolling) {
-      startPollingLoop();
     }
   }
 });

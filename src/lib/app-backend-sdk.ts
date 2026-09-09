@@ -2,7 +2,7 @@ import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin
 import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
-import { requestQuery, invalidateRequestTable } from './requestQueries';
+import { requestQuery, invalidateRequestTable, recordQueryReadTime } from './requestQueries';
 import { serverCacheInvalidate } from './serverCache';
 import type { z } from 'zod';
 import type { ApiCapability, ApiUserContext } from './apiAuthorization';
@@ -378,11 +378,13 @@ export class Table {
                 .where(FieldPath.documentId(), '==', query.id);
               q = applyFieldSelection(q, query.fields);
               const snapshot = await q.limit(1).get();
+              recordQueryReadTime(snapshot.readTime);
               if (!snapshot.empty) {
                 return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
               }
             } else {
               const doc = await db.collection(this.tableName).doc(query.id).get();
+              recordQueryReadTime(doc.readTime);
               if (doc.exists) return { id: doc.id, ...doc.data() };
             }
           } else if (query.filters) {
@@ -390,6 +392,7 @@ export class Table {
             q = applyFilters(q, query.filters);
             q = applyFieldSelection(q, query.fields);
             const snapshot = await q.limit(1).get();
+            recordQueryReadTime(snapshot.readTime);
             if (!snapshot.empty) {
               return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
             }
@@ -450,6 +453,7 @@ export class Table {
           }
 
           const snapshot = await q.get();
+          recordQueryReadTime(snapshot.readTime);
           const records = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
 
           let hasMore = false;

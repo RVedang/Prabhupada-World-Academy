@@ -67,8 +67,8 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
 
   const tabs = [
     { value: 'bvmatrix'    as SubTab, label: 'BV Report',    icon: Grid3X3    },
-    ...(isSupervisorOrAbove ? [{ value: 'report' as SubTab, label: 'RGF / RGSF Report', icon: BarChart3 }] : []),
-    ...(!bvslMode ? [{ value: 'sadhana'     as SubTab, label: 'Facilitator Sadhana', icon: Activity   }] : []),
+    ...(isSupervisorOrAbove ? [{ value: 'report' as SubTab, label: 'RGF/RGSF Report', icon: BarChart3 }] : []),
+    ...(!bvslMode ? [{ value: 'sadhana'     as SubTab, label: 'RGF/RGSF Sadhana', icon: Activity   }] : []),
     { value: 'stats'       as SubTab, label: 'Stats',        icon: TrendingUp },
     { value: 'improvement' as SubTab, label: 'Improvement',  icon: Lightbulb  },
     { value: 'groups'      as SubTab, label: 'Groups',       icon: Users      },
@@ -114,9 +114,9 @@ export default function BvSection({ guideId, bvslMode, residencyIds, groupOption
           />
 
           <div className="rounded-xl border bg-card px-4 py-3">
-            <h3 className="text-sm font-semibold">RGF / RGSF Improvement</h3>
+            <h3 className="text-sm font-semibold">RGF/RGSF Improvement</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Facilitator preaching performance and follow-up priorities for your hierarchy.
+              RGF/RGSF preaching performance and follow-up priorities for your hierarchy.
             </p>
           </div>
           <BvImprovementTab guideId={guideId} bvslMode={bvslMode} residencyIds={residencyIds} segment={segment} />

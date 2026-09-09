@@ -1,3 +1,5 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Loader2, Upload, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -118,17 +120,17 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
     exportToCsv('folk-user-import-errors.csv', headers, rows);
   };
 
-  const openExport = async () => {
-    setExportOpen(true);
-    setBusy(true);
+  const openExport = useReactiveLoader(async read => {
+    if (!read.background) { setExportOpen(true); setBusy(true); }
     try {
-      setOptions(await getBulkUserExportOptions({}));
+      setOptions(await read(() => getBulkUserExportOptions({})));
     } catch (error: any) {
+      if (read.cancelled) return;
       toast.error(error?.message || 'Unable to load export filters');
     } finally {
-      setBusy(false);
+      if (!read.cancelled && !read.background) setBusy(false);
     }
-  };
+  }, [], exportOpen);
 
   const runExport = async () => {
     if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
@@ -195,14 +197,14 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
                     ].map(([label, value]) => <div key={String(label)} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-bold">{value}</p></div>)}
                   </div>
                   {(preview.invalidRecords > 0 || preview.existingUsers > 0) && (
-                    <div className="max-h-56 overflow-auto rounded-lg border">
+                    <TableScrollArea className="max-h-56 overflow-auto rounded-lg border">
                       <table className="w-full text-xs">
                         <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Row</th><th className="p-2 text-left">User</th><th className="p-2 text-left">Status</th><th className="p-2 text-left">Details</th></tr></thead>
                         <tbody>{preview.rows.filter(row => row.status !== 'new').map(row => (
                           <tr key={row.rowNumber} className="border-t"><td className="p-2">{row.rowNumber}</td><td className="p-2">{row.fullName}<br/><span className="text-muted-foreground">{row.email}</span></td><td className="p-2 capitalize">{row.status}</td><td className="p-2">{row.errors.join('; ') || 'Will not be duplicated'}</td></tr>
                         ))}</tbody>
                       </table>
-                    </div>
+                    </TableScrollArea>
                   )}
                 </>
               )}

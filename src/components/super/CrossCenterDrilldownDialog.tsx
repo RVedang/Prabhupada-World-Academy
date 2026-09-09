@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,15 +33,15 @@ export default function CrossCenterDrilldownDialog({ open, onClose, title, metri
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!open) return;
-    setLoading(true);
-    setRecords([]);
-    setSearch('');
-    getCrossPreachingDrilldown({ metric, centerId, weekStart, weekEnd })
-      .then((res: any) => setRecords(res.records || []))
+    !read.background && !read.cancelled && setLoading(true);
+    !read.background && !read.cancelled && setRecords([]);
+    !read.background && !read.cancelled && setSearch('');
+    read(() => getCrossPreachingDrilldown({ metric, centerId, weekStart, weekEnd }))
+      .then((res: any) => !read.cancelled && setRecords(res.records || []))
       .catch(() => toast.error('Failed to load details'))
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, [open, metric, centerId, weekStart, weekEnd]);
 
   const filtered = search

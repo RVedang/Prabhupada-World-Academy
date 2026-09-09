@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,9 +25,9 @@ export default function FormsTab({ guideId }: FormsTabProps) {
 
   useEffect(() => { loadUsers(); }, [guideId]);
 
-  const loadUsers = async () => {
+  const loadUsers = useReactiveLoader(async (read) => {
     try {
-      const result = await getGuideGroups({ guideId });
+      const result = await read(() => getGuideGroups({ guideId }));
       const allUsers = new Map<string, { userId: string; fullName: string }>();
       result.groups.forEach(group => {
         group.members.forEach(member => {
@@ -36,25 +37,27 @@ export default function FormsTab({ guideId }: FormsTabProps) {
       result.availableUsers.forEach(user => {
         if (user.userId && user.fullName) allUsers.set(user.userId, { userId: user.userId, fullName: user.fullName });
       });
-      setAvailableUsers(Array.from(allUsers.values()));
+      !read.cancelled && setAvailableUsers(Array.from(allUsers.values()));
     } catch (error) {
+      if (read.cancelled) return;
       console.error('Failed to load users:', error);
     }
-  };
+  }, []);
 
-  const loadFieldsForUser = async (userId: string) => {
+  const loadFieldsForUser = useReactiveLoader(async (read, userId: string) => {
     if (!userId) return;
-    setLoading(true);
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const result = await getFieldsForUser({ userId });
-      setFields(result.fields);
-      setTemplateMode(result.templateMode || '');
+      const result = await read(() => getFieldsForUser({ userId }));
+      !read.cancelled && setFields(result.fields);
+      !read.cancelled && setTemplateMode(result.templateMode || '');
     } catch (error) {
+      if (read.cancelled) return;
       console.error('Failed to load fields:', error);
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, []);
 
   const isResident = templateMode.includes('RESIDENT') && !templateMode.includes('NON');
 

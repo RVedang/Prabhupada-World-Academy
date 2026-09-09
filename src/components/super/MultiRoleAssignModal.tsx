@@ -169,7 +169,7 @@ export default function MultiRoleAssignModal({
               </Label>
             </div>
             <p className="text-[11px] text-muted-foreground pl-6">
-              Supervises Reading Group Facilitators and monitors sector reports.
+              Supervises RGFs and monitors sector reports.
             </p>
             {isSupervisor && (
               <div className="pl-6 pt-1 space-y-1">
@@ -201,7 +201,7 @@ export default function MultiRoleAssignModal({
                 onCheckedChange={(c) => setIsFacilitator(!!c)}
               />
               <Label htmlFor="role-facilitator" className="font-semibold text-sm cursor-pointer flex items-center gap-1.5 text-purple-600">
-                <UserCheck className="w-4 h-4" /> Facilitator (RGF)
+                <UserCheck className="w-4 h-4" /> RGF
               </Label>
             </div>
             <p className="text-[11px] text-muted-foreground pl-6">
@@ -237,7 +237,7 @@ export default function MultiRoleAssignModal({
                 onCheckedChange={(c) => setIsSubFacilitator(!!c)}
               />
               <Label htmlFor="role-sub" className="font-semibold text-sm cursor-pointer flex items-center gap-1.5 text-blue-600">
-                <Users className="w-4 h-4" /> Sub Facilitator (RGSF)
+                <Users className="w-4 h-4" /> RGSF
               </Label>
             </div>
             <p className="text-[11px] text-muted-foreground pl-6">

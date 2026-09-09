@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,38 +40,43 @@ export default function TagMangoConfigTab() {
   const [copied, setCopied] = useState(false);
   const [savingApi, setSavingApi] = useState(false);
   const [savingCourses, setSavingCourses] = useState(false);
+  const [savedConfig, setSavedConfig] = useState<{ apiKey: string; apiUrl: string; courseConfig: CourseConfig } | null>(null);
+  const configDirty = !!savedConfig && (apiKey !== savedConfig.apiKey || apiUrl !== savedConfig.apiUrl || JSON.stringify(courseConfig) !== JSON.stringify(savedConfig.courseConfig));
 
   // Sync log state
   const [syncRecords, setSyncRecords] = useState<SyncRecord[]>([]);
   const [syncStats, setSyncStats] = useState<SyncStats>({ total: 0, matched: 0, newUsers: 0, errors: 0 });
   const [syncLoading, setSyncLoading] = useState(true);
   const [syncHasMore, setSyncHasMore] = useState(false);
-  const [syncOffset, setSyncOffset] = useState(0);
+  const [syncLimit, setSyncLimit] = useState(50);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    getTagMangoConfig({}).then(res => {
+  useReactiveEffect(read => {
+    read(() => getTagMangoConfig({})).then(res => {
+      if (read.cancelled) return;
       setApiKey(res.apiKey);
       setApiUrl(res.apiUrl);
       setCourseConfig(res.courseConfig);
       setResidencies(res.residencies);
       setEnvKeyConfigured(res.envKeyConfigured);
+      setSavedConfig({ apiKey: res.apiKey, apiUrl: res.apiUrl, courseConfig: res.courseConfig });
     }).catch(() => toast.error('Failed to load TagMango config'))
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { if (!read.cancelled) setLoading(false); });
+  }, [], !configDirty && !savingApi && !savingCourses);
 
-  const loadSyncLog = useCallback(async (offset = 0, append = false) => {
-    if (!append) setSyncLoading(true);
-    else setLoadingMore(true);
+  const loadSyncLog = useReactiveLoader(async read => {
+    if (!read.background && syncRecords.length === 0) setSyncLoading(true);
+    else if (!read.background) setLoadingMore(true);
     try {
-      const res = await getTagMangoSyncLog({ limit: 50, offset });
-      setSyncRecords(prev => append ? [...prev, ...res.records] : res.records);
+      // Refresh the already-visible window so insertions cannot duplicate
+      // appended pages or silently leave earlier pages stale.
+      const res = await read(() => getTagMangoSyncLog({ limit: syncLimit, offset: 0 }));
+      setSyncRecords(res.records);
       setSyncStats(res.stats);
       setSyncHasMore(res.hasMore);
-      setSyncOffset(offset + res.records.length);
-    } catch { toast.error('Failed to load sync log'); }
-    finally { setSyncLoading(false); setLoadingMore(false); }
-  }, []);
+    } catch { if (!read.cancelled) toast.error('Failed to load sync log'); }
+    finally { if (!read.cancelled) { setSyncLoading(false); setLoadingMore(false); } }
+  }, [syncLimit]);
 
   useEffect(() => { loadSyncLog(); }, [loadSyncLog]);
 
@@ -83,6 +90,7 @@ export default function TagMangoConfigTab() {
     setSavingApi(true);
     try {
       await saveTagMangoConfig({ apiKey, apiUrl });
+      setSavedConfig(previous => previous ? { ...previous, apiKey, apiUrl } : previous);
       toast.success('API configuration saved');
     } catch { toast.error('Failed to save API configuration'); }
     finally { setSavingApi(false); }
@@ -92,6 +100,7 @@ export default function TagMangoConfigTab() {
     setSavingCourses(true);
     try {
       await saveTagMangoConfig({ courseConfig });
+      setSavedConfig(previous => previous ? { ...previous, courseConfig } : previous);
       toast.success('Course ID mappings saved');
     } catch { toast.error('Failed to save course mappings'); }
     finally { setSavingCourses(false); }
@@ -287,7 +296,7 @@ export default function TagMangoConfigTab() {
               <CardTitle>Sync Log</CardTitle>
               <CardDescription>Recent TagMango webhook events</CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={() => loadSyncLog(0)} disabled={syncLoading}>
+            <Button variant="outline" size="sm" onClick={() => loadSyncLog()} disabled={syncLoading}>
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -351,7 +360,7 @@ export default function TagMangoConfigTab() {
 
               {syncHasMore && (
                 <div className="text-center pt-2">
-                  <Button variant="outline" size="sm" onClick={() => loadSyncLog(syncOffset, true)} disabled={loadingMore}>
+                  <Button variant="outline" size="sm" onClick={() => setSyncLimit(limit => limit + 50)} disabled={loadingMore}>
                     {loadingMore ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
                     Load More
                   </Button>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getCachedStale, invalidateCache, setCached } from '@/utils/cache';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import type { RealtimeChannel } from '@/lib/realtimeChannels';
 
 interface UseQueryOptions<T> {
@@ -66,7 +66,6 @@ export function useQuery<T>({
 
   const mountedRef    = useRef(true);
   const fetcherRef    = useRef(fetcher);
-  const isFetchingRef = useRef(false); // Prevent duplicate in-flight requests
 
   useEffect(() => { fetcherRef.current = fetcher; });
   useEffect(() => {
@@ -75,10 +74,8 @@ export function useQuery<T>({
   }, []);
 
   /** Full fetch with retry — shows loading only when there is no cached data. */
-  const doFetch = useCallback(async (silent = false) => {
+  const doFetch = useReactiveLoader(async (read, silent = false) => {
     if (!key) return;
-    if (isFetchingRef.current) return; // Deduplicate concurrent calls
-    isFetchingRef.current = true;
 
     if (!silent) {
       setError(null);
@@ -89,26 +86,30 @@ export function useQuery<T>({
     let lastErr: Error | null = null;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const result = await fetcherRef.current();
-        if (!mountedRef.current) break;
+        const result = await read(() => fetcherRef.current());
+        if (!mountedRef.current || read.cancelled) break;
         if (key && ttl > 0) setCached(key, result, ttl);
         setDataState(result);
         setLoading(false);
-        isFetchingRef.current = false;
         return;
       } catch (err) {
+        if (read.cancelled) return;
         lastErr = err instanceof Error ? err : new Error(String(err));
+        if ([401, 403].includes((err as { status?: number })?.status || 0)) {
+          invalidateCache(key);
+          setDataState(undefined);
+          break;
+        }
         if (attempt < maxRetries - 1 && mountedRef.current) {
           await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt)));
         }
       }
     }
-    if (mountedRef.current) {
+    if (mountedRef.current && !read.cancelled) {
       setError(lastErr);
       setLoading(false);
     }
-    isFetchingRef.current = false;
-  }, [key, ttl, maxRetries]);
+  }, [key, ttl, maxRetries], true, silent => !!silent);
 
   // Main effect: run on mount and key changes
   useEffect(() => {
@@ -129,7 +130,9 @@ export function useQuery<T>({
           // Show stale data immediately, revalidate silently if expired.
           setDataState(cached.data);
           setLoading(false);
-          if (cached.isStale) void doFetch(true);
+          // Reattach exact query dependencies even on a cached revisit. The
+          // endpoint cache serves unchanged reads without network traffic.
+          void doFetch(true);
           return;
         }
       }
@@ -140,8 +143,6 @@ export function useQuery<T>({
     });
     return () => { cancelled = true; };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useRealtimeRefresh(realtimeChannels, () => doFetch(true), Boolean(key && realtimeChannels.length));
 
   const refetch = useCallback(() => {
     if (key) invalidateCache(key);

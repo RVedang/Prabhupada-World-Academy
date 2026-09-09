@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,15 +19,16 @@ export default function OverviewTab({ guideId, onTabChange }: Props) {
 
   useEffect(() => { loadMetrics(); }, [guideId]);
 
-  const loadMetrics = async () => {
+  const loadMetrics = useReactiveLoader(async (read) => {
     try {
-      const r = await getGuideMetrics({ guideId });
-      setM({ pendingApprovals: r.pendingApprovals ?? 0, activeUsers: r.activeUsers ?? 0,
+      const r = await read(() => getGuideMetrics({ guideId }));
+      !read.cancelled && setM({ pendingApprovals: r.pendingApprovals ?? 0, activeUsers: r.activeUsers ?? 0,
         submissionsToday: r.submissionsToday ?? 0, missingToday: r.missingToday ?? 0,
         avgScore7d: r.avgScore7d ?? 0, submissionRate7d: r.submissionRate7d ?? 0 });
-    } catch { toast.error('Failed to load overview metrics'); }
-    finally { setLoading(false); }
-  };
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load overview metrics'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   if (loading) return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

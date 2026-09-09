@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { ArrowLeft, Plus, Copy, Users, Settings, Flame, Link2, ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -25,12 +25,11 @@ export default function AttendanceManagePage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const reload = useCallback(() => {
-    getAttendanceEventsAdmin({}).then(r => setEvents(r.events)).catch(() => toast.error('Failed to load')).finally(() => setLoading(false));
+  const reload = useReactiveLoader(async (read) => {
+    await read(() => getAttendanceEventsAdmin({})).then(r => setEvents(r.events)).catch(() => { if (!read.cancelled && !read.background) toast.error('Failed to load'); }).finally(() => { if (!read.cancelled) setLoading(false); });
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
-  useRealtimeRefresh(['attendance'], reload);
 
   return (
     <div className="min-h-screen bg-background">

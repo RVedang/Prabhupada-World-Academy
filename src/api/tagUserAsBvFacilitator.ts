@@ -29,7 +29,7 @@ export default createEndpoint({
       userEmail.includes('admin')
     );
     if (!isAuthorized) {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Super Admin access required to assign Reading Group Facilitators (RGF). Supervisors cannot assign RGFs.' });
+      throw new AppError({ code: 'FORBIDDEN', message: 'Admin or Super Admin access required to assign RGFs. Supervisors cannot assign RGFs.' });
     }
 
     if (input.action === 'tag' && !input.supervisorId) {
@@ -46,7 +46,7 @@ export default createEndpoint({
         isBvFacilitator: shouldTag,
         isBvsl: shouldTag, // Backward compatibility
         role: shouldTag ? 'BVSL' : 'User',
-        pendingRoleNotice: shouldTag ? 'Assigned role: Reading Group Facilitator (RGF)' : 'Removed role: Reading Group Facilitator (RGF)',
+        pendingRoleNotice: shouldTag ? 'Assigned role: RGF' : 'Removed role: RGF',
         roleNoticeAcknowledged: false,
         // Hierarchy: which Supervisor does this RGF report to?
         bvReportingSupervisorId: shouldTag ? (input.supervisorId || '') : '',

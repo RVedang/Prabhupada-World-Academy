@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,13 +31,14 @@ export default function BvSadhanaMonitorPanel({ guideId }: Props) {
 
   useEffect(() => { load(); }, [guideId, date]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      setData(await getBvGroupSadhanaMonitor({ guideId, date }));
-    } catch { toast.error('Failed to load sadhana monitor'); }
-    finally { setLoading(false); }
-  };
+      !read.cancelled && setData(await read(() => getBvGroupSadhanaMonitor({ guideId, date })));
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load sadhana monitor'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const frc = (r: number) => r >= 80 ? 'text-green-600' : r >= 50 ? 'text-yellow-600' : 'text-destructive';
 
@@ -76,7 +78,7 @@ export default function BvSadhanaMonitorPanel({ guideId }: Props) {
                   <thead>
                     <tr className="border-b bg-muted/30">
                       <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Group</th>
-                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">RGF (Reading Group Facilitator)</th>
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">RGF</th>
                       <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">Members</th>
                       <th className="text-center py-2.5 px-3 font-medium text-green-700">Filled</th>
                       <th className="text-center py-2.5 px-3 font-medium text-destructive">Pending</th>

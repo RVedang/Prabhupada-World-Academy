@@ -1,3 +1,4 @@
+import FilterPanel from '@/components/mobile/FilterPanel';
 // Fix 4: Frontend filtering for residency/level/folk-residency (no re-fetch on filter change)
 // Scoped endpoint cache retains date/report combinations while revalidating.
 import { useEffect, useRef, useState, useMemo } from 'react';
@@ -738,6 +739,11 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
               <Input placeholder="Search by name..." className="pl-8 h-9" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
 
+            {reportType === 'daily' && <div className="flex gap-2 md:hidden">
+              <Button size="sm" variant={selectedDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'default' : 'outline'} onClick={() => setSelectedDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'))}>Yesterday</Button>
+              <Button size="sm" variant={selectedDate === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'} onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}>Today</Button>
+            </div>}
+            <FilterPanel summary={`${reportType} · ${reportType === 'daily' ? selectedDate : reportType === 'weekly' ? selectedWeek : selectedMonth}`}>
             <div className="flex flex-wrap gap-x-4 gap-y-2 items-center">
               {/* Report Type */}
               <div className="flex items-center gap-1.5">
@@ -958,7 +964,8 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                 )}
               </div>
             </div>
-          </CardContent>
+</FilterPanel>
+                      </CardContent>
         </Card>
 
         {/* Scoring Criteria Reference */}
@@ -998,7 +1005,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
             </div>
 
             {/* Summary Cards */}
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Report Summary</span>
               <span className="text-xs text-muted-foreground">
                 {summary?.submitted ?? 0} of {summary?.totalUsers ?? 0} submitted · averages are across submitted entries only
@@ -1007,7 +1014,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
                 )}
               </span>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="report-metrics grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
               {/* 1 — Total Members */}
               <Card className="flex-1 min-w-[110px]">
                 <CardContent className="pt-4 pb-3">

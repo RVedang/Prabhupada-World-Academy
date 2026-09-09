@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,23 +57,24 @@ export default function ServiceRatingPrompt({ onDismiss }: Props) {
     load();
   }, []);
 
-  const load = async () => {
+  const load = useReactiveLoader(async (read) => {
     try {
-      const res = await getServiceRatingsForDate({});
-      setDate(res.date);
-      setServices(res.services);
+      const res = await read(() => getServiceRatingsForDate({}));
+      !read.cancelled && setDate(res.date);
+      !read.cancelled && setServices(res.services);
       // Pre-mark already rated services
       const preSubmitted: Record<string, boolean> = {};
       for (const s of res.services) {
         if (s.hasRated) preSubmitted[s.serviceId] = true;
       }
-      setSubmitted(preSubmitted);
+      !read.cancelled && setSubmitted(preSubmitted);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load services');
     } finally {
-      setLoading(false);
+      !read.cancelled && setLoading(false);
     }
-  };
+  }, []);
 
   const unratedServices = services.filter(s => !submitted[s.serviceId]);
 

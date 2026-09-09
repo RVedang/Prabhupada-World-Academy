@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { MemberBottomNav } from '@/components/mobile/DashboardNavigation';
+import { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BookOpen, Leaf, Trophy } from 'lucide-react';
 import { getUserDashboardData, getSadhanaLeaderboard } from '@/lib/endpoints-sdk';
@@ -8,8 +9,6 @@ import { DashboardLayout } from '@/layouts';
 import { LoadingPage } from '@/shared';
 import TabTransition from '@/components/TabTransition';
 import SadhanaTab from '@/components/dashboard/SadhanaTab';
-import BvTab from '@/components/dashboard/BvTab';
-import LeaderboardTab from '@/components/dashboard/LeaderboardTab';
 import { useQuery } from '@/hooks/useQuery';
 import SectionErrorBoundary from '@/components/SectionErrorBoundary';
 import PushNotificationBanner from '@/components/dashboard/PushNotificationBanner';
@@ -20,6 +19,9 @@ import {
   SADHANA_ENTRY_SAVED_EVENT,
   type SavedSadhanaEntryPayload,
 } from '@/utils/sadhanaDashboardRefresh';
+
+const BvTab = lazy(() => import('@/components/dashboard/BvTab'));
+const LeaderboardTab = lazy(() => import('@/components/dashboard/LeaderboardTab'));
 
 export default function PwUserDashboard() {
   const { profile } = useUserProfile();
@@ -148,10 +150,16 @@ export default function PwUserDashboard() {
     <DashboardLayout
       title={`Hare Krishna, ${profile.fullName}!`}
       subtitle={subtitle}
+      hasBottomNavigation
     >
       <PushNotificationBanner />
+      <MemberBottomNav activeId={visibleActiveTab} onSelect={handleTabChange} items={[
+          { id: 'sadhana', label: 'Sadhana', icon: BookOpen },
+          { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+          { id: 'bv', label: 'Bhakti Vriksha', icon: Leaf },
+        ]} />
       <Tabs value={visibleActiveTab} onValueChange={handleTabChange}>
-        <TabsList className="mb-6 w-full md:w-auto flex-wrap h-auto gap-1">
+        <TabsList className="hidden md:flex mb-6 w-full md:w-auto flex-wrap h-auto gap-1">
           <TabsTrigger value="sadhana" className="flex items-center gap-1.5">
             <BookOpen className="w-4 h-4" />Sadhana
           </TabsTrigger>
@@ -164,7 +172,7 @@ export default function PwUserDashboard() {
             <span className="hidden sm:inline">Bhakti Vriksha</span>
           </TabsTrigger>
         </TabsList>
-        <TabTransition activeTab={visibleActiveTab}>
+        <Suspense fallback={<LoadingPage rows={2} />}><TabTransition activeTab={visibleActiveTab}>
           {visibleActiveTab === 'sadhana' && (
             <SectionErrorBoundary sectionName="Sadhana Tab">
               <SadhanaTab
@@ -190,7 +198,7 @@ export default function PwUserDashboard() {
               <BvTab userId={profile.userId} segment="PW" />
             </SectionErrorBoundary>
           )}
-        </TabTransition>
+        </TabTransition></Suspense>
       </Tabs>
     </DashboardLayout>
   );

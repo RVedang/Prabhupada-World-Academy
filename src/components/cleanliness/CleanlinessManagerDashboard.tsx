@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -37,14 +38,14 @@ export default function CleanlinessManagerDashboard({ residencyId, residencyName
   const [uploadingRoom, setUploadingRoom] = useState<string | null>(null);
   const [pendingPhotos, setPendingPhotos] = useState<Map<string, string>>(new Map());
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
       const [roomsRes, inspRes] = await Promise.all([
-        getCleanlinessRooms({ residencyId }),
-        getCleanlinessInspections({ residencyId, date }),
+        read(() => getCleanlinessRooms({ residencyId })),
+        read(() => getCleanlinessInspections({ residencyId, date })),
       ]);
-      setRooms(roomsRes.rooms as Room[]);
+      !read.cancelled && setRooms(roomsRes.rooms as Room[]);
       const map = new Map<string, RoomInspection>();
       ((inspRes as any).inspections || []).forEach((i: any) => {
         map.set(i.roomId, {
@@ -55,15 +56,16 @@ export default function CleanlinessManagerDashboard({ residencyId, residencyName
           existingId: i.id,
         });
       });
-      setInspections(map);
-      setPendingScores(new Map());
-      setPendingComments(new Map());
-      setPendingPhotos(new Map());
+      !read.cancelled && setInspections(map);
+      !read.background && !read.cancelled && setPendingScores(new Map());
+      !read.background && !read.cancelled && setPendingComments(new Map());
+      !read.background && !read.cancelled && setPendingPhotos(new Map());
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load rooms');
     }
-    setLoading(false);
-  }, [residencyId, date]);
+    !read.cancelled && setLoading(false);
+  }, [residencyId, date], pendingScores.size === 0 && pendingComments.size === 0 && pendingPhotos.size === 0);
 
   useEffect(() => { loadData(); }, [loadData]);
 

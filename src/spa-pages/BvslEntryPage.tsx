@@ -13,7 +13,7 @@ export default function BvslEntryPage() {
               <Leaf className="w-7 h-7 text-primary" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold">Reading Group Facilitator Dashboard</h1>
+          <h1 className="text-2xl font-bold">RGF Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             Bhakti Vriksha Servant Leader Portal
           </p>

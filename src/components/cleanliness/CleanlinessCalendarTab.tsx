@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,11 +19,11 @@ export default function CleanlinessCalendarTab({ userId, residencyId }: { userId
   const [loading, setLoading] = useState(true);
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
 
-  useEffect(() => {
-    getUserCleanlinessCalendar({ userId, residencyId }).then(res => {
-      setData(res);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+  useReactiveEffect((read) => {
+    read(() => getUserCleanlinessCalendar({ userId, residencyId })).then(res => {
+      !read.cancelled && setData(res);
+      !read.cancelled && setLoading(false);
+    }).catch(() => !read.background && !read.cancelled && setLoading(false));
   }, [userId, residencyId]);
 
   if (loading) {

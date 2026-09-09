@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -8,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Search, Phone, MessageCircle, ExternalLink, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { getBvslMembers, removeGroupMember } from '@/lib/endpoints-sdk';
 import type { GetBvslMembersOutputType } from '@/lib/endpoints-sdk';
 import { EmptyState, ConfirmDialog } from '@/shared';
@@ -54,15 +54,16 @@ export default function BvslMembersTable({ bvslId, detailBasePath = '/guide/user
 
   useEffect(() => { if (bvslId) load(); }, [bvslId]);
 
-  const load = async (silent = false) => {
-    if (!silent) setLoading(true);
+  const load = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getBvslMembers({ bvslId } as any);
+      const res = await read(() => getBvslMembers({ bvslId } as any));
       setMembers(res.members);
-    } catch { toast.error('Failed to load members'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load members'); }
     finally { if (!silent) setLoading(false); }
-  };
-  useRealtimeRefresh(['users', 'groups'], () => load(true), Boolean(bvslId));
+  }, []);
+
 
   const handleRemove = async () => {
     if (!removeTarget) return;

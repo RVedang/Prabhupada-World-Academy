@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,19 +17,19 @@ export default function SuperGuidesPanel() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     const load = async () => {
       try {
-        const { guides: list } = await getGuides({});
+        const { guides: list } = await read(() => getGuides({}));
         const counts = await Promise.all(
           list.map(g =>
-            getGuideUsers({ guideId: g.guideId, statusFilter: 'active' })
+            read(() => getGuideUsers({ guideId: g.guideId, statusFilter: 'active' }))
               .then(r => r.users.length).catch(() => 0)
           )
         );
-        setGuides(list.map((g, i) => ({ ...g, userCount: counts[i] })));
+        !read.cancelled && setGuides(list.map((g, i) => ({ ...g, userCount: counts[i] })));
       } catch { toast.error('Failed to load guides'); }
-      finally { setLoading(false); }
+      finally { !read.cancelled && setLoading(false); }
     };
     load();
   }, []);

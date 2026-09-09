@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -156,13 +157,14 @@ export default function AvailabilityOverviewTab() {
 
   useEffect(() => { load(); }, [weekStart]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      setData(await getAvailabilityOverview({ weekStartDate: weekStart }));
-    } catch { toast.error('Failed to load availability'); }
-    finally { setLoading(false); }
-  };
+      !read.cancelled && setData(await read(() => getAvailabilityOverview({ weekStartDate: weekStart })));
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load availability'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const handleBulkSubmit = async () => {
     if (!data || data.notSubmitted.length === 0) return;

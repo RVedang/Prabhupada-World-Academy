@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
@@ -21,18 +22,18 @@ export default function PublicAttendPage() {
   const [notFound, setNotFound] = useState(false);
   const [profile, setProfile] = useState<any>(null);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!token) return;
-    getSessionByToken({ token }).then(res => {
-      if (res.found && res.session) setSession(res.session);
-      else setNotFound(true);
-    }).catch(() => setNotFound(true)).finally(() => setLoading(false));
+    read(() => getSessionByToken({ token })).then(res => {
+      if (res.found && res.session) !read.cancelled && setSession(res.session);
+      else !read.cancelled && setNotFound(true);
+    }).catch(() => !read.background && !read.cancelled && setNotFound(true)).finally(() => !read.cancelled && setLoading(false));
   }, [token]);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (user) {
-      getUserProfile({}).then(res => {
-        if (res.user) setProfile(res.user);
+      read(() => getUserProfile({})).then(res => {
+        if (res.user) !read.cancelled && setProfile(res.user);
       }).catch(() => {});
     }
   }, [user]);

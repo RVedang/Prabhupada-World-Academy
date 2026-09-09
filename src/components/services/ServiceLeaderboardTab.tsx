@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,14 +65,15 @@ export default function ServiceLeaderboardTab({ isGuide = false }: Props) {
 
   useEffect(() => { load(); }, [period]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getServiceLeaderboard({ period });
-      setData(res);
-    } catch { toast.error('Failed to load leaderboard'); }
-    finally { setLoading(false); }
-  };
+      const res = await read(() => getServiceLeaderboard({ period }));
+      !read.cancelled && setData(res);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load leaderboard'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   return (
     <div className="space-y-4">

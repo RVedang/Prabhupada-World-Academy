@@ -1,3 +1,5 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -98,40 +100,42 @@ export default function AllocationBoardTab({ guideId, residencyId: propResidency
   const [weekPlannerOpen, setWeekPlannerOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (propResidencyId) { setResidencyId(propResidencyId); return; }
+  useReactiveEffect((read) => {
+    if (propResidencyId) { !read.background && !read.cancelled && setResidencyId(propResidencyId); return; }
     if (guideId) {
-      getResidenciesForGuide({ guideId }).then(res => {
-        if (res && res.length > 0) setResidencyId(res[0].residencyId);
+      read(() => getResidenciesForGuide({ guideId })).then(res => {
+        if (!read.cancelled) setResidencyId(current => res?.some(item => item.residencyId === current) ? current : res?.[0]?.residencyId);
       }).catch(() => {});
     }
   }, [guideId, propResidencyId]);
 
   useEffect(() => { load(); }, [weekStart, residencyId]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
       const [board, res, rotation] = await Promise.all([
-        getAllocationBoard({ weekStartDate: weekStart, residencyId }),
-        getResidentsForAllocation({ residencyId, weekStartDate: weekStart }).catch(() => ({ residents: [] })),
-        getServiceRotation({ weekStartDate: weekStart, residencyId }).catch(() => ({ rotationMap: {} })),
+        read(() => getAllocationBoard({ weekStartDate: weekStart, residencyId })),
+        read(() => getResidentsForAllocation({ residencyId, weekStartDate: weekStart })).catch(() => ({ residents: [] })),
+        read(() => getServiceRotation({ weekStartDate: weekStart, residencyId })).catch(() => ({ rotationMap: {} })),
       ]);
-      setData(board);
-      setResidents(res.residents);
-      setRotationMap(rotation.rotationMap);
-    } catch { toast.error('Failed to load board'); }
-    finally { setLoading(false); }
-  };
+      !read.cancelled && setData(board);
+      !read.cancelled && setResidents(res.residents);
+      !read.cancelled && setRotationMap(rotation.rotationMap);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load board'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
-  const loadLeaveRequests = async () => {
-    setLeaveLoading(true);
+  const loadLeaveRequests = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLeaveLoading(true);
     try {
-      const res = await getUnavailabilityRequests({ status: 'Pending' });
-      setLeaveRequests(res.requests);
-    } catch { toast.error('Failed to load leave requests'); }
-    finally { setLeaveLoading(false); }
-  };
+      const res = await read(() => getUnavailabilityRequests({ status: 'Pending' }));
+      !read.cancelled && setLeaveRequests(res.requests);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load leave requests'); }
+    finally { !read.cancelled && setLeaveLoading(false); }
+  }, []);
 
   const handleApproveLeave = async (requestId: string, action: 'approve' | 'reject') => {
     setApprovingId(requestId);

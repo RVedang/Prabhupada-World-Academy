@@ -9,13 +9,13 @@ import { getGuides } from '@/lib/endpoints-sdk';
 import type { GetGuidesOutputType } from '@/lib/endpoints-sdk';
 import { BarChart3, TrendingUp } from 'lucide-react';
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useEndpointQuery } from '@/hooks/useEndpointQuery';
 
 type SubTab = 'overview' | 'preaching';
 
 const SUB_TABS: { value: SubTab; label: string; icon: React.ElementType; desc: string }[] = [
   { value: 'overview',  label: 'BV Overview',         icon: BarChart3,   desc: 'Attendance, sessions, and group stats' },
-  { value: 'preaching', label: 'Preaching Analytics', icon: TrendingUp,  desc: 'Center-wise Facilitator (RGF) preaching field breakdown' },
+  { value: 'preaching', label: 'Preaching Analytics', icon: TrendingUp,  desc: 'Center-wise RGF/RGSF preaching field breakdown' },
 ];
 
 interface SuperBvReportTabProps {
@@ -35,18 +35,13 @@ export default function SuperBvReportTab({ isPwAdmin = false, segment, guideId, 
   );
   const scopedGuideId = guideId || userEmail;
 
-  const [guides, setGuides]               = useState<GetGuidesOutputType['guides']>([]);
   const [selectedGuide, setSelectedGuide] = useState(() => (isSuperAdmin ? 'all' : scopedGuideId));
   const [subTab, setSubTab]               = useState<SubTab>('overview');
 
   const effectiveSegment = segment || (isPwAdmin ? 'PW' : 'FOLK');
 
-  useEffect(() => {
-    getGuides({ segment: effectiveSegment }).then(r => setGuides(r.guides)).catch(() => {});
-  }, [effectiveSegment]);
-  useRealtimeRefresh(['users', 'groups'], () => {
-    return getGuides({ segment: effectiveSegment }).then(result => setGuides(result.guides));
-  });
+  const guideQuery = useEndpointQuery<GetGuidesOutputType>('getGuides', { segment: effectiveSegment });
+  const guides = guideQuery.data?.guides || [];
 
   useEffect(() => {
     if (profile && !isSuperAdmin) {

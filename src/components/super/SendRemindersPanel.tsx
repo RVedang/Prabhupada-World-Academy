@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -104,17 +105,18 @@ export default function SendRemindersPanel({ segment: segmentProp }: SendReminde
   const [pushStats, setPushStats] = useState<GetPushSubscriptionStatsOutputType | null>(null);
   const [loadingPushStats, setLoadingPushStats] = useState(true);
 
-  const fetchStats = async () => {
-    setLoadingPushStats(true);
+  const fetchStats = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoadingPushStats(true);
     try {
-      const stats = await getPushSubscriptionStats({ segment: activeSegment });
-      setPushStats(stats);
+      const stats = await read(() => getPushSubscriptionStats({ segment: activeSegment }));
+      !read.cancelled && setPushStats(stats);
     } catch {
-      setPushStats({ totalSubscriptions: 0, subscribers: [] });
+      if (read.cancelled) return;
+      !read.cancelled && setPushStats({ totalSubscriptions: 0, subscribers: [] });
     } finally {
-      setLoadingPushStats(false);
+      !read.cancelled && setLoadingPushStats(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchStats();

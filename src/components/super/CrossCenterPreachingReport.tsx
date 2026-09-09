@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,12 +26,13 @@ export default function CrossCenterPreachingReport() {
   const [loading, setLoading] = useState(false);
   const [drill, setDrill] = useState<DrillState | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const res = await getCrossPreachingReport({ from: startDate, to: endDate });
+      const res = await read(() => getCrossPreachingReport({ from: startDate, to: endDate }));
       setData(res as any);
-    } catch { toast.error('Failed to load cross-center report'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load cross-center report'); }
     finally { setLoading(false); }
   }, [startDate, endDate]);
 

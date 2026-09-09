@@ -11,13 +11,31 @@ import {
 } from './realtimeChannels';
 const clientCache = new Map<string, { data: any; timestamp: number }>();
 const inFlightRequests = new Map<string, Promise<any>>();
-const queryMetadata = new Map<string, { name: string; input: any; channels: RealtimeChannel[]; lastAccessedAt: number }>();
+const queryMetadata = new Map<string, { name: string; input: any; channels: RealtimeChannel[]; lastAccessedAt: number; epoch: number }>();
+const queryPins = new Map<string, number>();
+let nextQueryEpoch = 0;
+const queryTokens = new Map<string, { token: string; readVersion: string }>();
+const receivedVersions = new Map<string, string>();
+const queryVersions = new Map<string, number>();
 const CACHE_TTL_MS = 60_000;
 const MAX_CACHE_ENTRIES = 250;
 let cacheGeneration = 0;
 let permissionScope = '';
-const channelVersions = new Map<RealtimeChannel, number>();
 const cacheListeners = new Set<() => void>();
+let requestObserver: ((key: string) => void) | undefined;
+let forceObservedRead = false;
+
+/** Observe only the synchronous invocation of explicitly wrapped SDK reads.
+ * Restoring before awaiting is important: concurrent loaders cannot acquire
+ * one another's query keys. Wrap each call after an await separately. */
+export function observeEndpointReads<T>(run: () => T, observer: (key: string) => void, force = false): T {
+  const previous = requestObserver;
+  const previousForce = forceObservedRead;
+  requestObserver = observer;
+  forceObservedRead = force;
+  try { return run(); }
+  finally { requestObserver = previous; forceObservedRead = previousForce; }
+}
 export const subscribeEndpointCache = (listener: () => void) => {
   cacheListeners.add(listener);
   return () => { cacheListeners.delete(listener); };
@@ -90,25 +108,55 @@ function cloneResponse<T>(data: T): T {
 }
 
 function pruneClientCache(): void {
-  if (clientCache.size <= MAX_CACHE_ENTRIES) return;
-  const removeCount = clientCache.size - MAX_CACHE_ENTRIES;
-  const keys = clientCache.keys();
-  for (let i = 0; i < removeCount; i++) {
-    const key = keys.next().value;
-    if (key) {
-      clientCache.delete(key);
-      queryMetadata.delete(key);
-    }
-  }
+  const inactive = [...clientCache.keys()].filter(key => !queryPins.has(key));
+  inactive.slice(0, Math.max(0, inactive.length - MAX_CACHE_ENTRIES)).forEach(forgetQuery);
 }
 
 function pruneQueryMetadata(): void {
   if (queryMetadata.size <= MAX_CACHE_ENTRIES) return;
-  const ordered = [...queryMetadata.entries()].sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt);
-  ordered.slice(0, queryMetadata.size - MAX_CACHE_ENTRIES).forEach(([key]) => {
-    queryMetadata.delete(key);
-    clientCache.delete(key);
+  const ordered = [...queryMetadata.entries()].filter(([key]) => !queryPins.has(key)).sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt);
+  ordered.slice(0, Math.max(0, ordered.length - MAX_CACHE_ENTRIES)).forEach(([key]) => {
+    forgetQuery(key);
   });
+}
+
+/** Mounted consumers retain their subscriptions even during heavy navigation
+ * or prefetching. The LRU bound applies to inactive entries, not visible data. */
+export function retainEndpointQuery(key: string): () => void {
+  queryPins.set(key, (queryPins.get(key) || 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const count = (queryPins.get(key) || 1) - 1;
+    if (count) queryPins.set(key, count);
+    else queryPins.delete(key);
+    pruneQueryMetadata();
+    pruneClientCache();
+    notifyCacheListeners();
+  };
+}
+
+function forgetQuery(key: string): void {
+  clientCache.delete(key);
+  queryMetadata.delete(key);
+  queryTokens.delete(key);
+  queryVersions.delete(key);
+}
+
+export function getEndpointQueryRevision(name: string, input: any): number {
+  return queryVersions.get(queryCacheKey(name, input)) || 0;
+}
+
+export function getEndpointRealtimeTokens(): string[] {
+  return [...new Set([...queryTokens.values()].map(query => query.token))].sort();
+}
+
+export function forgetEndpointRevisionToken(token: string): void {
+  const keys = [...queryTokens].filter(([, query]) => query.token === token).map(([key]) => key);
+  for (const key of keys) queryTokens.delete(key);
+  receivedVersions.delete(token);
+  invalidateEndpointQueryKeys(keys);
 }
 
 export function clearEndpointClientCache(): void {
@@ -116,19 +164,54 @@ export function clearEndpointClientCache(): void {
   clientCache.clear();
   inFlightRequests.clear();
   queryMetadata.clear();
+  queryTokens.clear();
+  receivedVersions.clear();
+  queryVersions.clear();
   notifyCacheListeners();
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(REALTIME_INVALIDATION_EVENT, {
+    detail: { identityChanged: true },
+  }));
 }
 
-export function invalidateEndpointClientCacheForChannels(channels: RealtimeChannel[]): void {
-  if (channels.length === 0) return;
-  const changed = new Set(channels);
-  channels.forEach(channel => channelVersions.set(channel, (channelVersions.get(channel) || 0) + 1));
-  for (const [key, metadata] of queryMetadata) {
-    if (metadata.channels.some(channel => changed.has(channel)) || changed.has('general')) {
-      clientCache.delete(key);
+/** Persistent server revisions cover initial snapshots and reconnects alike.
+ * The response read watermark suppresses our own already-reconciled writes,
+ * duplicate deliveries and older out-of-order events. */
+export function receiveEndpointRevision(token: string, version: string): void {
+  if (!version || version <= (receivedVersions.get(token) || '')) return;
+  receivedVersions.set(token, version);
+  // Initial listener snapshots can include queries visited in other tabs.
+  // Retain active query watermarks and bound unrelated recovery metadata.
+  if (receivedVersions.size > MAX_CACHE_ENTRIES * 4) {
+    const retained = new Set([...queryTokens.values()].map(query => query.token));
+    for (const candidate of receivedVersions.keys()) {
+      if (!retained.has(candidate)) receivedVersions.delete(candidate);
+      if (receivedVersions.size <= MAX_CACHE_ENTRIES * 4) break;
     }
   }
+  const keys: string[] = [];
+  for (const [key, query] of queryTokens) {
+    if (query.token === token && version > query.readVersion) keys.push(key);
+  }
+  invalidateEndpointQueryKeys(keys);
+}
+
+export function invalidateEndpointQueryKeys(keys: string[]): void {
+  const affected = keys.filter(key => queryMetadata.has(key));
+  if (!affected.length) return;
+  for (const key of affected) {
+    queryVersions.set(key, (queryVersions.get(key) || 0) + 1);
+    const cached = clientCache.get(key);
+    // Keep the previous result visible while its exact query revalidates.
+    if (cached) clientCache.set(key, { ...cached, timestamp: 0 });
+  }
   notifyCacheListeners();
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(REALTIME_INVALIDATION_EVENT, {
+    detail: {
+      keys: affected,
+      endpoints: [...new Set(affected.map(key => queryMetadata.get(key)!.name))],
+      channels: [...new Set(affected.flatMap(key => queryMetadata.get(key)!.channels))],
+    },
+  }));
 }
 
 export function endpointCacheTtl(name: string): number {
@@ -142,7 +225,7 @@ export function getEndpointCacheSnapshot(name: string, input: any) {
 
 export function isEndpointQueryFresh(name: string, input: any): boolean {
   const cached = getEndpointCacheSnapshot(name, input);
-  return !!cached && Date.now() - cached.timestamp < endpointCacheTtl(name);
+  return !!cached && cached.timestamp > 0 && (queryTokens.has(queryCacheKey(name, input)) || Date.now() - cached.timestamp < endpointCacheTtl(name));
 }
 
 export function hasEndpointRequestsInFlight(): boolean { return inFlightRequests.size > 0; }
@@ -151,22 +234,6 @@ export function hasEndpointRequestsInFlight(): boolean { return inFlightRequests
 export function queryEndpoint<T>(name: string, input: any): Promise<T> {
   if (!isReadOnlyEndpoint(name)) return Promise.reject(new Error('Only read queries may be prefetched'));
   return invokeEndpoint(name, input);
-}
-
-/**
- * Notify mounted views about a mutation made by this browser immediately.
- *
- * Cache invalidation alone only affects a later query; it does not cause a
- * currently mounted, hidden dashboard tab to reload its derived counters.
- * The Firestore invalidation listener remains responsible for other browser
- * sessions. This local event makes the initiating admin's UI reactive without
- * polling or waiting for the network listener round trip.
- */
-function notifyLocalRealtimeMutation(channels: RealtimeChannel[]): void {
-  if (typeof window === 'undefined' || channels.length === 0) return;
-  window.dispatchEvent(new CustomEvent(REALTIME_INVALIDATION_EVENT, {
-    detail: { department: 'local', channels },
-  }));
 }
 
 export function getEndpointPerformanceSnapshot(): EndpointPerformanceSample[] {
@@ -209,21 +276,23 @@ export function getClientCachedQuery(name: string, input: any): any | null {
 async function invokeEndpoint(name: string, input: any): Promise<any> {
   const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const isQuery = isReadOnlyEndpoint(name);
-  const bypassCache = input && (input.bypassCache || input._nocache);
+  const bypassCache = requestObserver ? forceObservedRead : (input && (input.bypassCache || input._nocache));
 
   const cacheKey = queryCacheKey(name, input);
+  if (isQuery) requestObserver?.(cacheKey);
   if (isQuery) {
     queryMetadata.set(cacheKey, {
       name,
       input: cacheableInput(input),
       channels: realtimeChannelsForEndpoint(name),
       lastAccessedAt: Date.now(),
+      epoch: queryMetadata.get(cacheKey)?.epoch ?? ++nextQueryEpoch,
     });
     pruneQueryMetadata();
   }
   if (isQuery && !bypassCache) {
     const cached = clientCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < endpointCacheTtl(name))) {
+    if (cached && isEndpointQueryFresh(name, input)) {
       clientCache.delete(cacheKey);
       clientCache.set(cacheKey, cached);
       recordPerformance({ endpoint: name, source: 'cache', durationMs: 0, at: Date.now() });
@@ -232,8 +301,8 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
   }
 
   const generation = cacheGeneration;
-  const queryChannels = realtimeChannelsForEndpoint(name);
-  const version = () => `${cacheGeneration}:${queryChannels.map(channel => channelVersions.get(channel) || 0).join(',')}:${channelVersions.get('general') || 0}`;
+  const epoch = queryMetadata.get(cacheKey)?.epoch;
+  const version = () => `${cacheGeneration}:${queryMetadata.get(cacheKey)?.epoch}:${queryVersions.get(cacheKey) || 0}`;
   const requestVersion = version();
   const requestKey = `${requestVersion}:${cacheKey}`;
   const existingRequest = isQuery ? inFlightRequests.get(requestKey) : undefined;
@@ -263,6 +332,7 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(isQuery ? { 'X-Realtime-Query': '1' } : {}),
         ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
       },
       body: JSON.stringify(input),
@@ -276,21 +346,24 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
       throw Object.assign(new Error(errorData.message || 'API request failed'), { status: res.status });
     }
     const data = await res.json();
+    const token = res.headers.get('X-Realtime-Token');
+    const readVersion = res.headers.get('X-Realtime-Version') || '';
+    if (isQuery && generation === cacheGeneration && queryMetadata.get(cacheKey)?.epoch === epoch && token && readVersion) {
+      const previous = queryTokens.get(cacheKey);
+      if (!previous || previous.readVersion < readVersion) queryTokens.set(cacheKey, { token, readVersion });
+    }
 
     // A mutation may have completed while this query was in flight. Never put
     // a pre-mutation response back into the cache after that invalidation.
-    if (isQuery && generation === cacheGeneration && requestVersion === version()) {
+    if (isQuery && generation === cacheGeneration && queryMetadata.has(cacheKey) && requestVersion === version()) {
       clientCache.set(cacheKey, { data, timestamp: Date.now() });
       pruneClientCache();
       notifyCacheListeners();
-    } else if (!isQuery) {
-      // Invalidate only related cached domains after a successful mutation.
-      // The Firestore metadata listener will trigger silent active-query
-      // refreshes for other signed-in browser sessions. Notify this browser
-      // now so open dashboard tabs update without a page reload.
-      const changedChannels = realtimeChannelsForEndpoint(name);
-      invalidateEndpointClientCacheForChannels(changedChannels);
-      notifyLocalRealtimeMutation(changedChannels);
+    }
+    // A listener can deliver its initial revision before the HTTP response
+    // registers the token. Compare again after registration, not just on events.
+    if (isQuery && generation === cacheGeneration && token && (receivedVersions.get(token) || '') > (queryTokens.get(cacheKey)?.readVersion || readVersion)) {
+      invalidateEndpointQueryKeys([cacheKey]);
     }
     const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
     recordPerformance({
@@ -309,6 +382,7 @@ async function invokeEndpoint(name: string, input: any): Promise<any> {
   } finally {
     if (inFlightRequests.get(requestKey) === request) {
       inFlightRequests.delete(requestKey);
+      notifyCacheListeners();
     }
   }
 }

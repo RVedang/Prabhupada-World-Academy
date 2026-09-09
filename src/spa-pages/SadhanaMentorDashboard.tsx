@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
@@ -23,7 +25,6 @@ import { format } from 'date-fns';
 import { scoreColor } from '@/lib/scoring';
 import { normalizePhoneForLinks } from '@/lib/userUtils';
 import { ASHRAY_LEVELS } from '@/types/enums';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type Member = GetMentorMembersOutputType['members'][0];
 type SortKey = 'fullName' | 'latestScore' | 'currentStreak' | 'ashrayLevel' | 'residencyName' | 'performanceStatus';
@@ -222,7 +223,7 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
             : 'No members found.'}
         </p>
       ) : (
-        <div className="rounded-lg border overflow-x-auto overflow-y-auto max-h-[72vh]">
+        <TableScrollArea className="rounded-lg border overflow-x-auto overflow-y-auto max-h-[72vh]">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="border-b">
@@ -299,7 +300,7 @@ function MembersTable({ members, guideName, showResidency, onNavigate }: Members
               })}
             </tbody>
           </table>
-        </div>
+        </TableScrollArea>
       )}
     </div>
   );
@@ -324,18 +325,19 @@ export default function SadhanaMentorDashboard() {
     }
   }, [profile, navigate]);
 
-  const loadMembers = async () => {
+  const loadMembers = useReactiveLoader(async (read) => {
     try {
-      const res = await getMentorMembers({});
+      const res = await read(() => getMentorMembers({}));
       setMembers(res.members);
       setGuideName(res.guideName);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load members');
     } finally {
       setLoading(false);
     }
-  };
-  useRealtimeRefresh(['users', 'sadhana'], loadMembers, Boolean(profile?.userId));
+  }, []);
+
 
   if (!profile) return <LoadingPage />;
 

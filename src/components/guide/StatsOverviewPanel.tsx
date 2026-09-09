@@ -3,6 +3,8 @@
  * Own period + residency filters. FOLK residencies persist across re-fetches.
  * Group trend chart + individual user stats, single-select field chips.
  */
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +18,6 @@ import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { ASHRAY_LEVELS } from '@/types/enums';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import type { SadhanaGroupOption } from '@/components/guide/ReportsTab';
 
 type Period = '7d' | '30d' | '90d' | 'current_month' | 'prev_month';
@@ -119,10 +120,10 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
     ? 'All Groups'
     : groupOptions.find(group => group.id === effectiveGroupId || group.groupId === effectiveGroupId)?.groupName || 'Reading Group';
 
-  const loadGroupStats = useCallback(async (silent = false) => {
-    if (!silent) setGroupLoading(true);
+  const loadGroupStats = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setGroupLoading(true);
     try {
-      const data = await getSadhanaStats({
+      const data = await read(() => getSadhanaStats({
         guideId, startDate: start, endDate: end,
         bvslMode, mentorMode, facilitatorMode,
         residencyFilter: (residencyFilter === 'all' ? undefined : residencyFilter) as any,
@@ -130,44 +131,45 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
         ashrayLevel: ashrayFilter === 'all' ? undefined : ashrayFilter,
         groupId: effectiveGroupId === 'all' ? undefined : effectiveGroupId,
         segment: isPw ? 'PW' : 'FOLK',
-      });
+      }));
       setGroupStats(data);
       // Only update residencies when we actually get some (don't clear on filtered fetches)
       if ((data.availableResidencies ?? []).length > 0) {
         setResidencies(data.availableResidencies ?? []);
       }
-    } catch { /* keep cached stats visible */ }
+    } catch {
+      if (read.cancelled) return; /* keep cached stats visible */ }
     finally { if (!silent) setGroupLoading(false); }
   }, [guideId, start, end, bvslMode, mentorMode, facilitatorMode, residencyFilter, folkResidencyId, ashrayFilter, effectiveGroupId, isPw]);
 
   useEffect(() => { void loadGroupStats(); }, [loadGroupStats]);
-  useRealtimeRefresh(['sadhana', 'users', 'groups'], () => loadGroupStats(true));
+
 
   // Reset user when filters change
   useEffect(() => { setSelectedUserId(''); setUserStats(null); setUserError(''); }, [residencyFilter, folkResidencyId, ashrayFilter, effectiveGroupId, period]);
 
-  useEffect(() => {
-    if (!selectedUserId) { setUserStats(null); setUserError(''); return; }
+  useReactiveEffect((read) => {
+    if (!selectedUserId) { !read.background && !read.cancelled && setUserStats(null); !read.background && !read.cancelled && setUserError(''); return; }
     let cancelled = false;
-    setUserLoading(true);
-    setUserError('');
+    !read.background && !read.cancelled && setUserLoading(true);
+    !read.background && !read.cancelled && setUserError('');
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 31;
-    getUserProgressStats({
+    read(() => getUserProgressStats({
       userId: selectedUserId,
       days,
       period: 'daily',
       includeToday: true,
       startDate: start,
       endDate: end,
-    })
-      .then(data => { if (!cancelled) setUserStats(data); })
+    }))
+      .then(data => { if (!cancelled) !read.cancelled && setUserStats(data); })
       .catch(() => {
         if (!cancelled) {
-          setUserStats(null);
-          setUserError('Unable to load this user’s stats. Please try again.');
+          !read.background && !read.cancelled && setUserStats(null);
+          !read.background && !read.cancelled && setUserError('Unable to load this user’s stats. Please try again.');
         }
       })
-      .finally(() => { if (!cancelled) setUserLoading(false); });
+      .finally(() => { if (!cancelled) !read.cancelled && setUserLoading(false); });
     return () => { cancelled = true; };
   }, [selectedUserId, period, start, end]);
 
@@ -226,12 +228,12 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
                   <Select value={residencyFilter} onValueChange={(v) => { if (v) setResidencyFilter(v); }}>
                     <SelectTrigger className="h-7 w-[130px] text-xs">
                       <span className="truncate">
-                        {residencyFilter === 'all' 
-                          ? 'All' 
-                          : residencyFilter === 'resident' 
-                          ? 'Residents' 
-                          : residencyFilter === 'non_resident' 
-                          ? 'Non-Residents' 
+                        {residencyFilter === 'all'
+                          ? 'All'
+                          : residencyFilter === 'resident'
+                          ? 'Residents'
+                          : residencyFilter === 'non_resident'
+                          ? 'Non-Residents'
                           : 'Scholars'}
                       </span>
                     </SelectTrigger>
@@ -251,8 +253,8 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
                     <Select value={folkResidencyId} onValueChange={(v) => setFolkResidencyId(v || 'all')}>
                       <SelectTrigger className="h-8 w-[140px]">
                         <span className="truncate">
-                          {folkResidencyId === 'all' 
-                            ? 'All' 
+                          {folkResidencyId === 'all'
+                            ? 'All'
                             : (residencies.find(r => r.residencyId === folkResidencyId)?.residencyName.replace(/^FOLK\s+/i, '') || folkResidencyId)}
                         </span>
                       </SelectTrigger>
@@ -309,10 +311,10 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            {facilitatorMode ? 'Facilitator Sadhana Trends' : 'Group Field Trends'}
+            {facilitatorMode ? 'RGF/RGSF Sadhana Trends' : 'Group Field Trends'}
             {groupStats && (
               <span className="text-xs font-normal text-muted-foreground">
-                · {groupStats.totalUsers} {facilitatorMode ? 'facilitators' : 'members'} · {groupStats.totalSubmitted ?? 0} entries
+                · {groupStats.totalUsers} {facilitatorMode ? 'RGFs/RGSFs' : 'members'} · {groupStats.totalSubmitted ?? 0} entries
               </span>
             )}
           </CardTitle>
@@ -344,7 +346,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-sm font-semibold">
-                {facilitatorMode ? 'Individual Facilitator Sadhana' : 'Individual User Stats'}
+                {facilitatorMode ? 'Individual RGF/RGSF Sadhana' : 'Individual User Stats'}
               </CardTitle>
               {facilitatorMode && (
                 <p className="mt-1 text-xs text-muted-foreground">Select an RGF or RGSF in this admin’s reporting hierarchy to view their personal Sadhana trends.</p>

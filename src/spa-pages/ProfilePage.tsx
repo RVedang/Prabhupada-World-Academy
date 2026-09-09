@@ -1,3 +1,5 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
@@ -50,34 +52,35 @@ export default function ProfilePage() {
 
   useEffect(() => { if (user?.email) loadAll(); }, [user]);
 
-  const loadAll = async () => {
+  const loadAll = useReactiveLoader(async (read) => {
     if (!user?.email) return;
     try {
-      const profileRes = await getUserProfile({ email: user.email });
+      const profileRes = await read(() => getUserProfile({ email: user.email! }));
       const p = profileRes?.user;
       if (!p) { navigate('/register'); return; }
-      setProfile(p);
+      !read.cancelled && setProfile(p);
 
       const localDate = format(new Date(), 'yyyy-MM-dd');
       const [guidesRes, ashrayRes, metricsRes, allResRes, bvRes, checklistRes, crmRes] = await Promise.all([
-        getGuides({}), getAshrayUpgradePath({}),
-        getUserMetrics({ userId: p.userId }), getAllResidencies({}),
-        getBvAttendance({ userId: p.userId, localDate, sinceDate: format(new Date(Date.now() - 30 * 86400_000), 'yyyy-MM-dd') }).catch(() => null),
-        getAshrayChecklist({ userId: p.userId }).catch(() => null),
-        getUserCrmData({ userId: p.userId || '' }).catch(() => null),
+        read(() => getGuides({})), read(() => getAshrayUpgradePath({})),
+        read(() => getUserMetrics({ userId: p.userId })), read(() => getAllResidencies({})),
+        read(() => getBvAttendance({ userId: p.userId, localDate, sinceDate: format(new Date(Date.now() - 30 * 86400_000), 'yyyy-MM-dd') })).catch(() => null),
+        read(() => getAshrayChecklist({ userId: p.userId })).catch(() => null),
+        read(() => getUserCrmData({ userId: p.userId || '' })).catch(() => null),
       ]);
-      setGuides(guidesRes.guides);
-      setAshrayData(ashrayRes);
-      setMetrics(metricsRes);
-      setAllResidencies(allResRes);
-      if (bvRes) setBvWeeklyScore(bvRes.userTotalPointsThisWeek);
-      if (checklistRes) setAshrayCheckedCount(checklistRes.checkedItems.length);
-      if (crmRes) setCrmData(crmRes);
+      !read.cancelled && setGuides(guidesRes.guides);
+      !read.cancelled && setAshrayData(ashrayRes);
+      !read.cancelled && setMetrics(metricsRes);
+      !read.cancelled && setAllResidencies(allResRes);
+      if (bvRes) !read.cancelled && setBvWeeklyScore(bvRes.userTotalPointsThisWeek);
+      if (checklistRes) !read.cancelled && setAshrayCheckedCount(checklistRes.checkedItems.length);
+      if (crmRes) !read.cancelled && setCrmData(crmRes);
     } catch (err) {
+      if (read.cancelled) return;
       console.error('Profile load error:', err);
       toast.error('Failed to load profile');
-    } finally { setLoading(false); }
-  };
+    } finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const handleProfileChanged = async () => {
     await Promise.all([loadAll(), refreshProfile()]);
@@ -270,25 +273,25 @@ function GuideResidencyAssignmentCard({ isSuperGuide }: { isSuperGuide: boolean 
   const [pendingRequest, setPendingRequest] = useState<any | null>(null);
   const [requestedIds, setRequestedIds] = useState<string[]>([]);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     let cancelled = false;
 
-    getGuideResidencyAssignments({} as any)
+    read(() => getGuideResidencyAssignments({} as any))
       .then((res: any) => {
         if (cancelled) return;
         const nextAssigned = Array.isArray(res?.assignedResidencies) ? res.assignedResidencies : [];
-        setAssigned(nextAssigned);
-        setAllResidencies(Array.isArray(res?.allResidencies) ? res.allResidencies : []);
-        setPendingRequest(res?.pendingRequest || null);
-        setRequestedIds(Array.isArray(res?.pendingRequest?.requestedResidencyIds) ? res.pendingRequest.requestedResidencyIds : nextAssigned.map((r: any) => r.id));
+        !read.cancelled && setAssigned(nextAssigned);
+        !read.cancelled && setAllResidencies(Array.isArray(res?.allResidencies) ? res.allResidencies : []);
+        !read.cancelled && setPendingRequest(res?.pendingRequest || null);
+        !read.background && !read.cancelled && setRequestedIds(Array.isArray(res?.pendingRequest?.requestedResidencyIds) ? res.pendingRequest.requestedResidencyIds : nextAssigned.map((r: any) => r.id));
       })
       .catch(() => {
         if (!cancelled) {
-          setAssigned([]); setAllResidencies([]); setPendingRequest(null); setRequestedIds([]);
+          !read.background && !read.cancelled && setAssigned([]); !read.background && !read.cancelled && setAllResidencies([]); !read.background && !read.cancelled && setPendingRequest(null); !read.background && !read.cancelled && setRequestedIds([]);
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) !read.cancelled && setLoading(false);
       });
 
     return () => {

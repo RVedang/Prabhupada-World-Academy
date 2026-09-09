@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
@@ -21,20 +22,20 @@ export default function BvMentorDashboard() {
   const [mentorName, setMentorName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!user) return;
-    getBvMentorData({})
+    read(() => getBvMentorData({}))
       .then(data => {
-        setGuideId(data.guideId);
-        setResidencyIds(data.residencyIds);
-        setMentorName(data.mentorName);
+        !read.cancelled && setGuideId(data.guideId);
+        !read.cancelled && setResidencyIds(data.residencyIds);
+        !read.cancelled && setMentorName(data.mentorName);
       })
       .catch(err => {
         const msg = err?.message || 'Could not load BV Mentor data';
-        setError(msg);
+        !read.background && !read.cancelled && setError(msg);
         toast.error('Failed to load dashboard');
       })
-      .finally(() => setLoading(false));
+      .finally(() => !read.cancelled && setLoading(false));
   }, [user]);
 
   if (loading) {

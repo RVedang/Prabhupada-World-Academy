@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,18 +31,19 @@ export default function ServiceListTab({ residencyId, serviceType }: Props) {
 
   useEffect(() => { load(); }, [residencyId, serviceType]);
 
-  const load = async () => {
+  const load = useReactiveLoader(async (read) => {
     try {
       // Filter by residencyId (includes global services with no residencyId)
-      const res = await getServices({ scope: 'all', includeInactive: true, residencyId });
+      const res = await read(() => getServices({ scope: 'all', includeInactive: true, residencyId }));
       // Filter by serviceType if specified (default 'Weekly' for untagged services)
       const filtered = serviceType
         ? res.services.filter((s: any) => (s.serviceType || 'Weekly') === serviceType)
         : res.services;
-      setServices(filtered);
-    } catch { toast.error('Failed to load services'); }
-    finally { setLoading(false); }
-  };
+      !read.cancelled && setServices(filtered);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load services'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const handleSave = async (data: any) => {
     if (data.serviceId) {

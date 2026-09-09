@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useState, useMemo, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Flame } from 'lucide-react';
@@ -340,7 +341,7 @@ export default function SadhanaDetailTable({
   );
 
   return (
-    <div className="overflow-x-auto overflow-y-auto max-h-[72vh] border rounded-lg shadow-sm">
+    <TableScrollArea className="overflow-x-auto overflow-y-auto max-h-[72vh] border rounded-lg shadow-sm">
       <table className="w-full text-sm border-collapse">
 
         <thead className="sticky top-0 z-20">
@@ -485,6 +486,6 @@ export default function SadhanaDetailTable({
           )}
         </tbody>
       </table>
-    </div>
+    </TableScrollArea>
   );
 }

@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Users, CheckSquare, BarChart3, Brain, ClipboardList, FileText, CalendarClock, Video } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,7 +19,6 @@ import BvSection from '@/components/guide/BvSection';
 import BvslWeeklyPlanTab from '@/components/bvsl/BvslWeeklyPlanTab';
 import BvslOneToOneTab from '@/components/bvsl/BvslOneToOneTab';
 import MeetingsAndMomTab from '@/components/super/MeetingsAndMomTab';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function RgsfDashboard() {
   const { profile } = useUserProfile();
@@ -29,27 +29,28 @@ export default function RgsfDashboard() {
 
   useEffect(() => { if (profile?.userId) loadGroups(); }, [profile?.userId]);
 
-  const loadGroups = useCallback(async (silent = false) => {
+  const loadGroups = useReactiveLoader(async (read, silent = false) => {
     const bvslId = profile?.userId;
     if (!bvslId) return;
-    if (!silent) setLoading(true);
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getBvslGroups({ bvslId, viewRole: 'RGSF' });
+      const res = await read(() => getBvslGroups({ bvslId, viewRole: 'RGSF' }));
       setGroups(res.groups);
     } catch {
-      toast.error('Failed to load sub-facilitator groups');
+      if (read.cancelled) return;
+      toast.error('Failed to load RGSF groups');
     } finally {
       if (!silent) setLoading(false);
     }
   }, [profile?.userId]);
-  useRealtimeRefresh(['groups', 'users'], () => loadGroups(true), Boolean(profile?.userId));
+
 
   if (!profile) return <LoadingPage />;
 
   const bvslId = profile.userId || '';
 
   const subtitle = [
-    'Reading Group Sub-Facilitator (RGSF)',
+    'RGSF',
     profile.ashrayLevel ? `Ashray: ${profile.ashrayLevel}` : null,
     (profile as any).bvReportingFacilitatorName
       ? `Reports to RGF: ${(profile as any).bvReportingFacilitatorName}`

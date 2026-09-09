@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,12 +37,13 @@ export default function PreachingDataReportTab() {
   const [centerSearch, setCenterSearch] = useState('');
   const [sortMode, setSortMode] = useState<PreachingSortMode>('center');
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const result = await getPreachingDataReport({ startDate, endDate });
+      const result = await read(() => getPreachingDataReport({ startDate, endDate }));
       setData(result as ReportData);
-    } catch { toast.error('Failed to load preaching report'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load preaching report'); }
     finally { setLoading(false); }
   }, [startDate, endDate]);
 

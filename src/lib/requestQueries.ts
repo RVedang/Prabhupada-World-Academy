@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { firestoreVersion, type QueryDependency, type RealtimeRecordScope } from './realtimeQueryModel';
 
 type Metrics = { count: number; rows: number; durationMs: number; deduplicated: number };
-type RequestQueries = { pending: Map<string, Promise<unknown>>; metrics: Metrics };
+type RequestQueries = { pending: Map<string, Promise<unknown>>; metrics: Metrics; dependencies: Map<string, QueryDependency>; scopes: Map<string, RealtimeRecordScope>; readVersion: string; reactive: boolean };
 const context = new AsyncLocalStorage<RequestQueries>();
 function clone<T>(value: T): T {
   if (value instanceof Date) return new Date(value.getTime()) as T;
@@ -25,6 +26,11 @@ export async function requestQuery<T>(table: string, operation: string, query: u
   const request = context.getStore();
   if (!request) return fetch();
   const key = `${table}:${operation}:${stable(query)}`;
+  const dependencyQuery = { ...((query || {}) as QueryDependency['query']) };
+  // findOne({fields: []}) uses the adapter's full-document get(), unlike
+  // findAll({fields: []}), which projects IDs only.
+  if (operation === 'findOne' && dependencyQuery.fields?.length === 0 && dependencyQuery.id) delete dependencyQuery.fields;
+  request.dependencies.set(key, { table, query: dependencyQuery });
   let pending = request.pending.get(key) as Promise<T> | undefined;
   if (pending) request.metrics.deduplicated++;
   else {
@@ -51,8 +57,26 @@ export function invalidateRequestTable(table: string) {
   if (request) for (const key of request.pending.keys()) if (key.startsWith(`${table}:`)) request.pending.delete(key);
 }
 
-export async function withRequestQueries<T>(run: () => Promise<T>) {
-  const request: RequestQueries = { pending: new Map(), metrics: { count: 0, rows: 0, durationMs: 0, deduplicated: 0 } };
+export function recordQueryReadTime(time: { seconds: number; nanoseconds: number } | undefined) {
+  const request = context.getStore();
+  if (!request || !time) return;
+  const version = firestoreVersion(time);
+  if (!request.readVersion || version < request.readVersion) request.readVersion = version;
+}
+
+export function isReactiveRequest(): boolean { return context.getStore()?.reactive === true; }
+
+/** Some legacy endpoints read broadly and filter in memory. Record that final
+ * authorized scope without changing their historical database calculations.
+ * Only use when every read of this table in the endpoint shares this scope. */
+export function scopeRealtimeDependencies(table: string, scope: RealtimeRecordScope): void {
+  context.getStore()?.scopes.set(table, scope);
+}
+
+export async function withRequestQueries<T>(run: () => Promise<T>, reactive = false) {
+  const request: RequestQueries = { pending: new Map(), dependencies: new Map(), scopes: new Map(), readVersion: '', reactive, metrics: { count: 0, rows: 0, durationMs: 0, deduplicated: 0 } };
   const result = await context.run(request, run);
-  return { result, metrics: request.metrics };
+  return { result, metrics: request.metrics, dependencies: [...request.dependencies.values()].map(dependency => ({
+    ...dependency, ...(request.scopes.has(dependency.table) ? { scope: request.scopes.get(dependency.table) } : {}),
+  })), readVersion: request.readVersion };
 }

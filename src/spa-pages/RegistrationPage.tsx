@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -87,26 +88,28 @@ export default function RegistrationPage() {
   // Always load guides and residencies on mount
   useEffect(() => { loadGuides(); loadResidencies(); }, []);
 
-  const loadGuides = async () => {
-    setLoadingGuides(true);
+  const loadGuides = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoadingGuides(true);
     try {
-      const result = await getGuides({ segment: isPwFlow ? 'PW' : 'FOLK' });
-      setGuides(result.guides);
+      const result = await read(() => getGuides({ segment: isPwFlow ? 'PW' : 'FOLK' }));
+      !read.cancelled && setGuides(result.guides);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load guides. Please try again.');
-    } finally { setLoadingGuides(false); }
-  };
+    } finally { !read.cancelled && setLoadingGuides(false); }
+  }, []);
 
-  const loadResidencies = async () => {
-    setLoadingResidencies(true);
+  const loadResidencies = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoadingResidencies(true);
     try {
-      const result = await getAllResidencies({});
-      setResidencies(result);
+      const result = await read(() => getAllResidencies({}));
+      !read.cancelled && setResidencies(result);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load FOLK centers');
-      setResidencies([]);
-    } finally { setLoadingResidencies(false); }
-  };
+      !read.cancelled && setResidencies([]);
+    } finally { !read.cancelled && setLoadingResidencies(false); }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,7 +200,7 @@ export default function RegistrationPage() {
 
   if (guideEmailBlocked) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-secondary flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-gradient-to-b from-background to-secondary flex items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader>
             <div className="flex justify-center mb-4">
@@ -224,11 +227,11 @@ export default function RegistrationPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#fcf9f2] flex items-center justify-center p-4">
+    <div className="min-h-dvh w-full bg-[#fcf9f2] flex items-center justify-center p-4">
       <motion.div 
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-[500px] bg-white border border-gray-200/80 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.06),_0_1px_6px_rgba(0,0,0,0.03)] p-5 sm:p-8 md:p-10 flex flex-col gap-6 text-center"
       >
         
@@ -276,6 +279,7 @@ export default function RegistrationPage() {
             </label>
             <input
               id="fullName"
+              autoComplete="name"
               type="text"
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
@@ -292,7 +296,9 @@ export default function RegistrationPage() {
             </label>
             <div className="flex gap-2.5">
               <input
-                type="text"
+                type="tel"
+                aria-label="Country calling code"
+                autoComplete="tel-country-code"
                 value={formData.phoneCountryCode}
                 onChange={(e) => setFormData({ ...formData, phoneCountryCode: e.target.value })}
                 placeholder="+91"
@@ -300,13 +306,13 @@ export default function RegistrationPage() {
               />
               <input
                 id="phone"
-                type="text"
+                type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                 maxLength={10}
                 placeholder="Mobile number (10 digits)"
                 required
-                inputMode="numeric"
+                inputMode="tel" autoComplete="tel-national"
                 className="flex-1 min-w-0 h-10 px-4 border border-gray-200 rounded-[10px] text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#ea6506] focus:ring-1 focus:ring-[#ea6506] transition-all bg-white shadow-sm"
               />
             </div>
@@ -343,7 +349,7 @@ export default function RegistrationPage() {
                         }}
                       </SelectValue>
                     </SelectTrigger>
-                    <SelectContent className="min-w-[340px] max-w-none max-h-60 overflow-y-auto">
+                    <SelectContent className="min-w-0 w-[min(340px,calc(100vw-2rem))] max-h-60 overflow-y-auto">
                       {guides.map((guide: any) => (
                         <SelectItem key={guide.guideId} value={guide.guideId}>
                           {guide.name || guide.abbr}

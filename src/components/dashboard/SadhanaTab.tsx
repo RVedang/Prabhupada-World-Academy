@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -254,24 +255,24 @@ export default function SadhanaTab({ metrics, history, userId, residencyId, isRe
 
 
   // Load trend chart data (date-range based)
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!userId) return;
-    setProgressLoading(true);
+    !read.background && !read.cancelled && setProgressLoading(true);
     const days = trendPeriod === 'monthly' ? 365 : trendPeriod === 'weekly' ? 84 : 45;
-    getUserProgressStats({ userId, days, period: trendPeriod })
-      .then(res => setProgressData(res as any))
+    read(() => getUserProgressStats({ userId, days, period: trendPeriod }))
+      .then(res => !read.cancelled && setProgressData(res as any))
       .catch(() => {})
-      .finally(() => setProgressLoading(false));
+      .finally(() => !read.cancelled && setProgressLoading(false));
   }, [userId, trendPeriod, refreshVersion]);
 
   // Load insight data — entry-count based (insightMode: true)
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!userId) return;
-    setInsightLoading(true);
-    getUserProgressStats({ userId, period: insightPeriod, insightMode: true })
-      .then(res => setInsightData(res as any))
+    !read.background && !read.cancelled && setInsightLoading(true);
+    read(() => getUserProgressStats({ userId, period: insightPeriod, insightMode: true }))
+      .then(res => !read.cancelled && setInsightData(res as any))
       .catch(() => {})
-      .finally(() => setInsightLoading(false));
+      .finally(() => !read.cancelled && setInsightLoading(false));
   }, [userId, insightPeriod, refreshVersion]);
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -288,8 +289,8 @@ export default function SadhanaTab({ metrics, history, userId, residencyId, isRe
   return (
     <div className="space-y-6">
       {residencyId && <PersonalServiceAlert residencyId={residencyId} />}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-3">
+        <Card className="col-span-2 md:col-span-1">
           <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-muted-foreground">Today's Score</CardTitle></CardHeader>
           <CardContent>
             {metrics.todaySubmitted ? (<>

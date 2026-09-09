@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
@@ -132,6 +133,8 @@ export default createEndpoint({
         guides: (await displayPromise).availableGuides,
       };
     }
+
+    scopeRealtimeDependencies('SadhanaEntries', { kind: 'references', fields: ['user'], values: users.map(user => user.id), caseSensitive: true, firstArrayValue: true });
 
     // Load entry pages alongside parent display names, instead of delaying
     // the parent query until every page has arrived.

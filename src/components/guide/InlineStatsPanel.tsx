@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 /**
  * InlineStatsPanel — embedded in the ReportsTab below the summary cards.
  * Computes all metrics from the already-loaded + filtered clientFilteredUsers data.
@@ -143,7 +144,7 @@ export default function InlineStatsPanel({ users, residencies, residencyFilter }
           {/* User scores table */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">User Breakdown</p>
-            <div className="border rounded-lg overflow-hidden">
+            <TableScrollArea className="border rounded-lg overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-muted/50 text-left">
@@ -208,7 +209,7 @@ export default function InlineStatsPanel({ users, residencies, residencyFilter }
                   )}
                 </tbody>
               </table>
-            </div>
+            </TableScrollArea>
           </div>
         </div>
       )}

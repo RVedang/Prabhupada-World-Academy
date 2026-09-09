@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState } from 'react';
 import { getOneToOneContext } from '@/lib/endpoints-sdk';
 import { Badge } from '@/components/ui/badge';
@@ -26,9 +27,9 @@ export default function SadhanaContextPanel({ userId }: Props) {
   const [data, setData] = useState<ContextData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
-    getOneToOneContext({ userId }).then(r => { setData(r as ContextData); setLoading(false); }).catch(() => setLoading(false));
+  useReactiveEffect((read) => {
+    !read.background && !read.cancelled && setLoading(true);
+    read(() => getOneToOneContext({ userId })).then(r => { !read.cancelled && setData(r as ContextData); !read.cancelled && setLoading(false); }).catch(() => !read.background && !read.cancelled && setLoading(false));
   }, [userId]);
 
   if (loading) return (

@@ -1,8 +1,8 @@
+import { MobileSectionNav } from '@/components/mobile/DashboardNavigation';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import { ChevronDown } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
+import { useReducedMotion } from 'framer-motion';
 import TabTransition from '@/components/TabTransition';
 
 export interface TabConfig {
@@ -33,7 +33,7 @@ export default function TabRouter({ tabs, defaultTab, children, ignoreUrlHash, k
     return tabs.some(tab => tab.value === hash) ? hash : fallbackTab;
   })();
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialTab]));
   const tabChangeStartedAt = useRef<Map<string, number>>(new Map());
   const preloadKey = preloadTabs.join('|');
@@ -90,9 +90,9 @@ export default function TabRouter({ tabs, defaultTab, children, ignoreUrlHash, k
     if (!el) return;
     const active = el.querySelector('[data-active]') as HTMLElement | null;
     if (active) {
-      active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      active.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'nearest', inline: 'nearest' });
     }
-  }, [activeTab]);
+  }, [activeTab, reducedMotion]);
 
   useEffect(() => {
     if (ignoreUrlHash) return;
@@ -119,7 +119,6 @@ export default function TabRouter({ tabs, defaultTab, children, ignoreUrlHash, k
         ? previous
         : new Set([...previous, value]));
     }
-    setMobileOpen(false);
     if (!ignoreUrlHash) {
       window.history.pushState(null, '', `#${value}`);
     }
@@ -144,8 +143,6 @@ export default function TabRouter({ tabs, defaultTab, children, ignoreUrlHash, k
     return () => window.cancelAnimationFrame(frame);
   }, [activeTab]);
 
-  const activeLabel = tabs.find(t => t.value === activeTab)?.label || 'Menu';
-  const ActiveIcon = tabs.find(t => t.value === activeTab)?.icon;
 
   return (
     <Tabs value={activeTab} onValueChange={handleNavigation} className="w-full">
@@ -194,48 +191,7 @@ export default function TabRouter({ tabs, defaultTab, children, ignoreUrlHash, k
         </div>
       </div>
 
-      {/* Mobile Navigation — categorized drawer */}
-      <div className="md:hidden mb-6 no-print">
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger className="w-full">
-            <Button variant="outline" className="w-full justify-between" asChild={false}>
-              <span className="flex items-center gap-2">
-                {ActiveIcon && <ActiveIcon className="w-4 h-4" />}
-                {activeLabel}
-              </span>
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto rounded-t-xl">
-            <div className="pt-2 pb-4">
-              <p className="text-sm font-medium text-muted-foreground mb-3 px-1">Navigate to</p>
-              <div className="grid grid-cols-2 gap-2">
-                {tabs.map(tab => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.value;
-                  return (
-                    <Button
-                      key={tab.value}
-                      variant={isActive ? 'default' : 'outline'}
-                      size="sm"
-                      className="justify-start h-10 text-xs"
-                      onClick={() => handleNavigation(tab.value)}
-                    >
-                      {Icon && <Icon className="w-4 h-4 mr-1.5 shrink-0" />}
-                      <span className="truncate">{tab.label}</span>
-                      {tab.badge != null && tab.badge > 0 && (
-                        <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                          {tab.badge}
-                        </span>
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
+      <MobileSectionNav items={tabs.map(tab => ({ id: tab.value, label: tab.label, icon: tab.icon || LayoutGrid, badge: tab.badge }))} activeId={activeTab} onSelect={handleNavigation} />
 
       <TabTransition activeTab={activeTab}>
         {(keepAlive ? Array.from(visitedTabs) : [activeTab]).map(tabVal => (

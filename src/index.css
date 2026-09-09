@@ -1,5 +1,4 @@
 /* FOLK Sadhana Tracker - Design System (Saffron/Spiritual Palette) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..800;1,14..32,300..700&display=swap');
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -9,7 +8,7 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', 'Helvetica Neue', sans-serif;
+    --font-sans: var(--font-inter), 'Helvetica Neue', sans-serif;
     --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 
     --sidebar-background: 0 0% 98%;
@@ -115,7 +114,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-family: var(--font-inter), 'Helvetica Neue', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -129,8 +128,8 @@
 }
 
 @theme inline {
-  --font-heading: "Inter", "Helvetica Neue", sans-serif;
-  --font-sans: "Inter", "Helvetica Neue", sans-serif;
+  --font-heading: var(--font-inter), "Helvetica Neue", sans-serif;
+  --font-sans: var(--font-inter), "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
   
   --color-sidebar-ring: hsl(var(--sidebar-ring));

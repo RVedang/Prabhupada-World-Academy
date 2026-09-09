@@ -58,7 +58,7 @@ export default createEndpoint({
         role: newRole,
         isBvsl: shouldTag,
         bvServiceAllocated: shouldTag,
-        pendingRoleNotice: shouldTag ? 'Assigned role: Reading Group Facilitator (RGF)' : 'Removed role: Reading Group Facilitator (RGF)',
+        pendingRoleNotice: shouldTag ? 'Assigned role: RGF' : 'Removed role: RGF',
         roleNoticeAcknowledged: false,
       },
     });

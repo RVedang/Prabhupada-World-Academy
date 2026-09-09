@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -59,20 +60,21 @@ export default function BvAdminDataTable({ groupId, bvslId, guideId }: Props) {
 
   useEffect(() => { loadData(); }, [guideId, groupId, start, end]);
 
-  const loadData = async () => {
+  const loadData = useReactiveLoader(async (read) => {
     if (!start || !end) return;
-    setLoading(true);
+    !read.background && !read.cancelled && setLoading(true);
     try {
-      const res = await getBvAdminTable({
+      const res = await read(() => getBvAdminTable({
         guideId: guideId || undefined,
         startDate: start,
         endDate: end,
-      });
-      setRows((res as any).rows || []);
-      setDates((res as any).dates || []);
-    } catch { toast.error('Failed to load attendance data'); }
-    finally { setLoading(false); }
-  };
+      }));
+      !read.cancelled && setRows((res as any).rows || []);
+      !read.cancelled && setDates((res as any).dates || []);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load attendance data'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const filteredRows = rows.filter(r =>
     !search || r.name.toLowerCase().includes(search.toLowerCase()) ||

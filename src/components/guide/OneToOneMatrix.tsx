@@ -1,3 +1,4 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -151,7 +152,7 @@ export default function OneToOneMatrix({ members, meetings, weeks, groupByAshray
 
   return (
     <TooltipProvider>
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <TableScrollArea className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm border-collapse" style={{ minWidth: `${280 + weeks.length * 90}px` }}>
           <thead>
             <tr className="bg-muted/60">
@@ -238,7 +239,7 @@ export default function OneToOneMatrix({ members, meetings, weeks, groupByAshray
             )}
           </tbody>
         </table>
-      </div>
+      </TableScrollArea>
     </TooltipProvider>
   );
 }

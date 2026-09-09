@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,54 +60,56 @@ export default function GuideUserDetailPage() {
 
   useEffect(() => { if (userId) loadUserDetail(); }, [userId]);
 
-  const loadBvAttendance = async (profileId: string) => {
+  const loadBvAttendance = useReactiveLoader(async (read, profileId: string) => {
     setBvError(false);
     try {
-      return await getBvAttendance({ userId: profileId, historyOnly: true, sinceDate: '1900-01-01' });
+      const attendance = await read(() => getBvAttendance({ userId: profileId, historyOnly: true, sinceDate: '1900-01-01' }));
+      setBvData(attendance);
+      return attendance;
     } catch {
+      if (read.cancelled) return null;
       setBvError(true);
       return null;
     }
-  };
+  }, [userId]);
 
-  const loadUserDetail = async () => {
+  const loadUserDetail = useReactiveLoader(async read => {
     if (!userId) return;
     try {
-      const detailPromise = getUserDetailForGuide({ userId });
-      const [result, ashrayRes, bvRes, checklistRes, progressRes, crmRes] = await Promise.all([
+      const detailPromise = read(() => getUserDetailForGuide({ userId }));
+      const [result, ashrayRes, , checklistRes, crmRes] = await Promise.all([
         detailPromise,
-        getAshrayUpgradePath({}),
+        read(() => getAshrayUpgradePath({})),
         // Match the exact registered profile used by the Sadhana calendar.
         // Include older marks and marks from previous groups for month navigation.
         detailPromise.then(result => loadBvAttendance(result.user.dbId || result.user.userId)),
-        getAshrayChecklist({ userId }).catch(() => null),
-        getUserProgressStats({ userId, days: 45, period: 'daily', includeToday: true }).catch(() => null),
-        getUserCrmData({ userId }).catch(() => null),
+        read(() => getAshrayChecklist({ userId })).catch(() => null),
+        read(() => getUserCrmData({ userId })).catch(() => null),
       ]);
+      if (read.cancelled) return;
       setData(result);
       setAshrayData(ashrayRes);
-      setBvData(bvRes);
       setChecklistData(checklistRes);
-      setProgressStats(progressRes as any);
       if (crmRes) setCrmData(crmRes);
     } catch (error) {
+      if (read.cancelled) return;
       console.error('Failed to load user detail:', error);
       toast.error('Failed to load user data');
     } finally {
-      setLoading(false);
+      if (!read.cancelled) setLoading(false);
     }
-  };
+  }, [userId]);
 
-  // Reload trend data when period changes (after initial load)
-  useEffect(() => {
-    if (!userId || !data) return;
-    setTrendLoading(true);
+  // Keep the selected trend period independent of profile/attendance updates.
+  useReactiveEffect(read => {
+    if (!userId) return;
+    if (!read.background) setTrendLoading(true);
     const days = trendPeriod === 'monthly' ? 365 : trendPeriod === 'weekly' ? 84 : 45;
-    getUserProgressStats({ userId, days, period: trendPeriod, includeToday: true })
-      .then(res => setProgressStats(res as any))
+    read(() => getUserProgressStats({ userId, days, period: trendPeriod, includeToday: true }))
+      .then(res => { if (!read.cancelled) setProgressStats(res as any); })
       .catch(() => {})
-      .finally(() => setTrendLoading(false));
-  }, [trendPeriod]);
+      .finally(() => { if (!read.cancelled) setTrendLoading(false); });
+  }, [userId, trendPeriod]);
 
   if (loading) {
     return (

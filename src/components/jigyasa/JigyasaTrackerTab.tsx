@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileText, CheckCircle2, Download, Search, ChevronLeft, ChevronRight, Loader2, AlertCircle, Clock, Users, BarChart3, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useDebouncedCallback } from 'use-debounce';
 import { getJigyasaTracker, processJigyasaRegistration, processJigyasaAttendance } from '@/lib/endpoints-sdk';
 import type { GetJigyasaTrackerOutputType } from '@/lib/endpoints-sdk';
@@ -55,17 +55,17 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
   const regInputRef = useRef<HTMLInputElement>(null);
   const attInputRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+  const load = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getJigyasaTracker({
+      const res = await read(() => getJigyasaTracker({
         tab: activeTab,
         centre: centre || undefined,
         affiliate: affiliate || undefined,
         search: search || undefined,
         offset,
         limit: activeTab === 'sessions' ? 2000 : PAGE_SIZE,
-      });
+      }));
       setRegistrations(res.registrations);
       setSessionRecords(res.sessionRecords);
       setProcessedFiles(res.processedFiles);
@@ -73,13 +73,14 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
       setHasMore(res.hasMore);
       setTotalCount(res.totalCount);
     } catch (e: any) {
+      if (read.cancelled) return;
       toast.error(e.message || 'Failed to load tracker');
     }
     if (!silent) setLoading(false);
   }, [activeTab, centre, affiliate, search, offset]);
 
   useEffect(() => { load(); }, [load]);
-  useRealtimeRefresh(['attendance', 'users'], () => load(true));
+
 
   const debouncedSearch = useDebouncedCallback((v: string) => { setSearch(v); setOffset(0); }, 400);
 

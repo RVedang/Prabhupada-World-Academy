@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAttendanceDashboard } from '@/lib/endpoints-sdk';
@@ -6,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { ArrowLeft, Download, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { useDebouncedCallback } from 'use-debounce';
@@ -34,10 +34,10 @@ export default function AttendanceDashboardPage() {
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
 
-  const fetch = useCallback(async (o: number, silent = false) => {
-    if (!silent) setLoading(true);
+  const fetch = useReactiveLoader(async (read, o: number, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
-      const res = await getAttendanceDashboard({
+      const res = await read(() => getAttendanceDashboard({
         eventId: eventId || undefined,
         sessionId: sessionId || undefined,
         startDate: startDate || undefined,
@@ -45,7 +45,7 @@ export default function AttendanceDashboardPage() {
         search: search || undefined,
         offset: o,
         limit: PAGE_SIZE,
-      });
+      }));
       setRecords(res.records);
       setTotalCount(res.totalCount);
       setUniqueParticipants(res.uniqueParticipants);
@@ -54,13 +54,14 @@ export default function AttendanceDashboardPage() {
       setHasMore(res.hasMore);
       setOffset(o);
     } catch (e: any) {
+      if (read.cancelled) return;
       toast.error(e.message || 'Failed to load');
     }
     if (!silent) setLoading(false);
   }, [eventId, sessionId, startDate, endDate, search]);
 
   useEffect(() => { fetch(0); }, [fetch]);
-  useRealtimeRefresh(['attendance'], () => fetch(offset, true));
+
 
   const debouncedSetSearch = useDebouncedCallback((v: string) => setSearch(v), 400);
 

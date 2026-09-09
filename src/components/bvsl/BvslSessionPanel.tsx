@@ -9,7 +9,7 @@ import { CheckSquare, Users, CheckCircle2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import GroupSelect from '@/components/bvsl/GroupSelect';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { format } from 'date-fns';
 import { getAttendanceForDate, conductBvSession } from '@/lib/endpoints-sdk';
 import type { GetAttendanceForDateOutputType, GetBvslGroupsOutputType } from '@/lib/endpoints-sdk';
@@ -33,12 +33,13 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
   const [sessionExists, setSessionExists] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const loadAttendance = useCallback(async (groupId: string, date: string, silent = false) => {
+  const loadAttendance = useReactiveLoader(async (read, groupId: string, date: string, silent = false) => {
     if (!groupId || !date) return;
-    if (!silent) setLoading(true);
+    if (!silent && !read.background) setLoading(true);
     try {
-      const res = await getAttendanceForDate({ groupId, date });
+      const res = await read(() => getAttendanceForDate({ groupId, date }));
       setMembers(res.members);
       setSessionExists(res.sessionExists);
       if (res.totalMeetingMinutes) setTotalMeetingMinutes(res.totalMeetingMinutes);
@@ -63,16 +64,17 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
         // Default: all present for a new date
         setPresentIds(new Set(res.members.map((m: AttendanceMember) => m.userDbId)));
       }
-    } catch { toast.error('Failed to load members'); }
-    finally { if (!silent) setLoading(false); }
-  }, []);
+    } catch { if (!read.cancelled && !read.background) toast.error('Failed to load members'); }
+    finally { if (!read.cancelled && !silent) setLoading(false); }
+  }, [], !hasUnsavedChanges && !saving);
 
   useEffect(() => {
+    setHasUnsavedChanges(false);
     if (selectedGroupId && sessionDate) loadAttendance(selectedGroupId, sessionDate);
   }, [selectedGroupId, sessionDate, loadAttendance]);
-  useRealtimeRefresh(['attendance', 'groups'], () => loadAttendance(selectedGroupId, sessionDate, true), Boolean(selectedGroupId && sessionDate));
 
   const togglePresent = (userDbId: string) => {
+    setHasUnsavedChanges(true);
     setPresentIds(prev => {
       const next = new Set(prev);
       if (next.has(userDbId)) {
@@ -89,6 +91,7 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
   };
 
   const handleAttendedMinutesChange = (userDbId: string, val: number) => {
+    setHasUnsavedChanges(true);
     const clamped = Math.max(0, Math.min(totalMeetingMinutes, val));
     setAttendedMinutesMap(prev => ({ ...prev, [userDbId]: clamped }));
     if (clamped > 0 && !presentIds.has(userDbId)) {
@@ -130,6 +133,8 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
       } as any);
       toast.success(res.message || 'Attendance saved!');
       setSessionExists(true);
+      setHasUnsavedChanges(false);
+      await loadAttendance(selectedGroupId, sessionDate, true);
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save attendance');
     } finally { setSaving(false); }
@@ -186,7 +191,7 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
                 min={15}
                 max={300}
                 value={totalMeetingMinutes}
-                onChange={e => setTotalMeetingMinutes(Math.max(1, parseInt(e.target.value) || 60))}
+                onChange={e => { setHasUnsavedChanges(true); setTotalMeetingMinutes(Math.max(1, parseInt(e.target.value) || 60)); }}
                 className="h-9 w-20 text-center font-bold"
               />
               <span className="text-xs text-muted-foreground font-medium">mins</span>
@@ -214,6 +219,7 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
                   <Button size="sm" variant="outline" className="h-7 text-xs"
                     onClick={() => {
                       setPresentIds(new Set(members.map(m => m.userDbId)));
+                      setHasUnsavedChanges(true);
                       const m: Record<string, number> = {};
                       members.forEach(mem => { m[mem.userDbId] = totalMeetingMinutes; });
                       setAttendedMinutesMap(m);
@@ -223,6 +229,7 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
                   <Button size="sm" variant="outline" className="h-7 text-xs"
                     onClick={() => {
                       setPresentIds(new Set());
+                      setHasUnsavedChanges(true);
                       setAttendedMinutesMap({});
                     }}>
                     All Absent
@@ -265,6 +272,7 @@ export default function BvslAttendancePanel({ bvslId, groups }: Props) {
                               value={localMinutesMap[m.userDbId] ?? String(attMinutes)}
                               onChange={e => {
                                 // Allow free typing by keeping local string state
+                                setHasUnsavedChanges(true);
                                 setLocalMinutesMap(prev => ({ ...prev, [m.userDbId]: e.target.value }));
                               }}
                               onBlur={e => commitMinutes(m.userDbId, e.target.value)}

@@ -12,7 +12,7 @@ import { TrendingDown, Users, RefreshCw, Lightbulb, CheckCircle2, CheckCircle } 
 import { toast } from 'sonner';
 import { getBvPreachingReport } from '@/lib/endpoints-sdk';
 import type { GetBvPreachingReportOutputType } from '@/lib/endpoints-sdk';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 
 type Period = 'prev_week' | 'prev_month' | 'this_month';
 type BvslRow = GetBvPreachingReportOutputType['bvsls'][0];
@@ -132,19 +132,18 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds, segm
   const [loading, setLoading] = useState(false);
   const [data, setData]       = useState<GetBvPreachingReportOutputType | null>(null);
 
-  const load = (silent = false) => {
+  const load = useReactiveLoader(async (read, silent = false) => {
     const params = getPeriodParams(period);
-    if (!silent) setLoading(true);
-    getBvPreachingReport({ guideId, ...params, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined, segment })
+    if (!silent && !read.background) setLoading(true);
+    await read(() => getBvPreachingReport({ guideId, ...params, bvslMode, residencyIds: residencyIds && residencyIds.length > 0 ? residencyIds : undefined, segment }))
       .then(res => setData(res as any))
-      .catch(() => toast.error('Failed to load improvement data'))
+      .catch(() => { if (!read.cancelled && !read.background) toast.error('Failed to load improvement data'); })
       .finally(() => { if (!silent) setLoading(false); });
-  };
+  }, []);
 
   useEffect(() => { load(); }, [guideId, period, bvslMode, segment]);
   // Event-driven refresh after an RGF submits the Bhakti Vriksha section of
   // Sadhana. This is not polling and keeps improvement in sync with Stats.
-  useRealtimeRefresh(['sadhana'], () => load(true));
 
   const submitted    = useMemo(() => (data?.bvsls || []).filter(r => r.submitted), [data]);
   const isMemberScope = (data as any)?.subjectType === 'members';

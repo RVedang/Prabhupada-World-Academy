@@ -1,6 +1,9 @@
 import { z } from 'zod';
-import { createEndpoint, Meetings, PushSubscriptions, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, Meetings, AppError, getFirestoreDb } from '@/lib/backend-sdk';
 import { storeBroadcast } from '@/lib/notificationBroadcast';
+import { claimMeetingReminder, reminderHash } from '@/lib/meetingReminderDispatch';
+import { resolveMeetingRecipients, meetingSubscriptionTargets, identityKeys } from '@/lib/meetingReminderRecipients';
+import { meetingStartMs, reminderWindow, MEETING_REMINDERS } from '@/lib/meetingReminderSchedule';
 
 // ── VAPID + Web Push helpers (pure Web Crypto — no npm packages) ──
 
@@ -133,7 +136,7 @@ async function sendPush(
   payloadStr: string,
   vapidPrivate: string,
   vapidPublic: string,
-): Promise<boolean> {
+): Promise<number> {
   const url = new URL(sub.endpoint);
   const audience = `${url.protocol}//${url.host}`;
 
@@ -148,13 +151,14 @@ async function sendPush(
       'Content-Type': 'application/octet-stream',
       'Content-Encoding': 'aes128gcm',
       'Content-Length': String(body.length),
-      TTL: '86400',
+      TTL: '600',
       Authorization: `vapid t=${token}, k=${vapidPubB64}`,
     },
     body: body.buffer as ArrayBuffer,
+    signal: AbortSignal.timeout(8000),
   });
 
-  return resp.status >= 200 && resp.status < 300;
+  return resp.status;
 }
 
 export default createEndpoint({
@@ -162,7 +166,7 @@ export default createEndpoint({
   public: true,
   inputSchema: z.object({
     meetingId: z.string().min(1),
-    reminderType: z.enum(['TEN_MINUTES', 'ONE_MINUTE']).optional().default('TEN_MINUTES'),
+    reminderType: z.enum(['ONE_HOUR', 'TEN_MINUTES', 'ONE_MINUTE']).optional().default('TEN_MINUTES'),
     // Used only by the server scheduler. Interactive sends still require the
     // caller to hold the meetings.manage capability.
     cronSecret: z.string().min(16).max(256).optional(),
@@ -175,7 +179,11 @@ export default createEndpoint({
     inAppRecipients: z.number(),
     message: z.string(),
   }),
-  execute: async ({ input, context }: { input: any; context: any }) => {
+  execute: async ({ input, context }: { input: any; context: any }) => executeMeetingReminder(input, context),
+});
+
+/** Dependency arguments allow isolated delivery tests without contacting Firebase or participants. */
+export async function executeMeetingReminder(input: any, context: any, db = getFirestoreDb(), publish = storeBroadcast) {
     const validCronSecrets = [process.env.APP_CRON_SECRET, process.env.ZITE_CRON_SECRET].filter(Boolean);
     const isCron = !!input.cronSecret && validCronSecrets.includes(input.cronSecret);
     const canManageMeetings = !!(
@@ -189,167 +197,83 @@ export default createEndpoint({
       throw new AppError({ code: 'FORBIDDEN', message: 'FOLK meeting reminders are disabled' });
     }
 
-    // Load meeting details
+    const empty = (message: string) => ({ success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message });
+    // Compatibility with older open tabs; the current schedule has no 1-minute send.
+    if (input.reminderType === 'ONE_MINUTE') return empty('The 1-minute reminder has been replaced by the 1-hour reminder.');
+    const type = input.reminderType || 'TEN_MINUTES';
+    const definition = MEETING_REMINDERS.find(item => item.type === type)!;
     const meeting = await Meetings.findOne({ id: input.meetingId });
-    if (!meeting) {
-      throw new AppError({ code: 'NOT_FOUND', message: 'Meeting not found' });
-    }
+    if (!meeting) throw new AppError({ code: 'NOT_FOUND', message: 'Meeting not found' });
     if (String(meeting.segment || 'PW').trim().toUpperCase() === 'FOLK') {
       throw new AppError({ code: 'FORBIDDEN', message: 'FOLK meeting reminders are disabled' });
     }
+    const start = meetingStartMs(String(meeting.scheduledAt || ''));
+    const window = reminderWindow(start, type);
+    if (!Number.isFinite(start) || String(meeting.status || 'SCHEDULED').toUpperCase() !== 'SCHEDULED'
+      || Date.now() < window.from || Date.now() >= window.until) return empty('This reminder is not due.');
+    if (meeting[definition.sentField]) return empty('This reminder has already been completed.');
 
-    // Check if the reminder is already sent to avoid duplicate processing
-    if (input.reminderType === 'ONE_MINUTE') {
-      if (meeting.notification1mSent) {
-        return { success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message: '1-minute reminder already sent.' };
-      }
-    } else {
-      if (meeting.notification10mSent) {
-        return { success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message: '10-minute reminder already sent.' };
-      }
-    }
-
-    const inviteeIds = [...new Set<string>((meeting.inviteeUserIds || [])
-      .map((value: unknown) => String(value).trim())
-      .filter(Boolean))];
-    const inviteeEmails = [...new Set<string>((meeting.invitees || [])
-      .map((invitee: any) => String(invitee.email || '').trim().toLowerCase())
-      .filter(Boolean))];
-    if (inviteeIds.length === 0 && inviteeEmails.length === 0) {
-      return { success: true, sent: 0, failed: 0, skipped: 0, inAppRecipients: 0, message: 'No invitees to notify.' };
-    }
-
-    // Get all subscriptions
-    const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
-
-    // Current subscriptions use the canonical Users document ID. Historical
-    // meetings can contain a public userId, so retain the denormalized email
-    // as a second stable match rather than silently dropping those invitees.
-    const targetSubs = subs.filter(sub => {
-      const uid = String(Array.isArray(sub.user) ? sub.user[0] : sub.user || '').trim();
-      const email = String(sub.email || '').trim().toLowerCase();
-      return (uid && inviteeIds.includes(uid)) || (email && inviteeEmails.includes(email));
-    });
-
-    // Format meeting start time for notifications
-    const scheduledDateStr = meeting.scheduledAt.includes('T') && !meeting.scheduledAt.endsWith('Z') && !meeting.scheduledAt.includes('+')
-      ? `${meeting.scheduledAt}+05:30`
-      : meeting.scheduledAt;
-
-    const startStr = new Date(scheduledDateStr).toLocaleTimeString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-
-    let title = '';
-    let body = '';
-    if (input.reminderType === 'ONE_MINUTE') {
-      title = `📅 The meeting is starting`;
-      body = `"${meeting.title}" starts in 1 minute. Click to open.`;
-    } else {
-      title = `📅 Meeting starting in 10 minutes!`;
-      body = `"${meeting.title}" starts at ${startStr} IST. Click to open.`;
-    }
-
-    const broadcastId = `meeting-${meeting.id}-${input.reminderType.toLowerCase()}-${Date.now()}`;
-
-    const targetUrl = meeting.locationOrLink && meeting.locationOrLink.trim()
-      ? (meeting.locationOrLink.trim().startsWith('http') ? meeting.locationOrLink.trim() : `https://${meeting.locationOrLink.trim()}`)
-      : `/dashboard#meetings`;
-
-    const payload = {
-      id: broadcastId,
-      title,
-      body,
-      slot: 'meeting',
-      url: targetUrl,
-      inviteeIds,
-      inviteeEmails,
-    };
-    const payloadStr = JSON.stringify(payload);
-
-    let sent = 0;
-    let failed = 0;
-    let skipped = 0;
-
-    const vapidPrivate =
-      process.env.APP_VAPID_PRIVATE_KEY ||
-      process.env.ZITE_VAPID_PRIVATE_KEY ||
-      process.env.VAPID_PRIVATE_KEY ||
-      '';
-    const vapidPublic =
-      process.env.APP_VAPID_PUBLIC_KEY ||
-      process.env.ZITE_VAPID_PUBLIC_KEY ||
-      process.env.VAPID_PUBLIC_KEY ||
-      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-      'BAarbQem_U8AvpVQFhZuwDGpEML2AV7iG-Ts4EVRyM3PpJXDS1EevhEE5E85OUv56u9BiTo_27qo8nLW_JOMwtw';
-
-    if (targetSubs.length > 0 && (!vapidPrivate || !vapidPublic)) {
-      throw new AppError({ code: 'INTERNAL_ERROR', message: 'VAPID keys are not configured' });
-    }
-
-    if (targetSubs.length > 0) {
-      const batchSize = 10;
-      for (let i = 0; i < targetSubs.length; i += batchSize) {
-        const batch = targetSubs.slice(i, i + batchSize);
-        const results = await Promise.allSettled(
-          batch.map(async (sub) => {
-            const ok = await sendPush(
-              { endpoint: sub.endpoint || '', p256dh: sub.p256DhKey || '', auth: sub.authKey || '' },
-              payloadStr,
-              vapidPrivate,
-              vapidPublic,
-            );
-            return ok;
-          })
-        );
-        for (const r of results) {
-          if (r.status === 'fulfilled' && r.value) sent++;
-          else failed++;
-        }
-      }
-    } else {
-      skipped = Math.max(inviteeIds.length, inviteeEmails.length);
-    }
-
-    // Publish the in-app broadcast for every invitee, independently of
-    // whether they have opted in to device notifications.
-    const inAppRecipients = Math.max(inviteeIds.length, inviteeEmails.length);
+    const lease = await claimMeetingReminder(meeting.id, meeting.scheduledAt, type, db);
+    if (!lease) return empty('This reminder is being processed.');
     try {
-      await storeBroadcast(title, body, 'meeting', undefined, broadcastId, inviteeIds, targetUrl, inviteeEmails);
-    } catch (e) {
-      // Keep the reminder retryable if the foreground delivery channel fails.
-      console.error('[Meeting Notification] Store broadcast failed:', e);
-      throw new AppError({ code: 'INTERNAL_ERROR', message: 'Meeting reminder could not be published. It will be retried.' });
+      const recipients = await resolveMeetingRecipients(meeting);
+      const inviteeIds = [...new Set(recipients.flatMap(user => user.ids))];
+      const inviteeEmails = [...new Set(recipients.map(user => user.email).filter(Boolean))];
+      if (!recipients.length) return empty('No participants to notify.');
+      const startStr = new Date(start).toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true,
+      });
+      const title = '📅 Upcoming meeting';
+      const body = `"${meeting.title}" starts at ${startStr} IST. Tap to join.`;
+      const broadcastId = `meeting-${lease.key}`;
+      const link = String(meeting.locationOrLink || '').trim();
+      const targetUrl = link ? (/^https?:\/\//i.test(link) ? link : `https://${link}`) : '/dashboard#meetings';
+      const audience = reminderHash([inviteeIds.slice().sort(), inviteeEmails.slice().sort()]);
+      // In-app delivery must not depend on push subscriptions or working VAPID keys.
+      if (lease.checkpoint.broadcastAudience !== audience) {
+        await publish(title, body, 'meeting', undefined, broadcastId, inviteeIds, targetUrl, inviteeEmails, 'PW');
+        lease.checkpoint.broadcastAudience = audience;
+        await lease.save();
+      }
+      const targetSubs = await meetingSubscriptionTargets(recipients);
+      // Recipient lists are not needed on a device and can exceed Web Push payload limits.
+      const payload = JSON.stringify({ id: broadcastId, title, body, slot: 'meeting', url: targetUrl });
+      const vapidPrivate = process.env.APP_VAPID_PRIVATE_KEY || process.env.ZITE_VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY || '';
+      const vapidPublic = process.env.APP_VAPID_PUBLIC_KEY || process.env.ZITE_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+      const delivered = new Set<string>(lease.checkpoint.delivered);
+      const retired = new Set<string>(lease.checkpoint.retired);
+      const keyOf = (sub: any) => reminderHash([sub.endpoint, sub.p256DhKey, sub.authKey]);
+      const pending = targetSubs.filter(sub => !delivered.has(keyOf(sub)) && !retired.has(keyOf(sub)));
+      let sent = 0, failed = 0;
+      let skipped = recipients.filter(user => !targetSubs.some(sub => {
+        const keys = identityKeys(sub);
+        return user.ids.some(id => keys.includes(id)) || (user.email && user.email === String(sub.email || '').trim().toLowerCase());
+      })).length;
+      const deadline = Date.now() + 40_000;
+      for (let offset = 0; offset < pending.length; offset += 10) {
+        if (Date.now() >= deadline || Date.now() >= window.until) { failed += pending.length - offset; break; }
+        const batch = pending.slice(offset, offset + 10);
+        const results = await Promise.allSettled(batch.map(async sub => {
+          if (!vapidPrivate || !vapidPublic) throw new Error('VAPID keys are not configured');
+          return sendPush({ endpoint: sub.endpoint, p256dh: sub.p256DhKey || '', auth: sub.authKey || '' }, payload, vapidPrivate, vapidPublic);
+        }));
+        for (let index = 0; index < results.length; index++) {
+          const result = results[index], sub = batch[index];
+          if (result.status === 'fulfilled' && result.value >= 200 && result.value < 300) {
+            sent++; delivered.add(keyOf(sub));
+          } else if (result.status === 'fulfilled' && [404, 410].includes(result.value)) {
+            // Gone subscriptions cannot receive another push. Other devices still can.
+            skipped++; retired.add(keyOf(sub));
+          } else failed++;
+        }
+        lease.checkpoint.delivered = [...delivered];
+        lease.checkpoint.retired = [...retired];
+        await lease.save();
+      }
+      if (!failed) await lease.complete(meeting.id, meeting.scheduledAt, definition.sentField, reminderHash([meeting.inviteeUserIds, meeting.invitees]));
+      return { success: failed === 0, sent, failed, skipped, inAppRecipients: recipients.length,
+        message: `Reminder published for ${recipients.length} participants. ${sent} device notifications accepted; ${failed} will be retried.` };
+    } finally {
+      await lease.save(true);
     }
-
-    // Update meeting doc in database so it is marked as sent
-    const dbUpdate: any = {
-      updatedAt: new Date().toISOString(),
-      lastNotificationSentAt: new Date().toISOString(),
-    };
-
-    if (input.reminderType === 'ONE_MINUTE') {
-      dbUpdate.notification1mSent = true;
-    } else {
-      dbUpdate.notification10mSent = true;
-      dbUpdate.notificationSent = true; // backward compatibility
-    }
-
-    await Meetings.update({
-      id: meeting.id,
-      record: dbUpdate,
-    });
-
-    return {
-      success: true,
-      sent,
-      failed,
-      skipped,
-      inAppRecipients,
-      message: `Meeting reminder published for ${inAppRecipients} invitee${inAppRecipients === 1 ? '' : 's'} and dispatched to ${sent} active device${sent === 1 ? '' : 's'}.`,
-    };
-  },
-});
+}

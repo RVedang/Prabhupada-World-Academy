@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,7 +13,6 @@ import { Loader2, Plus, Users, ShieldCheck, Clock, BookOpen, ChevronRight } from
 import { createBvGroup, getBvslGroups, getAllBvGroupsAdmin, getGuideUsers, updateBvGroup, getClientCachedQuery } from '@/lib/app-endpoints-sdk';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const TIME_PREFERENCES = [
   '7:45 PM – 8:15 PM (Everyday)',
@@ -81,8 +81,8 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
   const [timeSelectionMode, setTimeSelectionMode] = useState<'select' | 'custom'>('select');
   const [creatingGroup, setCreatingGroup] = useState(false);
 
-  const loadData = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+  const loadData = useReactiveLoader(async (read, silent = false) => {
+    if (!silent) !read.background && setLoading(true);
     try {
       if (!isSuperAdmin) {
         if (!guideId) {
@@ -94,7 +94,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
         }
         // Guide view is server-scoped to this guide. Do not load every FOLK
         // group and attempt to hide unrelated groups in the browser.
-        const scoped = await getAllBvGroupsAdmin({ guideId });
+        const scoped = await read(() => getAllBvGroupsAdmin({ guideId }));
         setGroups((scoped.groups || []).map((g: any) => ({
           ...g,
           id: g.groupDbId || g.groupId,
@@ -113,8 +113,8 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
         })));
       } else {
         const [grpRes, rgfUsersRes] = await Promise.all([
-          getBvslGroups({ bvslId: 'ALL' }).catch(() => ({ groups: [] })),
-          getGuideUsers({ guideId: 'ALL', statusFilter: 'active', minimal: true } as any).catch(() => ({ users: [] })),
+          read(() => getBvslGroups({ bvslId: 'ALL' })).catch(() => ({ groups: [] })),
+          read(() => getGuideUsers({ guideId: 'ALL', statusFilter: 'active', minimal: true } as any)).catch(() => ({ users: [] })),
         ]);
         const allGroups = grpRes.groups || [];
         setGroups(segment ? allGroups.filter((g: any) => g.segment === segment) : allGroups);
@@ -129,12 +129,13 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
           })));
       }
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load BV management data');
     } finally {
       if (!silent) setLoading(false);
     }
   }, [guideId, isSuperAdmin, segment, setGroups, setGuides, setLoading]);
-  useRealtimeRefresh(['groups', 'users'], () => loadData(true), Boolean(isSuperAdmin || guideId));
+
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +157,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
       return;
     }
     if (!newGroupBvslId) {
-      toast.error('Please select a Reading Group Facilitator');
+      toast.error('Please select an RGF');
       return;
     }
     setCreatingGroup(true);
@@ -193,7 +194,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
     <div className="space-y-6">
       {/* Active Groups Card */}
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" /> Bhakti Vriksha Groups & Role Management
@@ -238,7 +239,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
                             {group.groupName}
                           </h4>
                           <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                            Facilitator: {group.bvslName || 'Unassigned'}
+                            RGF: {group.bvslName || 'Unassigned'}
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -328,7 +329,7 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
               <Plus className="w-5 h-5 text-primary" /> Create New Reading Group
             </DialogTitle>
             <DialogDescription>
-              Add a new Bhakti Vriksha reading group and assign a Reading Group Facilitator (RGF).
+              Add a new Bhakti Vriksha reading group and assign an RGF.
             </DialogDescription>
           </DialogHeader>
 
@@ -343,10 +344,10 @@ export default function BvAdminManagementTab({ segment: propSegment, guideId = '
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Assign Facilitator (RGF) *</Label>
+              <Label className="text-xs font-semibold">Assign RGF *</Label>
               <Select value={newGroupBvslId || undefined} onValueChange={(val: string | null) => setNewGroupBvslId(val || '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select facilitator...">
+                  <SelectValue placeholder="Select RGF...">
                     {newGroupBvslId ? (guides.find(g => g.guideId === newGroupBvslId)?.name || newGroupBvslId) : null}
                   </SelectValue>
                 </SelectTrigger>

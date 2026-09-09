@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,15 +25,16 @@ export default function UserSkillsTab() {
 
   useEffect(() => { load(); }, []);
 
-  const load = async () => {
+  const load = useReactiveLoader(async (read) => {
     try {
-      const [res, catRes] = await Promise.all([getUserSkills({}), getAvailableSkills({})]);
-      setUsers(res.users);
-      setSkills(res.skills);
-      setCatalog(catRes.skills);
-    } catch { toast.error('Failed to load skills'); }
-    finally { setLoading(false); setRefreshing(false); }
-  };
+      const [res, catRes] = await Promise.all([read(() => getUserSkills({})), read(() => getAvailableSkills({}))]);
+      !read.cancelled && setUsers(res.users);
+      !read.cancelled && setSkills(res.skills);
+      !read.cancelled && setCatalog(catRes.skills);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load skills'); }
+    finally { !read.cancelled && setLoading(false); !read.cancelled && setRefreshing(false); }
+  }, []);
 
   const refresh = () => { setRefreshing(true); load(); };
 

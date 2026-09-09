@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,15 +26,16 @@ export default function BvSessionReportTab({ guideId }: Props) {
   const [groupFilter, setGroupFilter] = useState('all');
   const [data, setData] = useState<GetBvSessionReportOutputType | null>(null);
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
+  const fetchReport = useReactiveLoader(async (read) => {
+    !read.background && setLoading(true);
     try {
-      const result = await getBvSessionReport({
+      const result = await read(() => getBvSessionReport({
         guideId, startDate, endDate,
         groupId: groupFilter !== 'all' ? groupFilter : undefined,
-      });
+      }));
       setData(result);
-    } catch { toast.error('Failed to load session report'); }
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load session report'); }
     finally { setLoading(false); }
   }, [guideId, startDate, endDate, groupFilter]);
 
@@ -144,7 +147,7 @@ export default function BvSessionReportTab({ guideId }: Props) {
           {sessions.length > 0 ? (
             <Card>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <TableScrollArea className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b bg-muted/50">
@@ -176,7 +179,7 @@ export default function BvSessionReportTab({ guideId }: Props) {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </TableScrollArea>
               </CardContent>
             </Card>
           ) : (

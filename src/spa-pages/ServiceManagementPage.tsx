@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-sdk';
@@ -7,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Download, Upload, Save, FileSpreadsheet, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { exportServiceAllocation, importServiceAllocation, getResidenciesForGuide } from '@/lib/endpoints-sdk';
 import { exportToCsv } from '@/utils/exportCsv';
 import { getCurrentServiceWeekStart } from '@/lib/serviceWeek';
@@ -57,26 +58,25 @@ export default function ServiceManagementPage() {
   // edits: serviceId → weekDate → { userId, dayOfWeek } | null (null = pending clear)
   const [edits, setEdits] = useState<Record<string, Record<string, CellEdit>>>({});
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (authLoading || !user) return;
-    getResidenciesForGuide({}).then((res: any) => {
+    read(() => getResidenciesForGuide({})).then((res: any) => {
       const list = Array.isArray(res) ? res : [];
-      setResidencies(list);
-      if (list.length > 0) setResidencyId(list[0].residencyId);
+      !read.cancelled && setResidencies(list);
+      if (!read.cancelled) setResidencyId(current => list.some((item: any) => item.residencyId === current) ? current : list[0]?.residencyId || '');
     }).catch(() => {});
   }, [authLoading, user]);
 
-  const load = (silent = false) => {
+  const load = useReactiveLoader(async (read, silent = false) => {
     if (!residencyId || !weekDate) return;
-    if (!silent) setLoading(true);
-    exportServiceAllocation({ serviceType, residencyId, weekDate })
-      .then((d: any) => { setData(d); setEdits({}); })
-      .catch(() => toast.error('Failed to load allocation data'))
-      .finally(() => { if (!silent) setLoading(false); });
-  };
+    if (!silent && !read.background) setLoading(true);
+    await read(() => exportServiceAllocation({ serviceType, residencyId, weekDate }))
+      .then((d: any) => { setData(d); if (!read.background) setEdits({}); })
+      .catch(() => { if (!read.cancelled && !read.background) toast.error('Failed to load allocation data'); })
+      .finally(() => { if (!silent && !read.cancelled) setLoading(false); });
+  }, [], Object.keys(edits).length === 0 && !saving);
 
   useEffect(() => { load(); }, [serviceType, residencyId, weekDate]);
-  useRealtimeRefresh(['services'], () => load(true), Boolean(residencyId && weekDate));
 
   const handleEdit = (serviceId: string, wDate: string, userId: string, dayOfWeek: string) => {
     setEdits(prev => ({

@@ -1,3 +1,4 @@
+import { useReactiveEffect } from '@/hooks/useReactiveEffect';
 import { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
@@ -44,24 +45,24 @@ export default function Devotee360Drawer({ open, onClose, devotee }: Props) {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [logModalOpen, setLogModalOpen] = useState(false);
 
-  useEffect(() => {
+  useReactiveEffect((read) => {
     if (!devotee || !open) return;
 
     const loadData = async () => {
       try {
-        setLoading(true);
+        !read.background && !read.cancelled && setLoading(true);
         const [crmRes, meetingRes] = await Promise.all([
-          getUserCrmData({ userId: devotee.userId || devotee.id }).catch(() => null),
-          getOneToOneMeetings({ userDbId: devotee.id }).catch(() => null),
+          read(() => getUserCrmData({ userId: devotee.userId || devotee.id })).catch(() => null),
+          read(() => getOneToOneMeetings({ userDbId: devotee.id })).catch(() => null),
         ]);
-        setCrmData(crmRes);
+        !read.cancelled && setCrmData(crmRes);
         if (meetingRes?.meetings) {
-          setMeetings(meetingRes.meetings);
+          !read.cancelled && setMeetings(meetingRes.meetings);
         }
       } catch (err) {
         console.error('Failed to load 360 CRM data:', err);
       } finally {
-        setLoading(false);
+        !read.cancelled && setLoading(false);
       }
     };
 

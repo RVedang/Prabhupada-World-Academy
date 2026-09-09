@@ -1,3 +1,4 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,14 +10,12 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Shield, UserMinus, UserPlus, BarChart3, Users, Activity, Search, XCircle } from 'lucide-react';
+import { Shield, UserMinus, UserPlus, BarChart3, Users, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllBvGroupsAdmin, getGuideUsers, tagUserAsBvsl } from '@/lib/endpoints-sdk';
 import type { GetAllBvGroupsAdminOutputType, GetGuideUsersOutputType } from '@/lib/endpoints-sdk';
 import BvAdminDataTable from '@/components/bv/BvAdminDataTable';
 import BvGroupManagerPanel from './BvGroupManagerPanel';
-import BvSadhanaMonitorPanel from './BvSadhanaMonitorPanel';
-import BvMissingSadhanaPanel from './BvMissingSadhanaPanel';
 
 import { useUserProfile } from '@/contexts/UserProfileContext';
 
@@ -36,18 +35,19 @@ export default function BvslManagementTab({ guideId }: Props) {
 
   useEffect(() => { loadBvslData(); }, [guideId]);
 
-  const loadBvslData = async () => {
-    setLoading(true);
+  const loadBvslData = useReactiveLoader(async (read) => {
+    !read.background && !read.cancelled && setLoading(true);
     try {
       const [adminRes, usersRes] = await Promise.all([
-        getAllBvGroupsAdmin({ guideId }),
-        getGuideUsers({ guideId, statusFilter: 'active', residencyFilter: 'all' }),
+        read(() => getAllBvGroupsAdmin({ guideId })),
+        read(() => getGuideUsers({ guideId, statusFilter: 'active', residencyFilter: 'all' })),
       ]);
-      setBvsls(adminRes.bvsls);
-      setGuideUsers(usersRes.users);
-    } catch { toast.error('Failed to load RGF data'); }
-    finally { setLoading(false); }
-  };
+      !read.cancelled && setBvsls(adminRes.bvsls);
+      !read.cancelled && setGuideUsers(usersRes.users);
+    } catch {
+      if (read.cancelled) return; toast.error('Failed to load RGF data'); }
+    finally { !read.cancelled && setLoading(false); }
+  }, []);
 
   const handleTag = async (userId: string, action: 'tag' | 'untag', name: string) => {
     setTagging(userId);
@@ -77,8 +77,6 @@ export default function BvslManagementTab({ guideId }: Props) {
       <TabsList className="mb-4 w-full sm:w-auto flex">
         <TabsTrigger value="bvsls" className="flex-1 sm:flex-none"><Shield className="w-4 h-4 mr-1 hidden sm:inline" />RGFs ({bvsls.length})</TabsTrigger>
         <TabsTrigger value="groups" className="flex-1 sm:flex-none"><Users className="w-4 h-4 mr-1 hidden sm:inline" />Groups & Members</TabsTrigger>
-        <TabsTrigger value="monitor" className="flex-1 sm:flex-none"><Activity className="w-4 h-4 mr-1 hidden sm:inline" />Sadhana Monitor</TabsTrigger>
-        <TabsTrigger value="missing" className="flex-1 sm:flex-none"><XCircle className="w-4 h-4 mr-1 hidden sm:inline" />Missing Sadhana</TabsTrigger>
         <TabsTrigger value="data" className="flex-1 sm:flex-none"><BarChart3 className="w-4 h-4 mr-1 hidden sm:inline" />Data Table</TabsTrigger>
       </TabsList>
 
@@ -185,14 +183,6 @@ export default function BvslManagementTab({ guideId }: Props) {
 
       <TabsContent value="groups">
         <BvGroupManagerPanel guideId={guideId} />
-      </TabsContent>
-
-      <TabsContent value="monitor">
-        <BvSadhanaMonitorPanel guideId={guideId} />
-      </TabsContent>
-
-      <TabsContent value="missing">
-        <BvMissingSadhanaPanel guideId={guideId} />
       </TabsContent>
 
       <TabsContent value="data">

@@ -34,7 +34,7 @@ export default createEndpoint({
   }),
   execute: async ({ input, context }: any) => {
     let groupRecords: any[] = [];
-    let defaultBvslName = 'Reading Group Facilitator';
+    let defaultBvslName = 'RGF';
     const isRgsfRequest = input.viewRole === 'RGSF';
     let rgsfCallerKeys = new Set<string>();
     let rgsfParentKeys = new Set<string>();

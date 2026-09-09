@@ -1,3 +1,5 @@
+import TableScrollArea from '@/components/mobile/TableScrollArea';
+import FilterPanel from '@/components/mobile/FilterPanel';
 /**
  * BvSessionMatrixTab — BV attendance matrix with FOLK-only quiz columns
  */
@@ -282,6 +284,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
           </div>
         </CardHeader>
         <CardContent>
+<FilterPanel summary={`${reportType} · ${dateLabel || ''}`}>
           <div className="flex flex-wrap gap-x-4 gap-y-2 items-center">
             <div className="flex items-center gap-1.5">
               <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
@@ -370,7 +373,8 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
               </div>
             )}
           </div>
-        </CardContent>
+</FilterPanel>
+                    </CardContent>
       </Card>
 
       {/* Loading skeleton */}
@@ -414,7 +418,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
           ) : (
             <Card>
               <CardContent className="p-0">
-                <div className="w-full overflow-x-auto">
+                <TableScrollArea className="w-full overflow-x-auto">
                   <table id="bv-matrix-table" className="w-full min-w-max text-xs border-collapse">
                     <thead>
                       {/* Row 1: date group headers */}
@@ -462,7 +466,7 @@ export default function BvSessionMatrixTab({ guideId, bvslMode, residencyIds, se
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScrollArea>
               </CardContent>
             </Card>
           )}

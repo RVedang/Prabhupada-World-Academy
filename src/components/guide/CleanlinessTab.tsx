@@ -1,3 +1,5 @@
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
+import TableScrollArea from '@/components/mobile/TableScrollArea';
 import { useState, useEffect, useCallback } from 'react';
 import { format, subDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -63,21 +65,21 @@ export default function CleanlinessTab({ guideId, residencies }: {
   const [deleteRoom, setDeleteRoom] = useState<Room | null>(null);
   const [occupantSearch, setOccupantSearch] = useState('');
 
-  const loadData = useCallback(async () => {
+  const loadData = useReactiveLoader(async (read) => {
     if (!residencyId) return;
-    setLoading(true);
+    !read.background && !read.cancelled && setLoading(true);
     try {
       const endDate = format(new Date(), 'yyyy-MM-dd');
       const startDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
       const [roomsRes, analyticsRes, usersRes] = await Promise.all([
-        getCleanlinessRooms({ residencyId }),
-        getCleanlinessAnalytics({ residencyId, startDate, endDate }),
-        getGuideUsers({ guideId }),
+        read(() => getCleanlinessRooms({ residencyId })),
+        read(() => getCleanlinessAnalytics({ residencyId, startDate, endDate })),
+        read(() => getGuideUsers({ guideId })),
       ]);
-      setRooms(roomsRes.rooms as Room[]);
-      setEnabled(roomsRes.enabled as boolean);
-      setAnalytics((analyticsRes as any).analytics || []);
-      setManagers((analyticsRes as any).managers || []);
+      !read.cancelled && setRooms(roomsRes.rooms as Room[]);
+      !read.cancelled && setEnabled(roomsRes.enabled as boolean);
+      !read.cancelled && setAnalytics((analyticsRes as any).analytics || []);
+      !read.cancelled && setManagers((analyticsRes as any).managers || []);
       // Only include active residents in this residency
       const users = ((usersRes as any).users || [])
         .filter((u: any) =>
@@ -86,11 +88,12 @@ export default function CleanlinessTab({ guideId, residencies }: {
           u.residencyId === residencyId
         )
         .map((u: any) => ({ id: u.userId, name: u.fullName || '' }));
-      setResidents(users);
+      !read.cancelled && setResidents(users);
     } catch {
+      if (read.cancelled) return;
       toast.error('Failed to load cleanliness data');
     }
-    setLoading(false);
+    !read.cancelled && setLoading(false);
   }, [residencyId, guideId]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -330,7 +333,7 @@ export default function CleanlinessTab({ guideId, residencies }: {
             {analytics.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">No inspection data yet. Once a Cleanliness Manager starts rating rooms, analytics will appear here.</p>
             ) : (
-              <div className="bg-card border rounded-lg overflow-x-auto">
+              <TableScrollArea className="bg-card border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
@@ -354,7 +357,7 @@ export default function CleanlinessTab({ guideId, residencies }: {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableScrollArea>
             )}
           </div>
         </>

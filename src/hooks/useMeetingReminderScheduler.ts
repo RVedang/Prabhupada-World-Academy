@@ -1,15 +1,9 @@
+import { MEETING_REMINDERS, meetingStartMs, reminderWindow } from '@/lib/meetingReminderSchedule';
 import { useCallback, useEffect, useRef } from 'react';
 import { getMeetings, sendMeetingReminder } from '@/lib/endpoints-sdk';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useReactiveLoader } from '@/hooks/useReactiveLoader';
 
 type MeetingDepartment = 'FOLK' | 'PW';
-
-function meetingStartMs(value: string): number {
-  const normalized = value.includes('T') && !value.endsWith('Z') && !value.includes('+')
-    ? `${value}+05:30`
-    : value;
-  return new Date(normalized).getTime();
-}
 
 /**
  * Schedules exact one-shot browser timers from a scoped meeting query.
@@ -28,23 +22,20 @@ export function useMeetingReminderScheduler(
     timersRef.current = [];
   }, []);
 
-  const schedule = useCallback(async () => {
+  const schedule = useReactiveLoader(async (read) => {
     clearTimers();
     if (!enabled || typeof window === 'undefined') return;
     try {
-      const { meetings } = await getMeetings({ department });
+      const { meetings } = await read(() => getMeetings({ department }));
       const now = Date.now();
       for (const meeting of meetings || []) {
         if (String(meeting.status || '').toUpperCase() !== 'SCHEDULED') continue;
         const start = meetingStartMs(meeting.scheduledAt);
         if (!Number.isFinite(start) || start <= now) continue;
-        const reminders = [
-          { at: start - 10 * 60_000, type: 'TEN_MINUTES' as const, sent: meeting.notification10mSent },
-          { at: start - 60_000, type: 'ONE_MINUTE' as const, sent: meeting.notification1mSent },
-        ];
-        for (const reminder of reminders) {
-          if (reminder.sent || reminder.at <= now) continue;
-          const delay = reminder.at - now;
+        for (const reminder of MEETING_REMINDERS) {
+          const dueWindow = reminderWindow(start, reminder.type);
+          if (meeting[reminder.sentField] || now >= dueWindow.until) continue;
+          const delay = Math.max(0, dueWindow.from - now);
           // Browser timers cannot safely exceed a signed 32-bit delay. A
           // realtime meeting update or next app visit will schedule far-future
           // meetings closer to their start time.
@@ -56,6 +47,7 @@ export function useMeetingReminderScheduler(
         }
       }
     } catch (error) {
+      if (read.cancelled) return;
       if (process.env.NODE_ENV !== 'production') {
         console.warn('[Meeting Reminder] Unable to schedule scoped reminders.', error);
       }
@@ -66,5 +58,4 @@ export function useMeetingReminderScheduler(
     void schedule();
     return clearTimers;
   }, [schedule, clearTimers]);
-  useRealtimeRefresh(['meetings'], schedule, enabled);
 }
