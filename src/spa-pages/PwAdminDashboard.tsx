@@ -1,5 +1,6 @@
 import DashboardPanel from '@/components/DashboardPanel';
 import { useDashboardPrefetch } from '@/hooks/useDashboardPrefetch';
+import { dashboardScope } from '@/lib/dashboardScope';
 import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -102,7 +103,7 @@ export default function PwAdminDashboard() {
 
   useEffect(() => {
     if (user?.email) {
-      getCurrentGuide({ email: user.email }).then(r => {
+      getCurrentGuide({}).then(r => {
         if (r.guide?.fullName) setAdminName(r.guide.fullName);
       }).catch(() => {});
       getPushSubscriptionStats({ segment: 'PW' }).then(setPushStats).catch(() => {});
@@ -261,7 +262,7 @@ export default function PwAdminDashboard() {
         <div className="flex-1 min-w-0 bg-card border rounded-xl p-6 shadow-sm min-h-[500px]">
           <TabErrorBoundary tabName={activeTab}>
             <Suspense fallback={<LoadingPage rows={2} />}>
-              <TabTransition activeTab={activeTab}>
+              <TabTransition key={dashboardScope(profile)} activeTab={activeTab}>
                 {visitedTabs.has('sadhana') && (
                   <DashboardPanel active={activeTab === 'sadhana'}>
                     <div className="space-y-1 mb-4">

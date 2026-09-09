@@ -137,7 +137,7 @@ export default createEndpoint({
           body: [
             {
               type: 'text',
-              content: `Hare Krishna, ${input.fullName}!\n\nYour registration has been received successfully. 🙏\n\nYour assigned Folk Guide — <strong>${guideRecord.fullName ?? 'your guide'}</strong> — has been notified and will review your registration shortly.\n\nYou will receive another email as soon as your account is approved and you can start entering your daily Sadhana.`,
+              content: `Hare Krishna, ${input.fullName}!\n\nYour registration has been received successfully. 🙏\n\nYour assigned Folk Guide — <strong>${guideRecord?.fullName ?? 'your guide'}</strong> — has been notified and will review your registration shortly.\n\nYou will receive another email as soon as your account is approved and you can start entering your daily Sadhana.`,
             },
             { type: 'divider' },
             {

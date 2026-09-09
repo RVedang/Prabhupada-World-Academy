@@ -148,11 +148,15 @@ export default function RoleAcknowledgementHandler() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(val) => { if (!val && !busy) handleAcknowledge(); }}>
+    <Dialog open={open} onOpenChange={(val, details) => {
+      if (!val && ['escape-key', 'outside-press'].includes(details.reason)) {
+        details.cancel();
+        return;
+      }
+      if (!val && !busy) handleAcknowledge();
+    }}>
       <DialogContent
         showCloseButton={false}
-        onEscapeKeyDown={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
         className="sm:max-w-md text-center p-6 gap-4"
       >
         <div className="pt-2">

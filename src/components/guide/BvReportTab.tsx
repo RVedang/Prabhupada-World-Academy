@@ -148,7 +148,7 @@ export default function BvReportTab({ guideId, bvslMode, residencyIds, segment }
   const filteredBvsls = useMemo(() => {
     if (!data) return [];
     let rows = data.bvsls;
-    if (profile?.userId || (profile as any)?.id || profile?.fullName) {
+    if (profile && (profile.userId || (profile as any).id || profile.fullName)) {
       const myId = profile.userId || (profile as any)?.id;
       rows = rows.filter((r: any) => r.id !== myId && r.userId !== myId && r.fullName !== profile.fullName);
     }

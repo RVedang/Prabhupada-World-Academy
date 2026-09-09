@@ -56,7 +56,7 @@ function RotationDot({ userId, serviceId, rotationMap }: { userId: string; servi
   const info = rotationMap[key];
   if (!info || info.flag === 'fair') return null;
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={`w-2 h-2 rounded-full inline-block shrink-0 ${ROTATION_COLORS[info.flag]}`} />

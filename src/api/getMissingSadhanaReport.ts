@@ -53,14 +53,21 @@ export default createEndpoint({
       !!context.user.isBvSuperAdmin ||
       !!context.user.isBvAdmin;
 
-    // 1. Find guide record for scoping (regular guide only)
-    let guideRecord: any = null;
-    let guideRids: string[] = [];
-    if (!isSuperGuide) {
-      const scope = await getGuideScope(context.user.email || '');
-      guideRecord = scope ? { id: scope.guideId } : null;
-      guideRids = scope?.residencyIds || [];
-    }
+    const scopePromise = isSuperGuide ? Promise.resolve(null) : getGuideScope(context.user.email || '');
+    const hierarchyPromise = getScopedHierarchyUserIds(context.user);
+    const displayPromise = Promise.all([
+      getGuides.execute({ input: { segment: input.segment || 'ALL' }, context }),
+      getReportReferenceData(),
+    ]).then(([guideOptionsResult, reference]) => ({
+      reference,
+      availableGuides: (guideOptionsResult.guides || []).map((guide: any) => ({ id: guide.guideId, name: guide.name })),
+    }));
+    void hierarchyPromise.catch(() => {});
+    void displayPromise.catch(() => {});
+    // Member reads depend on scope, but not on the dropdown's display labels.
+    const scope = await scopePromise;
+    const guideRecord = scope ? { id: scope.guideId } : null;
+    const guideRids = scope?.residencyIds || [];
 
     // 2. Build user query filters
     const filters: any = { status: 'Active' };
@@ -77,32 +84,18 @@ export default createEndpoint({
       filters.residency = input.residencyId;
     }
 
-    // 3. Fetch users — guide-scoped + residency-based users
-    const [{ records: baseUsers }, guideOptionsResult, reference] = await Promise.all([
+    // Direct assignments and residency membership are independent queries.
+    const [{ records: baseUsers }, ...resFetches] = await Promise.all([
       Users.findAll({ filters, fields: USER_FIELDS, limit: 2000 }),
-      getGuides.execute({ input: { segment: input.segment || 'ALL' }, context }),
-      getReportReferenceData(),
+      ...(!isSuperGuide && guideRecord && !input.residencyId ? guideRids : []).map(rid =>
+        Users.findAll({ filters: { residency: rid, status: 'Active' }, fields: USER_FIELDS, limit: 500 })
+      ),
     ]);
-    let allUsers: any[] = [...baseUsers];
+    const userMap = new Map(baseUsers.map(user => [user.id, user]));
+    for (const result of resFetches) for (const user of result.records) userMap.set(user.id, user);
+    let allUsers = Array.from(userMap.values());
 
-    // Include residency-based users for regular guides (same logic as getGuideUsers)
-    if (!isSuperGuide && guideRecord && !input.residencyId) {
-      if (guideRids.length > 0) {
-        const resFetches = await Promise.all(
-          guideRids.map(rid =>
-            Users.findAll({ filters: { residency: rid, status: 'Active' }, fields: USER_FIELDS, limit: 500 })
-          )
-        );
-        const userMap = new Map<string, any>();
-        for (const u of allUsers) userMap.set(u.id, u);
-        for (const res of resFetches) {
-          for (const u of res.records) userMap.set(u.id, u);
-        }
-        allUsers = Array.from(userMap.values());
-      }
-    }
-
-    const scopedUserIds = await getScopedHierarchyUserIds(context.user);
+    const scopedUserIds = await hierarchyPromise;
     if (scopedUserIds !== null) {
       allUsers = allUsers.filter(u => {
         const uId = String(u.id || '').toLowerCase();
@@ -111,13 +104,6 @@ export default createEndpoint({
         return (uId && scopedUserIds.has(uId)) || (userIdStr && scopedUserIds.has(userIdStr)) || (emailStr && scopedUserIds.has(emailStr));
       });
     }
-
-    // The selector must not depend on whether members happen to exist for the
-    // chosen date range. Load the department's admins/guides independently.
-    const availableGuides = (guideOptionsResult.guides || []).map((g: any) => ({
-      id: g.guideId,
-      name: g.name,
-    }));
 
     // Generate the requested dates even when the member result is empty so the
     // report still shows the correct range and number of days.
@@ -141,26 +127,32 @@ export default createEndpoint({
       return {
         users: [],
         dates,
-        matrix: {},
+        matrix: {} as Record<string, Record<string, 'filled' | 'late' | 'missed'>>,
         stats: { totalUsers: 0, totalDays: dates.length, totalMissing: 0, totalLate: 0, completionRate: 100 },
-        guides: availableGuides,
+        guides: (await displayPromise).availableGuides,
       };
     }
 
-    // 5. Fetch all sadhana entries in range (paginated) — include submittedAt for late detection
-    const allEntries: any[] = [];
-    let offset = 0;
-    while (true) {
-      const { records, hasMore } = await SadhanaEntries.findAll({
-        filters: { entryDate: { gte: input.startDate, lte: input.endDate } as any },
-        fields: ['id', 'user', 'entryDate', 'submittedAt'],
-        limit: 2000,
-        offset,
-      });
-      allEntries.push(...records);
-      if (!hasMore) break;
-      offset += 2000;
-    }
+    // Load entry pages alongside parent display names, instead of delaying
+    // the parent query until every page has arrived.
+    const [allEntries, { records: guideUsers }, { reference, availableGuides }] = await Promise.all([
+      (async () => {
+        const entries: any[] = [];
+        let offset = 0;
+        while (true) {
+          const { records, hasMore } = await SadhanaEntries.findAll({
+            filters: { entryDate: { gte: input.startDate, lte: input.endDate } },
+            fields: ['id', 'user', 'entryDate', 'submittedAt'], limit: 2000, offset,
+          });
+          entries.push(...records);
+          if (!hasMore) break;
+          offset += 2000;
+        }
+        return entries;
+      })(),
+      Users.findAll({ filters: { status: 'Active' }, fields: ['id', 'userId', 'fullName', 'email', 'role', 'isBvAdmin', 'isBvSuperAdmin'], limit: 2000 }),
+      displayPromise,
+    ]);
 
     // 6. Build submission lookup map: "userId|date" -> "filled" | "late"
     // Late = submittedAt date is strictly after entryDate
@@ -216,11 +208,6 @@ export default createEndpoint({
     // Some legacy user records store the guide reference as a Users id/userId
     // (for example USER-206) rather than the Guides document id. Resolve those
     // references too so the report never exposes an internal code as a name.
-    const { records: guideUsers } = await Users.findAll({
-      filters: { status: 'Active' },
-      fields: ['id', 'userId', 'fullName', 'email', 'role', 'isBvAdmin', 'isBvSuperAdmin'],
-      limit: 2000,
-    });
     for (const user of guideUsers) {
       // Legacy guide references may point to a Users record whose current
       // role flag is absent or no longer normalized. The reference itself is

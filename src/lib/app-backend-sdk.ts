@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { requestQuery, invalidateRequestTable } from './requestQueries';
 import { serverCacheInvalidate } from './serverCache';
+import type { z } from 'zod';
+import type { ApiCapability, ApiUserContext } from './apiAuthorization';
 
 function invalidateTableReads(table: string) {
   invalidateRequestTable(table);
@@ -99,7 +101,23 @@ function initFirestoreOnStartup() {
 
 initFirestoreOnStartup();
 
-export function createEndpoint(config: any) {
+interface EndpointDefinition<Input extends z.ZodType, Output extends z.ZodType, Result, Public extends boolean> {
+  description: string;
+  authenticated?: boolean;
+  public?: Public;
+  publicSecretEnv?: string;
+  maxBodyBytes?: number;
+  webhook?: Record<string, unknown>;
+  requiredCapabilities?: ApiCapability | ApiCapability[];
+  inputSchema: Input;
+  outputSchema: Output;
+  execute(args: { input: z.output<Input>; context: { user: Public extends true ? ApiUserContext | null : ApiUserContext } }): Promise<Result>;
+}
+
+/** Preserve the parsed input and actual handler result throughout the client SDK. */
+export function createEndpoint<Input extends z.ZodType, Output extends z.ZodType, Result, Public extends boolean = false>(
+  config: EndpointDefinition<Input, Output, Result, Public>,
+) {
   return config;
 }
 

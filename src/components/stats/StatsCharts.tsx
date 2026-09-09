@@ -37,10 +37,10 @@ export function ScoreTrendChart({ data }: { data: TrendPoint[] }) {
         />
         <Tooltip
           contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-          formatter={(val: any, name: string) => {
+          formatter={(val, name) => {
             if (name === 'score') return [`${val}%`, 'Avg Score'];
             if (name === 'count') return [val, 'Submitted'];
-            return [val, name];
+            return [val, name ?? ''];
           }}
         />
         {/* 75% line — non-resident threshold */}

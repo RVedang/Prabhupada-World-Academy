@@ -61,7 +61,7 @@ export default createEndpoint({
     const allOccIds = new Set<string>();
     for (const room of rooms) {
       const occ = Array.isArray(room.occupants) ? room.occupants : (room.occupants ? [room.occupants] : []);
-      occ.forEach(id => allOccIds.add(id as string));
+      occ.forEach((id: string) => allOccIds.add(id));
     }
     const nameMap = new Map<string, string>();
     if (allOccIds.size > 0) {

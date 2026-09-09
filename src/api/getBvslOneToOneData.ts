@@ -326,7 +326,7 @@ export default createEndpoint({
         const roleValues = (Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role])
           .filter(Boolean)
           .map((role: unknown) => String(role).toUpperCase().replace(/[\s-]+/g, '_'));
-        const hasRole = (...roles: string[]) => roleValues.some(role => roles.includes(role));
+        const hasRole = (...roles: string[]) => roleValues.some((role: string) => roles.includes(role));
         const roleLabel = u.isBvSuperAdmin || hasRole('SUPER_ADMIN', 'SUPER_GUIDE')
           ? 'Super Admin'
           : (u.isBvAdmin || hasRole('ADMIN', 'PW_ADMIN'))

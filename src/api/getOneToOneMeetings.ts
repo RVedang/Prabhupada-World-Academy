@@ -21,6 +21,7 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({
     guideId: z.string().optional(),
+    userDbId: z.string().optional(),
     weeksBack: z.number().optional(),
   }),
   outputSchema: z.any(),
@@ -57,7 +58,8 @@ export default createEndpoint({
     } else if (!guideDbId && !isSuperGuide) {
       if (isSadhanaMentor && !context.user.role?.includes('Guide')) {
         // Sadhana Mentor: resolve guide from their linked guide record
-        const mentorGuideId = Array.isArray(context.user.guide) ? context.user.guide[0] : context.user.guide;
+        const mentor = await Users.findOne({ id: context.user.id, fields: ['guide'] });
+        const mentorGuideId = Array.isArray(mentor?.guide) ? mentor.guide[0] : mentor?.guide;
         if (mentorGuideId) {
           const g = await Guides.findOne({ id: mentorGuideId, fields: ['id', 'oneToOneLink'] });
           guideDbId = g?.id;
@@ -94,7 +96,7 @@ export default createEndpoint({
       }),
     ]);
 
-    const users = usersRes.records.filter(u => {
+    let users = usersRes.records.filter(u => {
       if (isPwSadhanaMentor) {
         const assignedMentor = String((u as any).sadhanaMentor || '').trim().toLowerCase();
         if (!mentorRefs.has(assignedMentor)) return false;
@@ -124,6 +126,8 @@ export default createEndpoint({
       delegateNames = Object.fromEntries(delegates.map(d => [d.id, d.fullName || '']));
     }
 
+    // The CRM member filter can only narrow the already authorized guide scope.
+    if (input.userDbId) users = users.filter(user => user.id === input.userDbId || user.userId === input.userDbId);
     const userIds = users.map(u => u.id);
     let meetings: any[] = [];
     if (userIds.length > 0) {

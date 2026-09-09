@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Phone, MessageSquare, Users, Home, HeartHandshake, FileText } from 'lucide-react';
-import logDevoteeInteraction from '@/api/logDevoteeInteraction';
+import { logDevoteeInteraction } from '@/lib/endpoints-sdk';
 
 interface Props {
   open: boolean;
@@ -42,15 +42,13 @@ export default function LogInteractionModal({ open, onClose, onSuccess, devoteeI
 
     try {
       setLoading(true);
-      await logDevoteeInteraction.execute({
-        input: {
-          devoteeId,
-          interactionType: type,
-          notes,
-          callStatus: type === 'Call' ? callStatus : undefined,
-          durationMinutes: duration ? parseInt(duration, 10) : undefined,
-          nextCallDate: nextCallDate || undefined,
-        },
+      await logDevoteeInteraction({
+        devoteeId,
+        interactionType: type,
+        notes,
+        callStatus: type === 'Call' ? callStatus : undefined,
+        durationMinutes: duration ? parseInt(duration, 10) : undefined,
+        nextCallDate: nextCallDate || undefined,
       });
 
       toast.success(`Logged ${type} for ${devoteeName}`);

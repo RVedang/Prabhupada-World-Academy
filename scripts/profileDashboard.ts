@@ -61,12 +61,14 @@ async function main() {
   const { buildApiUserContext } = await import('../src/lib/apiAuthorization');
   const { serverCacheInvalidate } = await import('../src/lib/serverCache');
   const candidates = (await db.Users.findAll({ filters: { status: 'Active' }, limit: 2000 })).records;
+  const roleOf = (user: any) => String(user.role || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
   const subjects = [
     { label: 'PW super admin', user: candidates.find(u => u.segment === 'PW' && (u.isBvSuperAdmin || u.role === 'SUPER_ADMIN')) },
-    { label: 'PW admin', user: candidates.find(u => u.segment === 'PW' && !u.isBvSuperAdmin && ['ADMIN', 'PW_ADMIN'].includes(u.role)) },
+    { label: 'PW admin', user: candidates.find(u => u.segment === 'PW' && !u.isBvSuperAdmin && roleOf(u) !== 'SUPER_ADMIN' && (u.isBvAdmin || ['ADMIN', 'PW_ADMIN'].includes(roleOf(u)))) },
     { label: 'FOLK guide', user: candidates.find(u => u.segment === 'FOLK' && ['GUIDE', 'Guide'].includes(u.role)) },
+    { label: 'FOLK super guide', user: candidates.find(u => u.segment === 'FOLK' && roleOf(u) === 'SUPER_GUIDE') },
   ];
-  const day = new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().slice(0, 10);
+  const day = process.env.PERF_DATE || new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().slice(0, 10);
   const weekStart = '2026-08-31', weekEnd = '2026-09-06';
   for (const { label, user } of subjects) {
     if (!user || (process.env.PERF_SUBJECT && !label.includes(process.env.PERF_SUBJECT))) continue;

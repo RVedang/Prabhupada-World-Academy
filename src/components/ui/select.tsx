@@ -6,7 +6,22 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+type SelectProps<Value, Multiple extends boolean = false> = Omit<
+  SelectPrimitive.Root.Props<Value, Multiple>, "onValueChange"
+> & {
+  onValueChange?: (
+    value: Exclude<Parameters<NonNullable<SelectPrimitive.Root.Props<Value, Multiple>["onValueChange"]>>[0], null>,
+    details: SelectPrimitive.Root.ChangeEventDetails,
+  ) => void
+}
+
+// Dashboard selectors represent explicit choices (including an "All" option).
+// Base UI can emit null when resetting; keep the existing choice in that case.
+function Select<Value, Multiple extends boolean = false>({ onValueChange, ...props }: SelectProps<Value, Multiple>) {
+  return <SelectPrimitive.Root<Value, Multiple> {...props} onValueChange={(value, details) => {
+    if (value !== null) onValueChange?.(value as Parameters<NonNullable<SelectProps<Value, Multiple>["onValueChange"]>>[0], details)
+  }} />
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

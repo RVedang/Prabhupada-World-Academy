@@ -287,6 +287,7 @@ function buildProfileResult({
       isBvsl,
       isSadhanaMentor,
       isServiceAllocator,
+      isBvMentor: !!userRecord.isBvMentor,
       isBvSuperAdmin: !!(userRecord.isBvSuperAdmin || primaryRole === 'SUPER_ADMIN'),
       isBvAdmin: !!(userRecord.isBvAdmin || userRecord.isBvSuperAdmin || primaryRole === 'ADMIN' || primaryRole === 'SUPER_ADMIN'),
       isBvSupervisor: !!(userRecord.isBvSupervisor || userRecord.isBvMentor),

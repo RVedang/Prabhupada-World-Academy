@@ -84,10 +84,11 @@ export default createEndpoint({
     // Run guide lookup and today's entries in parallel
     const todayStr = getTodayIST();
 
-    const [guideRecord, sadhanaRes, groupsRes, membersRes, reference, scopedUserIds] = await Promise.all([
-      (isSuperGuide || isBvMentor)
-        ? Promise.resolve(null)
-        : getGuideScope(context.user.email || '').then(scope => scope ? { id: scope.guideId, folkResidencies: scope.residencyIds } : null),
+    const guidePromise = (isSuperGuide || isBvMentor)
+      ? Promise.resolve(null)
+      : getGuideScope(context.user.email || '').then(scope => scope ? { id: scope.guideId, folkResidencies: scope.residencyIds } : null);
+    const hierarchyPromise = getScopedHierarchyUserIds(context.user).catch(() => null);
+    const metadataPromise = Promise.all([
       input.minimal ? Promise.resolve({ records: [] }) : SadhanaEntries.findAll({
         filters: { entryDate: todayStr },
         fields: ENTRY_TODAY_FIELDS,
@@ -100,33 +101,11 @@ export default createEndpoint({
         ? Promise.resolve({ records: [] })
         : BvGroupMembers.findAll({ limit: 2000, fields: ['id', 'user', 'userId', 'group', 'groupId'] }).catch(() => ({ records: [] })),
       input.minimal ? Promise.resolve({ residencies: [], guides: [] }) : getReportReferenceData(),
-      getScopedHierarchyUserIds(context.user).catch(() => null),
     ]);
-
-    const todayEntries: any[] = sadhanaRes?.records || [];
-    const allBvGroups: any[] = groupsRes?.records || [];
-    const allGroupMembers: any[] = membersRes?.records || [];
-
-    // Map userId/id -> groupId
-    const userGroupMap = new Map<string, string>();
-    allGroupMembers.forEach((m: any) => {
-      const uId = String(m.userId || m.user || '').toLowerCase();
-      const gId = String(m.groupId || m.group || '');
-      if (uId && gId) userGroupMap.set(uId, gId);
-    });
-
-    // Map groupId -> RGF info { id, name }
-    const groupRgfMap = new Map<string, { id: string; name: string }>();
-    const groupNameMap = new Map<string, string>();
-    allBvGroups.forEach((g: any) => {
-      for (const id of [g.id, g.groupId]) {
-        if (id && g.groupName) groupNameMap.set(String(id), g.groupName);
-      }
-      const rawRgfId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId || g.guide || '');
-      const rgfName = g.bvslName || '';
-      if (g.id) groupRgfMap.set(String(g.id), { id: String(rawRgfId), name: rgfName });
-      if (g.groupId) groupRgfMap.set(String(g.groupId), { id: String(rawRgfId), name: rgfName });
-    });
+    void metadataPromise.catch(() => {});
+    // Begin the scoped member query as soon as its guide is resolved. Slow
+    // display-label or attendance reads must not delay this independent work.
+    const guideRecord = await guidePromise;
 
     // Build user filters
     const filters: any = {};
@@ -186,6 +165,7 @@ export default createEndpoint({
       }
     }
 
+    const scopedUserIds = await hierarchyPromise;
     if (!forMeetingInvitees && scopedUserIds !== null) {
       users = users.filter(u => {
         const uId = String(u.id || '').toLowerCase();
@@ -195,18 +175,8 @@ export default createEndpoint({
       });
     }
 
-    // Build submitted-today set
-    const submittedToday = new Set(
-      todayEntries.map(e => Array.isArray(e.user) ? e.user[0] : e.user).filter(Boolean)
-    );
-
-    // Batch fetch residency names — ONE query instead of N
-    // Fetch sadhana entries for the last 100 days to compute latestEntryDate and latestScore
-    const entriesByUser = new Map<string, any[]>();
-    const residencyMap = new Map<string, string>();
-    const guideLookup = new Map<string, string>();
-
-    if (!input.minimal) {
+    const historyPromise = (async () => {
+      if (input.minimal || users.length === 0) return [];
       const cutoffStr = daysAgo(todayStr, 100);
       const entries: any[] = [];
       const scopedEntryUserIds = Array.from(new Set(users.map(user => user.id).filter(Boolean)));
@@ -237,6 +207,40 @@ export default createEndpoint({
         }
       }
 
+      return entries;
+    })();
+    const [entries, [sadhanaRes, groupsRes, membersRes, reference]] = await Promise.all([historyPromise, metadataPromise]);
+
+    const todayEntries: any[] = sadhanaRes?.records || [];
+    const allBvGroups: any[] = groupsRes?.records || [];
+    const allGroupMembers: any[] = membersRes?.records || [];
+
+    // Map userId/id -> groupId
+    const userGroupMap = new Map<string, string>();
+    allGroupMembers.forEach((m: any) => {
+      const uId = String(m.userId || m.user || '').toLowerCase();
+      const gId = String(m.groupId || m.group || '');
+      if (uId && gId) userGroupMap.set(uId, gId);
+    });
+
+    // Map groupId -> RGF info { id, name }
+    const groupRgfMap = new Map<string, { id: string; name: string }>();
+    const groupNameMap = new Map<string, string>();
+    allBvGroups.forEach((g: any) => {
+      for (const id of [g.id, g.groupId]) {
+        if (id && g.groupName) groupNameMap.set(String(id), g.groupName);
+      }
+      const rawRgfId = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId || g.guide || '');
+      const rgfName = g.bvslName || '';
+      if (g.id) groupRgfMap.set(String(g.id), { id: String(rawRgfId), name: rgfName });
+      if (g.groupId) groupRgfMap.set(String(g.groupId), { id: String(rawRgfId), name: rgfName });
+    });
+
+    const submittedToday = new Set(todayEntries.map(entry => Array.isArray(entry.user) ? entry.user[0] : entry.user).filter(Boolean));
+    const entriesByUser = new Map<string, any[]>();
+    const residencyMap = new Map<string, string>();
+    const guideLookup = new Map<string, string>();
+    if (!input.minimal) {
       for (const e of entries) {
         const uid = Array.isArray(e.user) ? e.user[0] : e.user;
         if (!uid) continue;

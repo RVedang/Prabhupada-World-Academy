@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { dashboardScope } from '@/lib/dashboardScope';
 import { firebaseApp } from '@/lib/app-auth-sdk';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -20,13 +21,8 @@ export default function RealtimeSyncProvider() {
   const { profile } = useUserProfile();
   const profileSegment = profile?.segment;
   const lastIdentityRef = useRef<string>('');
-  const scopeProfile = profile as unknown as Record<string, unknown> | null;
-  const permissionScope = JSON.stringify([
-    user?.id, user?.email,
-    ...['userId', 'segment', 'role', 'roles', 'status', 'isBvAdmin', 'isBvSuperAdmin', 'isBvSupervisor', 'isBvMentor', 'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator', 'isSadhanaMentor', 'guideId', 'folkResidencyCustomId', 'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId']
-      .map(field => scopeProfile?.[field]),
-  ]);
-  useEffect(() => {
+  const permissionScope = dashboardScope(profile, user?.id || user?.email);
+  useLayoutEffect(() => {
     setEndpointPermissionScope(permissionScope);
     invalidateCache();
   }, [permissionScope]);

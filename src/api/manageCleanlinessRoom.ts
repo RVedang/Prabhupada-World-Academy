@@ -26,6 +26,7 @@ export default createEndpoint({
       return { success: true, room: record };
     }
 
+    if (!roomId) throw new Error('Room ID is required to update or delete a room');
     if (action === 'update') {
       const result = await CleanlinessRooms.update({
         id: roomId,

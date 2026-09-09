@@ -6,10 +6,10 @@ export default createEndpoint({
   description: 'Test TagMango API connection using the actual migrate-user endpoint',
   authenticated: true,
   requiredCapabilities: 'integrations.manage',
-  inputSchema: z.object({}),
+  inputSchema: z.object({ apiKey: z.string().max(8192).optional() }),
   outputSchema: z.object({ success: z.boolean(), message: z.string() }),
-  execute: async () => {
-    const apiKey = await resolveApiKey();
+  execute: async ({ input }) => {
+    const apiKey = input.apiKey?.trim() || await resolveApiKey();
     if (!apiKey) {
       return { success: false, message: 'No API key configured' };
     }

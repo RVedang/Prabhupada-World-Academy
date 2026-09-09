@@ -181,7 +181,7 @@ export default function BvImprovementTab({ guideId, bvslMode, residencyIds, segm
             <div className="ml-auto flex items-center gap-3">
               <span className="text-xs text-muted-foreground hidden sm:block">{rangeLabel}</span>
               <span className="text-xs text-muted-foreground">{submitted.length}/{data?.bvsls?.length ?? 0} submitted</span>
-              <button onClick={load} disabled={loading}
+              <button onClick={() => load()} disabled={loading}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
               </button>

@@ -64,6 +64,7 @@ function buildProfile(userObj: any): ProfileData {
   return {
     userId: userObj.userId ?? userObj.id ?? '',
     fullName: userObj.fullName ?? userObj.full_name ?? '',
+    isPrabhupadaWorldUser: !!userObj.isPrabhupadaWorldUser,
     role: role as 'USER' | 'GUIDE' | 'SUPER_GUIDE' | 'SUPER_ADMIN' | 'BVSL' | 'SADHANA_MENTOR',
     status: (((userObj.status as string) || 'PENDING_APPROVAL').toUpperCase().replace(' ', '_').trim()) as
       'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED',

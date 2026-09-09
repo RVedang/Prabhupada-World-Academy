@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { User, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportUserData } from '@/lib/endpoints-sdk';
+import { getUserProfile, getUserHistory } from '@/lib/endpoints-sdk';
 import { exportToCsv } from '@/utils/exportCsv';
 
 interface Props {
@@ -27,37 +27,46 @@ export default function ProfileHero({ fullName, email, isResident, ashrayLevel, 
   const handleExport = async () => {
     setExporting(true);
     try {
-      const data = await exportUserData({});
+      // Export the signed-in member's own profile/history through the same
+      // authorized endpoints as their dashboard, including every history page.
+      const [profileResult, firstPage] = await Promise.all([
+        getUserProfile({}), getUserHistory({ limit: 200, offset: 0, includeFieldValues: true }),
+      ]);
+      if (!profileResult.user) throw new Error('Profile unavailable');
+      const profile = profileResult.user;
+      const entries = [...firstPage.entries];
+      let page = firstPage;
+      while (page.hasMore) {
+        if (!page.entries.length) throw new Error('History pagination did not advance');
+        page = await getUserHistory({ limit: 200, offset: entries.length, includeFieldValues: true });
+        entries.push(...page.entries);
+      }
+      entries.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
+      const fieldKeys = [...new Set(entries.flatMap(entry => Object.keys(entry.fieldValues)))].sort();
       const headers = [
-        'Date', 'Total Score', 'Max Score', 'Score %', 'Rounds', 'Japa Finish Time',
-        'SP Reading (min)', 'Sleep', 'Study (min)', 'Preaching (min)', 'Books Distributed',
-        'MA/NA/GV', 'Quotes/Tulasi', 'Japa Visible', 'SB', 'Cleanliness',
-        'Report Sending', 'Daily Service', 'Sleep Quality', 'Sick', 'OS',
+        'Date', 'Template', 'Ashray Level', 'Total Score', 'Max Score', 'Score %',
+        'Rounds', 'SP Reading (min)', 'Preaching (min)', 'Sleep (min)', 'Sick', 'OS',
+        'Submitted At', ...fieldKeys,
       ];
       const rows = [
         ['Field', 'Value'],
-        ['Full Name', data.profile.fullName],
-        ['Email', data.profile.email],
-        ['Phone', data.profile.phone],
-        ['Ashraya Level', data.profile.ashrayLevel],
-        ['Guide', data.profile.guideName],
-        ['Resident', data.profile.isResident ? 'Yes' : 'No'],
-        ['Residency', data.profile.residency],
-        ['Member Since', data.profile.memberSince],
-        [],
-        ['--- SADHANA ENTRIES ---'],
-        headers,
-        ...data.entries.map((e: any) => [
-          e.date, e.totalScore, e.maxScore ?? '', e.scorePercent != null ? `${e.scorePercent}%` : '',
-          e.rounds ?? '', e.japaFinishTime, e.spReadingMinutes ?? '', e.sleepHours,
-          e.studyMinutes ?? '', e.preachingMinutes ?? '', e.booksDistributed ?? '',
-          e.maNaGv, e.quotesTulasi, e.japaVisible, e.sb, e.cleanliness,
-          e.reportSending, e.dailyService, e.sleepQuality,
-          e.flagSick ? 'Yes' : '', e.flagOs ? 'Yes' : '',
+        ['Full Name', profile.fullName], ['Email', profile.email], ['Phone', profile.phone],
+        ['Ashray Level', profile.ashrayLevel], ['Guide', profile.guideName],
+        ['Resident', profile.isResident ? 'Yes' : 'No'], ['Residency', profile.residencyName],
+        [], ['--- SADHANA ENTRIES ---'], headers,
+        ...entries.map(entry => [
+          entry.entryDate, entry.templateMode, entry.ashrayLevelUsed, entry.totalScore,
+          entry.maxScore, entry.scorePercent ?? '', entry.roundsCount, entry.spReadingMinutes,
+          entry.preachingMinutes, entry.sleepMinutes, entry.flagSick ? 'Yes' : '',
+          entry.flagOs ? 'Yes' : '', entry.submittedAt,
+          ...fieldKeys.map(key => {
+            const value = entry.fieldValues[key];
+            return value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+          }),
         ]),
       ];
       exportToCsv(rows, `sadhana_data_${fullName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
-      toast.success(`Exported ${data.totalEntries} sadhana entries`);
+      toast.success(`Exported ${entries.length} sadhana entries`);
     } catch { toast.error('Failed to export data'); }
     finally { setExporting(false); }
   };

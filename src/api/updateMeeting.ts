@@ -10,6 +10,7 @@ export default createEndpoint({
     title: z.string().optional(),
     type: z.enum(['FACILITATOR', 'EXECUTIVE', 'OTHER']).optional(),
     scheduledAt: z.string().optional(),
+    durationMinutes: z.number().int().positive().optional(),
     locationOrLink: z.string().optional(),
     description: z.string().optional(),
     status: z.string().optional().nullable().transform(v => {
@@ -61,6 +62,7 @@ export default createEndpoint({
 
     const updateFields: any = { updatedAt: new Date().toISOString() };
     if (input.title !== undefined) updateFields.title = input.title;
+    if (input.durationMinutes !== undefined) updateFields.durationMinutes = input.durationMinutes;
     if (input.scheduledAt !== undefined && input.scheduledAt !== existing.scheduledAt) {
       updateFields.scheduledAt = input.scheduledAt;
       updateFields.notification10mSent = false;

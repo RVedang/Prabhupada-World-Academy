@@ -114,6 +114,7 @@ class SupabaseQueryBuilder<T = any> {
   /** Build request headers */
   private _buildHeaders(): Record<string, string> {
     const key = process.env.APP_SUPABASE_ANON_KEY;
+    if (!key) throw new Error('Supabase integration is not configured');
     const headers: Record<string, string> = {
       'apikey': key,
       'Authorization': `Bearer ${key}`,

@@ -25,8 +25,11 @@ export default createEndpoint({
     const istMinutes = nowIST.getUTCHours() * 60 + nowIST.getUTCMinutes();
 
     // Resolve residency while the independent service/allocation queries run.
-    const rawResidency = input.residencyId || (Array.isArray(context.user.residency) ? context.user.residency[0] : context.user.residency);
-    const residencyPromise = resolveCachedResidencyDbId(rawResidency);
+    const residencyPromise = (async () => {
+      if (input.residencyId) return resolveCachedResidencyDbId(input.residencyId);
+      const user = await Users.findOne({ id: context.user.id, fields: ['residency'] });
+      return resolveCachedResidencyDbId(Array.isArray(user?.residency) ? user.residency[0] : user?.residency);
+    })();
 
     const [residencyDbId, allServices, allocRes] = await Promise.all([
       residencyPromise,

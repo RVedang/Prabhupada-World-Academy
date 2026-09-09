@@ -42,6 +42,7 @@ export interface UserProfile {
 export interface ProfileSummary {
   userId: string;
   fullName: string;
+  isPrabhupadaWorldUser?: boolean;
   role: 'USER' | 'GUIDE' | 'SUPER_GUIDE' | 'SUPER_ADMIN' | 'BVSL' | 'SADHANA_MENTOR';
   status: UserStatus;
   /** BUG-1 FIX: BVSL is a flag not a role — any user can be BVSL */

@@ -200,7 +200,7 @@ export default function TagMangoConfigTab() {
           {residencies.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No active folk residencies found.</p>
           ) : (
-            <Accordion type="multiple" className="w-full">
+            <Accordion multiple className="w-full">
               {residencies.map(center => (
                 <AccordionItem key={center.id} value={center.id}>
                   <AccordionTrigger className="hover:no-underline">

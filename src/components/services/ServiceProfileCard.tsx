@@ -49,8 +49,8 @@ export default function ServiceProfileCard({ userId }: Props) {
                 {/* Key stats */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="text-center rounded-lg bg-muted/50 py-3">
-                    <p className={`text-2xl font-bold ${scoreColor(profile.reliabilityScore)}`}>{profile.reliabilityScore}%</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Reliability</p>
+                    <p className={`text-2xl font-bold ${scoreColor(profile.completionRate)}`}>{profile.completionRate}%</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Completion rate</p>
                   </div>
                   <div className="text-center rounded-lg bg-muted/50 py-3">
                     <p className="text-2xl font-bold flex items-center justify-center gap-1">
@@ -60,7 +60,7 @@ export default function ServiceProfileCard({ userId }: Props) {
                   </div>
                   <div className="text-center rounded-lg bg-muted/50 py-3">
                     <p className="text-2xl font-bold flex items-center justify-center gap-1">
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />{profile.totalCompleted}
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />{profile.completedAllocations}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">Completed</p>
                   </div>

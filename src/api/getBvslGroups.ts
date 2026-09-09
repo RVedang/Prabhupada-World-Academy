@@ -158,207 +158,220 @@ export default createEndpoint({
     const isAll = input.bvslId === 'ALL' || !input.bvslId;
     const todayDate = getTodayIST();
 
-    // 1. Batch fetch Facilitator Users
-    // IMPORTANT: g.bvslId values are custom app userId strings,
-    // NOT Firestore row ids. We must query by userId field, then map by BOTH
-    // the row id and the userId so lookups work with either value.
-    const facilitatorUserIds = [...new Set(groupRecords.map((g: any) => g.bvslId || g.bvslLeader).filter(Boolean))] as string[];
-    const facilitatorMap = new Map<string, any>();
-    if (facilitatorUserIds.length > 0) {
-      const batches: string[][] = [];
-      for (let i = 0; i < facilitatorUserIds.length; i += 30) {
-        batches.push(facilitatorUserIds.slice(i, i + 30));
-      }
-      const results = await Promise.all(batches.map(async (batch) => {
-        const [byUserId, byId] = await Promise.all([
-          Users.findAll({
-            filters: { userId: { in: batch } } as any,
-            fields: ['id', 'userId', 'segment', 'fullName'],
-            limit: 100,
-          }).catch(() => ({ records: [] })),
-          Users.findAll({
-            filters: { id: { in: batch } } as any,
-            fields: ['id', 'userId', 'segment', 'fullName'],
-            limit: 100,
-          }).catch(() => ({ records: [] })),
-        ]);
-        return [...(byUserId?.records || []), ...(byId?.records || [])];
-      }));
+    const facilitatorPromise = (async () => {
+      // 1. Batch fetch Facilitator Users
+      // IMPORTANT: g.bvslId values are custom app userId strings,
+      // NOT Firestore row ids. We must query by userId field, then map by BOTH
+      // the row id and the userId so lookups work with either value.
+      const facilitatorUserIds = [...new Set(groupRecords.map((g: any) => g.bvslId || g.bvslLeader).filter(Boolean))] as string[];
+      const facilitatorMap = new Map<string, any>();
+      if (facilitatorUserIds.length > 0) {
+        const batches: string[][] = [];
+        for (let i = 0; i < facilitatorUserIds.length; i += 30) {
+          batches.push(facilitatorUserIds.slice(i, i + 30));
+        }
+        const results = await Promise.all(batches.map(async (batch) => {
+          const [byUserId, byId] = await Promise.all([
+            Users.findAll({
+              filters: { userId: { in: batch } } as any,
+              fields: ['id', 'userId', 'segment', 'fullName'],
+              limit: 100,
+            }).catch(() => ({ records: [] })),
+            Users.findAll({
+              filters: { id: { in: batch } } as any,
+              fields: ['id', 'userId', 'segment', 'fullName'],
+              limit: 100,
+            }).catch(() => ({ records: [] })),
+          ]);
+          return [...(byUserId?.records || []), ...(byId?.records || [])];
+        }));
 
-      const seen = new Set<string>();
-      for (const list of results) {
-        for (const u of list) {
-          if (!seen.has(u.id)) {
-            seen.add(u.id);
-            facilitatorMap.set(u.id, u);
-            if (u.userId) facilitatorMap.set(u.userId, u);
+        const seen = new Set<string>();
+        for (const list of results) {
+          for (const u of list) {
+            if (!seen.has(u.id)) {
+              seen.add(u.id);
+              facilitatorMap.set(u.id, u);
+              if (u.userId) facilitatorMap.set(u.userId, u);
+            }
           }
         }
       }
-    }
 
-    // Older groups may have stored a Guides-table ID in bvslId. Resolve those
-    // too so their facilitator segment is restored for the FOLK/PW filters.
-    const unresolvedFacilitatorIds = facilitatorUserIds.filter(id => !facilitatorMap.has(id));
-    if (unresolvedFacilitatorIds.length > 0) {
-      const guideBatches: string[][] = [];
-      for (let i = 0; i < unresolvedFacilitatorIds.length; i += 30) {
-        guideBatches.push(unresolvedFacilitatorIds.slice(i, i + 30));
-      }
-      const guideLists = await Promise.all(guideBatches.map(async batch => {
-        const res = await Guides.findAll({
-          filters: { id: { in: batch } } as any,
-          fields: ['id', 'guideId', 'fullName', 'email', 'segment'],
-          limit: 100,
-        }).catch(() => ({ records: [] }));
-        return res.records || [];
-      }));
-      const legacyGuides = guideLists.flat();
-      const guideEmails = [...new Set(legacyGuides.map((g: any) => g.email).filter(Boolean))] as string[];
-      const usersByGuideEmail = new Map<string, any>();
-      for (let i = 0; i < guideEmails.length; i += 30) {
-        const { records } = await Users.findAll({
-          filters: { email: { in: guideEmails.slice(i, i + 30) } } as any,
-          fields: ['id', 'userId', 'segment', 'fullName', 'email'],
-          limit: 100,
-        }).catch(() => ({ records: [] }));
-        for (const user of records) usersByGuideEmail.set(String(user.email || '').toLowerCase(), user);
-      }
-      for (const guide of legacyGuides) {
-        const linkedUser = usersByGuideEmail.get(String(guide.email || '').toLowerCase());
-        const resolved = linkedUser || {
-          id: guide.id,
-          userId: guide.guideId,
-          fullName: guide.fullName,
-          segment: guide.segment,
-        };
-        facilitatorMap.set(guide.id, resolved);
-        if (guide.guideId) facilitatorMap.set(guide.guideId, resolved);
-      }
-    }
-
-    // 2. Batch fetch Guides
-    const guideIds = [...new Set(groupRecords.map((g: any) => Array.isArray(g.guide) ? g.guide[0] : g.guide).filter(Boolean))] as string[];
-    const guideMap = new Map<string, any>();
-    if (guideIds.length > 0) {
-      const batches: string[][] = [];
-      for (let i = 0; i < guideIds.length; i += 50) {
-        batches.push(guideIds.slice(i, i + 50));
-      }
-      const results = await Promise.all(batches.map(async (batch) => {
-        const res = await Guides.findAll({
-          filters: { id: { in: batch } } as any,
-          fields: ['id', 'fullName'],
-          limit: 100,
-        }).catch(() => ({ records: [] }));
-        return res?.records || [];
-      }));
-      for (const list of results) {
-        list.forEach((g: any) => guideMap.set(g.id, g));
-      }
-    }
-
-    // 3. Batch fetch BvGroupMembers counts
-    // Always scope to the groups we have — avoids fetching ALL members across entire DB
-    const groupIdList = groupRecords.map((g: any) => g.id).filter(Boolean);
-    const groupPublicIdList = groupRecords.map((g: any) => g.groupId).filter(Boolean);
-    const [membersByGroup, membersByGroupId] = await Promise.all([
-      BvGroupMembers.findAll({
-        filters: { group: { in: [...new Set([...groupIdList, ...groupPublicIdList])] } } as any,
-        limit: 5000,
-        fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
-      }),
-      groupIdList.length + groupPublicIdList.length > 0
-        ? BvGroupMembers.findAll({
-            filters: { groupId: { in: [...new Set([...groupIdList, ...groupPublicIdList])] } } as any,
-            limit: 5000,
-            fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
-          }).catch(() => ({ records: [] }))
-        : Promise.resolve({ records: [] }),
-    ]);
-    const membershipMap = new Map<string, any>();
-    [...membersByGroup.records, ...membersByGroupId.records]
-      .forEach((membership: any) => membershipMap.set(String(membership.id), membership));
-    const allMembers = [...membershipMap.values()];
-
-    const firstValue = (value: unknown): string => {
-      if (Array.isArray(value)) return String(value[0] || '');
-      return String(value || '');
-    };
-
-    const memberUserIds = [...new Set(allMembers.flatMap((m: any) => [
-      firstValue(m.user),
-      firstValue(m.userId),
-      firstValue(m.memberId),
-    ]).filter(Boolean))];
-
-    const userMap: Record<string, any> = {};
-    if (memberUserIds.length > 0) {
-      const userFields = [
-        'id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId',
-        'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid',
-        'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id',
-      ];
-      const lookupFields = [
-        'userId', 'id', 'email', 'uid', 'authUid', 'firebaseUid',
-        'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId',
-        'firebaseId', 'firebaseAuthId', 'firebase_id',
-      ];
-      const batches: string[][] = [];
-      for (let i = 0; i < memberUserIds.length; i += 30) {
-        batches.push(memberUserIds.slice(i, i + 30));
-      }
-      const results = await Promise.all(batches.map(async (batch) => {
-        const lists = await Promise.all(lookupFields.map(field => Users.findAll({
-          filters: { [field]: { in: batch } } as any,
-          fields: userFields,
-          limit: 100,
-        }).catch(() => ({ records: [] }))));
-        return lists.flatMap(result => result.records || []);
-      }));
-
-      for (const list of results) {
-        for (const u of list) {
-          [
-            u.id, u.userId, u.email, u.uid, u.authUid, u.firebaseUid,
-            u.firebaseUserId, u.firebaseAuthUid, u.authId, u.authUserId,
-            u.firebaseId, u.firebaseAuthId, u.firebase_id,
-          ].filter(Boolean).forEach(alias => {
-            userMap[String(alias).toLowerCase()] = u;
-          });
+      // Older groups may have stored a Guides-table ID in bvslId. Resolve those
+      // too so their facilitator segment is restored for the FOLK/PW filters.
+      const unresolvedFacilitatorIds = facilitatorUserIds.filter(id => !facilitatorMap.has(id));
+      if (unresolvedFacilitatorIds.length > 0) {
+        const guideBatches: string[][] = [];
+        for (let i = 0; i < unresolvedFacilitatorIds.length; i += 30) {
+          guideBatches.push(unresolvedFacilitatorIds.slice(i, i + 30));
+        }
+        const guideLists = await Promise.all(guideBatches.map(async batch => {
+          const res = await Guides.findAll({
+            filters: { id: { in: batch } } as any,
+            fields: ['id', 'guideId', 'fullName', 'email', 'segment'],
+            limit: 100,
+          }).catch(() => ({ records: [] }));
+          return res.records || [];
+        }));
+        const legacyGuides = guideLists.flat();
+        const guideEmails = [...new Set(legacyGuides.map((g: any) => g.email).filter(Boolean))] as string[];
+        const usersByGuideEmail = new Map<string, any>();
+        for (let i = 0; i < guideEmails.length; i += 30) {
+          const { records } = await Users.findAll({
+            filters: { email: { in: guideEmails.slice(i, i + 30) } } as any,
+            fields: ['id', 'userId', 'segment', 'fullName', 'email'],
+            limit: 100,
+          }).catch(() => ({ records: [] }));
+          for (const user of records) usersByGuideEmail.set(String(user.email || '').toLowerCase(), user);
+        }
+        for (const guide of legacyGuides) {
+          const linkedUser = usersByGuideEmail.get(String(guide.email || '').toLowerCase());
+          const resolved = linkedUser || {
+            id: guide.id,
+            userId: guide.guideId,
+            fullName: guide.fullName,
+            segment: guide.segment,
+          };
+          facilitatorMap.set(guide.id, resolved);
+          if (guide.guideId) facilitatorMap.set(guide.guideId, resolved);
         }
       }
-    }
 
-    const memberIdsByGroup = new Map<string, Set<string>>();
-    for (const m of allMembers) {
-      const groupRec = [firstValue(m.group), firstValue(m.groupId)]
-        .filter(Boolean)
-        .map(groupRef => groupRecords.find(gr =>
-          String(gr.id || '').toLowerCase() === groupRef.toLowerCase() ||
-          String(gr.groupId || '').toLowerCase() === groupRef.toLowerCase()
-        ))
-        .find(Boolean);
-      if (!groupRec) continue;
-
-      const uid = firstValue(m.user);
-      const altUid = firstValue((m as any).userId);
-      const legacyMemberId = firstValue((m as any).memberId);
-      const u = userMap[uid.toLowerCase()] || userMap[altUid.toLowerCase()] || userMap[legacyMemberId.toLowerCase()];
-      const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
-      const groupAliases = new Set([groupRec.id, groupRec.groupId].filter(Boolean).map(value => String(value).toLowerCase()));
-      const profileGroupId = firstValue(u?.bvGroupId).toLowerCase();
-      const isCurrentGroup = !profileGroupId || groupAliases.has(profileGroupId);
-      const isBvMember = u?.isBvMember !== false;
-
-      // Keep legacy records with missing profile fields, but never count an
-      // inactive, explicitly removed, or reassigned user from a stale row.
-      if (u && isActiveUser && isBvMember && isCurrentGroup) {
-        const canonicalUserId = String(u.id || u.userId || uid || altUid || legacyMemberId);
-        if (!memberIdsByGroup.has(groupRec.id)) memberIdsByGroup.set(groupRec.id, new Set());
-        memberIdsByGroup.get(groupRec.id)!.add(canonicalUserId);
+      return facilitatorMap;
+    })();
+    const guidePromise = (async () => {
+      // 2. Batch fetch Guides
+      const guideIds = [...new Set(groupRecords.map((g: any) => Array.isArray(g.guide) ? g.guide[0] : g.guide).filter(Boolean))] as string[];
+      const guideMap = new Map<string, any>();
+      if (guideIds.length > 0) {
+        const batches: string[][] = [];
+        for (let i = 0; i < guideIds.length; i += 30) {
+          batches.push(guideIds.slice(i, i + 30));
+        }
+        const results = await Promise.all(batches.map(async (batch) => {
+          const res = await Guides.findAll({
+            filters: { id: { in: batch } } as any,
+            fields: ['id', 'fullName'],
+            limit: 100,
+          }).catch(() => ({ records: [] }));
+          return res?.records || [];
+        }));
+        for (const list of results) {
+          list.forEach((g: any) => guideMap.set(g.id, g));
+        }
       }
-    }
+
+      return guideMap;
+    })();
+    const membersPromise = (async () => {
+      // 3. Batch fetch BvGroupMembers counts
+      // Always scope to the groups we have — avoids fetching ALL members across entire DB
+      const groupIdList = groupRecords.map((g: any) => g.id).filter(Boolean);
+      const groupPublicIdList = groupRecords.map((g: any) => g.groupId).filter(Boolean);
+      const [membersByGroup, membersByGroupId] = await Promise.all([
+        BvGroupMembers.findAll({
+          filters: { group: { in: [...new Set([...groupIdList, ...groupPublicIdList])] } } as any,
+          limit: 5000,
+          fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
+        }),
+        groupIdList.length + groupPublicIdList.length > 0
+          ? BvGroupMembers.findAll({
+              filters: { groupId: { in: [...new Set([...groupIdList, ...groupPublicIdList])] } } as any,
+              limit: 5000,
+              fields: ['id', 'group', 'groupId', 'user', 'userId', 'memberId'],
+            }).catch(() => ({ records: [] }))
+          : Promise.resolve({ records: [] }),
+      ]);
+      const membershipMap = new Map<string, any>();
+      [...membersByGroup.records, ...membersByGroupId.records]
+        .forEach((membership: any) => membershipMap.set(String(membership.id), membership));
+      const allMembers = [...membershipMap.values()];
+
+      const firstValue = (value: unknown): string => {
+        if (Array.isArray(value)) return String(value[0] || '');
+        return String(value || '');
+      };
+
+      const memberUserIds = [...new Set(allMembers.flatMap((m: any) => [
+        firstValue(m.user),
+        firstValue(m.userId),
+        firstValue(m.memberId),
+      ]).filter(Boolean))];
+
+      const userMap: Record<string, any> = {};
+      if (memberUserIds.length > 0) {
+        const userFields = [
+          'id', 'userId', 'email', 'status', 'isBvMember', 'bvGroupId',
+          'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid',
+          'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id',
+        ];
+        const lookupFields = [
+          'userId', 'id', 'email', 'uid', 'authUid', 'firebaseUid',
+          'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId',
+          'firebaseId', 'firebaseAuthId', 'firebase_id',
+        ];
+        const batches: string[][] = [];
+        for (let i = 0; i < memberUserIds.length; i += 30) {
+          batches.push(memberUserIds.slice(i, i + 30));
+        }
+        const results = await Promise.all(batches.map(async (batch) => {
+          const lists = await Promise.all(lookupFields.map(field => Users.findAll({
+            filters: { [field]: { in: batch } } as any,
+            fields: userFields,
+            limit: 100,
+          }).catch(() => ({ records: [] }))));
+          return lists.flatMap(result => result.records || []);
+        }));
+
+        for (const list of results) {
+          for (const u of list) {
+            [
+              u.id, u.userId, u.email, u.uid, u.authUid, u.firebaseUid,
+              u.firebaseUserId, u.firebaseAuthUid, u.authId, u.authUserId,
+              u.firebaseId, u.firebaseAuthId, u.firebase_id,
+            ].filter(Boolean).forEach(alias => {
+              userMap[String(alias).toLowerCase()] = u;
+            });
+          }
+        }
+      }
+
+      const memberIdsByGroup = new Map<string, Set<string>>();
+      for (const m of allMembers) {
+        const groupRec = [firstValue(m.group), firstValue(m.groupId)]
+          .filter(Boolean)
+          .map(groupRef => groupRecords.find(gr =>
+            String(gr.id || '').toLowerCase() === groupRef.toLowerCase() ||
+            String(gr.groupId || '').toLowerCase() === groupRef.toLowerCase()
+          ))
+          .find(Boolean);
+        if (!groupRec) continue;
+
+        const uid = firstValue(m.user);
+        const altUid = firstValue((m as any).userId);
+        const legacyMemberId = firstValue((m as any).memberId);
+        const u = userMap[uid.toLowerCase()] || userMap[altUid.toLowerCase()] || userMap[legacyMemberId.toLowerCase()];
+        const isActiveUser = !u?.status || String(u.status).toLowerCase() === 'active';
+        const groupAliases = new Set([groupRec.id, groupRec.groupId].filter(Boolean).map(value => String(value).toLowerCase()));
+        const profileGroupId = firstValue(u?.bvGroupId).toLowerCase();
+        const isCurrentGroup = !profileGroupId || groupAliases.has(profileGroupId);
+        const isBvMember = u?.isBvMember !== false;
+
+        // Keep legacy records with missing profile fields, but never count an
+        // inactive, explicitly removed, or reassigned user from a stale row.
+        if (u && isActiveUser && isBvMember && isCurrentGroup) {
+          const canonicalUserId = String(u.id || u.userId || uid || altUid || legacyMemberId);
+          if (!memberIdsByGroup.has(groupRec.id)) memberIdsByGroup.set(groupRec.id, new Set());
+          memberIdsByGroup.get(groupRec.id)!.add(canonicalUserId);
+        }
+      }
+
+      return memberIdsByGroup;
+    })();
+    const [facilitatorMap, guideMap, memberIdsByGroup] = await Promise.all([
+      facilitatorPromise, guidePromise, membersPromise,
+    ]);
 
     const groups = await Promise.all(groupRecords.map(async (g) => {
       const facilitatorUser = facilitatorMap.get(g.bvslId || g.bvslLeader);

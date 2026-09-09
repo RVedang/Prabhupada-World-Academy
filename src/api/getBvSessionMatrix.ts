@@ -127,9 +127,105 @@ export default createEndpoint({
       };
     }
 
-    // Get user details
-    const users = await resolveBvUsersByAliases(memberUserIds,
-      ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved']);
+    // Once group membership is authorized, profile labels, attendance and quiz
+    // results can load independently. Keep legacy aliases and date filters intact.
+    const [{ users, residencyNameMap }, allAttendance, quizScoreMap] = await Promise.all([
+      (async () => {
+        // Get user details
+        const users = await resolveBvUsersByAliases(memberUserIds,
+          ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id', 'fullName', 'ashrayLevel', 'residency', 'residencyApproved']);
+        // Build residency name map
+        const userResidencyIds = new Set<string>();
+        for (const u of users) {
+          const rid = Array.isArray(u.residency) ? u.residency[0] : u.residency;
+          if (rid && u.residencyApproved) userResidencyIds.add(rid as string);
+        }
+        const residencyNameMap = new Map<string, string>();
+        if (userResidencyIds.size > 0) {
+          const { records: resRecs } = await FolkResidencies.findAll({
+            filters: { id: { in: Array.from(userResidencyIds) } } as any,
+            fields: ['id', 'residencyName'],
+            limit: 100,
+          });
+          for (const r of resRecs) residencyNameMap.set(r.id, ((r as any).residencyName || '').replace(/^FOLK\s+/i, 'FOLK '));
+        }
+
+        return { users, residencyNameMap };
+      })(),
+      (async () => {
+        // Query attendance by group+date range directly (new approach)
+        let allAttendance: any[] = [];
+        if (groupIds.length > 0) {
+          const loadAttendance = async (field: 'group' | 'groupId') => {
+            const records: any[] = [];
+            let offset = 0;
+            while (true) {
+              const result = await BvAttendance.findAll({
+                filters: {
+                  [field]: { in: groupIds },
+                  attendanceDate: { gte: startDate, lte: endDate },
+                } as any,
+                fields: ['id', 'group', 'groupId', 'user', 'present', 'attendanceDate'],
+                limit: 2000,
+                offset,
+              }).catch(() => ({ records: [], hasMore: false }));
+              records.push(...result.records);
+              if (!result.hasMore) return records;
+              offset += 2000;
+            }
+          };
+          const [byGroup, byGroupId] = await Promise.all([loadAttendance('group'), loadAttendance('groupId')]);
+          allAttendance = [...byGroup, ...byGroupId]
+            .filter((attendance, index, records) => records.findIndex(item => item.id === attendance.id) === index);
+        }
+
+        return allAttendance;
+      })(),
+      (async () => {
+        const quizScoreMap: Record<string, Record<string, number>> = {};
+        const includeFolkQuizzes = String(context.user.segment || '').toUpperCase() === 'FOLK';
+        if (includeFolkQuizzes && memberUserIds.length > 0) {
+          const { records: allQuizzes } = await BvQuizzes.findAll({
+            fields: ['id', 'group', 'department'],
+            limit: 500,
+          });
+          const quizIds = allQuizzes
+            .filter((quiz: any) =>
+              normalizeQuizDepartment(quiz.department, 'FOLK') === 'FOLK' &&
+              groups.some((group: any) => legacyQuizMatchesGroup(quiz, group))
+            )
+            .map(quiz => quiz.id);
+
+          let offset = 0;
+          while (quizIds.length > 0) {
+            const { records, hasMore } = await BvQuizSubmissions.findAll({
+              filters: { user: { in: memberUserIds } } as any,
+              fields: ['id', 'user', 'quiz', 'percentage', 'submittedAt'],
+              limit: 2000,
+              offset,
+            });
+            for (const sub of records) {
+              const uid = (Array.isArray(sub.user) ? sub.user[0] : sub.user) as string;
+              const qid = (Array.isArray(sub.quiz) ? sub.quiz[0] : sub.quiz) as string;
+              if (!uid || !qid || !quizIds.includes(qid) || !sub.submittedAt) continue;
+              const subDate = String(sub.submittedAt).slice(0, 10);
+              if (subDate < startDate || subDate > endDate) continue;
+              if (!quizScoreMap[uid]) quizScoreMap[uid] = {};
+              const existing = quizScoreMap[uid][subDate];
+              const score = Math.round(Number(sub.percentage) || 0);
+              if (existing === undefined || score > existing) {
+                quizScoreMap[uid][subDate] = score;
+              }
+            }
+            if (!hasMore) break;
+            offset += 2000;
+          }
+        }
+
+        return quizScoreMap;
+      })(),
+    ]);
+
     const callerAliases = new Set(bvUserAliases(context.user as any));
     const facilitatorAliases = new Set(groups.flatMap(group => bvGroupFacilitatorAliases(group)));
     const scopedUsers = bvslMode
@@ -151,22 +247,6 @@ export default createEndpoint({
         const user = userMap.get(String(uid).trim().toLowerCase());
         if (user && !memberGroupMap.has(user.id)) memberGroupMap.set(user.id, canonicalGroupId);
       }
-    }
-
-    // Build residency name map
-    const userResidencyIds = new Set<string>();
-    for (const u of users) {
-      const rid = Array.isArray(u.residency) ? u.residency[0] : u.residency;
-      if (rid && u.residencyApproved) userResidencyIds.add(rid as string);
-    }
-    const residencyNameMap = new Map<string, string>();
-    if (userResidencyIds.size > 0) {
-      const { records: resRecs } = await FolkResidencies.findAll({
-        filters: { id: { in: Array.from(userResidencyIds) } } as any,
-        fields: ['id', 'residencyName'],
-        limit: 100,
-      });
-      for (const r of resRecs) residencyNameMap.set(r.id, ((r as any).residencyName || '').replace(/^FOLK\s+/i, 'FOLK '));
     }
 
     const members: {
@@ -208,32 +288,6 @@ export default createEndpoint({
       cur.setDate(cur.getDate() + 1);
     }
 
-    // Query attendance by group+date range directly (new approach)
-    let allAttendance: any[] = [];
-    if (groupIds.length > 0) {
-      const loadAttendance = async (field: 'group' | 'groupId') => {
-        const records: any[] = [];
-        let offset = 0;
-        while (true) {
-          const result = await BvAttendance.findAll({
-            filters: {
-              [field]: { in: groupIds },
-              attendanceDate: { gte: startDate, lte: endDate },
-            } as any,
-            fields: ['id', 'group', 'groupId', 'user', 'present', 'attendanceDate'],
-            limit: 2000,
-            offset,
-          }).catch(() => ({ records: [], hasMore: false }));
-          records.push(...result.records);
-          if (!result.hasMore) return records;
-          offset += 2000;
-        }
-      };
-      const [byGroup, byGroupId] = await Promise.all([loadAttendance('group'), loadAttendance('groupId')]);
-      allAttendance = [...byGroup, ...byGroupId]
-        .filter((attendance, index, records) => records.findIndex(item => item.id === attendance.id) === index);
-    }
-
     // Build attendance map: userId → date → boolean
     const attendanceMap: Record<string, Record<string, boolean>> = {};
     const sessionDatesSet = new Set<string>();
@@ -266,46 +320,6 @@ export default createEndpoint({
         if (attendanceMap[m.userId][d] === undefined) {
           attendanceMap[m.userId][d] = false;
         }
-      }
-    }
-
-    const quizScoreMap: Record<string, Record<string, number>> = {};
-    const includeFolkQuizzes = String(context.user.segment || '').toUpperCase() === 'FOLK';
-    if (includeFolkQuizzes && memberUserIds.length > 0) {
-      const { records: allQuizzes } = await BvQuizzes.findAll({
-        fields: ['id', 'group', 'department'],
-        limit: 500,
-      });
-      const quizIds = allQuizzes
-        .filter((quiz: any) =>
-          normalizeQuizDepartment(quiz.department, 'FOLK') === 'FOLK' &&
-          groups.some((group: any) => legacyQuizMatchesGroup(quiz, group))
-        )
-        .map(quiz => quiz.id);
-
-      let offset = 0;
-      while (quizIds.length > 0) {
-        const { records, hasMore } = await BvQuizSubmissions.findAll({
-          filters: { user: { in: memberUserIds } } as any,
-          fields: ['id', 'user', 'quiz', 'percentage', 'submittedAt'],
-          limit: 2000,
-          offset,
-        });
-        for (const sub of records) {
-          const uid = (Array.isArray(sub.user) ? sub.user[0] : sub.user) as string;
-          const qid = (Array.isArray(sub.quiz) ? sub.quiz[0] : sub.quiz) as string;
-          if (!uid || !qid || !quizIds.includes(qid) || !sub.submittedAt) continue;
-          const subDate = String(sub.submittedAt).slice(0, 10);
-          if (subDate < startDate || subDate > endDate) continue;
-          if (!quizScoreMap[uid]) quizScoreMap[uid] = {};
-          const existing = quizScoreMap[uid][subDate];
-          const score = Math.round(Number(sub.percentage) || 0);
-          if (existing === undefined || score > existing) {
-            quizScoreMap[uid][subDate] = score;
-          }
-        }
-        if (!hasMore) break;
-        offset += 2000;
       }
     }
 

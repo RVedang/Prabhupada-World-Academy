@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CalendarCheck, Trophy, Users, TrendingUp, Wrench, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSuperGuideBvStats } from '@/lib/endpoints-sdk';
 import type { GetSuperGuideBvStatsOutputType } from '@/lib/endpoints-sdk';
 import { subWeeks, format, startOfISOWeek, endOfISOWeek } from 'date-fns';
 

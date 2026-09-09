@@ -1,6 +1,19 @@
 import { z } from 'zod';
 import { createEndpoint, Config, CleanlinessRooms, CleanlinessInspections, CleanlinessReviewRequests } from '@/lib/backend-sdk';
 
+interface CleanlinessResult {
+  enabled: boolean;
+  score: number | null;
+  pending: boolean;
+  message?: string;
+  roomNumber?: string;
+  inspectionId?: string;
+  roomId?: string;
+  photo?: string | null;
+  comment?: string | null;
+  reviewStatus?: string | null;
+}
+
 export default createEndpoint({
   description: 'Get cleanliness inspection score for sadhana form auto-fill',
   authenticated: true,
@@ -10,7 +23,7 @@ export default createEndpoint({
     date: z.string().optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input, context }) => {
+  execute: async ({ input, context }): Promise<CleanlinessResult> => {
     const rid = input.residencyId;
     if (!rid) return { enabled: false, score: null, pending: false };
 

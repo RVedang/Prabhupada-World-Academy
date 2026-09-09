@@ -1,7 +1,7 @@
 /**
  * BvSessionMatrixTab — BV attendance matrix with FOLK-only quiz columns
  */
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Users, Calendar, CheckSquare, Brain, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBvSessionMatrix } from '@/lib/endpoints-sdk';
 import type { GetBvSessionMatrixOutputType } from '@/lib/endpoints-sdk';
 import { format, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear, startOfMonth, endOfMonth } from 'date-fns';
 import { useEndpointQuery } from '@/hooks/useEndpointQuery';
@@ -19,7 +18,6 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import { ASHRAY_LEVELS } from '@/types/enums';
 import { EmptyState } from '@/shared';
 import { exportToCsv } from '@/utils/exportCsv';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type ReportType = 'weekly' | 'monthly';
 type MemberRow = GetBvSessionMatrixOutputType['members'][0];

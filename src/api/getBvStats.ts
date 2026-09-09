@@ -93,7 +93,7 @@ async function _fetchBvStats({ input, context }: { input: any; context: any }) {
         ));
         for (const res of fetches) for (const u of res.records) bvslMap.set(u.id, u);
       }
-      const resFetches = await Promise.all(residencyIds.map(rid =>
+      const resFetches = await Promise.all(residencyIds.map((rid: string) =>
         Users.findAll({ filters: { isBvsl: true, status: 'Active', residency: rid }, fields: ['id', 'userId', 'fullName'], limit: 200 })
       ));
       for (const res of resFetches) for (const u of res.records) bvslMap.set(u.id, u);
@@ -181,7 +181,7 @@ async function _fetchBvStats({ input, context }: { input: any; context: any }) {
     const filteredEntries = allEntries.flatMap(entry => {
       const entryAliases = (Array.isArray(entry.user) ? entry.user : [entry.user])
         .filter(Boolean).map((value: unknown) => String(value).toLowerCase());
-      const canonicalId = entryAliases.map(alias => canonicalByAlias.get(alias)).find(Boolean);
+      const canonicalId = entryAliases.map((alias: string) => canonicalByAlias.get(alias)).find(Boolean);
       return canonicalId ? [{ ...entry, __canonicalUserId: canonicalId }] : [];
     });
 

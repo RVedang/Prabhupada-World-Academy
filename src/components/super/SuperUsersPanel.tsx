@@ -25,7 +25,7 @@ import { EmptyState, ConfirmDialog } from '@/shared';
 import MultiRoleAssignModal from './MultiRoleAssignModal';
 import BulkUserManagement from '@/components/guide/BulkUserManagement';
 
-type User = GetGuideUsersOutputType['users'][0] & { _guideId: string; _guideName: string };
+type User = GetGuideUsersOutputType['users'][0] & { id?: string; _guideId: string; _guideName: string };
 type GuideEntry = GetGuidesOutputType['guides'][0];
 type BvGroupOption = { id: string; groupId: string; groupName: string; segment?: string | null; isActive?: boolean; facilitatorIds?: string[] };
 type SortKey = 'fullName' | 'guideName' | 'ashrayLevel' | 'latestScore' | 'latestEntryDate' | 'isResident';
@@ -411,21 +411,21 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     const list = users
       .filter(u => (u as any).isBvAdmin || (u as any).isBvSuperAdmin || u.role === 'Admin' || u.role === 'PW_ADMIN' || u.role === 'SUPER_ADMIN' || u.role === 'SUPER_GUIDE')
       .filter(u => isUserInCurrentDepartment(u, !!isPwAdmin))
-      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u), rawUser: u }))
+      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u) }))
       .filter(u => u.id.length > 0);
 
     // Fallback: Add current logged-in profile if admin
     if (profile && (profile.isBvAdmin || profile.isBvSuperAdmin || (profile.role as string) === 'ADMIN' || (profile.role as string) === 'SUPER_ADMIN')) {
       const myId = String(profile.userId || (profile as any).id || '');
       if (myId && !list.some(item => item.id === myId)) {
-        list.unshift({ id: myId, name: `${profile.fullName || 'Admin'} (Super Admin)`, rawUser: profile });
+        list.unshift({ id: myId, name: `${profile.fullName || 'Admin'} (Super Admin)` });
       }
     }
 
     if (list.length === 0) {
       // Fallback to all guides loaded
       guides.forEach(g => {
-        if (g.guideId && g.name) list.push({ id: g.guideId, name: formatDevoteeName(g), rawUser: g });
+        if (g.guideId && g.name) list.push({ id: g.guideId, name: formatDevoteeName(g) });
       });
     }
 
@@ -436,7 +436,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     const list = users
       .filter(u => (u as any).isBvSupervisor || (u as any).isBvMentor || u.role === 'Guide')
       .filter(u => isUserInCurrentDepartment(u, !!isPwAdmin))
-      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u), rawUser: u }))
+      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u) }))
       .filter(u => u.id.length > 0);
     return list.length > 0 ? list : bvAdminsList;
   }, [users, isPwAdmin, isUserInCurrentDepartment, bvAdminsList]);
@@ -445,7 +445,7 @@ export default function SuperUsersPanel({ isPwAdmin = false, segment, isSuperAdm
     const list = users
       .filter(u => (u as any).isBvFacilitator || (u as any).isBvsl || u.role === 'BVSL' || u.role === 'RGF')
       .filter(u => isUserInCurrentDepartment(u, !!isPwAdmin))
-      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u), rawUser: u }))
+      .map(u => ({ id: String(u.userId || u.id || ''), name: formatDevoteeName(u) }))
       .filter(u => u.id.length > 0);
     return list.length > 0 ? list : bvSupervisorsList;
   }, [users, isPwAdmin, isUserInCurrentDepartment, bvSupervisorsList]);

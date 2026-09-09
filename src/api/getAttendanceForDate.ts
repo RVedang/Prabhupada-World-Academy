@@ -105,7 +105,7 @@ export default createEndpoint({
           attendedMinutes: sessionExists ? (attendedMinutesMap[dbId] ?? (isPresent ? totalMeetingMinutes : 0)) : totalMeetingMinutes,
         };
       })
-      .filter(Boolean)
+      .filter(member => member !== null)
       .sort((a: any, b: any) => a.fullName.localeCompare(b.fullName));
 
     return {

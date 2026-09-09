@@ -115,7 +115,7 @@ export default function ServiceAnalyticsTab({ residencyId }: Props) {
                     <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="serviceName" tick={{ fontSize: 10 }} width={120} />
                     <Tooltip
-                      formatter={(value: any, name: string, props: any) => [`${value}% (${props.payload.done}/${props.payload.total})`, 'Completion']}
+                      formatter={(value, name, props) => [`${value}% (${props.payload.done}/${props.payload.total})`, 'Completion']}
                       contentStyle={{ fontSize: 11 }}
                     />
                     <Bar dataKey="completionRate" radius={[0, 3, 3, 0]}>

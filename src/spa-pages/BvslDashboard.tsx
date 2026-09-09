@@ -45,7 +45,7 @@ export default function BvslDashboard() {
 
   useEffect(() => {
     if (authUser?.email && !isSuperAdmin) {
-      getCurrentGuide({ email: authUser.email }).then(r => {
+      getCurrentGuide({}).then(r => {
         if (r.guide?.fullName) setDisplayName(r.guide.fullName);
       }).catch(() => {});
     }

@@ -218,7 +218,7 @@ export default function HowToUsePage() {
           <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-primary" /> Frequently Asked Questions
           </h2>
-          <Accordion type="single" collapsible className="space-y-2">
+          <Accordion className="space-y-2">
             {faqs.map((faq, i) => (
               <AccordionItem key={i} value={`faq-${i}`} className="border border-border rounded-lg px-4">
                 <AccordionTrigger className="text-sm font-medium text-foreground hover:no-underline py-3">

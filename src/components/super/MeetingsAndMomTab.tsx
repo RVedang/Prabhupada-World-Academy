@@ -7,7 +7,7 @@ import {
   User, Mail, CalendarClock, Link as LinkIcon, BadgeAlert, Sparkles, Send, CheckCircle2
 } from 'lucide-react';
 import {
-  createMeeting, getMeetings, updateMeeting, saveMom, getMoms, getGuideUsers
+  createMeeting, updateMeeting, saveMom
 } from '@/lib/endpoints-sdk';
 import { useAuth } from '@/lib/auth-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
@@ -607,7 +607,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
       }));
     return mappedMoms;
   }, [momsQuery.data]);
-  const registeredUsers = useMemo(() => {
+  const registeredUsers = useMemo<any[]>(() => {
     const usersRes = inviteesQuery.data || {};
       const departmentUsers = (usersRes.users || []).map((u: any) => ({
         ...u,

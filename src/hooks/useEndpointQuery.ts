@@ -9,7 +9,7 @@ import { useDashboardActivity } from '@/components/DashboardPanel';
 
 /** Reactive SWR over the existing endpoint cache (no second copy of API data). */
 export function useEndpointQuery<T>(name: string, input: Record<string, unknown>, enabled = true) {
-  useSyncExternalStore(subscribeEndpointCache, getEndpointIdentityScope, () => 'public');
+  const scope = useSyncExternalStore(subscribeEndpointCache, getEndpointIdentityScope, () => 'public');
   const key = queryCacheKey(name, input);
   const inputRef = useRef(input);
   inputRef.current = input;
@@ -21,8 +21,8 @@ export function useEndpointQuery<T>(name: string, input: Record<string, unknown>
   const latest = useRef(key);
   latest.current = key;
   const previous = useRef<{ name: string; scope: string; data: T } | null>(null);
-  const scope = key.slice(0, key.indexOf(`:${name}:`));
-  const data = (cache?.data as T | undefined) ?? (previous.current?.name === name && previous.current.scope === scope ? previous.current.data : undefined);
+  const denied = state.key === key && [401, 403].includes((state.error as any)?.status);
+  const data = denied ? undefined : (cache?.data as T | undefined) ?? (previous.current?.name === name && previous.current.scope === scope ? previous.current.data : undefined);
   useEffect(() => {
     if (cache) previous.current = { name, scope, data: cache.data };
   }, [cache, name, scope]);
@@ -35,6 +35,7 @@ export function useEndpointQuery<T>(name: string, input: Record<string, unknown>
       await queryEndpoint<T>(name, { ...inputRef.current, ...(force ? { bypassCache: true } : {}) });
       if (latest.current === requestKey) setState({ key: requestKey, fetching: false, error: null });
     } catch (error) {
+      if (latest.current === requestKey && [401, 403].includes((error as any)?.status)) previous.current = null;
       if (latest.current === requestKey) setState({ key: requestKey, fetching: false, error: error instanceof Error ? error : new Error(String(error)) });
     }
   }, [key, name, enabled]);

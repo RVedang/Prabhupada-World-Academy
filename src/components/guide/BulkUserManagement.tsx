@@ -56,7 +56,7 @@ export default function BulkUserManagement({ isSuperGuide, onImported }: { isSup
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [options, setOptions] = useState<ExportOptions>({ groups: [], guides: [] });
-  const [filters, setFilters] = useState({ status: 'all', startDate: '', endDate: '', groupId: 'all', assignedGuideId: 'all' });
+  const [filters, setFilters] = useState<Required<Parameters<typeof exportBulkUsers>[0]>>({ status: 'all', startDate: '', endDate: '', groupId: 'all', assignedGuideId: 'all' });
 
   const resetImport = () => {
     setFileName(''); setParsed(null); setPreview(null); setResult(null);

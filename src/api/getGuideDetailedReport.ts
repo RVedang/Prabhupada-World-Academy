@@ -244,7 +244,7 @@ const FIELD_DEFS = [
 
 function aggregateEntries(entries: any[], isResident: boolean, ashrayLevel?: string | null) {
   if (entries.length === 0) {
-    return { fieldScores: {}, fieldRawValues: {}, totalScore: null, scorePercent: null, chantingRaw: null, readingRaw: null, hearingRaw: null, flagSick: false, flagOs: false, submittedAt: null };
+    return { fieldScores: {} as Record<string, number | string | null>, fieldRawValues: {} as Record<string, number | string | null>, totalScore: null, scorePercent: null, chantingRaw: null, readingRaw: null, hearingRaw: null, flagSick: false, flagOs: false, submittedAt: null };
   }
 
   // For single-entry (daily): flag if any entry has it.
@@ -718,6 +718,14 @@ export default createEndpoint({
     void referencePromise.catch(() => {});
 
     const isPwMentor = !!mentorMode && input.segment === 'PW';
+    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isPwDepartmentAdmin = inputGuideId === 'ALL' && input.segment === 'PW' && !!(
+      context.user.isBvAdmin || context.user.isBvSuperAdmin || context.user.isPwAdmin ||
+      callerRole === 'ADMIN' || callerRole === 'PW_ADMIN' || callerRole === 'SUPER_ADMIN'
+    );
+    const hierarchyPromise = isPwMentor || isPwDepartmentAdmin || facilitatorMode
+      ? Promise.resolve(null) : getScopedHierarchyUserIds(context.user);
+    void hierarchyPromise.catch(() => {});
     const mentorRecord = isPwMentor
       ? (await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email'] }).catch(() => null)
         || await Users.findOne({ filters: { email: context.user.email }, fields: ['id', 'userId', 'email'] }).catch(() => null))
@@ -768,25 +776,24 @@ export default createEndpoint({
     let availableResidencies: { residencyId: string; residencyName: string }[] = [];
     let guideResidencyIds: string[] = [];
     if (guideDbId && !facilitatorMode) {
-      const guide = await Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined) ||
-        await Users.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: guideDbId }, fields: ['id', 'folkResidencies'] }).catch(() => undefined);
+      const guideSources = await Promise.all([
+        Guides.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined),
+        Users.findOne({ id: guideDbId, fields: ['id', 'folkResidencies'] }).catch(() => undefined),
+        Users.findOne({ filters: { userId: guideDbId }, fields: ['id', 'folkResidencies'] }).catch(() => undefined),
+      ]);
+      const guide = guideSources.find(Boolean);
       guideResidencyIds = Array.isArray(guide?.folkResidencies)
         ? guide.folkResidencies as string[]
         : (guide?.folkResidencies ? [guide.folkResidencies as string] : []);
-      if (guideResidencyIds.length > 0) {
-        const reference = await referencePromise;
-        const recs = guideResidencyIds.map(id => reference.residencies.find(r => r.id === id));
-        availableResidencies = recs.filter(Boolean).map(r => ({
-          residencyId: (r as any).id,
-          residencyName: (r as any).residencyName || '',
-        }));
-      }
     }
-    if (!guideDbId) {
-      const allRes = (await referencePromise).residencies.filter(r => r.isActive === true).slice(0, 200);
-      availableResidencies = allRes.map(r => ({ residencyId: r.id, residencyName: (r as any).residencyName || '' }));
-    }
+    const availableResidenciesPromise = referencePromise.then(reference => {
+      if (!guideDbId) return reference.residencies.filter(residency => residency.isActive === true).slice(0, 200)
+        .map(residency => ({ residencyId: residency.id, residencyName: residency.residencyName || '' }));
+      if (facilitatorMode) return [];
+      return guideResidencyIds.map(id => reference.residencies.find(residency => residency.id === id)).filter(Boolean)
+        .map(residency => ({ residencyId: residency.id, residencyName: residency.residencyName || '' }));
+    });
+    void availableResidenciesPromise.catch(() => {});
 
     // Phase 1 FIX: include both guide-assigned users AND users in any of the guide's residencies
     let users: any[] = [];
@@ -797,7 +804,7 @@ export default createEndpoint({
       users = records.filter(user => {
         const assignments = Array.isArray(user.sadhanaMentor) ? user.sadhanaMentor : [user.sadhanaMentor];
         return isPwSadhanaUser(user)
-          && assignments.some(value => mentorReferences.has(String(value || '').trim().toLowerCase()));
+          && assignments.some((value: unknown) => mentorReferences.has(String(value || '').trim().toLowerCase()));
       });
     } else if (guideDbId) {
       const userFetchPromises = [
@@ -829,12 +836,7 @@ export default createEndpoint({
       users = records;
     }
 
-    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isPwDepartmentAdmin = inputGuideId === 'ALL' && input.segment === 'PW' && !!(
-      context.user.isBvAdmin || context.user.isBvSuperAdmin || context.user.isPwAdmin ||
-      callerRole === 'ADMIN' || callerRole === 'PW_ADMIN' || callerRole === 'SUPER_ADMIN'
-    );
-    const scopedUserIds = isPwMentor || isPwDepartmentAdmin || facilitatorMode ? null : await getScopedHierarchyUserIds(context.user);
+    const scopedUserIds = await hierarchyPromise;
 
     // BVSL/RGSF mode applies its own strict group-membership scope below,
     // including legacy aliases for group/member references. Applying the
@@ -906,7 +908,37 @@ export default createEndpoint({
       });
     }
 
-    if (users.length === 0) return { users: [], fieldDefs: reportFieldDefs, availableResidencies, availableGuides: [], currentGuideId: guideDbId, summary: {} };
+    if (users.length === 0) return { users: [], fieldDefs: reportFieldDefs, availableResidencies: await availableResidenciesPromise, availableGuides: [], currentGuideId: guideDbId, summary: {} };
+
+    // Fetch entries in date range (paginated if needed)
+    const dateFilter = reportType === 'daily'
+      ? { entryDate: effectiveStart }
+      : { entryDate: { gte: effectiveStart, lte: effectiveEnd } };
+
+    // ── Streak computation ──
+    // For Super Guide (ALL users), skip the expensive 100-day paginated fetch and
+    // use the cached `currentStreak` value stored on each user record instead.
+    // For individual guides, compute it live from the 100-day window for accuracy.
+    const todayStr = getTodayIST();
+    const readPages = async (filters: any, fields: string[]) => {
+      const rows: any[] = [];
+      let offset = 0;
+      while (true) {
+        const { records, hasMore } = await SadhanaEntries.findAll({ filters, fields, limit: 2000, offset });
+        rows.push(...records);
+        if (!hasMore) return rows;
+        offset += 2000;
+      }
+    };
+    // Report values and streak history are independent once scope is known.
+    // Keep the original date bounds, field projections and alias matching.
+    const entriesPromise = Promise.all([
+      readPages(dateFilter, ENTRY_FIELDS),
+      guideDbId !== null
+        ? readPages({ entryDate: { gte: daysAgo(todayStr, 100), lte: todayStr } }, ['id', 'user', 'entryDate', 'scorePercent'])
+        : Promise.resolve([]),
+    ]);
+    void entriesPromise.catch(() => {});
 
     // Collect unique guide IDs across all returned users — used for the Guide filter dropdown
     const guideIdsFromUsers = [...new Set(
@@ -940,55 +972,19 @@ export default createEndpoint({
       }
     });
 
-    // Fetch entries in date range (paginated if needed)
-    const dateFilter = reportType === 'daily'
-      ? { entryDate: effectiveStart }
-      : { entryDate: { gte: effectiveStart, lte: effectiveEnd } };
-
-    let allEntries: any[] = [];
-    let entryOffset = 0;
-    while (true) {
-      const { records, hasMore } = await SadhanaEntries.findAll({
-        filters: dateFilter as any,
-        fields: ENTRY_FIELDS,
-        limit: 2000,
-        offset: entryOffset,
-      });
-      allEntries = allEntries.concat(records);
-      if (!hasMore) break;
-      entryOffset += 2000;
-    }
-
-    // ── Streak computation ──
-    // For Super Guide (ALL users), skip the expensive 100-day paginated fetch and
-    // use the cached `currentStreak` value stored on each user record instead.
-    // For individual guides, compute it live from the 100-day window for accuracy.
-    const todayStr = getTodayIST();
+    const [allEntries, streakEntries] = await entriesPromise;
+    availableResidencies = await availableResidenciesPromise;
     const streakEntriesByUser = new Map<string, { entryDate: string; scorePercent: number | null }[]>();
-    if (guideDbId !== null) {
-      const streakCutoff = daysAgo(todayStr, 100);
-      let sOffset = 0;
-      while (true) {
-        const { records: sRecs, hasMore: sMore } = await SadhanaEntries.findAll({
-          filters: { entryDate: { gte: streakCutoff, lte: todayStr } } as any,
-          fields: ['id', 'user', 'entryDate', 'scorePercent'],
-          limit: 2000,
-          offset: sOffset,
-        });
-        for (const e of sRecs) {
-          const rawUid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
-          const entryOwner = String(rawUid || '').trim();
-          if (!entryOwner || !userDbIdSet.has(entryOwner)) continue;
-          const uid = userIdToPrimaryId.get(entryOwner) || entryOwner;
-          if (!streakEntriesByUser.has(uid)) streakEntriesByUser.set(uid, []);
-          streakEntriesByUser.get(uid)!.push({
-            entryDate: (e.entryDate as string) || '',
-            scorePercent: (e.scorePercent as number) ?? null,
-          });
-        }
-        if (!sMore) break;
-        sOffset += 2000;
-      }
+    for (const e of streakEntries) {
+      const rawUid = Array.isArray(e.user) ? e.user[0] : (e.user as string);
+      const entryOwner = String(rawUid || '').trim();
+      if (!entryOwner || !userDbIdSet.has(entryOwner)) continue;
+      const uid = userIdToPrimaryId.get(entryOwner) || entryOwner;
+      if (!streakEntriesByUser.has(uid)) streakEntriesByUser.set(uid, []);
+      streakEntriesByUser.get(uid)!.push({
+        entryDate: (e.entryDate as string) || '',
+        scorePercent: (e.scorePercent as number) ?? null,
+      });
     }
 
     // Group entries by user DB ID (filter to only our users)

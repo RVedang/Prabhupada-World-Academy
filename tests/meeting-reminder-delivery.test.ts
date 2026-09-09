@@ -1,3 +1,4 @@
+import { apiUser } from './helpers/apiUser';
 import assert from 'node:assert/strict';
 import { createDecipheriv, createECDH, hkdfSync, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -20,8 +21,8 @@ test('meeting Web Push payload uses browser-compatible RFC 8291 encryption', asy
     Buffer.from('WebPush: info\0'), receiverPublic, serverPublic,
   ]), 32);
   const salt = wire.subarray(0, 16);
-  const key = hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
-  const nonce = hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: nonce\0'), 12);
+  const key = hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: nonce\0'), 12);
   const decipher = createDecipheriv('aes-128-gcm', Buffer.from(key), Buffer.from(nonce));
   decipher.setAuthTag(wire.subarray(-16));
   const clear = Buffer.concat([decipher.update(wire.subarray(86, -16)), decipher.final()]);
@@ -64,7 +65,7 @@ test('meeting reminder publishes to every invitee and remains directly joinable'
   try {
     const result = await sendMeetingReminder.execute({
       input: { meetingId: 'meeting-reminder-test', reminderType: 'TEN_MINUTES' },
-      context: { user: { isActive: true, capabilities: ['meetings.manage'] } },
+      context: { user: apiUser({ isActive: true, capabilities: ['meetings.manage'] }) },
     } as never);
 
     assert.equal(result.inAppRecipients, 1);

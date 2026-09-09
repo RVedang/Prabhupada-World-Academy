@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createEndpoint, OneToOneMeetings, AppError } from '@/lib/backend-sdk';
+import { createEndpoint, OneToOneMeetings, Users, AppError } from '@/lib/backend-sdk';
 
 export default createEndpoint({
   description: 'Delete a one-to-one meeting record',
@@ -15,7 +15,8 @@ export default createEndpoint({
     // Sadhana Mentors can delete meetings for their assigned guide
     let isMentorForGuide = false;
     if (!isOwner && context.user!.isSadhanaMentor) {
-      const mentorGuideRef = Array.isArray(context.user!.guide) ? context.user!.guide[0] : context.user!.guide;
+      const mentor = await Users.findOne({ id: context.user.id, fields: ['guide'] });
+      const mentorGuideRef = Array.isArray(mentor?.guide) ? mentor.guide[0] : mentor?.guide;
       isMentorForGuide = !!mentorGuideRef && mentorGuideRef === guideId;
     }
     if (!isOwner && !isMentorForGuide) {

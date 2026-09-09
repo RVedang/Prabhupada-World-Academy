@@ -53,7 +53,7 @@ function BvslBookingLinkSettings({ initialLink }: { initialLink: string }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveBvslOneToOneLink({ bookingLink: link });
+      await saveBvslOneToOneLink({ link: link });
       setSaved(true);
       toast.success('1:1 Booking link saved');
       setTimeout(() => setSaved(false), 2000);

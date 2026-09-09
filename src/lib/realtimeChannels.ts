@@ -63,6 +63,7 @@ export function realtimeChannelsForEndpoint(name: string): RealtimeChannel[] {
     getSuperGuideBvStats: ['attendance', 'sadhana', 'users', 'groups'],
     getGuides: ['users', 'groups', 'config'],
     getAllResidencies: ['users', 'config'],
+    logDevoteeInteraction: ['meetings'],
     getMeetings: ['meetings', 'users'],
     getMoms: ['meetings', 'users'],
   };

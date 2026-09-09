@@ -195,7 +195,7 @@ export default function BvQuizTaker({ quizId, submissionId, onBack, onSubmitted 
                   {currentQ.type === 'single' ? 'Choose one answer' : 'Choose all that apply'}
                 </p>
                 <div className="space-y-2">
-                  {currentQ.options.map((opt, idx) => {
+                  {currentQ.options.map((opt: string, idx: number) => {
                     const isSelected = selected.includes(idx);
                     return (
                       <button
@@ -298,7 +298,7 @@ function ReviewQuestion({ question, index, result }: {
         </div>
 
         <div className="space-y-1.5">
-          {question.options.map((opt, idx) => {
+          {question.options.map((opt: string, idx: number) => {
             const isSelected = result?.selected.includes(idx);
             const isCorrect = result?.correct.includes(idx);
             let style = 'border-border text-foreground/70';

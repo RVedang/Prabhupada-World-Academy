@@ -185,7 +185,7 @@ async function _fetchBvslMembers({ input, context }: { input: any; context: any 
             residencyName: residencyId ? (residencyMap[residencyId] || null) : null,
             isRgsf: !!(u.isRgsf || u.role === 'RGSF' || (Array.isArray(u.roles) && u.roles.includes('RGSF'))),
           };
-        }).filter(Boolean);
+        }).filter(member => member !== null);
 
         return { members };
       }
@@ -237,7 +237,7 @@ async function _fetchBvslMembers({ input, context }: { input: any; context: any 
         isResident: false,
         residencyName: null,
       };
-    }).filter(Boolean);
+    }).filter(member => member !== null);
 
     return { members };
 }

@@ -5,7 +5,7 @@ import { hasEndpointRequestsInFlight, isEndpointQueryFresh, queryCacheKey, query
 type Query = { tab: string; name: string; input: Record<string, unknown>; intentOnly?: boolean };
 type Options = { enabled: boolean; segment: 'PW' | 'FOLK'; isSuperAdmin: boolean; guideId: string; activeTab: string; residencyId?: string };
 
-function plan({ segment, isSuperAdmin, guideId, residencyId }: Options): Query[] {
+function plan({ segment, isSuperAdmin, guideId }: Options): Query[] {
   const now = new Date();
   const date = (d: Date) => format(d, 'yyyy-MM-dd');
   const previousWeek = subWeeks(now, 1);
@@ -16,8 +16,10 @@ function plan({ segment, isSuperAdmin, guideId, residencyId }: Options): Query[]
     segment === 'FOLK' && isSuperAdmin
       ? { tab: 'bv', name: 'getSuperGuideBvStats', input: { weekNumber: getISOWeek(now), year: getISOWeekYear(now), segment } }
       : { tab: 'bv', name: 'getBvSessionMatrix', input: { guideId: isSuperAdmin ? 'ALL' : guideId, startDate: date(startOfISOWeek(now)), endDate: date(endOfISOWeek(now)), segment } },
-    { tab: 'meetings', name: 'getMeetings', input: { department: segment } },
-    { tab: 'meetings', name: 'getMoms', input: { department: segment } },
+    ...(segment === 'PW' ? [
+      { tab: 'meetings', name: 'getMeetings', input: { department: segment } },
+      { tab: 'meetings', name: 'getMoms', input: { department: segment } },
+    ] : []),
     { tab: 'missing-sadhana', name: 'getMissingSadhanaReport', input: { startDate: date(startOfISOWeek(previousWeek)), endDate: date(endOfISOWeek(previousWeek)), segment } },
     // Directories/group management can include many records and history. Load
     // them on navigation intent, never as an unconditional login download.

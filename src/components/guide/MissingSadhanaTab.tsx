@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { LayoutGrid, List, Download, ChevronDown, ChevronRight, Users, Calendar, XCircle, TrendingUp, Smartphone, Clock } from 'lucide-react';
-import { getMissingSadhanaReport, getAllResidencies } from '@/lib/endpoints-sdk';
+import { getAllResidencies } from '@/lib/endpoints-sdk';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { exportToCsv } from '@/utils/exportCsv';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ type CellStatus = 'filled' | 'late' | 'missed';
 
 type UserRow = {
   id: string;
+  email?: string;
   fullName: string;
   userId: string;
   residencyName: string;

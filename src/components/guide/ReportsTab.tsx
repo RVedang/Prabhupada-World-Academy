@@ -1,6 +1,6 @@
 // Fix 4: Frontend filtering for residency/level/folk-residency (no re-fetch on filter change)
-// Fix 8: Debounce API call — only re-fetch when date/reportType changes
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+// Scoped endpoint cache retains date/report combinations while revalidating.
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { FileDown, Image, Users, Headphones, BookOpen, Music2, TrendingUp, Search, Package, Moon, Clock, RefreshCw, Zap, GraduationCap } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { getGuideDetailedReport, GetGuideDetailedReportOutputType, recalculateScoresForDate } from '@/lib/endpoints-sdk';
+import { GetGuideDetailedReportOutputType, recalculateScoresForDate } from '@/lib/endpoints-sdk';
 import { useEndpointQuery } from '@/hooks/useEndpointQuery';
 import { isPwSadhanaUser } from '@/lib/sadhanaDepartment';
 import { format, subDays, startOfMonth, endOfMonth, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear } from 'date-fns';
@@ -99,7 +99,7 @@ function stripFolkPrefix(value: string): string {
   return value.replace(/^FOLK\s+/i, '');
 }
 
-function resolveResidencyName(user: ReportUser, residencies: any[]): string | undefined {
+function resolveResidencyName(user: { residencyName?: string | null; residencyId?: string | null }, residencies: any[]): string | undefined {
   const existingName = String((user as any).residencyName || '').trim();
   if (existingName) return stripFolkPrefix(existingName);
 

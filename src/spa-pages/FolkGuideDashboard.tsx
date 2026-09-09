@@ -1,5 +1,6 @@
 import DashboardPanel from '@/components/DashboardPanel';
 import { useDashboardPrefetch } from '@/hooks/useDashboardPrefetch';
+import { dashboardScope } from '@/lib/dashboardScope';
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -111,13 +112,10 @@ export default function FolkGuideDashboard() {
 
   useEffect(() => {
     if (user?.email) {
-      getCurrentGuide({ email: user.email }).then(r => {
+      getCurrentGuide({}).then(r => {
         if (r.guide?.fullName) setAdminName(r.guide.fullName);
-        // getCurrentGuide exposes the resolved identity as `guideId`. Older
-        // responses used `id`, so accept both while always preferring the
-        // documented field. Reading only `id` left guide mode with an empty
-        // guideId and consequently an empty RGF/group list.
-        const resolvedGuideId = r.guide?.guideId || r.guide?.id || '';
+        // Use the endpoint's resolved guide identity for scoped RGF/group reads.
+        const resolvedGuideId = r.guide?.guideId || '';
         if (resolvedGuideId) setGuideId(resolvedGuideId);
       }).catch(() => {});
 
@@ -278,7 +276,7 @@ export default function FolkGuideDashboard() {
 
         <main className="flex-1 min-w-0">
           <Suspense fallback={<LoadingPage rows={2} />}>
-          <TabTransition activeTab={activeTab}>
+          <TabTransition key={dashboardScope(profile)} activeTab={activeTab}>
             {visitedTabs.has('sadhana') && (
               <DashboardPanel active={activeTab === 'sadhana'}>
                 <ReportsTab segment="FOLK" guideId={isSuperAdmin ? '' : guideId} isSuperAdminOverride={isSuperAdmin} />

@@ -92,7 +92,7 @@ export default function JigyasaTrackerTab({ centreFilter, affiliateFilter, canUp
       const rows = parseRegistrationCsv(text);
       if (rows.length === 0) { toast.error('No valid registration rows found in CSV'); return; }
       const res = await processJigyasaRegistration({ fileName: file.name, rows } as any);
-      toast.success(`Imported ${res.processed} registrations. ${res.newCount} new, ${res.updatedCount} updated.`);
+      toast.success(`Imported ${res.created + res.updated} registrations. ${res.created} new, ${res.updated} updated.`);
       load();
     } catch (err: any) {
       toast.error(err.message || 'Failed to process registration CSV');
@@ -292,7 +292,7 @@ function buildPivot(records: SessionRecord[]): PivotData {
 
 function UploadCard({ title, description, icon, loading, inputRef, onChange, accept }: {
   title: string; description: string; icon: React.ReactNode; loading: boolean;
-  inputRef: React.RefObject<HTMLInputElement>; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; accept: string;
+  inputRef: React.RefObject<HTMLInputElement | null>; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; accept: string;
 }) {
   return (
     <Card className="border-2 border-dashed hover:border-primary/40 transition-colors cursor-pointer" onClick={() => !loading && inputRef.current?.click()}>

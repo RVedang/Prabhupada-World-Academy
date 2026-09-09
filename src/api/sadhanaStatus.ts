@@ -8,7 +8,10 @@
  * Default date = today (IST / server local date).
  */
 import { z } from 'zod';
-import { createEndpoint, Users, SadhanaEntries, Guides, FolkResidencies, AppError, UsersRecordType, SadhanaEntriesRecordType } from '@/lib/backend-sdk';
+import { createEndpoint, Users, SadhanaEntries, Guides, FolkResidencies, AppError } from '@/lib/backend-sdk';
+
+type UsersRecordType = Awaited<ReturnType<typeof Users.findAll>>['records'][number];
+type SadhanaEntriesRecordType = Awaited<ReturnType<typeof SadhanaEntries.findAll>>['records'][number];
 
 // ── Output schemas ────────────────────────────────────────────────────────────
 

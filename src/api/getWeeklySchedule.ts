@@ -21,7 +21,7 @@ export default createEndpoint({
     if (allocRes.records.length === 0) return { schedule: [], weekStartDate };
 
     const svcIds = [...new Set(allocRes.records.map(a => Array.isArray(a.service) ? a.service[0] : a.service).filter(Boolean))] as string[];
-    const { records: svcRecords } = await Services.findAll({ filters: { id: { in: svcIds } }, fields: ['id', 'serviceName', 'timeSlot', 'category'] });
+    const { records: svcRecords } = await Services.findAll({ filters: { id: { in: svcIds } }, fields: ['id', 'serviceName', 'timeSlot', 'category', 'durationMinutes'] });
     const svcMap = new Map(svcRecords.map((s: any) => [s.id, s]));
 
     return {
@@ -36,6 +36,8 @@ export default createEndpoint({
           category: svc?.category || '',
           dayOfWeek: a.dayOfWeek || '',
           status: (a.status || 'Scheduled').toLowerCase(),
+          isOverdue: String(a.status || '').toLowerCase() === 'overdue',
+          durationMinutes: Number(svc?.durationMinutes) || 0,
         };
       }),
     };

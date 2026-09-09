@@ -1,3 +1,4 @@
+import { apiUser } from './helpers/apiUser';
 import assert from 'node:assert/strict';
 import { createECDH, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -22,8 +23,8 @@ test('native Web Push payload can be decrypted by an independent RFC 8291 receiv
     Buffer.from('WebPush: info\0'), receiverPublic, serverPublic,
   ]), 32);
   const salt = wire.subarray(0, 16);
-  const key = hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
-  const nonce = hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: nonce\0'), 12);
+  const key = hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: nonce\0'), 12);
   const decipher = createDecipheriv('aes-128-gcm', Buffer.from(key), Buffer.from(nonce));
   decipher.setAuthTag(wire.subarray(-16));
   const clear = Buffer.concat([decipher.update(wire.subarray(86, -16)), decipher.final()]);
@@ -47,7 +48,7 @@ test('in-app dispatch reaches missing members with zero native subscriptions, ex
   });
   const result = await sendPushNotifications.execute({
     input: { reminderSlot: 'night-1', segment: 'PW', checkDate: '2026-09-06' },
-    context: { user: { id: 'admin', isActive: true, capabilities: ['notifications.send'] } },
+    context: { user: apiUser({ id: 'admin', isActive: true, capabilities: ['notifications.send'] }) },
   });
   assert.equal(result.inAppRecipients, 1);
   assert.deepEqual(broadcast.inviteeIds, ['missing']);
@@ -71,7 +72,7 @@ test('instant FOLK dispatch reaches only missing FOLK members', async t => {
   const result = await sendPushNotifications.execute({
     input: { reminderSlot: 'night-1', segment: 'FOLK', checkDate: '2026-09-08' },
     context: {
-      user: { id: 'folk-admin', segment: 'FOLK', isActive: true, capabilities: ['notifications.send'] },
+      user: apiUser({ id: 'folk-admin', segment: 'FOLK', isActive: true, capabilities: ['notifications.send'] }),
     },
   });
 
@@ -90,7 +91,7 @@ test('subscribing a phone preserves existing laptop subscriptions', async t => {
   });
   let record: any;
   t.mock.method(PushSubscriptions, 'create', async (input: any) => { record = input.record; return record; });
-  await subscribePush.execute({ input: { endpoint: 'https://push.example.invalid/phone', p256dh: 'key', auth: 'auth' }, context: { user: { id: 'member' } } });
+  await subscribePush.execute({ input: { endpoint: 'https://push.example.invalid/phone', p256dh: 'key', auth: 'auth' }, context: { user: apiUser({ id: 'member' }) } });
   assert.deepEqual(queries, [{ endpoint: 'https://push.example.invalid/phone' }]);
   assert.equal(record.user, 'member');
 });

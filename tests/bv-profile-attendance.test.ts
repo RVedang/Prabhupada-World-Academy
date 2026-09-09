@@ -1,3 +1,4 @@
+import { apiUser } from './helpers/apiUser';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import getBvAttendance from '../src/api/getBvAttendance';
@@ -28,7 +29,7 @@ for (const lookup of ['userId', 'authUid', 'email']) {
 
     const result = await getBvAttendance.execute({
       input: { userId: member[lookup as keyof typeof member], sinceDate: '2026-09-01' },
-      context: { user: { id: 'admin-doc', role: 'PW_ADMIN', email: 'admin@example.invalid' } },
+      context: { user: apiUser({ id: 'admin-doc', role: 'PW_ADMIN', email: 'admin@example.invalid' }) },
     });
     assert.deepEqual(result.userHistory.map((row: any) => [row.attendanceDate, row.status]), [
       ['2026-09-06', 'P'], ['2026-09-05', 'A'],

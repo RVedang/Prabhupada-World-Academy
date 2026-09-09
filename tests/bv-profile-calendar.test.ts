@@ -1,3 +1,4 @@
+import { apiUser } from './helpers/apiUser';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import getBvAttendance from '../src/api/getBvAttendance';
@@ -24,7 +25,7 @@ for (const hasMembership of [false, true]) {
     });
     const result = await getBvAttendance.execute({
       input: { userId: user.id, historyOnly: true, sinceDate: '1900-01-01' },
-      context: { user: { id: 'admin', role: 'PW_ADMIN' } },
+      context: { user: apiUser({ id: 'admin', role: 'PW_ADMIN' }) },
     });
     assert.deepEqual(result.userHistory.map((row: any) => [row.attendanceDate, row.status]), [
       ...(hasMembership ? [['2026-09-07', 'P']] : []),
@@ -38,5 +39,5 @@ test('profile attendance reports query failures instead of returning an empty ca
   t.mock.method(Users, 'findOne', async () => ({ id: 'member-doc' }));
   t.mock.method(BvGroupMembers, 'findAll', async () => ({ records: [] }));
   t.mock.method(BvAttendance, 'findAll', async () => { throw Error('Attendance temporarily unavailable'); });
-  await assert.rejects(getBvAttendance.execute({ input: { userId: 'member-doc', historyOnly: true }, context: { user: { id: 'admin' } } }), /Attendance temporarily unavailable/);
+  await assert.rejects(getBvAttendance.execute({ input: { userId: 'member-doc', historyOnly: true }, context: { user: apiUser({ id: 'admin' }) } }), /Attendance temporarily unavailable/);
 });

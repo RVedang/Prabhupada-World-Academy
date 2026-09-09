@@ -1,4 +1,4 @@
-import { Users, BvGroups, BvMemberships } from 'zite-integrations-backend-sdk';
+import { Users, BvGroups, BvGroupMembers as BvMemberships } from '../src/lib/app-backend-sdk';
 
 async function checkDb() {
   console.log('=== CHECKING USERS & GROUPS IN DATABASE ===\n');

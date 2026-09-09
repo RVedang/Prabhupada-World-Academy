@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/lib/auth-sdk';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,13 +30,13 @@ function isRequired(req: string): boolean {
 
 export default function GuideUserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
-  const { user: viewerUser } = useAuth();
+  const { profile: viewerUser } = useUserProfile();
   const navigate = useNavigate();
   const location = useLocation();
 
   const viewerRole = viewerUser?.role || '';
-  const canEditTrips = ['Guide', 'Super Guide'].includes(viewerRole) || !!((viewerUser as any)?.isTripCoordinator);
-  const canEditRent = ['Guide', 'Super Guide'].includes(viewerRole) || !!((viewerUser as any)?.isFolkLead);
+  const canEditTrips = ['GUIDE', 'SUPER_GUIDE'].includes(viewerRole) || !!viewerUser?.isTripCoordinator;
+  const canEditRent = ['GUIDE', 'SUPER_GUIDE'].includes(viewerRole) || !!viewerUser?.isFolkLead;
 
   const goBack = () => {
     const referrer = (location.state as any)?.from as string | undefined;

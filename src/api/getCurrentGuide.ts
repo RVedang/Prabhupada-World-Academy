@@ -81,7 +81,7 @@ export default createEndpoint({
 
     const todayStr = getTodayIST();
     const { records: allResidencies } = await FolkResidencies.findAll({ fields: RESIDENCY_FIELDS, limit: 500 });
-    const residencyRefs = Array.isArray(guideRecord.folkResidencies)
+    const residencyRefs: unknown[] = Array.isArray(guideRecord.folkResidencies)
       ? guideRecord.folkResidencies
       : guideRecord.folkResidencies ? [guideRecord.folkResidencies] : [];
     const residencyLookup = new Map<string, string>();

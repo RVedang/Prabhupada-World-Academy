@@ -20,6 +20,7 @@ export default createEndpoint({
   async execute({ input }) {
     const supabaseUrl = process.env.APP_SUPABASE_URL;
     const supabaseKey = process.env.APP_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) throw new Error('Book distribution integration is not configured');
 
     // Step 1: Look up volunteer by email
     const volRes = await fetch(

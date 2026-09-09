@@ -4,6 +4,22 @@
       "collectionGroup": "BvAttendance",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "attendanceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "SadhanaEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user", "order": "ASCENDING" },
+        { "fieldPath": "entryDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "BvAttendance",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "group", "order": "ASCENDING" },
         { "fieldPath": "attendanceDate", "order": "ASCENDING" }
       ]

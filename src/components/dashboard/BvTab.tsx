@@ -32,6 +32,7 @@ export default function BvTab({ userId, segment }: Props) {
   const [loading, setLoading] = useState(true);
   const [leavingGroup, setLeavingGroup] = useState(false);
   const [regModalOpen, setRegModalOpen] = useState(false);
+  const todayAttendance = attendance?.userHistory.find(entry => entry.attendanceDate === format(new Date(), 'yyyy-MM-dd'))?.status;
 
   const load = useCallback(async (silent = false) => {
     try {
@@ -213,12 +214,12 @@ export default function BvTab({ userId, segment }: Props) {
         <div className="grid grid-cols-3 gap-3">
           <Card>
             <CardContent className="pt-4 pb-3 text-center">
-              {attendance?.userStatus === 'P' ? (
+              {todayAttendance === 'P' ? (
                 <div className="flex items-center justify-center gap-1 text-green-600">
                   <CheckCircle2 className="w-4 h-4" />
                   <span className="font-bold text-sm">Present</span>
                 </div>
-              ) : attendance?.userStatus === 'A' ? (
+              ) : todayAttendance === 'A' ? (
                 <div className="flex items-center justify-center gap-1 text-red-500">
                   <XCircle className="w-4 h-4" />
                   <span className="font-bold text-sm">Absent</span>

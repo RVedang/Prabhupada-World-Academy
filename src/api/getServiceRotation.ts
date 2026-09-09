@@ -21,7 +21,7 @@ export default createEndpoint({
   }),
   outputSchema: z.object({
     // key: "userId::serviceId" → rotation info
-    rotationMap: z.record(z.object({
+    rotationMap: z.record(z.string(), z.object({
       weeksAssigned: z.number(),   // how many of last 4 weeks
       streak: z.number(),          // consecutive weeks (most recent first)
       flag: z.enum(['fair', 'repeating', 'overloaded']),

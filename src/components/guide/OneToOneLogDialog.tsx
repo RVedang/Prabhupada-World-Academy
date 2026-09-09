@@ -27,7 +27,7 @@ export interface Meeting {
   meetingDate: string;
   durationMinutes: number;
   notes: string;
-  callStatus?: CallStatus;
+  callStatus?: string;
   recordingLink?: string;
   nextCallDate?: string;
   nextCallAgenda?: string;
@@ -56,7 +56,7 @@ export default function OneToOneLogDialog({ open, onClose, onSaved, memberId, me
   const [meetingDate, setMeetingDate] = useState(existing?.meetingDate || today);
   const [duration, setDuration] = useState(String(existing?.durationMinutes || ''));
   const [notes, setNotes] = useState(existing?.notes || '');
-  const [callStatus, setCallStatus] = useState<CallStatus>(existing?.callStatus || 'Connected');
+  const [callStatus, setCallStatus] = useState<CallStatus>(CALL_STATUSES.find(status => status.value === existing?.callStatus)?.value || 'Connected');
   const [recordingLink, setRecordingLink] = useState(existing?.recordingLink || '');
   const [nextCallDate, setNextCallDate] = useState(existing?.nextCallDate || '');
   const [nextCallAgenda, setNextCallAgenda] = useState(existing?.nextCallAgenda || '');

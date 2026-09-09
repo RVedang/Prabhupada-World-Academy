@@ -465,7 +465,8 @@ export default function UsersTab({ guideId }: UsersTabProps) {
                     <tr className="border-b">
                       <th className="p-2 bg-card w-8" onClick={e => e.stopPropagation()}>
                         <Checkbox
-                          checked={isAllSelected || (isPartiallySelected ? 'indeterminate' : false)}
+                          checked={isAllSelected}
+                          indeterminate={isPartiallySelected}
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>

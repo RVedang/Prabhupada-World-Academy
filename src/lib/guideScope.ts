@@ -47,19 +47,26 @@ function resolveResidencyIds(values: unknown, records: any[]): string[] {
 export async function getGuideScope(email: string): Promise<GuideScope | null> {
   const emailLower = (email || '').toLowerCase();
   
-  let guide = await Guides.findOne({
-    filters: { email },
-    fields: ['id', 'folkResidencies', 'fullName', 'email', 'abbreviation'],
-  }) as any;
+  // These reads are independent. In particular, a Users-only guide should
+  // not wait through the legacy Guides fallback before their profile loads.
+  const [directGuide, linkedUser, residencies] = await Promise.all([
+    Guides.findOne({ filters: { email }, fields: ['id', 'folkResidencies', 'fullName', 'email', 'abbreviation'] }),
+    Users.findOne({ filters: { email }, fields: ['id', 'userId', 'role', 'fullName', 'email', 'folkResidencies', 'isBvSuperAdmin', 'isBvAdmin'] }),
+    FolkResidencies.findAll({ fields: ['id', 'residencyId', 'residencyName', 'guides', 'guideIds'], limit: 500 }).catch(() => ({ records: [] })),
+  ]);
+  let guide = directGuide;
 
   if (!guide) {
-    const { records: allGuides } = await Guides.findAll({ limit: 500 });
+    const { records: allGuides } = await Guides.findAll({
+      fields: ['id', 'folkResidencies', 'fullName', 'email', 'abbreviation', 'isSuperAdminScope'], limit: 500,
+    });
     guide = allGuides.find((g: any) => (g.email || '').toLowerCase() === emailLower);
   }
 
   if (!guide) {
-    const user = await Users.findOne({ filters: { email } }) || 
-                 await Users.findOne({ filters: { email: emailLower } });
+    const user = linkedUser || (email !== emailLower
+      ? await Users.findOne({ filters: { email: emailLower }, fields: ['id', 'userId', 'role', 'fullName', 'email', 'folkResidencies', 'isBvSuperAdmin', 'isBvAdmin'] })
+      : null);
     const normalizedRole = String(user?.role || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
     if (user && (
       ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'SUPER_ADMIN'].includes(normalizedRole) ||
@@ -79,7 +86,6 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
   // legacy Guides row has no residency links, merge the authenticated user's
   // assignment so every scoped report uses the current database state.
   if (guide && (!guide.folkResidencies || (Array.isArray(guide.folkResidencies) && guide.folkResidencies.length === 0))) {
-    const linkedUser = await Users.findOne({ filters: { email }, fields: ['folkResidencies'] }).catch(() => undefined);
     if (linkedUser?.folkResidencies) guide = { ...guide, folkResidencies: linkedUser.folkResidencies };
   }
 
@@ -87,9 +93,7 @@ export async function getGuideScope(email: string): Promise<GuideScope | null> {
 
   // One fresh projected read supplies aliases, assignments and display names.
   // This is permission data, so it is only deduplicated within the request.
-  const { records: residencyRecords } = await FolkResidencies.findAll({
-    fields: ['id', 'residencyId', 'residencyName', 'guides', 'guideIds'], limit: 500,
-  }).catch(() => ({ records: [] }));
+  const residencyRecords = residencies.records;
   let residencyIds = resolveResidencyIds(guide.folkResidencies, residencyRecords);
 
   // A residency may also be the source of truth for assignments (especially

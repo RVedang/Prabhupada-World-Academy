@@ -410,9 +410,7 @@ export default function CleanlinessTab({ guideId, residencies }: {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button onClick={handleSaveRoom} disabled={roomSaving || !roomNumber.trim()}>
               {roomSaving ? 'Saving...' : editingRoom ? 'Update Room' : 'Create Room'}
             </Button>

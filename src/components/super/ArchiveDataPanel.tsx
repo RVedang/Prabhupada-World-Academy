@@ -185,7 +185,7 @@ export default function ArchiveDataPanel() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Data Archival</AlertDialogTitle>
-              <AlertDialogDescription asChild>
+              <AlertDialogDescription render={<div />}>
                 <div className="space-y-3">
                   <p>This will summarize all sadhana entries older than <strong>{cutoffDate}</strong> into monthly aggregates and delete the raw entries.</p>
                   <div className="rounded-lg bg-muted p-3 space-y-1.5 text-sm">

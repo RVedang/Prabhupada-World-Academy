@@ -134,7 +134,7 @@ export default function StatsOverviewPanel({ guideId, bvslMode, mentorMode, faci
       setGroupStats(data);
       // Only update residencies when we actually get some (don't clear on filtered fetches)
       if ((data.availableResidencies ?? []).length > 0) {
-        setResidencies(data.availableResidencies);
+        setResidencies(data.availableResidencies ?? []);
       }
     } catch { /* keep cached stats visible */ }
     finally { if (!silent) setGroupLoading(false); }

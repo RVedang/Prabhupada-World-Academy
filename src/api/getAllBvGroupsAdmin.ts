@@ -43,8 +43,8 @@ export default createEndpoint({
       ? input.guideId
       : String(context?.user?.id || '');
     if (!effectiveGuideId) return { bvsls: [], groups: [], error: null };
-    // 10-minute server-side cache keyed by guideId — invalidated on group/role mutations
-    // (assignBvRole already calls serverCacheInvalidate() for a full cache clear).
+    // Short cache keyed by the server-resolved scope. Table writes invalidate
+    // local entries; the TTL bounds freshness across other server instances.
     const cacheKey = `allBvGroupsAdmin:${effectiveGuideId}`;
     return serverCacheGetOrFetch(cacheKey, () => _fetchAllBvGroupsAdmin(effectiveGuideId), 30_000);
   },
@@ -54,60 +54,28 @@ export { serverCacheInvalidate as _invalidateAllBvGroupsAdmin };
 
 async function _fetchAllBvGroupsAdmin(inputGuideId: string) {
 
-    // Robustly resolve guideId to a Guides-table UUID.
-    // bvMentorGuideId may be a Users-table UUID (when a Guide tagged the BV Mentor),
-    // a Guides-table UUID (when a Super Guide tagged them), or a custom guideId string.
-    let guideDbId: string | null = null;
-    let linkedGuideUser: any = undefined;
-
-    // Step 1: Try direct Guides-table lookup by UUID
-    const directGuideRec = await Guides.findOne({ id: inputGuideId, fields: ['id', 'fullName', 'email', 'guideId'] }).catch(() => undefined);
-    if (directGuideRec) {
-      guideDbId = directGuideRec.id;
-    } else {
-      // Step 2: Try as a Users-table UUID — look up their email, then find the Guides record
-      const guideUser =
-        await Users.findOne({ id: inputGuideId, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined) ||
-        await Users.findOne({ filters: { userId: inputGuideId }, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined);
-      linkedGuideUser = guideUser;
-      if (guideUser?.email) {
-        const guideByEmail = await Guides.findOne({ filters: { email: guideUser.email }, fields: ['id', 'fullName', 'email', 'guideId'] });
-        if (guideByEmail) guideDbId = guideByEmail.id;
-      }
-
-      // Step 3: Fallback — try legacy custom guideId string field
-      if (!guideDbId) {
-        const guideByCustomId = await Guides.findOne({ filters: { guideId: inputGuideId }, fields: ['id', 'fullName', 'email', 'guideId'] });
-        if (guideByCustomId) guideDbId = guideByCustomId.id;
-      }
-    }
-
-    // A Guides record is optional: several legitimate FOLK guides live only
-    // in Users. We can still scope RGFs safely using that user's database ID,
-    // custom userId, email, and reporting hierarchy fields.
+    // Resolve legacy identity forms in one batch and reuse the records. Keep
+    // the same precedence: Guides document, linked user email, custom guide ID.
+    const guideFields = ['id', 'fullName', 'email', 'guideId', 'folkResidencies'];
+    const userFields = ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'];
+    const [directGuide, userById, userByCustomId, guideByCustomId] = await Promise.all([
+      Guides.findOne({ id: inputGuideId, fields: guideFields }).catch(() => undefined),
+      Users.findOne({ id: inputGuideId, fields: userFields }).catch(() => undefined),
+      Users.findOne({ filters: { userId: inputGuideId }, fields: userFields }).catch(() => undefined),
+      Guides.findOne({ filters: { guideId: inputGuideId }, fields: guideFields }),
+    ]);
+    let linkedGuideUser = directGuide ? undefined : (userById || userByCustomId);
+    const guideByEmail = !directGuide && linkedGuideUser?.email
+      ? await Guides.findOne({ filters: { email: linkedGuideUser.email }, fields: guideFields })
+      : undefined;
+    const resolvedGuide = directGuide || guideByEmail || guideByCustomId;
+    const guideDbId: string | null = resolvedGuide?.id || null;
     if (!guideDbId && !linkedGuideUser) return { bvsls: [], groups: [], error: null };
 
-    const resolvedGuide = guideDbId
-      ? await Guides.findOne({
-        id: guideDbId,
-        fields: ['id', 'fullName', 'email', 'guideId', 'folkResidencies'],
-      }).catch(() => undefined)
-      : undefined;
-    // Role assignment stores hierarchy parents on the Users record, while
-    // older guide records use a Guides-table id. Resolve both representations
-    // so an RGF assigned to this guide is always discoverable.
-    linkedGuideUser = linkedGuideUser || ((resolvedGuide as any)?.email
-      ? await Users.findOne({
-        filters: { email: (resolvedGuide as any).email },
-        fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'],
-      }).catch(() => undefined)
-      : undefined);
-    if (!linkedGuideUser) {
-      linkedGuideUser = await Users.findOne({ id: inputGuideId, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined);
+    if (!linkedGuideUser && resolvedGuide?.email) {
+      linkedGuideUser = await Users.findOne({ filters: { email: resolvedGuide.email }, fields: userFields }).catch(() => undefined);
     }
-    if (!linkedGuideUser) {
-      linkedGuideUser = await Users.findOne({ filters: { userId: inputGuideId }, fields: ['id', 'userId', 'fullName', 'email', 'folkResidencies', 'residency'] }).catch(() => undefined);
-    }
+    linkedGuideUser = linkedGuideUser || userById || userByCustomId;
     const rawGuideResidencies = (resolvedGuide as any)?.folkResidencies ||
       (linkedGuideUser as any)?.folkResidencies ||
       (linkedGuideUser as any)?.residency || [];
@@ -121,13 +89,6 @@ async function _fetchAllBvGroupsAdmin(inputGuideId: string) {
         .map((value: any) => String(value).trim().toLowerCase())
     );
 
-    const { records: allGroupRecords } = await BvGroups.findAll({
-      // Fetch active groups with a single filter and apply the guide/RGF
-      // relationship in memory to avoid a deployment-time composite-index
-      // failure.
-      filters: { isActive: true },
-      limit: 500,
-    });
 
     // Resolve active RGFs from the Users table, then match every legacy guide
     // representation (Guide ID, custom ID, name, or email).
@@ -140,13 +101,22 @@ async function _fetchAllBvGroupsAdmin(inputGuideId: string) {
       (linkedGuideUser as any)?.id,
       (linkedGuideUser as any)?.userId,
     ].filter(Boolean).map(value => String(value).trim().toLowerCase()));
-    const { records: allBvslUsers } = await Users.findAll({
-      // Keep this a single-field query; filtering both status and isBvsl can
-      // require a composite index that may not exist immediately after deploy.
-      filters: { status: 'Active' },
-      limit: 1000,
-      fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'role', 'isBvsl', 'isBvFacilitator', 'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingAdminName', 'bvReportingSupervisorName'],
-    });
+    const [{ records: allGroupRecords }, { records: allBvslUsers }] = await Promise.all([
+      BvGroups.findAll({
+        // Fetch active groups with a single filter and apply the guide/RGF
+        // relationship in memory to avoid a deployment-time composite-index
+        // failure.
+        filters: { isActive: true },
+        limit: 500,
+      }),
+      Users.findAll({
+        // Keep this a single-field query; filtering both status and isBvsl can
+        // require a composite index that may not exist immediately after deploy.
+        filters: { status: 'Active' },
+        limit: 1000,
+        fields: ['id', 'userId', 'fullName', 'email', 'guide', 'selectedGuideId', 'guideName', 'residency', 'role', 'isBvsl', 'isBvFacilitator', 'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingAdminName', 'bvReportingSupervisorName'],
+      }),
+    ]);
     const bvslUserRecords = allBvslUsers.filter((u: any) => {
       if (u.isBvsl !== true && String(u.role || '').toUpperCase() !== 'BVSL' && u.isBvFacilitator !== true) return false;
       const guideValues = [
@@ -173,12 +143,12 @@ async function _fetchAllBvGroupsAdmin(inputGuideId: string) {
     const allGroupIds = groupRecords.map((g: any) => g.id);
 
     const [allMembersRes, allAttRes] = await Promise.all([
-      BvGroupMembers.findAll({
+      allGroupIds.length === 0 ? Promise.resolve({ records: [] }) : BvGroupMembers.findAll({
         filters: { group: { in: allGroupIds } } as any,
         fields: ['id', 'group'],
         limit: 5000,
       }),
-      BvAttendance.findAll({
+      allGroupIds.length === 0 ? Promise.resolve({ records: [] }) : BvAttendance.findAll({
         filters: { group: { in: allGroupIds } } as any,
         fields: ['id', 'group', 'present', 'attendanceDate'],
         limit: 10000,

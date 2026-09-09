@@ -203,10 +203,7 @@ export default createEndpoint({
       fetchUsersByKeys([...memberRawUserKeys, ...weekAttendanceRawUserKeys]),
     ]);
 
-    const { records: userRecs } = {
-      records: [...allUsersRes.records, ...keyedUserRecs],
-      limit: 2000,
-    };
+    const userRecs = [...allUsersRes.records, ...keyedUserRecs];
 
     const userInfoMap = new Map<string, any>();
     const adminUserIds = new Set<string>();
