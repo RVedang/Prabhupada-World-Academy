@@ -8,9 +8,17 @@ const { chromium, expect } = require('@playwright/test');
 require('@next/env').loadEnvConfig(process.cwd(), false, { info() {}, error() {} });
 
 async function auditLayout(page,record) {
-  const layout=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
+  const layout=await page.evaluate(()=>({
+    width:innerWidth,scrollWidth:document.documentElement.scrollWidth,
+    dashboardOpacity:document.querySelector('.dashboard-main')
+      ? Number(getComputedStyle(document.querySelector('.dashboard-main')).opacity) : null,
+    activeTabOpacity:document.querySelector('[data-active-tab]')
+      ? Number(getComputedStyle(document.querySelector('[data-active-tab]')).opacity) : null,
+  }));
   console.log(JSON.stringify({...record,...layout,viewportWidth:record.width}));
   assert.ok(layout.width<=record.width+2 && layout.scrollWidth<=record.width+2,`${record.segment} ${record.screen}: overflow at ${record.width}: ${layout.scrollWidth}`);
+  if (layout.dashboardOpacity != null) assert.equal(layout.dashboardOpacity,1,`${record.segment} ${record.screen}: dashboard content must not be faded`);
+  if (layout.activeTabOpacity != null) assert.equal(layout.activeTabOpacity,1,`${record.segment} ${record.screen}: active tab content must not be faded`);
 }
 async function main() {
   fs.mkdirSync('test-results/mobile',{recursive:true});

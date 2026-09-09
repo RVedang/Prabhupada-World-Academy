@@ -3,13 +3,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { useAuth } from '@/lib/auth-sdk';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, LogOut, User, BookOpen, Users, Award, Network, Compass, ShieldAlert } from 'lucide-react';
+import { Menu, LogOut, User, BookOpen, Users, Award, Network, ShieldAlert } from 'lucide-react';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import TransferNoticeModal from '@/components/TransferNoticeModal';
 import { useMeetingReminderScheduler } from '@/hooks/useMeetingReminderScheduler';
 import { getDepartmentLandingUrl, getUserDashboardPath } from '@/lib/userDashboardRoutes';
-
-import { motion, useReducedMotion } from 'framer-motion';
 
 const FOLK_LOGO = 'https://images.fillout.com/orgid-615562/flowpublicid-u91plgmzcu/widgetid-default/q1fJEkENG5kbvfjYaFbDeT/pasted-image-1773145742081.png';
 
@@ -36,9 +34,8 @@ export default function DashboardLayout({
   showProfile = true,
   meetingDepartment,
 }: DashboardLayoutProps) {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
-  const reducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
 
@@ -63,7 +60,7 @@ export default function DashboardLayout({
   };
 
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-  const tabItems: Array<{ label: string; path: string; active: boolean; icon: any }> = [];
+  const tabItems: Array<{ label: string; path: string; active: boolean; icon: React.ReactNode }> = [];
 
 
   const isSuperAdminUser = !!(
@@ -251,15 +248,9 @@ export default function DashboardLayout({
           </div>
         </div>
       </header>
-      <motion.main
-        key={currentPath}
-        initial={reducedMotion ? false : { opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: reducedMotion ? 0 : 0.18, ease: 'easeOut' }}
-        className={`dashboard-main mx-auto ${maxWidth}`}
-      >
+      <main className={`dashboard-main mx-auto ${maxWidth}`}>
         {children}
-      </motion.main>
+      </main>
     </div>
   );
 }

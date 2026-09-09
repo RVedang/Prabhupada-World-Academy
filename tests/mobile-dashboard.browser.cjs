@@ -7,6 +7,13 @@ const origin = process.env.DASHBOARD_TEST_ORIGIN || 'http://127.0.0.1:3120';
 const audit = process.env.AUDIT_ONLY === '1';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const viewports = audit ? [[320,568],[360,800],[375,812],[390,844],[412,915],[430,932]] : [[320,568],[360,800],[375,812],[390,844],[393,873],[412,915],[430,932],[768,1024],[820,1180],[1280,720],[1440,900],[1920,1080],[844,390]];
+async function assertFullDashboardOpacity(page, label) {
+ const opacity = await page.evaluate(() => ({
+  main: Number(getComputedStyle(document.querySelector('.dashboard-main')).opacity),
+  activeTab: Number(getComputedStyle(document.querySelector('[data-active-tab]')).opacity),
+ }));
+ assert.deepEqual(opacity, {main:1,activeTab:1}, `${label}: dashboard content must not be faded`);
+}
 async function main() {
  fs.mkdirSync('test-results/mobile',{recursive:true});
  const browser = await chromium.launch({headless:true});
@@ -85,6 +92,7 @@ async function main() {
     console.error(JSON.stringify(await page.getByText(marker,{exact:typeof marker==='string'}).evaluateAll(nodes=>nodes.map(e=>{const a=[];for(let p=e;p;p=p.parentElement){const s=getComputedStyle(p),r=p.getBoundingClientRect();a.push({tag:p.tagName,cls:p.className,display:s.display,visibility:s.visibility,width:r.width,height:r.height});}return a;}))));
     await page.screenshot({path:'test-results/mobile/layout-failure.png'}); throw error;
    });
+   await assertFullDashboardOpacity(page, `${role} ${tab} ${width}`);
    const layout=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll('body *')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0 && r.right>innerWidth+2 && !e.closest('.overflow-x-auto,[data-slot=table-container]')}).slice(0,5).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent?.slice(0,60)}))}));
    console.log(JSON.stringify({role,tab,viewportWidth:width,height,...layout}));
    if (!audit) assert.ok(layout.scrollWidth<=width+2 && layout.width<=width+2,`${role} ${tab} ${width}: page overflow ${layout.scrollWidth}`);
