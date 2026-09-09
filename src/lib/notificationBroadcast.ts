@@ -11,6 +11,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { publishNotification } from './realtimeNotificationPublisher';
 
 export interface BroadcastData {
   id: string;
@@ -82,6 +83,11 @@ export async function storeBroadcast(
     batch.set(db.collection('NotificationBroadcasts').doc(broadcast.id), record);
     batch.set(db.collection(FIRESTORE_DOC.collection).doc(FIRESTORE_DOC.doc), record);
     await batch.commit();
+    // Route immediately from the App Hosting request. This keeps in-app
+    // meeting reminders working even when the optional Firestore-trigger
+    // worker has not been provisioned. The deterministic notification ID
+    // makes a later trigger delivery idempotent.
+    await publishNotification(db, record);
   }
   _memCache = [..._memCache.filter(item => item.id !== broadcast.id && item.sentAt > Date.now() - DELIVERY_WINDOW_MS), broadcast];
   _memCacheTime = 0; // reread other instances' concurrent dispatches
