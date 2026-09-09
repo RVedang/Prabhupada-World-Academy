@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, GuideTransferRequests, Users, Guides, AshrayUpgradeRequests, FolkResidencies } from '@/lib/backend-sdk';
 import { ASHRAY_LEVELS } from '../types/enums';
+import { getScopedHierarchyUserIds, isHierarchySuperAdmin, isUserInHierarchy } from '../lib/hierarchyUtils';
 
 export default createEndpoint({
   description: 'Get guide transfer requests involving the current guide, plus ashray upgrades',
@@ -10,13 +11,12 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ input, context }: any) => {
     const userRole = String(context.user.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
-    const scopedGuideId = String(input?.guideId || '').trim();
+    const scopedGuideId = isHierarchySuperAdmin(context.user) ? String(input?.guideId || '').trim() : '';
     const isSuperGuide = (!scopedGuideId || scopedGuideId === 'ALL') && (
       userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
-      userRole === 'ADMIN' ||
-      !!context.user.isBvSuperAdmin ||
-      !!context.user.isBvAdmin);
+      !!context.user.isBvSuperAdmin);
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
 
     // Find the guide DB record for the current user
     let guideDbId: string | null = null;
@@ -178,6 +178,7 @@ export default createEndpoint({
       const filteredAshray = rawAshray.filter((r: any) => {
         const u = ashrayUserMap.get(r.userId);
         if (!u) return false;
+        if (!isUserInHierarchy(u, hierarchy)) return false;
         const isPwMember = !!(u.isPrabhupadaWorldUser) || u.segment === 'PW';
 
         if (userSegment === 'PW') {

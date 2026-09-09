@@ -44,7 +44,7 @@ test('one-to-one Sadhana context resolves alternate user identities and stored s
 
     const result = await getOneToOneContext.execute({
       input: { userId: user.userId },
-      context: { user: { id: 'CALLER' } },
+      context: { user: { id: 'CALLER', role: 'SUPER_ADMIN' } },
     } as never);
     const latestWeek = result.weeks[result.weeks.length - 1];
 

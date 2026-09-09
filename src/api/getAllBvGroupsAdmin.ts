@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, Guides } from '@/lib/backend-sdk';
 import { serverCacheGetOrFetch, serverCacheInvalidate } from '../lib/serverCache';
 import { isBvSuperAdminUser } from '../lib/bvGroupMemberScope';
+import { getScopedHierarchyUserIds, isUserInHierarchy, hierarchyRefs } from '../lib/hierarchyUtils';
 
 export default createEndpoint({
   description: 'Get all BV groups and BVSLs under a guide (admin view — for Guide/Super Guide)',
@@ -46,13 +47,17 @@ export default createEndpoint({
     // Short cache keyed by the server-resolved scope. Table writes invalidate
     // local entries; the TTL bounds freshness across other server instances.
     const cacheKey = `allBvGroupsAdmin:${effectiveGuideId}`;
-    return serverCacheGetOrFetch(cacheKey, () => _fetchAllBvGroupsAdmin(effectiveGuideId), 30_000);
+    // Resolve authorization before any cached result: a recent reassignment
+    // must not leave a former admin able to read a group's cached members.
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    if (hierarchy !== null) return _fetchAllBvGroupsAdmin(effectiveGuideId, hierarchy);
+    return serverCacheGetOrFetch(cacheKey, () => _fetchAllBvGroupsAdmin(effectiveGuideId, null), 30_000);
   },
 });
 
 export { serverCacheInvalidate as _invalidateAllBvGroupsAdmin };
 
-async function _fetchAllBvGroupsAdmin(inputGuideId: string) {
+async function _fetchAllBvGroupsAdmin(inputGuideId: string, hierarchy: Set<string> | null) {
 
     // Resolve legacy identity forms in one batch and reuse the records. Keep
     // the same precedence: Guides document, linked user email, custom guide ID.
@@ -119,6 +124,7 @@ async function _fetchAllBvGroupsAdmin(inputGuideId: string) {
     ]);
     const bvslUserRecords = allBvslUsers.filter((u: any) => {
       if (u.isBvsl !== true && String(u.role || '').toUpperCase() !== 'BVSL' && u.isBvFacilitator !== true) return false;
+      if (hierarchy !== null) return isUserInHierarchy(u, hierarchy);
       const guideValues = [
         u.guide, u.selectedGuideId, u.guideName,
         u.bvReportingAdminId, u.bvReportingSupervisorId,
@@ -131,6 +137,11 @@ async function _fetchAllBvGroupsAdmin(inputGuideId: string) {
     });
     const rgfAliases = new Set(bvslUserRecords.flatMap((u: any) => [u.id, u.userId]).filter(Boolean).map((v: any) => String(v).toLowerCase()));
     const groupRecords = allGroupRecords.filter((g: any) => {
+      if (hierarchy !== null) {
+        const guideRefs = hierarchyRefs(g.guide);
+        if (guideRefs.length && !guideRefs.some(ref => hierarchy.has(ref))) return false;
+        return hierarchyRefs([g.guide, g.bvslLeader, g.bvslId, g.subFacilitatorId, g.rgsfId]).some(ref => hierarchy.has(ref));
+      }
       const groupGuide = Array.isArray(g.guide) ? g.guide[0] : g.guide;
       const facilitator = Array.isArray(g.bvslLeader) ? g.bvslLeader[0] : (g.bvslLeader || g.bvslId);
       return guideAliases.has(String(groupGuide || '').toLowerCase()) || rgfAliases.has(String(facilitator || '').toLowerCase());

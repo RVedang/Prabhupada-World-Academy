@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, BvGroupRequests, Guides, Users, AppError } from '@/lib/backend-sdk';
 import { getTodayIST } from '../lib/streakUtils';
-import { isBvSuperAdminUser } from '../lib/bvGroupMemberScope';
+import { isBvSuperAdminUser, resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 
 const groupSchema = z.object({
   id: z.string(),
@@ -119,6 +119,10 @@ export default createEndpoint({
       });
     }
 
+    if (!isBvSuperAdminUser(context.user)) {
+      const allowed = new Set((await resolveBvScopedGroups(context.user)).map(group => group.id));
+      groupRecords = groupRecords.filter(group => allowed.has(group.id));
+    }
     const dedupedGroupRecords = new Map<string, any>();
     const rgsfGroupPriority = (group: any): number => {
       const ownerValues = [group.bvslLeader, group.bvslId]

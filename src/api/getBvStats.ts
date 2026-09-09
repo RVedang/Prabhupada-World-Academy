@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, AppError, Users, Guides, BvslPreachingEntries, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
@@ -50,7 +51,7 @@ async function _fetchBvStats({ input, context }: { input: any; context: any }) {
 
     const isSupervisorMode = !!bvslMode && !!(context.user.isBvSupervisor || context.user.isBvMentor);
     const isMemberMode = !!bvslMode && !isSupervisorMode;
-    if (guideId === 'ALL' && segment) {
+    if (guideId === 'ALL' && segment && isBvSuperAdminUser(context.user as any)) {
       if (!isBvSuperAdminUser(context.user as any)) {
         throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
@@ -133,6 +134,9 @@ async function _fetchBvStats({ input, context }: { input: any; context: any }) {
         bvslUsers = records;
       }
     }
+
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    bvslUsers = bvslUsers.filter(user => isUserInHierarchy(user, hierarchy));
 
     // The individual trend view is allowed only for a facilitator already
     // resolved by the caller's scope above. This keeps supervisor reporting

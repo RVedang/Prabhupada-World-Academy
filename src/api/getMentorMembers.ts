@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, SadhanaEntries, Guides, FolkResidencies } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 
@@ -93,7 +94,9 @@ export default createEndpoint({
     const currentUid = String(currentUser?.userId || '').toLowerCase();
     const currentEmail = String(context.user?.email || '').toLowerCase();
 
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
     const users = allUsers.filter((u: any) => {
+      if (!isUserInHierarchy(u, hierarchy)) return false;
       // Never expose incomplete profile records as blank member rows. A mentor
       // can only act on a real, identifiable member.
       if (!String(u.fullName || '').trim()) return false;

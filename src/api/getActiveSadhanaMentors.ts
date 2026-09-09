@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, Users } from '@/lib/backend-sdk';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 
 export default createEndpoint({
   description: 'Get all active Sadhana Mentors',
@@ -8,14 +9,15 @@ export default createEndpoint({
     segment: z.enum(['PW', 'FOLK', 'ALL']).optional(),
   }),
   outputSchema: z.any(),
-  execute: async ({ input }: any) => {
+  execute: async ({ input, context }: any) => {
+    const scope = await getScopedHierarchyUserIds(context.user);
     const { records } = await Users.findAll({
       filters: { status: 'Active' },
       fields: ['id', 'userId', 'fullName', 'email', 'isSadhanaMentor', 'role', 'segment', 'isPrabhupadaWorldUser'],
       limit: 1000,
     });
 
-    const mentors = records
+    const mentors = records.filter(user => isUserInHierarchy(user, scope))
       .filter((u: any) => 
         (u.isSadhanaMentor === true || (u.role || '').toUpperCase() === 'SADHANA_MENTOR' || (u.role || '').toUpperCase() === 'SADHANA MENTOR') &&
         (u.segment === 'PW' || !!u.isPrabhupadaWorldUser)

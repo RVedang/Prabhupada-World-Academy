@@ -1,4 +1,5 @@
 import { AppError, BvGroups, BvGroupMembers, Users } from '@/lib/backend-sdk';
+import { getScopedHierarchyUserIds, isHierarchyAdmin, isUserInHierarchy, hierarchyRefs } from './hierarchyUtils';
 
 const IDENTITY_FIELDS = [
   'id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid', 'firebaseUserId',
@@ -151,7 +152,7 @@ export async function resolveBvDepartmentGroups(
   groupId?: string,
 ): Promise<BvScopedGroup[]> {
   const { records: allGroups } = await BvGroups.findAll({
-      fields: ['id', 'groupId', 'groupName', 'segment', 'guide', 'isActive', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
+      fields: ['id', 'groupId', 'groupName', 'description', 'segment', 'guide', 'isActive', 'bvslLeader', 'bvslId', 'subFacilitatorId', 'rgsfId', 'subFacilitator'],
       limit: 1000,
   });
   const requestedGroup = groupId ? new Set(refs(groupId)) : null;
@@ -205,6 +206,26 @@ export async function resolveBvScopedGroups(
   contextUser: UserRecord,
   options: BvGroupScopeOptions = {},
 ): Promise<BvScopedGroup[]> {
+  if (isHierarchyAdmin(contextUser)) {
+    const scope = await getScopedHierarchyUserIds(contextUser);
+    const groups = options.segment
+      ? await resolveBvDepartmentGroups(options.segment)
+      : (await BvGroups.findAll({ limit: 5000 })).records.filter(g => g.isActive !== false).map(record => ({
+        id: String(record.id), groupId: String(record.groupId || record.id), groupName: String(record.groupName || ''), record,
+      }));
+    const permitted = groups.filter(({ record }) => {
+      if (scope === null) return true;
+      const guides = hierarchyRefs(record.guide);
+      if (guides.length && !guides.some(ref => scope.has(ref))) return false;
+      return hierarchyRefs([record.guide, record.bvslLeader, record.bvslId, record.subFacilitatorId, record.rgsfId, record.subFacilitator])
+        .some(ref => scope.has(ref));
+    });
+    if (!options.groupId) return permitted;
+    const requested = new Set(refs(options.groupId));
+    const selected = permitted.filter(group => groupAliases(group.record).some(ref => requested.has(ref)));
+    if (!selected.length) throw new AppError({ code: 'FORBIDDEN', message: 'This reading group is not assigned to your hierarchy' });
+    return selected;
+  }
   const callerFields = [
     'id', 'userId', 'email', 'role', 'segment', 'guide',
     'isBvAdmin', 'isPwAdmin', 'isBvSuperAdmin',
@@ -361,6 +382,7 @@ export async function resolveBvGroupMemberUsers(
   // Membership is authoritative. Do not require one exact status spelling;
   // this keeps Sadhana reports consistent with the Group Members tab.
   const users = await resolveCanonicalUsersByAliases(memberAliases, userFields);
+  const hierarchy = isHierarchyAdmin(contextUser) ? await getScopedHierarchyUserIds(contextUser) : null;
   const callerAliases = new Set(bvUserAliases(contextUser));
   // Facilitators can appear in a legacy group-membership record. A report
   // opened by an RGF/RGSF is a member report, so never surface the RGF or
@@ -372,6 +394,7 @@ export async function resolveBvGroupMemberUsers(
     }
   }
   return users
+    .filter(user => isUserInHierarchy(user, hierarchy))
     .filter(user => !options.excludeCaller || !bvUserAliases(user).some(alias =>
       callerAliases.has(alias) || facilitatorAliases.has(alias)
     ))
@@ -401,5 +424,7 @@ export async function resolveBvGroupFacilitatorUsers(
       group.record.subFacilitator,
     ]).forEach(alias => facilitatorAliases.add(alias));
   }
-  return resolveCanonicalUsersByAliases(facilitatorAliases, userFields);
+  const users = await resolveCanonicalUsersByAliases(facilitatorAliases, userFields);
+  const hierarchy = isHierarchyAdmin(contextUser) ? await getScopedHierarchyUserIds(contextUser) : null;
+  return users.filter(user => isUserInHierarchy(user, hierarchy));
 }

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, BvslPreachingEntries, Guides, BvGroups, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole, getRefId } from '../lib/userUtils';
 import getGuides from './getGuides';
+import { getScopedHierarchyUserIds, isUserInHierarchy, hierarchyAliases, hierarchyRefs, isHierarchyAdmin } from '../lib/hierarchyUtils';
 
 const NUM_KEYS = [
   'callingTime', 'oneOnOneTime', 'bookDistTime', 'rduaTime', 'planTime',
@@ -54,17 +55,19 @@ export default createEndpoint({
       { records: allUserRecs },
       { records: guideRecs },
       { records: folkResRecs },
-      { records: bvslUsers },
+      { records: bvslCandidates },
       { records: bvGroups },
     ] = await Promise.all([
       getGuides.execute({ input: {}, context }).catch(() => ({ guides: [] })),
-      Users.findAll({ fields: ['id', 'userId', 'fullName', 'email', 'role', 'segment', 'residency', 'guide'], limit: 2000 }).catch(() => ({ records: [] })),
+      Users.findAll({ fields: ['id', 'userId', 'fullName', 'email', 'role', 'segment', 'residency', 'guide', 'isBvAdmin', 'isBvSuperAdmin', 'bvReportingAdminId', 'bvSupervisorGuideId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId'], limit: 2000 }),
       Guides.findAll({ fields: ['id', 'guideId', 'fullName', 'name', 'abbreviation', 'folkResidencies', 'email'], limit: 500 }).catch(() => ({ records: [] })),
       FolkResidencies.findAll({ fields: ['id', 'residencyId', 'residencyName', 'guide', 'guideName'], limit: 200 }).catch(() => ({ records: [] })),
       Users.findAll({ filters: { isBvsl: true, status: 'Active' }, fields: ['id', 'userId', 'fullName', 'email', 'guide', 'residency', 'segment', 'isPrabhupadaWorldUser'], limit: 500 }),
       BvGroups.findAll({ filters: { isActive: true }, fields: ['id', 'groupName', 'bvslLeader', 'guide', 'guideName', 'bvReportingAdminName', 'center'], limit: 500 }).catch(() => ({ records: [] })),
     ]);
 
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    const bvslUsers = bvslCandidates.filter(user => isUserInHierarchy(user, hierarchy));
     if (bvslUsers.length === 0) {
       return { centers: [], overall: { bvslCount: 0, submittedCount: 0, totals: emptyAgg(), avgs: emptyAgg() } };
     }
@@ -161,6 +164,18 @@ export default createEndpoint({
 
     // Function to safely resolve Guide / Center display name for a BVSL
     const resolveCenterName = (u: any): { key: string; name: string } => {
+      // PW analytics are grouped by the reporting Admin, including RGFs
+      // linked indirectly through a supervisor instead of Users.guide.
+      if (String(u.segment || '').toUpperCase() === 'PW' || u.isPrabhupadaWorldUser) {
+        let parent = allUserRecs.find(record => record.id === u.id);
+        const visited = new Set<string>();
+        while (parent && !visited.has(parent.id)) {
+          visited.add(parent.id);
+          if (isHierarchyAdmin(parent)) return { key: parent.userId || parent.id, name: parent.fullName || '' };
+          const refs = hierarchyRefs(parent.bvReportingAdminId || parent.bvSupervisorGuideId || parent.bvReportingSupervisorId || parent.bvReportingFacilitatorId || parent.guide);
+          parent = allUserRecs.find(record => hierarchyAliases(record).some(alias => refs.includes(alias)));
+        }
+      }
       const rawGid = getRefId(u.guide);
       const rawRid = getRefId(u.residency);
 

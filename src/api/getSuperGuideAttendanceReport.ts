@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy, isHierarchySuperAdmin } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, AttendanceRecords, AttendanceSessions, AttendanceEvents, BvAttendance, Guides, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { bvUserAliases, resolveBvDepartmentGroups, resolveBvScopedGroups, resolveBvUsersByAliases } from '@/lib/bvGroupMemberScope';
 
@@ -33,7 +34,6 @@ export default createEndpoint({
     const isSuperGuide = userRole === 'SUPER_GUIDE' ||
       userRole === 'SUPER GUIDE' ||
       userRole === 'SUPER_ADMIN' ||
-      userRole === 'PW_ADMIN' ||
       !!context.user?.isBvSuperAdmin;
 
     let guideDbId: string | null = input.guideId === 'ALL' ? null : (input.guideId || null);
@@ -46,6 +46,9 @@ export default createEndpoint({
       }
     }
 
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    // Hierarchical admins include indirect members, not just Users.guide.
+    if (!isHierarchySuperAdmin(context.user)) guideDbId = null;
     const limit = Math.min(input.limit || 50, 200);
     const offset = input.offset || 0;
 
@@ -195,7 +198,10 @@ export default createEndpoint({
     const validRecords = allRecords.filter(r => {
       const uid = (Array.isArray(r.user) ? r.user[0] : r.user) as string;
       const u = userDetails.get(uid);
-      if (!u) return false;
+      // Historical BV attendance is owned by the permitted group. Its member
+      // may since have left; this grants access to that attendance row only,
+      // not to the member's current profile or other reports.
+      if (!u || (!isUserInHierarchy(u, hierarchy) && !(r as any).isBv)) return false;
       const n = (u.fullName || '').toLowerCase();
       if (!n || n === 'null' || n === 'undefined' || n === 'unknown') return false;
       return true;
@@ -254,9 +260,9 @@ export default createEndpoint({
           name: g.name,
           isPrabhupadaWorldMentor: !!g.isPrabhupadaWorldMentor,
         })),
-        centers: centersRes.records.map(c => ({ id: c.id, name: c.residencyName || '' })),
-        events: eventsRes.records.map(e => ({ id: e.id, title: e.title || '' })),
-        sessions: sessionsRes.records.map(s => ({ id: s.id, name: s.name || '', eventId: (Array.isArray(s.event) ? s.event[0] : s.event) || '' })),
+        centers: centersRes.records.filter(c => hierarchy === null || [...userDetails.values()].some(u => isUserInHierarchy(u, hierarchy) && [u.residency].flat().includes(c.id))).map(c => ({ id: c.id, name: c.residencyName || '' })),
+        events: eventsRes.records.filter(e => hierarchy === null || sessionsRes.records.some(s => (Array.isArray(s.event) ? s.event[0] : s.event) === e.id && validRecords.some(r => r.session === s.id))).map(e => ({ id: e.id, title: e.title || '' })),
+        sessions: sessionsRes.records.filter(s => hierarchy === null || validRecords.some(r => r.session === s.id)).map(s => ({ id: s.id, name: s.name || '', eventId: (Array.isArray(s.event) ? s.event[0] : s.event) || '' })),
       },
       pagination: { hasMore: offset + limit < totalCount, totalCount },
     };

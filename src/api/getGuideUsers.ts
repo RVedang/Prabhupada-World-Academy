@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 import { normalizeRole, normalizeStatus } from './resolveUserLogin';
-import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
+import { getDashboardHierarchyScope } from '../lib/hierarchyUtils';
 import { getGuideScope } from '../lib/guideScope';
 import { getReportReferenceData } from '../lib/reportReferenceData';
 
@@ -42,8 +42,8 @@ export default createEndpoint({
     residencyId: z.string().optional(),
     residencyFilter: z.string().optional(),
     minimal: z.boolean().optional(),
-    // Meeting organizers need a complete, role-bearing directory rather than
-    // the caller's normal member-reporting scope.
+    // Meeting organizers need role-bearing records within their authorized
+    // hierarchy. This flag must never bypass member-reporting scope.
     forMeetingInvitees: z.boolean().optional(),
   }),
   outputSchema: z.any(),
@@ -87,7 +87,7 @@ export default createEndpoint({
     const guidePromise = (isSuperGuide || isBvMentor)
       ? Promise.resolve(null)
       : getGuideScope(context.user.email || '').then(scope => scope ? { id: scope.guideId, folkResidencies: scope.residencyIds } : null);
-    const hierarchyPromise = getScopedHierarchyUserIds(context.user).catch(() => null);
+    const hierarchyPromise = getDashboardHierarchyScope(context.user, input.guideId);
     const metadataPromise = Promise.all([
       input.minimal ? Promise.resolve({ records: [] }) : SadhanaEntries.findAll({
         filters: { entryDate: todayStr },
@@ -111,9 +111,6 @@ export default createEndpoint({
     const filters: any = {};
     if (!isSuperGuide && !isBvMentor && guideRecord) filters.guide = (guideRecord as any).id;
     // Super Guide with explicit guideId — scope to that guide only
-    if (isSuperGuide && input.guideId && input.guideId !== 'ALL' && input.guideId !== 'all') {
-      filters.guide = input.guideId;
-    }
     // BV Mentor — use resolved Guides-table UUID
     if (isBvMentor && bvMentorGuideDbId && bvMentorGuideDbId !== 'ALL' && bvMentorGuideDbId !== 'all') {
       filters.guide = bvMentorGuideDbId;
@@ -166,7 +163,7 @@ export default createEndpoint({
     }
 
     const scopedUserIds = await hierarchyPromise;
-    if (!forMeetingInvitees && scopedUserIds !== null) {
+    if (scopedUserIds !== null) {
       users = users.filter(u => {
         const uId = String(u.id || '').toLowerCase();
         const userIdStr = String(u.userId || '').toLowerCase();

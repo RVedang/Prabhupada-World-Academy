@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getDashboardHierarchyScope, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { getGuideScope } from '../lib/guideScope';
@@ -121,8 +122,6 @@ export default createEndpoint({
     const usersFilter: any = { status: 'Active' };
     if (!isSuperGuide && guideRecord) {
       usersFilter.guide = (guideRecord as any).id;
-    } else if (isSuperGuide && input.guideId && input.guideId !== 'ALL') {
-      usersFilter.guide = input.guideId;
     }
     if (input.residencyId) {
       usersFilter.residency = input.residencyId;
@@ -177,6 +176,9 @@ export default createEndpoint({
         return userSegment === input.segment;
       });
     }
+
+    const hierarchy = await getDashboardHierarchyScope(context.user, input.guideId);
+    allUsers = allUsers.filter(user => isUserInHierarchy(user, hierarchy));
 
     // ── Streak entries (100-day window up to endStr) ──────────────────────
     const streakRefDate = endStr <= todayStr ? endStr : todayStr;

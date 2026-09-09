@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideScope } from '../lib/guideScope';
@@ -128,7 +129,9 @@ export default createEndpoint({
       : input.facilitatorMode
         ? await resolveBvAdminFacilitators(context.user, input.guideId, MEMBER_USER_FIELDS, input.segment)
         : allUsers;
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
     const residents = scopedUsers.filter(u => {
+      if (!isUserInHierarchy(u, hierarchy)) return false;
       const resId = Array.isArray(u.residency) ? u.residency[0] : u.residency;
       const isApprovedRes = u.residencyApproved && resId && !u.temporaryResidencyEnabled;
       if (!isApprovedRes) return false;

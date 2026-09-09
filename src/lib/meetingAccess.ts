@@ -51,9 +51,8 @@ export function getMeetingViewer(contextUser: UserLike, storedUser: UserLike): M
   );
   const isReadOnlySadhanaMentor = department === 'PW' && isSadhanaMentor;
   const isAdmin = !!(
-    storedUser?.isBvSuperAdmin || storedUser?.isBvAdmin || storedUser?.isPwAdmin ||
-    contextUser?.isBvSuperAdmin || contextUser?.isBvAdmin || contextUser?.isPwAdmin ||
-    roles.some(role => ['ADMIN', 'PW_ADMIN', 'SUPER_ADMIN', 'SUPER_GUIDE'].includes(role))
+    storedUser?.isBvSuperAdmin || contextUser?.isBvSuperAdmin ||
+    roles.some(role => ['SUPER_ADMIN', 'SUPER_GUIDE'].includes(role))
   );
 
   return {
@@ -66,6 +65,7 @@ export function getMeetingViewer(contextUser: UserLike, storedUser: UserLike): M
 }
 
 export function isMeetingVisibleToViewer(meeting: any, viewer: MeetingViewer): boolean {
+  if (viewer.identityKeys.has(String(meeting?.createdByUserId || '').trim().toLowerCase())) return true;
   const inviteeIds = Array.isArray(meeting?.inviteeUserIds) ? meeting.inviteeUserIds : [];
   if (inviteeIds.some((id: unknown) => viewer.identityKeys.has(String(id || '').trim().toLowerCase()))) {
     return true;

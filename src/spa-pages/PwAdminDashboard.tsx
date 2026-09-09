@@ -255,7 +255,7 @@ export default function PwAdminDashboard() {
                       <h2 className="text-lg font-bold">Registrations & Ashraya Approvals</h2>
                       <p className="text-sm text-muted-foreground">Review new registrations and Ashraya upgrade requests for Prabhupada World members</p>
                     </div>
-                    <ApprovalsTab guideId="ALL" isSuperGuide={true} isPwAdmin={true} />
+                    <ApprovalsTab guideId={isSuperAdmin ? 'ALL' : adminGroupScopeId} isSuperGuide={isSuperAdmin} isPwAdmin={true} />
                   </DashboardPanel>
                 )}
 

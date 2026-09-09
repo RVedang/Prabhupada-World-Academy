@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { createEndpoint, FolkResidencies } from '@/lib/backend-sdk';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
+import { isHierarchyAdmin, isHierarchySuperAdmin } from '../lib/hierarchyUtils';
+import { getGuideScope } from '../lib/guideScope';
 
 const CACHE_KEY = 'ref:residencies_v3';
 const TTL = 5 * 1000; // 5 seconds — updates instantly when centers are added/deleted
@@ -22,7 +24,7 @@ export default createEndpoint({
     residencyId: z.string(),
     residencyName: z.string(),
   })),
-  execute: async ({ input }: any) => {
+  execute: async ({ input, context }: any) => {
     const list = await serverCacheGetOrFetch(CACHE_KEY, async () => {
       const { records } = await FolkResidencies.findAll({ limit: 200 });
       const activeResidencies = records
@@ -34,6 +36,11 @@ export default createEndpoint({
       return activeResidencies.length > 0 ? activeResidencies : DEFAULT_RESIDENCIES;
     }, TTL);
 
-    return list.filter((r: any) => !r.residencyName.includes('Prabhupada World') && !r.residencyName.includes('PW'));
+    const scope = isHierarchyAdmin(context?.user) && !isHierarchySuperAdmin(context.user)
+      ? await getGuideScope(context.user.email || '') : null;
+    return list.filter((r: any) => {
+      if (isHierarchyAdmin(context?.user) && !isHierarchySuperAdmin(context.user) && !scope?.residencyIds.includes(r.residencyId)) return false;
+      return !r.residencyName.includes('Prabhupada World') && !r.residencyName.includes('PW');
+    });
   },
 });

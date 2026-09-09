@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { createEndpoint, AppError, Users, BvGroups, BvGroupMembers, BvAttendance, BvQuizzes, BvQuizSubmissions, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
 import { getGuideIdsForResidencies } from '../lib/guideScope';
@@ -52,7 +53,7 @@ export default createEndpoint({
     if (groupId) groupFilter.id = groupId;
 
     let groups: any[];
-    if (guideId === 'ALL' && segment) {
+    if (guideId === 'ALL' && segment && isBvSuperAdminUser(context.user as any)) {
       if (!isBvSuperAdminUser(context.user as any)) {
         throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
@@ -80,6 +81,10 @@ export default createEndpoint({
 
     // Older PW documents mix the Firestore record id and public groupId in
     // memberships and attendance. Treat both as aliases of the same group.
+    if (!isBvSuperAdminUser(context.user as any)) {
+      const permitted = new Set((await resolveBvScopedGroups(context.user as any, { segment })).map(g => g.id));
+      groups = groups.filter(group => permitted.has(group.id));
+    }
     const groupIds = [...new Set(groups.flatMap(g => [g.id, g.groupId]).filter(Boolean))] as string[];
     const groupNameMap = new Map<string, string>();
     const groupCanonicalId = new Map<string, string>();
@@ -228,11 +233,13 @@ export default createEndpoint({
 
     const callerAliases = new Set(bvUserAliases(context.user as any));
     const facilitatorAliases = new Set(groups.flatMap(group => bvGroupFacilitatorAliases(group)));
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    const permittedUsers = users.filter(user => isUserInHierarchy(user, hierarchy));
     const scopedUsers = bvslMode
-      ? users.filter(user => !bvUserAliases(user as any).some(alias =>
+      ? permittedUsers.filter(user => !bvUserAliases(user as any).some(alias =>
         callerAliases.has(alias) || facilitatorAliases.has(alias)
       ))
-      : users;
+      : permittedUsers;
     const userMap = new Map<string, any>();
     scopedUsers.forEach(user => bvUserAliases(user).forEach(alias => userMap.set(alias, user)));
 

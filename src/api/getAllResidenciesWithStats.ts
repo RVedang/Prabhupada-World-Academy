@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
+import { getGuideScope } from '../lib/guideScope';
 import { createEndpoint, FolkResidencies, Guides, Users, SadhanaEntries } from '@/lib/backend-sdk';
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 
@@ -7,16 +9,18 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({}),
   outputSchema: z.any(),
-  execute: async () => {
+  execute: async ({ context }: any) => {
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    const guideScope = hierarchy === null ? null : await getGuideScope(context.user?.email || '');
     const todayStr = getTodayIST();
     const threeMonthsAgo = daysAgo(todayStr, 92);
 
     // Parallel: residencies, active guides, approved residents
     const [
-      { records: residencies },
-      { records: guides },
+      { records: allResidencies },
+      { records: allGuides },
       { records: userGuideRows },
-      { records: residents },
+      { records: allResidents },
     ] = await Promise.all([
       FolkResidencies.findAll({
         fields: ['id', 'residencyId', 'residencyName', 'isActive', 'maxCapacity', 'guides', 'guideIds'],
@@ -42,8 +46,12 @@ export default createEndpoint({
       }),
     ]);
 
+    const residencies = allResidencies.filter(r => hierarchy === null || guideScope?.residencyIds.includes(r.id));
+    const guides = allGuides.filter(u => isUserInHierarchy(u, hierarchy));
+    const residents = allResidents.filter(u => isUserInHierarchy(u, hierarchy));
     const normalizeRole = (value: unknown) => String(value || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
     const userGuideRecords = (userGuideRows as any[]).filter((u: any) => {
+      if (!isUserInHierarchy(u, hierarchy)) return false;
       const role = normalizeRole(u.role);
       const isPw = String(u.segment || '').trim().toUpperCase() === 'PW' || u.isPrabhupadaWorldUser === true;
       const isGuide = ['GUIDE', 'SUPER_GUIDE', 'ADMIN', 'SUPER_ADMIN'].includes(role) || u.isBvAdmin === true || u.isBvSuperAdmin === true;

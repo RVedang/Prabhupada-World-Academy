@@ -565,7 +565,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
 
   const reportQuery = useEndpointQuery<ReportData>('getMissingSadhanaReport', {
     startDate: start, endDate: end,
-    guideId: guideId === 'ALL' ? undefined : guideId,
+    guideId: guideFilter !== 'all' ? guideFilter : guideId === 'ALL' ? undefined : guideId,
     residencyId: residencyId !== 'all' ? residencyId : undefined,
     segment: isPw ? 'PW' : 'FOLK',
   }, Boolean(start && end && start <= end));
@@ -601,7 +601,7 @@ export default function MissingSadhanaTab({ guideId, segment }: Props) {
       return true;
     });
 
-    if (guideFilter !== 'all') users = users.filter(u => u.guideId === guideFilter);
+    // Admin/guide filters are resolved by the server, not by one legacy guide ID.
     if (statusFilter !== 'all') users = users.filter(u => u.residencyType === statusFilter);
     if (hideZeroMissed) {
       users = users.filter(u => {

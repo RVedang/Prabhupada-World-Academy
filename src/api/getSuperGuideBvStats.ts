@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolveBvScopedGroups } from '../lib/bvGroupMemberScope';
 import { createEndpoint, BvGroups, BvGroupMembers, BvAttendance, Users, Guides } from '@/lib/backend-sdk';
 import { getRefId } from '../lib/userUtils';
 
@@ -146,12 +147,14 @@ export default createEndpoint({
     });
 
     // Optionally filter groups by guide (filterGuideId is the guide DB UUID)
+    const permittedIds = new Set((await resolveBvScopedGroups(context.user, { segment: input.segment })).map(group => group.id));
+    const permittedGroups = allGroups.filter(group => permittedIds.has(group.id));
     const groups = input.filterGuideId
-      ? allGroups.filter((g: any) => {
+      ? permittedGroups.filter((g: any) => {
           const gid = Array.isArray(g.guide) ? g.guide[0] : g.guide;
           return gid === input.filterGuideId;
         })
-      : allGroups;
+      : permittedGroups;
 
     const emptyResult = {
       summary: { totalUsers: 0, markedCount: 0, presentCount: 0, absentCount: 0, notMarkedCount: 0, serviceFullCount: 0, avgPoints: 0 },

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy, isHierarchySuperAdmin } from '../lib/hierarchyUtils';
 import { createEndpoint, Guides, Users, OneToOneMeetings } from '@/lib/backend-sdk';
 
 function getWeeks(weeksBack: number): string[] {
@@ -28,7 +29,8 @@ export default createEndpoint({
   execute: async ({ input, context }) => {
     if (!context.user) throw new Error('Unauthorized');
     const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isSuperGuide = callerRole === 'SUPER_GUIDE';
+    const isSuperGuide = isHierarchySuperAdmin(context.user);
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
     const weeksBack = input.weeksBack || 8;
     const weeks = getWeeks(weeksBack);
     const startDate = weeks[0];
@@ -97,6 +99,7 @@ export default createEndpoint({
     ]);
 
     let users = usersRes.records.filter(u => {
+      if (!isUserInHierarchy(u, hierarchy)) return false;
       if (isPwSadhanaMentor) {
         const assignedMentor = String((u as any).sadhanaMentor || '').trim().toLowerCase();
         if (!mentorRefs.has(assignedMentor)) return false;
@@ -171,7 +174,7 @@ export default createEndpoint({
       weeks,
       availableGuides,
       guideLink: guideOneToOneLink,
-      availableBvsls: bvslRes.records.map(b => ({ userId: b.id, fullName: b.fullName || '' })),
+      availableBvsls: bvslRes.records.filter(b => isUserInHierarchy(b, hierarchy)).map(b => ({ userId: b.id, fullName: b.fullName || '' })),
     };
   },
 });

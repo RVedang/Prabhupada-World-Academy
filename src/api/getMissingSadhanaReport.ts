@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, Users, Guides, SadhanaEntries, FolkResidencies } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
-import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
+import { getDashboardHierarchyScope } from '../lib/hierarchyUtils';
 import { getGuideScope } from '../lib/guideScope';
 import getGuides from './getGuides';
 import { getReportReferenceData } from '../lib/reportReferenceData';
@@ -55,7 +55,7 @@ export default createEndpoint({
       !!context.user.isBvAdmin;
 
     const scopePromise = isSuperGuide ? Promise.resolve(null) : getGuideScope(context.user.email || '');
-    const hierarchyPromise = getScopedHierarchyUserIds(context.user);
+    const hierarchyPromise = getDashboardHierarchyScope(context.user, input.guideId);
     const displayPromise = Promise.all([
       getGuides.execute({ input: { segment: input.segment || 'ALL' }, context }),
       getReportReferenceData(),
@@ -77,9 +77,6 @@ export default createEndpoint({
     }
     if (!isSuperGuide && guideRecord) {
       filters.guide = guideRecord.id;
-    }
-    if (isSuperGuide && input.guideId && input.guideId !== 'ALL') {
-      filters.guide = input.guideId;
     }
     if (input.residencyId) {
       filters.residency = input.residencyId;
@@ -248,18 +245,9 @@ export default createEndpoint({
       ? Math.round(((totalFilled + totalLate) / totalCells) * 100)
       : 100;
 
-    // 10. Keep every department admin/guide in the selector, then add any
-    // legacy guide reference found on a member that is not in the main list.
-    const guidesById = new Map<string, { id: string; name: string }>();
-    for (const guide of availableGuides) guidesById.set(String(guide.id).toLowerCase(), guide);
-    for (const u of users) {
-      const gid = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-      const key = String(gid || '').toLowerCase();
-      if (gid && !guidesById.has(key)) {
-        guidesById.set(key, { id: gid, name: guideLookup.get(key) || 'Unknown' });
-      }
-    }
-    const guidesInScope = Array.from(guidesById.values());
+    // Only the authorized directory can add options. Legacy member references
+    // are display aliases, not additional admins or authorization grants.
+    const guidesInScope = [...availableGuides];
     guidesInScope.sort((a, b) => a.name.localeCompare(b.name));
 
     return {

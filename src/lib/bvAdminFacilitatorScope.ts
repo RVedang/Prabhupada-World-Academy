@@ -1,4 +1,5 @@
 import { Users } from '@/lib/backend-sdk';
+import { resolveHierarchyScope, isUserInHierarchy } from './hierarchyUtils';
 
 const SCOPE_FIELDS = [
   'id', 'userId', 'email', 'status', 'segment', 'isPrabhupadaWorldUser', 'role', 'guide',
@@ -40,11 +41,6 @@ function isAdmin(user: any): boolean {
   return !!(user?.isBvAdmin || user?.isPwAdmin || isSuperAdmin(user) || isFolkGuide || normalizedRole === 'ADMIN' || normalizedRole === 'PW_ADMIN');
 }
 
-function isSupervisor(user: any): boolean {
-  const normalizedRole = role(user);
-  return !!(user?.isBvSupervisor || user?.isBvMentor || normalizedRole === 'SUPERVISOR' || normalizedRole === 'BV_SUPERVISOR');
-}
-
 function isRgf(user: any): boolean {
   const normalizedRole = role(user);
   return !!(user?.isBvFacilitator || user?.isBvsl || ['RGF', 'BVSL', 'FACILITATOR', 'BV_FACILITATOR'].includes(normalizedRole));
@@ -62,10 +58,6 @@ function belongsToSegment(user: any, segment?: 'PW' | 'FOLK'): boolean {
     ? 'PW'
     : normalized === 'FOLK' ? 'FOLK' : '';
   return resolved === segment;
-}
-
-function referencesAny(user: any, fields: string[], keys: Set<string>): boolean {
-  return fields.some(field => values(user?.[field]).some(value => keys.has(value)));
 }
 
 export function filterBvAdminFacilitators(
@@ -93,29 +85,11 @@ export function filterBvAdminFacilitators(
     : callerIsSuperAdmin ? [...requestedKeys] : [...callerKeys]);
   if (adminKeys.size === 0) return [];
 
-  const supervisorKeys = new Set<string>();
-  activeUsers.forEach(user => {
-    if (!isSupervisor(user)) return;
-    if (referencesAny(user, ['bvReportingAdminId', 'bvSupervisorGuideId', 'guide'], adminKeys)) {
-      aliases(user).forEach(key => supervisorKeys.add(key));
-    }
-  });
-
-  const scopedRgfs = activeUsers.filter(user => isRgf(user) && !isAdmin(user) && (
-    referencesAny(user, ['bvReportingAdminId', 'bvSupervisorGuideId', 'guide'], adminKeys) ||
-    referencesAny(user, ['bvReportingSupervisorId'], supervisorKeys)
-  ));
-  const rgfKeys = new Set<string>();
-  scopedRgfs.forEach(user => aliases(user).forEach(key => rgfKeys.add(key)));
-
-  const scopedRgsfs = activeUsers.filter(user => isRgsf(user) && !isAdmin(user) && (
-    referencesAny(user, ['bvReportingAdminId', 'bvSupervisorGuideId', 'guide'], adminKeys) ||
-    referencesAny(user, ['bvReportingSupervisorId'], supervisorKeys) ||
-    referencesAny(user, ['bvReportingFacilitatorId'], rgfKeys)
-  ));
-
-  const scopedIds = new Set([...scopedRgfs, ...scopedRgsfs].flatMap(aliases));
-  return facilitators.filter(user => aliases(user).some(key => scopedIds.has(key)));
+  const scope = resolveHierarchyScope({
+    ...(targetRecord || (callerIsSuperAdmin ? { id: targetAdminId } : contextUser)),
+    role: 'ADMIN', isBvAdmin: true, isBvSuperAdmin: false,
+  }, activeUsers);
+  return facilitators.filter(user => isUserInHierarchy(user, scope));
 }
 
 export async function resolveBvAdminFacilitators(

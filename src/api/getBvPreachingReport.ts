@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { createEndpoint, AppError, Users, BvslPreachingEntries, BvGroups, Guides, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole } from '../lib/userUtils';
@@ -78,7 +79,7 @@ async function _fetchBvPreachingReport({ input, context }: { input: any; context
     const isMemberMode = !!bvslMode && !isSupervisorMode;
     let hierarchyGroups: any[] | null = null;
     let bvslUsers: any[] = [];
-    if (inputGuideId === 'ALL' && segment) {
+    if (inputGuideId === 'ALL' && segment && isBvSuperAdminUser(context.user as any)) {
       if (!isBvSuperAdminUser(context.user as any)) {
         throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
@@ -146,6 +147,8 @@ async function _fetchBvPreachingReport({ input, context }: { input: any; context
       bvslUsers = records.filter(u => u.id !== context.user!.id && u.userId !== context.user!.id);
     }
 
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    bvslUsers = bvslUsers.filter(user => isUserInHierarchy(user, hierarchy));
     const isFolkReport = (context.user as any).segment === 'FOLK' || (residencyIds && residencyIds.length > 0);
     if (isFolkReport) {
       bvslUsers = bvslUsers.filter(isFolkMemberLevelFacilitator);

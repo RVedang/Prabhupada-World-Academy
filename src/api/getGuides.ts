@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, Guides, Users } from '@/lib/backend-sdk';
 import { serverCacheGetOrFetch } from '../lib/serverCache';
+import { getScopedHierarchyUserIds, hierarchyRefs, isHierarchyAdmin } from '../lib/hierarchyUtils';
 
 function formatGuideName(fullName: string | null | undefined, email: string | null | undefined): string {
   let name = (fullName || '').trim();
@@ -142,7 +143,7 @@ export default createEndpoint({
         .filter(u => {
           const roleUpper = (u.role || '').toUpperCase().replace(/\s+/g, '_').trim();
           const segmentUpper = (u.segment || '').toUpperCase();
-          return (roleUpper === 'ADMIN' || u.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || u.isBvSuperAdmin === true) &&
+          return (roleUpper === 'ADMIN' || roleUpper === 'PW_ADMIN' || u.isBvAdmin === true || roleUpper === 'SUPER_ADMIN' || u.isBvSuperAdmin === true) &&
                  (segmentUpper === 'PW' || u.isPrabhupadaWorldUser === true) &&
                  u.status === 'Active';
         })
@@ -183,7 +184,11 @@ export default createEndpoint({
       context?.user?.capabilities?.includes('*') ||
       context?.user?.capabilities?.includes('users.assigned.read')
     );
-    const prepareGuides = (list: any[]) => sortGuides(list).map(guide => {
+    // Cache the public directory, never a caller's authorized result. Scope
+    // after cache retrieval so one admin cannot reuse another admin's options.
+    const scope = isHierarchyAdmin(context?.user) ? await getScopedHierarchyUserIds(context.user) : null;
+    const prepareGuides = (list: any[]) => sortGuides(list).filter(guide => scope === null ||
+      hierarchyRefs([guide.guideId, guide.email]).some(ref => scope.has(ref))).map(guide => {
       if (canReadGuideEmails) return guide;
       const publicGuide = { ...guide };
       delete publicGuide.email;

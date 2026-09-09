@@ -1,8 +1,15 @@
 # Event-driven synchronization: implementation and verification
 
-Updated 2026-09-09. **Implemented and verified locally; not deployed.** Full
+Updated 2026-09-09. **Implemented and verified locally; production realtime not verified.** Full
 application acceptance remains open for the limitations below. No production
 business data was changed or migrated during this work.
+
+Live read-only check at 09:46 UTC: Cloud Functions listing returned HTTP 403
+with reason `SERVICE_DISABLED` for `cloudfunctions.googleapis.com` in `bvpw108`.
+Enabling that service and deploying the worker require approval. This run did
+not deploy infrastructure. The shared branch advanced to `9bef4a5` during
+verification; an App Hosting rollout could not be confirmed by the CLI check,
+so do not infer the hosted revision from this run's local build.
 
 ## 1. Existing problem
 
@@ -45,7 +52,7 @@ successful CRUD or a successful business read.
 Internal events are `{table, id, before, after, version}`. Create, update and
 delete derive from the before/after images. Relevant tables include Users/Guides,
 SadhanaEntries/BvslPreachingEntries, BvGroups/BvGroupMembers, attendance,
-Meetings/Moms, service, cleanliness and reference data. Moves invalidate both
+Meetings/MinutesOfMeeting, service, cleanliness and reference data. Moves invalidate both
 old and new scopes.
 
 Browsers receive only `{version}` for report invalidation: **36 JSON bytes** in
@@ -225,8 +232,9 @@ No production data was used. Host emulator Node was 24; deployment targets 22.
 
 ## 11. Remaining limitations and deployment gate
 
-1. **Not deployed.** Functions, rules, TTL/index policies and App Hosting need a
-   coordinated rollout. No production delivery or subsecond SLA is claimed;
+1. **Production setup blocked:** the Cloud Functions API is disabled. Functions,
+   rules, TTL/index policies and App Hosting need a coordinated rollout and
+   validation. No production delivery or subsecond SLA is claimed;
    cold starts exceeded one second locally.
 2. Anonymous session-token/registration data remains request-based. Owner-only
    metadata deliberately grants no public subscription. Public realtime needs
@@ -259,7 +267,8 @@ No production data was used. Host emulator Node was 24; deployment targets 22.
    meeting edits in this shared worktree.
 2. Confirm `bvpw108/(default)` remains Standard, `nam5`; do not migrate it using
    the legacy location label in firebase.json.
-3. Deploy `synchronizeQueries`, `expireRealtimeQuery`, owner-only rules and
+3. With approval, enable the required Functions/Eventarc services, then deploy
+   `synchronizeQueries`, `expireRealtimeQuery`, owner-only rules and
    indexes/TTL policies. Verify region, IAM and Node 22.
 4. Deploy App Hosting. Upgrade old browser versions: their legacy channel and
    long-poll mechanism is retired.

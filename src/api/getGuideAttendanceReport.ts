@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy, isHierarchyAdmin } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, AttendanceRecords, AttendanceSessions, AttendanceEvents, AttendanceVolunteers, AppError } from '@/lib/backend-sdk';
-import { getGuideScope } from '../lib/guideScope';
 
 export default createEndpoint({
   description: 'Get attendance report for a guide (scoped to their residency users)',
@@ -17,24 +17,16 @@ export default createEndpoint({
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }) => {
-    const role = context.user.role || '';
-    if (role !== 'Guide' && role !== 'Super Guide') {
+    if (!isHierarchyAdmin(context.user)) {
       throw new AppError({ code: 'FORBIDDEN', message: 'Only Guides and Super Guides can access this' });
     }
 
-    const scope = await getGuideScope(context.user.email);
-    if (!scope && role !== 'Super Guide') {
-      throw new AppError({ code: 'FORBIDDEN', message: 'Guide scope not found' });
-    }
 
     const limit = Math.min(input.limit || 50, 200);
     const offset = input.offset || 0;
 
     // Get users in scope
     const userFilters: any = { status: 'Active' };
-    if (scope && scope.residencyIds.length > 0) {
-      userFilters.residency = { in: scope.residencyIds };
-    }
     if (input.ashrayLevel) {
       userFilters.ashrayLevel = input.ashrayLevel;
     }
@@ -55,6 +47,8 @@ export default createEndpoint({
       );
     }
 
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    filteredUsers = filteredUsers.filter(user => isUserInHierarchy(user, hierarchy));
     const userIds = filteredUsers.map(u => u.id);
     if (userIds.length === 0) {
       return { records: [], stats: { totalCheckins: 0, uniqueParticipants: 0, levelBreakdown: [] }, events: [], sessions: [], pagination: { hasMore: false, totalCount: 0 } };
@@ -141,8 +135,8 @@ export default createEndpoint({
         uniqueParticipants: uniqueUserIds.size,
         levelBreakdown: Object.entries(levelCounts).map(([level, count]) => ({ level, count })),
       },
-      events: eventsResult.records.map(e => ({ id: e.id, title: e.title || '' })),
-      sessions: sessionsResult.records.map(s => ({
+      events: eventsResult.records.filter(e => hierarchy === null || sessionsResult.records.some(s => [s.event].flat().includes(e.id) && allRecords.some(r => [r.session].flat().includes(s.id)))).map(e => ({ id: e.id, title: e.title || '' })),
+      sessions: sessionsResult.records.filter(s => hierarchy === null || allRecords.some(r => [r.session].flat().includes(s.id))).map(s => ({
         id: s.id,
         name: s.name || '',
         eventId: Array.isArray(s.event) ? s.event[0] : s.event || '',

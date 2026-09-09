@@ -276,7 +276,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
   }, [reportType, selectedWeek, selectedMonth]);
 
   const reportQuery = useEndpointQuery<GetGuideDetailedReportOutputType>('getGuideDetailedReport', {
-    guideId, date: selectedDate, reportType, startDate: computedStart, endDate: computedEnd,
+    guideId: guideFilter !== 'all' ? guideFilter : guideId, date: selectedDate, reportType, startDate: computedStart, endDate: computedEnd,
     bvslMode, mentorMode, facilitatorMode,
     groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
     segment: isPw ? 'PW' : 'FOLK',
@@ -341,11 +341,7 @@ export default function ReportsTab({ guideId = '', senderName, bvslMode, mentorM
         if (u.isResident && u.residencyId !== folkResidencyId) return false;
       }
       if (!showMissing && !u.submitted) return false;
-      // Guide filter — only apply when a specific guide is selected
-      if (guideFilter && guideFilter !== '' && guideFilter !== 'all') {
-        const userGuideId = (u as any).guideId;
-        if (userGuideId !== guideFilter) return false;
-      }
+      // Guide ownership (including indirect members and legacy IDs) is filtered by the server.
       if (searchQuery && !u.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     });

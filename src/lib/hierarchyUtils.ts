@@ -1,254 +1,180 @@
-import { Users, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
+import { Users, Guides, FolkResidencies, BvGroups, BvGroupMembers } from '@/lib/backend-sdk';
 
-/**
- * Server-only helper: Resolves the complete set of user IDs under a caller's hierarchy.
- * Returns null if the caller is a Super Admin (unrestricted full access).
- *
- * Strict Hierarchy Scoping Rules:
- *   1. Super Admin: sees ALL data across all departments (returns null).
- *   2. Admin: sees Supervisors reporting to them (bvReportingAdminId), plus RGFs, RGSFs, and Members under those Supervisors.
- *   3. Supervisor: sees RGFs reporting to them (bvReportingSupervisorId), plus RGSFs and Members under those RGFs.
- *   4. RGF (Reading Group Facilitator): sees RGSFs reporting to them (bvReportingFacilitatorId), plus Groups facilitated by them and Members in those groups.
- *   5. RGSF (Reading Group Sub-Facilitator): sees all groups facilitated by their
- *      reporting RGF, plus members of those groups.
+export const HIERARCHY_IDENTITY_FIELDS = ['id', 'userId', 'email', 'uid', 'authUid', 'firebaseUid',
+  'firebaseUserId', 'firebaseAuthUid', 'authId', 'authUserId', 'firebaseId', 'firebaseAuthId', 'firebase_id'];
+
+export function hierarchyRefs(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(hierarchyRefs);
+  return value == null ? [] : String(value).split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+}
+
+export function hierarchyAliases(user: any): string[] {
+  return HIERARCHY_IDENTITY_FIELDS.flatMap(field => hierarchyRefs(user?.[field]));
+}
+
+export function isHierarchySuperAdmin(user: any): boolean {
+  const role = String(user?.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return !!user && (user.isBvSuperAdmin === true || ['SUPER_ADMIN', 'SUPER_GUIDE'].includes(role));
+}
+
+export function isHierarchyAdmin(user: any): boolean {
+  const role = String(user?.role || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return !!user && (isHierarchySuperAdmin(user) || user.isBvAdmin === true || user.isPwAdmin === true ||
+    ['ADMIN', 'PW_ADMIN', 'GUIDE'].includes(role));
+}
+
+export function isUserInHierarchy(user: any, scope: Set<string> | null): boolean {
+  return scope === null || hierarchyAliases(user).some(alias => scope.has(alias));
+}
+
+function department(user: any): string {
+  const segment = String(user?.segment || '').replace(/[\s_-]/g, '').toUpperCase();
+  return user?.isPrabhupadaWorldUser || ['PW', 'PRABHUPADAWORLD'].includes(segment) ? 'PW' : segment;
+}
+
+/** Pure resolver. Only explicit reporting links and active memberships grant access.
+ * Missing links never mean "all admins". Names are not user identity aliases.
  */
+export function resolveHierarchyScope(caller: any, users: any[], groups: any[] = [], memberships: any[] = [], guides: any[] = [], residencies: any[] = []): Set<string> | null {
+  if (!caller) return new Set();
+  if (isHierarchySuperAdmin(caller)) return null;
+  const callerKeys = new Set(hierarchyAliases(caller));
+  const stored = users.find(user => isUserInHierarchy(user, callerKeys));
+  hierarchyAliases(stored).forEach(key => callerKeys.add(key));
+  const callerDepartment = department(caller) || department(stored);
+  const eligible = (user: any) => !callerDepartment || !department(user) || department(user) === callerDepartment;
+  const scope = new Set(callerKeys);
+  const add = (user: any) => hierarchyAliases(user).forEach(key => scope.add(key));
+  const expandGuideAliases = () => {
+    for (const guide of guides) {
+      if (isUserInHierarchy(guide, scope)) {
+        hierarchyAliases(guide).forEach(key => scope.add(key));
+        hierarchyRefs(guide.guideId).forEach(key => scope.add(key));
+      }
+    }
+  };
+  expandGuideAliases();
+  const admin = isHierarchyAdmin(caller);
+  const role = String(caller.role || '').toUpperCase().replace(/[\s-]/g, '_');
+  const supervisor = caller.isBvSupervisor || caller.isBvMentor || ['SUPERVISOR', 'BV_SUPERVISOR'].includes(role);
+  const rgf = caller.isBvFacilitator || caller.isBvsl || ['RGF', 'BVSL', 'FACILITATOR'].includes(role);
+  const rgsf = caller.isBvSubFacilitator || role === 'RGSF';
+  const mentor = caller.isSadhanaMentor || role === 'SADHANA_MENTOR';
+
+  // Explicit admin ownership takes precedence over stale legacy guide links.
+  const foreignAdmin = (user: any) => {
+    const refs = hierarchyRefs(user.bvReportingAdminId || user.bvSupervisorGuideId);
+    return admin && refs.length > 0 && !refs.some(ref => scope.has(ref));
+  };
+  if (admin || supervisor || rgf) {
+    let previousSize = -1;
+    while (previousSize !== scope.size) {
+      previousSize = scope.size;
+      expandGuideAliases();
+      for (const user of users) {
+        if (!eligible(user) || foreignAdmin(user)) continue;
+        // An explicit immediate parent wins over legacy guide/registration fields.
+        const parents = hierarchyRefs(user.bvReportingFacilitatorId || user.bvReportingSupervisorId ||
+          user.bvReportingAdminId || user.bvSupervisorGuideId || user.guide || user.selectedGuideId);
+        if (parents.some(ref => scope.has(ref))) add(user);
+      }
+    }
+  }
+  // Legacy FOLK residents may only have a center assignment. That is an
+  // ownership link only for a guide managing the center, and never overrides
+  // an explicit assignment to a different guide/admin.
+  if (admin && callerDepartment === 'FOLK') {
+    const centerKeys = new Set<string>();
+    for (const owner of [...guides, ...users]) if (isUserInHierarchy(owner, scope)) {
+      hierarchyRefs(owner.folkResidencies).forEach(ref => centerKeys.add(ref));
+    }
+    for (const residency of residencies) {
+      const refs = hierarchyRefs([residency.id, residency.residencyId, residency.residencyName]);
+      if (refs.some(ref => centerKeys.has(ref)) || hierarchyRefs([residency.guideIds, residency.guides]).some(ref => scope.has(ref))) {
+        refs.forEach(ref => centerKeys.add(ref));
+      }
+    }
+    for (const user of users) {
+      if (!eligible(user) || hierarchyRefs([user.guide, user.selectedGuideId, user.bvReportingAdminId, user.bvReportingSupervisorId, user.bvReportingFacilitatorId]).length) continue;
+      if (hierarchyRefs(user.residency).some(ref => centerKeys.has(ref))) add(user);
+    }
+  }
+  const groupOwners = new Set(scope);
+  if (rgsf) {
+    const parentRefs = new Set(hierarchyRefs(caller.bvReportingFacilitatorId || stored?.bvReportingFacilitatorId));
+    for (const user of users) if (eligible(user) && isUserInHierarchy(user, parentRefs)) {
+      hierarchyAliases(user).forEach(key => groupOwners.add(key));
+    }
+    parentRefs.forEach(key => groupOwners.add(key));
+  }
+  const groupIds = new Set<string>();
+  for (const group of groups) {
+    if (group.isActive === false || !eligible(group)) continue;
+    const owners = hierarchyRefs([group.bvslId, group.bvslLeader, group.subFacilitatorId, group.rgsfId, group.subFacilitator]);
+    const guides = hierarchyRefs(group.guide);
+    if (admin && guides.length && !guides.some(ref => scope.has(ref))) continue;
+    if (owners.some(ref => groupOwners.has(ref)) || (!(rgsf && !admin && !supervisor && !rgf) && guides.some(ref => scope.has(ref)))) {
+      hierarchyRefs([group.id, group.groupId]).forEach(key => groupIds.add(key));
+    }
+  }
+  const memberKeys = new Set<string>();
+  for (const member of memberships) {
+    if (member.isActive === false || ['inactive', 'removed', 'left'].includes(String(member.status || '').toLowerCase())) continue;
+    if (hierarchyRefs([member.group, member.groupId]).some(ref => groupIds.has(ref))) {
+      hierarchyRefs([member.user, member.userId, member.memberId]).forEach(key => memberKeys.add(key));
+    }
+  }
+  // Resolve aliases through Users, not membership document IDs.
+  for (const user of users) if (eligible(user) && !foreignAdmin(user) && isUserInHierarchy(user, memberKeys)) add(user);
+  if (mentor) {
+    const folkGuide = new Set(hierarchyRefs(stored?.guide || caller.guide));
+    for (const user of users) {
+      if (!eligible(user)) continue;
+      const assigned = hierarchyRefs(user.sadhanaMentor).some(ref => callerKeys.has(ref));
+      const folkAssigned = callerDepartment !== 'PW' && hierarchyRefs(user.guide).some(ref => folkGuide.has(ref));
+      if (assigned || folkAssigned) add(user);
+    }
+  }
+  return scope;
+}
+
+async function readAll(table: any, fields: string[]): Promise<any[]> {
+  const records: any[] = [];
+  for (let offset = 0; ; offset += 2000) {
+    const page = await table.findAll({ fields, limit: 2000, offset });
+    records.push(...page.records);
+    if (!page.hasMore) return records;
+  }
+}
+
+/** Never fail open: a failed authorization lookup must fail the request. */
 export async function getScopedHierarchyUserIds(contextUser: any): Promise<Set<string> | null> {
   if (!contextUser) return new Set();
-
-  const userEmail = (contextUser.email || '').toLowerCase();
-  const userRole = (contextUser.role || '').toUpperCase().replace(/\s+/g, '_');
-
-  const isSuperAdmin = !!(
-    userRole === 'SUPER_ADMIN' ||
-    userRole === 'SUPER_GUIDE' ||
-    contextUser.isBvSuperAdmin
-  );
-
-  // Super Admin has full unrestricted access across all users and departments
-  if (isSuperAdmin) return null;
-
-  const callerId = String(contextUser.id || '').toLowerCase();
-  const callerUserId = String(contextUser.userId || callerId).toLowerCase();
-
-  const callerKeys = new Set<string>();
-  if (callerId) callerKeys.add(callerId);
-  if (callerUserId) callerKeys.add(callerUserId);
-  if (userEmail) callerKeys.add(userEmail);
-
-  const scopedUserIds = new Set<string>();
-  callerKeys.forEach(key => scopedUserIds.add(key));
-
-  // Fetch all users to resolve tree connections
-  const res = await Users.findAll({
-    limit: 2000,
-    fields: [
-      'id', 'userId', 'email', 'role', 'guide',
-      'isBvAdmin', 'isBvSupervisor', 'isBvMentor',
-      'isBvFacilitator', 'isBvsl', 'isBvSubFacilitator',
-      'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId', 'bvSupervisorGuideId',
-      'sadhanaMentor', 'isSadhanaMentor'
-    ]
-  }).catch(() => ({ records: [] }));
-  const allUsers: any[] = res?.records || [];
-
-  const isBvAdmin = !!(contextUser.isBvAdmin || userRole === 'ADMIN' || userRole === 'PW_ADMIN');
-  const isBvSupervisor = !!(contextUser.isBvSupervisor || contextUser.isBvMentor);
-  const isBvFacilitator = !!(contextUser.isBvFacilitator || contextUser.isBvsl);
-  const isBvSubFacilitator = !!(contextUser.isBvSubFacilitator);
-
-  // An RGSF inherits the group scope of their reporting RGF. Resolve every
-  // identity alias for that parent because older group records may store a
-  // Firestore id, public userId, or email in bvslLeader/bvslId.
-  const callerRecord = allUsers.find((u: any) => [u.id, u.userId, u.email]
-    .filter(Boolean)
-    .some((value: any) => callerKeys.has(String(value).toLowerCase())));
-  const reportingParentRefs = [
-    contextUser.bvReportingFacilitatorId,
-    callerRecord?.bvReportingFacilitatorId,
-  ].flatMap((value: any) => Array.isArray(value) ? value : [value]).filter(Boolean)
-    .map((value: any) => String(value).toLowerCase());
-  const reportingRgfKeys = new Set<string>(reportingParentRefs);
-  allUsers.forEach((u: any) => {
-    const aliases = [u.id, u.userId, u.email].filter(Boolean).map((value: any) => String(value).toLowerCase());
-    if (aliases.some(alias => reportingRgfKeys.has(alias))) aliases.forEach(alias => reportingRgfKeys.add(alias));
-  });
-
-  // Track parent keys at each level to cascade downwards
-  const supervisorKeys = new Set<string>();
-  const rgfKeys = new Set<string>();
-  const rgsfKeys = new Set<string>();
-
-  // ── Level 1: ADMIN resolution ──────────────────────────────────────────────────
-  if (isBvAdmin) {
-    allUsers.forEach((u: any) => {
-      const reportingAdmin = String(u.bvReportingAdminId || u.bvSupervisorGuideId || '').toLowerCase();
-      const guideStr = String(u.guide || '').toLowerCase();
-
-      // Include users who report to this Admin, or whose guide is this Admin, or unassigned new members
-      if (
-        (reportingAdmin && callerKeys.has(reportingAdmin)) ||
-        (guideStr && callerKeys.has(guideStr)) ||
-        (!reportingAdmin && !guideStr)
-      ) {
-        if (u.id) { scopedUserIds.add(u.id.toLowerCase()); supervisorKeys.add(u.id.toLowerCase()); }
-        if (u.userId) { scopedUserIds.add(u.userId.toLowerCase()); supervisorKeys.add(u.userId.toLowerCase()); }
-        if (u.email) { scopedUserIds.add(u.email.toLowerCase()); supervisorKeys.add(u.email.toLowerCase()); }
-      }
-    });
-  }
-
-  // ── Level 2: SUPERVISOR resolution ──────────────────────────────────────────────
-  // (Include supervisors found above for Admin, OR use caller keys if caller is Supervisor)
-  const activeSupervisorKeys = new Set<string>([
-    ...supervisorKeys,
-    ...(isBvSupervisor ? Array.from(callerKeys) : [])
+  if (isHierarchySuperAdmin(contextUser)) return null;
+  const [users, groups, memberships, guides, residencies] = await Promise.all([
+    readAll(Users, [...HIERARCHY_IDENTITY_FIELDS, 'role', 'guide', 'selectedGuideId', 'segment', 'isPrabhupadaWorldUser',
+      'bvReportingAdminId', 'bvReportingSupervisorId', 'bvReportingFacilitatorId', 'bvSupervisorGuideId', 'sadhanaMentor', 'folkResidencies', 'residency']),
+    readAll(BvGroups, ['id', 'groupId', 'guide', 'segment', 'isActive', 'bvslId', 'bvslLeader', 'subFacilitatorId', 'rgsfId', 'subFacilitator']),
+    readAll(BvGroupMembers, ['id', 'user', 'userId', 'memberId', 'group', 'groupId', 'isActive', 'status']),
+    readAll(Guides, ['id', 'guideId', 'email', 'userId', 'folkResidencies']),
+    department(contextUser) === 'FOLK' ? readAll(FolkResidencies, ['id', 'residencyId', 'residencyName', 'guideIds', 'guides']) : Promise.resolve([]),
   ]);
+  return resolveHierarchyScope(contextUser, users, groups, memberships, guides, residencies);
+}
 
-  if (activeSupervisorKeys.size > 0) {
-    allUsers.forEach((u: any) => {
-      const reportingSup = String(u.bvReportingSupervisorId || '').toLowerCase();
-      const guideStr = String(u.guide || '').toLowerCase();
-
-      if (reportingSup && activeSupervisorKeys.has(reportingSup)) {
-        if (u.id) { scopedUserIds.add(u.id.toLowerCase()); rgfKeys.add(u.id.toLowerCase()); }
-        if (u.userId) { scopedUserIds.add(u.userId.toLowerCase()); rgfKeys.add(u.userId.toLowerCase()); }
-        if (u.email) { scopedUserIds.add(u.email.toLowerCase()); rgfKeys.add(u.email.toLowerCase()); }
-      } else if (!reportingSup && guideStr && activeSupervisorKeys.has(guideStr)) {
-        if (u.id) { scopedUserIds.add(u.id.toLowerCase()); rgfKeys.add(u.id.toLowerCase()); }
-        if (u.userId) { scopedUserIds.add(u.userId.toLowerCase()); rgfKeys.add(u.userId.toLowerCase()); }
-        if (u.email) { scopedUserIds.add(u.email.toLowerCase()); rgfKeys.add(u.email.toLowerCase()); }
-      }
-    });
+/** A selected guide narrows super-admin reports using the same hierarchy,
+ * including aliases and indirect members. Ordinary callers cannot widen it. */
+export async function getDashboardHierarchyScope(contextUser: any, guideId?: string): Promise<Set<string> | null> {
+  if (!isHierarchySuperAdmin(contextUser) || !guideId || guideId.toUpperCase() === 'ALL') {
+    return getScopedHierarchyUserIds(contextUser);
   }
-
-  // ── Level 3: RGF resolution ────────────────────────────────────────────────────
-  // (Include RGFs found above, OR use caller keys if caller is RGF)
-  const activeRgfKeys = new Set<string>([
-    ...rgfKeys,
-    ...(isBvFacilitator ? Array.from(callerKeys) : [])
+  const requested = new Set(hierarchyRefs(guideId));
+  const [users, guides] = await Promise.all([
+    readAll(Users, [...HIERARCHY_IDENTITY_FIELDS, 'segment', 'isPrabhupadaWorldUser', 'folkResidencies']),
+    readAll(Guides, ['id', 'guideId', 'email', 'folkResidencies']),
   ]);
-
-  if (activeRgfKeys.size > 0) {
-    allUsers.forEach((u: any) => {
-      const reportingFac = String(u.bvReportingFacilitatorId || '').toLowerCase();
-      const guideStr = String(u.guide || '').toLowerCase();
-
-      if (reportingFac && activeRgfKeys.has(reportingFac)) {
-        if (u.id) { scopedUserIds.add(u.id.toLowerCase()); rgsfKeys.add(u.id.toLowerCase()); }
-        if (u.userId) { scopedUserIds.add(u.userId.toLowerCase()); rgsfKeys.add(u.userId.toLowerCase()); }
-        if (u.email) { scopedUserIds.add(u.email.toLowerCase()); rgsfKeys.add(u.email.toLowerCase()); }
-      } else if (!reportingFac && guideStr && activeRgfKeys.has(guideStr)) {
-        if (u.id) { scopedUserIds.add(u.id.toLowerCase()); rgsfKeys.add(u.id.toLowerCase()); }
-        if (u.userId) { scopedUserIds.add(u.userId.toLowerCase()); rgsfKeys.add(u.userId.toLowerCase()); }
-        if (u.email) { scopedUserIds.add(u.email.toLowerCase()); rgsfKeys.add(u.email.toLowerCase()); }
-      }
-    });
-  }
-
-  // ── Level 4: Group Members & RGSF Group resolution ────────────────────────────
-  const { records: groups } = await BvGroups.findAll({ limit: 500 });
-  const scopedGroupIds = new Set<string>();
-
-  // Collect relevant active keys for groups
-  const groupOwnerKeys = new Set<string>([
-    ...callerKeys,
-    ...supervisorKeys,
-    ...rgfKeys,
-    ...rgsfKeys,
-    ...(isBvSubFacilitator ? reportingRgfKeys : []),
-  ]);
-
-  const refValues = (value: unknown): string[] => {
-    if (Array.isArray(value)) return value.flatMap(refValues);
-    return value == null ? [] : String(value).split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
-  };
-
-  groups.forEach((g: any) => {
-    const bvslIds = refValues(g.bvslId);
-    const bvslLeaders = refValues(g.bvslLeader);
-    const gGuides = refValues(g.guide);
-    const subFacIds = refValues([g.subFacilitatorId, g.rgsfId, g.subFacilitator]);
-
-    // RGSFs can view every group facilitated by their reporting RGF. Keep
-    // direct RGSF assignments as a fallback for legacy records without the
-    // parent link.
-    if (isBvSubFacilitator && !isBvAdmin && !isBvSupervisor && !isBvFacilitator) {
-      const belongsToReportingRgf = bvslIds.some(id => reportingRgfKeys.has(id)) || bvslLeaders.some(id => reportingRgfKeys.has(id));
-      const directlyAssigned = subFacIds.some(id => callerKeys.has(id));
-      if (belongsToReportingRgf || directlyAssigned) {
-        if (g.id) scopedGroupIds.add(String(g.id));
-        if (g.groupId) scopedGroupIds.add(String(g.groupId));
-      }
-      return;
-    }
-
-    if (
-      bvslIds.some(id => groupOwnerKeys.has(id)) ||
-      bvslLeaders.some(id => groupOwnerKeys.has(id)) ||
-      gGuides.some(id => groupOwnerKeys.has(id)) ||
-      subFacIds.some(id => groupOwnerKeys.has(id))
-    ) {
-      if (g.id) scopedGroupIds.add(String(g.id));
-      if (g.groupId) scopedGroupIds.add(String(g.groupId));
-    }
-  });
-
-  if (scopedGroupIds.size > 0) {
-    const { records: groupMembers } = await BvGroupMembers.findAll({
-      limit: 2000,
-      fields: ['id', 'user', 'userId', 'memberId', 'group', 'groupId'],
-    });
-    groupMembers.forEach((m: any) => {
-      // Match group by both the Firestore document ID (m.group) and the app-level groupId (m.groupId)
-      const gRef = Array.isArray(m.group) ? m.group[0] : m.group;
-      const gId = String(gRef || m.groupId || '');
-      if (!gId || !scopedGroupIds.has(gId)) return;
-
-      // Collect all possible user aliases from the membership record
-      // m.user is the primary foreign-key reference to the Users table
-      const userRef = Array.isArray(m.user) ? m.user[0] : m.user;
-      if (userRef) scopedUserIds.add(String(userRef).toLowerCase());
-      if (m.userId) scopedUserIds.add(String(m.userId).toLowerCase());
-      if (m.id) scopedUserIds.add(String(m.id).toLowerCase());
-      if (m.memberId) scopedUserIds.add(String(m.memberId).toLowerCase());
-    });
-  }
-
-  // ── Level 5: Sadhana Mentor resolution ──────────────────────────────────────────
-  const isSadhanaMentor = !!(contextUser.isSadhanaMentor || userRole === 'SADHANA_MENTOR' || userRole === 'SADHANA MENTOR');
-  if (isSadhanaMentor) {
-    const isPwMentor = contextUser.segment === 'PW' || !!(contextUser as any).isPrabhupadaWorldUser;
-    if (isPwMentor) {
-      // PW: only see users assigned to them
-      allUsers.forEach((u: any) => {
-        if (u.sadhanaMentor && callerKeys.has(String(u.sadhanaMentor).toLowerCase())) {
-          if (u.id) scopedUserIds.add(u.id.toLowerCase());
-          if (u.userId) scopedUserIds.add(u.userId.toLowerCase());
-          if (u.email) scopedUserIds.add(u.email.toLowerCase());
-        }
-      });
-    } else {
-      // FOLK: see all users under their guide
-      const mentorUser = allUsers.find(u => {
-        const uid = String(u.id || '').toLowerCase();
-        const uuserId = String(u.userId || '').toLowerCase();
-        const uemail = String(u.email || '').toLowerCase();
-        return callerKeys.has(uid) || callerKeys.has(uuserId) || callerKeys.has(uemail);
-      });
-      const mentorGuideId = Array.isArray(mentorUser?.guide) ? mentorUser.guide[0] : mentorUser?.guide;
-      if (mentorGuideId) {
-        const guideIdLower = String(mentorGuideId).toLowerCase();
-        allUsers.forEach((u: any) => {
-          const uGuide = Array.isArray(u.guide) ? u.guide[0] : u.guide;
-          if (uGuide && String(uGuide).toLowerCase() === guideIdLower) {
-            if (u.id) scopedUserIds.add(u.id.toLowerCase());
-            if (u.userId) scopedUserIds.add(u.userId.toLowerCase());
-            if (u.email) scopedUserIds.add(u.email.toLowerCase());
-          }
-        });
-      }
-    }
-  }
-
-  return scopedUserIds;
+  const guide = guides.find(row => hierarchyRefs([row.id, row.guideId, row.email]).some(ref => requested.has(ref)));
+  const target = users.find(row => isUserInHierarchy(row, requested) || (guide?.email && hierarchyRefs(row.email).includes(String(guide.email).toLowerCase())));
+  if (!target && !guide) return new Set();
+  return getScopedHierarchyUserIds({ ...(target || { ...guide, segment: 'FOLK' }), role: 'ADMIN', isBvAdmin: true, isBvSuperAdmin: false });
 }

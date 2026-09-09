@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint, Users, FolkResidencies, Guides } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
 import { isUserInGuideScope } from '../lib/guideScope';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 
 const USER_FIELDS = ['id', 'fullName', 'phone', 'email', 'ashrayLevel', 'residency', 'selectedFolkResidency',
   'residencyClaimed', 'residencyJoinDate', 'createdAt', 'status', 'guide', 'selectedGuideId', 'guideName', 'isPrabhupadaWorldUser', 'segment'];
@@ -53,7 +54,9 @@ export default createEndpoint({
     if (mentorGuide?.id) mentorCanonicalIds.add(mentorGuide.id.toLowerCase());
 
     // Fetch all pending users from the database
-    const { records: pendingRecords } = await Users.findAll({ filters: pendingFilter, fields: USER_FIELDS, limit: 1000 });
+    const { records: pendingCandidates } = await Users.findAll({ filters: pendingFilter, fields: [...USER_FIELDS, 'userId'], limit: 1000 });
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
+    const pendingRecords = pendingCandidates.filter(user => isUserInHierarchy(user, hierarchy));
 
     const userSegment = context.user.segment || 'PW';
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, SadhanaEntries, BvAttendance } from '@/lib/backend-sdk';
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 
@@ -32,7 +33,8 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({ userId: z.string() }),
   outputSchema: z.any(),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    if (!context.user) throw new Error('Unauthorized');
     const today = getTodayIST();
     const startDate = daysAgo(today, 28);
 
@@ -57,6 +59,7 @@ export default createEndpoint({
         totalBooks: 0, improvementAreas: [],
       };
     }
+    if (!isUserInHierarchy(user, await getScopedHierarchyUserIds(context.user))) throw new Error('This user is not assigned to your hierarchy');
     const userAliases = new Set(identityAliases(user));
     userAliases.add(String(input.userId).trim().toLowerCase());
 

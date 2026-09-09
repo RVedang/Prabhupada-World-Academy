@@ -47,7 +47,7 @@ export default createEndpoint({
     const bvslUser = await Users.findOne({ id: dbUserId, fields: ['oneToOneLink'] }).catch(() => null);
 
     // Get strict hierarchy scoped user IDs for the calling user
-    const scopedUserIds = await getScopedHierarchyUserIds(context.user).catch(() => null);
+    const scopedUserIds = await getScopedHierarchyUserIds(context.user);
 
     const storedSegment = String(context.user.segment || '').trim().toUpperCase();
     const callerSegment = input.department || storedSegment || 'PW';
@@ -281,6 +281,7 @@ export default createEndpoint({
 
     const allAdminsSet = new Set<string>();
     allUsers.forEach((u: any) => {
+      if (scopedUserIds !== null && !normalizedRefs([u.id, u.userId, u.email]).some(ref => scopedUserIds.has(ref))) return;
       if (u.isBvAdmin || u.isBvSuperAdmin || u.role === 'Admin' || u.role === 'ADMIN' || u.role === 'Super Admin' || u.role === 'SUPER_ADMIN') {
         const name = u.fullName || u.name || u.email;
         const isUserFolk = u.segment === 'FOLK';

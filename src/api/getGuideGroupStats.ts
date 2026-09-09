@@ -16,7 +16,7 @@ export default createEndpoint({
     const groupFilter: any = { isActive: true };
     let hierarchyGroups: any[] | null = null;
 
-    if (input.guideId === 'ALL' && input.segment) {
+    if (input.guideId === 'ALL' && input.segment && isBvSuperAdminUser(context.user as any)) {
       if (!isBvSuperAdminUser(context.user as any)) {
         throw new AppError({ code: 'FORBIDDEN', message: 'Department-wide BV reports require super admin access' });
       }
@@ -86,12 +86,16 @@ export default createEndpoint({
       }
     }
 
-    const groups = hierarchyGroups ?? (await BvGroups.findAll({
+    let groups = hierarchyGroups ?? (await BvGroups.findAll({
       filters: groupFilter,
       fields: ['id', 'groupId', 'groupName', 'bvslLeader', 'bvslId'],
       limit: 200,
     })).records;
 
+    if (!isBvSuperAdminUser(context.user as any)) {
+      const permitted = new Set((await resolveBvScopedGroups(context.user as any, { segment: input.segment })).map(g => g.id));
+      groups = groups.filter(group => permitted.has(group.id));
+    }
     if (groups.length === 0) return { groups: [] };
 
     const callerAliases = new Set(bvUserAliases(context.user as any));

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { createEndpoint, BvMemberRegistrations, BvGroupMembers, Users, AppError } from '@/lib/backend-sdk';
 import { getGuideScope, isUserInGuideScope } from '../lib/guideScope';
 
@@ -157,8 +158,10 @@ export default createEndpoint({
       ? await getGuideScope(context.user.email || '').catch(() => null)
       : null;
 
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
     const filteredRecords = records.filter(r => {
       const u = userMap[r.userId] || userMap[r.userDbId] || userMap[r.id] || (r.email ? userMap[r.email.toLowerCase()] : null);
+      if (!isUserInHierarchy(u || { id: r.userDbId, userId: r.userId, email: r.email }, hierarchy)) return false;
       // A successful assignment or rejection is definitive. Do not show an old duplicate
       // registration record as pending after the member has joined a group or been rejected.
       const registrationIdentities = [r.userId, r.userDbId, u?.id, u?.userId]

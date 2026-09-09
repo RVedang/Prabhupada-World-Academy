@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getDashboardHierarchyScope, isUserInHierarchy, isHierarchyAdmin } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { getGuideScope } from '../lib/guideScope';
 import { requireGuideRole, isScholar as checkIsScholar } from '../lib/userUtils';
@@ -89,6 +90,7 @@ export default createEndpoint({
     );
 
     let guideDbId: string | null = isPwMentor || guideId === 'ALL' ? null : guideId;
+    if (isHierarchyAdmin(context.user)) guideDbId = null;
     if ((bvslMode || mentorMode) && !isPwMentor) {
       const userRec = await Users.findOne({ id: context.user.id, fields: ['id', 'guide'] });
       const gid = Array.isArray(userRec?.guide) ? userRec!.guide[0] : userRec?.guide;
@@ -158,6 +160,9 @@ export default createEndpoint({
         excludeCaller: true,
       });
     }
+
+    const scope = await getDashboardHierarchyScope(context.user, guideId);
+    users = users.filter(user => isUserInHierarchy(user, scope));
 
     // Helper: is a user a scholar (temp resident visiting FOLK)?
     // Uses canonical isScholar() from userUtils — requires BOTH temporaryResidencyEnabled AND a linked residency

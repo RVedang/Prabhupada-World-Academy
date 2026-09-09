@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy, isHierarchyAdmin } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, SadhanaEntries, Guides } from '@/lib/backend-sdk';
 import { getTodayIST, daysAgo } from '../lib/streakUtils';
 
@@ -9,7 +10,8 @@ export default createEndpoint({
   outputSchema: z.any(),
   execute: async ({ context }) => {
     if (!context.user) throw new Error('Unauthorized');
-    const isSuperGuide = context.user.role === 'Super Guide';
+    const isSuperGuide = isHierarchyAdmin(context.user);
+    const hierarchy = await getScopedHierarchyUserIds(context.user);
     const todayStr = getTodayIST();
     const sevenDaysAgo = daysAgo(todayStr, 7);
 
@@ -26,7 +28,7 @@ export default createEndpoint({
     const pendingFilter: any = { status: 'Pending Approval' };
     if (guideDbId) pendingFilter.guide = guideDbId;
 
-    const [{ records: activeUsers }, { records: pendingUsers }, { records: todayEntries }, { records: weekEntries }] =
+    const [{ records: allActiveUsers }, { records: allPendingUsers }, { records: todayEntries }, { records: weekEntries }] =
       await Promise.all([
         Users.findAll({ filters: userFilter, fields: ['id'], limit: 2000 }),
         Users.findAll({ filters: pendingFilter, fields: ['id'], limit: 500 }),
@@ -37,6 +39,8 @@ export default createEndpoint({
         }),
       ]);
 
+    const activeUsers = allActiveUsers.filter(u => isUserInHierarchy(u, hierarchy));
+    const pendingUsers = allPendingUsers.filter(u => isUserInHierarchy(u, hierarchy));
     const activeUserIds = new Set(activeUsers.map((u: any) => u.id));
     const submissionsToday = todayEntries.filter((e: any) => {
       const uid = Array.isArray(e.user) ? e.user[0] : e.user;

@@ -3,7 +3,9 @@ import { scopeRealtimeDependencies } from '@/lib/requestQueries';
 import { getReportReferenceData } from '../lib/reportReferenceData';
 import { createEndpoint, Users, Guides, FolkResidencies, SadhanaEntries } from '@/lib/backend-sdk';
 import { requireGuideRole, normalizeAshrayLevel } from '../lib/userUtils';
-import { getScopedHierarchyUserIds } from '../lib/hierarchyUtils';
+import { getDashboardHierarchyScope, isHierarchyAdmin, isHierarchySuperAdmin } from '../lib/hierarchyUtils';
+import getGuides from './getGuides';
+import getAllResidencies from './getAllResidencies';
 import { resolveBvGroupMemberUsers } from '../lib/bvGroupMemberScope';
 import { NON_RESIDENT_FIELDS } from '../config/sadhanaFields';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
@@ -719,13 +721,7 @@ export default createEndpoint({
     void referencePromise.catch(() => {});
 
     const isPwMentor = !!mentorMode && input.segment === 'PW';
-    const callerRole = String(context.user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isPwDepartmentAdmin = inputGuideId === 'ALL' && input.segment === 'PW' && !!(
-      context.user.isBvAdmin || context.user.isBvSuperAdmin || context.user.isPwAdmin ||
-      callerRole === 'ADMIN' || callerRole === 'PW_ADMIN' || callerRole === 'SUPER_ADMIN'
-    );
-    const hierarchyPromise = isPwMentor || isPwDepartmentAdmin || facilitatorMode
-      ? Promise.resolve(null) : getScopedHierarchyUserIds(context.user);
+    const hierarchyPromise = getDashboardHierarchyScope(context.user, inputGuideId);
     void hierarchyPromise.catch(() => {});
     const mentorRecord = isPwMentor
       ? (await Users.findOne({ id: context.user.id, fields: ['id', 'userId', 'email'] }).catch(() => null)
@@ -740,6 +736,7 @@ export default createEndpoint({
     // PW Sadhana Mentors are scoped directly by explicit member assignment;
     // they do not need, or use, a FOLK guide relationship.
     let guideDbId: string | null = isPwMentor ? null : (inputGuideId === 'ALL' ? null : inputGuideId);
+    if (isHierarchyAdmin(context.user)) guideDbId = null;
 
     // For BVSL/Mentor mode, resolve guide from authenticated user's guide field
     if ((bvslMode || mentorMode) && !isPwMentor) {
@@ -787,7 +784,11 @@ export default createEndpoint({
         ? guide.folkResidencies as string[]
         : (guide?.folkResidencies ? [guide.folkResidencies as string] : []);
     }
-    const availableResidenciesPromise = referencePromise.then(reference => {
+    const availableResidenciesPromise = referencePromise.then(async reference => {
+      if (isHierarchyAdmin(context.user) && !isHierarchySuperAdmin(context.user)) {
+        if (input.segment === 'PW' || facilitatorMode) return [];
+        return getAllResidencies.execute({ input: { segment: input.segment }, context });
+      }
       if (!guideDbId) return reference.residencies.filter(residency => residency.isActive === true).slice(0, 200)
         .map(residency => ({ residencyId: residency.id, residencyName: residency.residencyName || '' }));
       if (facilitatorMode) return [];
@@ -909,7 +910,10 @@ export default createEndpoint({
       });
     }
 
-    if (users.length === 0) return { users: [], fieldDefs: reportFieldDefs, availableResidencies: await availableResidenciesPromise, availableGuides: [], currentGuideId: guideDbId, summary: {} };
+    const availableGuidesPromise = getGuides.execute({ input: { segment: input.segment || 'ALL' }, context })
+      .then(result => result.guides.map(guide => ({ guideId: guide.guideId, guideName: guide.name })));
+    void availableGuidesPromise.catch(() => {});
+    if (users.length === 0) return { users: [], fieldDefs: reportFieldDefs, availableResidencies: await availableResidenciesPromise, availableGuides: await availableGuidesPromise, currentGuideId: guideDbId, summary: {} };
 
     // Fetch entries in date range (paginated if needed)
     const dateFilter = reportType === 'daily'
@@ -941,20 +945,7 @@ export default createEndpoint({
     ]);
     void entriesPromise.catch(() => {});
 
-    // Collect unique guide IDs across all returned users — used for the Guide filter dropdown
-    const guideIdsFromUsers = [...new Set(
-      users.map(u => Array.isArray(u.guide) ? u.guide[0] : u.guide).filter(Boolean) as string[]
-    )];
-    // Always include the current guide even if they have no users yet
-    const allGuideIds = [...new Set([...(guideDbId ? [guideDbId] : []), ...guideIdsFromUsers])];
-    let availableGuides: { guideId: string; guideName: string }[] = [];
-    if (allGuideIds.length > 0) {
-      const guideById = new Map((await referencePromise).guides.map(guide => [guide.id, guide]));
-      const guideRecs = allGuideIds.map(id => guideById.get(id));
-      availableGuides = guideRecs
-        .filter(Boolean)
-        .map(r => ({ guideId: r!.id, guideName: (r as any).fullName || r!.id }));
-    }
+    const availableGuides = await availableGuidesPromise;
 
     // Sadhana entries are owned by the authenticated Firebase identity. A
     // member record can also carry a Firestore ID and a legacy/custom userId,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 import { createEndpoint, Users, SadhanaEntries, BvGroupMembers, BvGroups, FolkResidencies, AppError } from '@/lib/backend-sdk';
 import { computeStreak, getTodayIST, daysAgo } from '../lib/streakUtils';
 import { requireGuideRole } from '../lib/userUtils';
@@ -130,6 +131,9 @@ export default createEndpoint({
 
     const userRecord = await resolveUser(input.userId);
     if (!userRecord) throw new AppError({ code: 'NOT_FOUND', message: 'User not found' });
+    if (!isUserInHierarchy(userRecord, await getScopedHierarchyUserIds(context.user))) {
+      throw new AppError({ code: 'FORBIDDEN', message: 'This user is not assigned to your hierarchy' });
+    }
 
     // Admin-tier users manage members across their authorized department and
     // must not fall through to the RGF/guide-only scope checks below.

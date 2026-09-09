@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint, PushSubscriptions, Users, AppError } from '@/lib/backend-sdk';
 import { getNotificationDepartment } from '@/lib/notificationDepartment';
+import { getScopedHierarchyUserIds, isUserInHierarchy } from '../lib/hierarchyUtils';
 
 export default createEndpoint({
   description: 'Get push subscription stats (Super Guide / Admin only)',
@@ -77,7 +78,9 @@ export default createEndpoint({
     ));
     const users = userBatches.flatMap(batch => batch.records || []);
 
+    const scope = await getScopedHierarchyUserIds(context.user);
     const targetUsers = users.filter((u: any) => {
+      if (!isUserInHierarchy(u, scope)) return false;
       if (u.status !== 'Active') return false;
 
       const isCaller = (callerId && u.id === callerId) || 
