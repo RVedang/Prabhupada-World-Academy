@@ -1537,14 +1537,14 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
       )}
 
       {/* SCHEDULE / EDIT MEETING MODAL */}
-      <AnimatePresence>
+      {typeof document !== 'undefined' && ReactDOM.createPortal(<AnimatePresence>
         {showMeetingModal && (
-          <div className="meeting-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="meeting-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-hidden">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              ref={meetingModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Meeting details" className="bg-card border rounded-2xl p-6 w-full max-w-xl shadow-2xl space-y-4 my-8 max-h-[90dvh] overflow-y-auto custom-scrollbar"
+              ref={meetingModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Meeting details" className="bg-card border rounded-2xl w-full max-w-xl shadow-2xl h-[calc(100dvh-2rem)] max-h-[48rem] flex flex-col overflow-hidden"
             >
               {/* Local style block to override default scrollbars with premium thin grey track/thumb */}
               <style dangerouslySetInnerHTML={{__html: `
@@ -1567,7 +1567,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                   scrollbar-color: rgba(156, 163, 175, 0.35) transparent;
                 }
               `}} />
-              <div className="flex items-center justify-between pb-3 border-b">
+              <div data-modal-header className="flex shrink-0 items-center justify-between gap-3 px-6 py-5 border-b">
                 <div className="flex items-center gap-2">
                   <Video className="w-5 h-5 text-primary" />
                   <h3 className="text-lg font-bold">{editingMeeting ? 'Edit Meeting' : 'Schedule New Meeting'}</h3>
@@ -1577,7 +1577,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                 </button>
               </div>
 
-              <form onSubmit={handleSaveMeeting} className="space-y-4 text-xs">
+              <form onSubmit={handleSaveMeeting} data-modal-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 text-xs custom-scrollbar">
                 <div>
                   <label className="font-bold text-foreground block mb-1.5">Meeting Type *</label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1858,19 +1858,19 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
 
       {/* CREATE / EDIT MOM MODAL */}
-      <AnimatePresence>
+      {typeof document !== 'undefined' && ReactDOM.createPortal(<AnimatePresence>
         {showMomModal && (
-          <div className="meeting-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="meeting-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-hidden">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              ref={momModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Minutes of meeting" className="bg-card border rounded-2xl p-6 w-full max-w-2xl shadow-2xl space-y-4 my-8 max-h-[90dvh] overflow-y-auto"
+              ref={momModalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Minutes of meeting" className="bg-card border rounded-2xl w-full max-w-2xl shadow-2xl h-[calc(100dvh-2rem)] max-h-[48rem] flex flex-col overflow-hidden"
             >
-              <div className="flex items-center justify-between pb-3 border-b">
+              <div data-modal-header className="flex shrink-0 items-center justify-between gap-3 px-6 py-5 border-b">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
                   <h3 className="text-lg font-bold">{canEditMom ? (editingMom ? 'Edit Minutes of Meeting' : 'Create Minutes of Meeting (MoM)') : 'View Minutes of Meeting'}</h3>
@@ -1880,7 +1880,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
                 </button>
               </div>
 
-              <form onSubmit={handleSaveMom} className="space-y-4 text-xs">
+              <form onSubmit={handleSaveMom} data-modal-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 text-xs custom-scrollbar">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="col-span-2 sm:col-span-1">
                     <label className="font-bold text-foreground block mb-1">MoM Title *</label>
@@ -2085,7 +2085,7 @@ export default function MeetingsAndMomTab({ allowSchedule = false, department: r
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   );
 }

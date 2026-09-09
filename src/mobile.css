@@ -51,7 +51,9 @@ img, video { max-width: 100%; }
   .mobile-mom-table input, .mobile-mom-table textarea { min-height: 44px; }
   .mobile-mom-table [data-slot=select-trigger] { width: 100%; }
   .meeting-modal { padding: .5rem; align-items: center; }
-  .meeting-modal > [role=dialog] { max-height: calc(100dvh - 1rem); margin: 0; padding: 1rem; overscroll-behavior: contain; }
+  .meeting-modal > [role=dialog] { height: calc(100dvh - 1rem); max-height: none; margin: 0; overscroll-behavior: contain; }
+  .meeting-modal > [role=dialog] > [data-modal-header] { padding: 1rem; }
+  .meeting-modal > [role=dialog] > form { padding: 1rem; }
   .meeting-modal > [role=dialog] h3 { font-size: 1rem; }
   .meeting-modal form { min-width: 0; }
   body:has(.member-bottom-nav) .install-banner { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }

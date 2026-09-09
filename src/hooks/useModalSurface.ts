@@ -10,6 +10,13 @@ export function useModalSurface(open: boolean, ref: RefObject<HTMLElement | null
     const previous = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    // A dialog can be reopened after its form was previously scrolled. Reset
+    // both the surface and its designated content pane before focus moves so
+    // the heading is always visible instead of opening halfway down the form.
+    modal.scrollTop = 0;
+    modal.querySelectorAll<HTMLElement>('[data-modal-scroll]').forEach(surface => {
+      surface.scrollTop = 0;
+    });
     const selector = 'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]';
     const visible = (element: Element) => element.getClientRects().length > 0;
     const focusFirst = () => (Array.from(modal.querySelectorAll<HTMLElement>(selector)).find(visible) || modal).focus();
