@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLatestBroadcast } from '@/lib/notificationBroadcast';
+import { broadcastsAfter, getRecentBroadcasts, type BroadcastData } from '@/lib/notificationBroadcast';
 import { Users } from '@/lib/backend-sdk';
+import { getNotificationDepartment } from '@/lib/notificationDepartment';
 
 /**
  * GET /api/push-events
@@ -16,9 +17,9 @@ export async function GET(req: NextRequest) {
   const email = (searchParams.get('email') || '').toLowerCase();
   const userId = searchParams.get('userId') || '';
 
-  const current = await getLatestBroadcast();
+  const current = await getRecentBroadcasts();
 
-  async function shouldDeliver(broadcast: NonNullable<typeof current>): Promise<boolean> {
+  async function shouldDeliver(broadcast: BroadcastData): Promise<boolean> {
     // Exclude sender
     if (broadcast.senderEmail && email && email === broadcast.senderEmail.toLowerCase()) {
       return false;
@@ -26,8 +27,7 @@ export async function GET(req: NextRequest) {
 
     // If broadcast has an inviteeIds/inviteeEmails list (meeting notification), only deliver to invitees.
     const hasInviteeList =
-      (broadcast.inviteeIds && broadcast.inviteeIds.length > 0) ||
-      (broadcast.inviteeEmails && broadcast.inviteeEmails.length > 0);
+      Array.isArray(broadcast.inviteeIds) || Array.isArray(broadcast.inviteeEmails);
 
     if (hasInviteeList) {
       const isInvitedById = userId && broadcast.inviteeIds?.includes(userId);
@@ -47,36 +47,31 @@ export async function GET(req: NextRequest) {
         u = userRecords[0] || null;
       }
 
-      if (u) {
-        const uSegment = (u.segment || '').toUpperCase();
-        const isFolkUser = uSegment === 'FOLK';
-        const isPwUser = uSegment === 'PW' || !!u.isPrabhupadaWorldUser;
-
-        if (targetSegment === 'PW') {
-          if (isFolkUser && !isPwUser) return false;
-          if (uSegment === 'FOLK') return false;
-        } else if (targetSegment === 'FOLK') {
-          if (isPwUser && !isFolkUser) return false;
-          if (uSegment === 'PW') return false;
-        }
-      }
+      return !!u && getNotificationDepartment(u) === targetSegment;
     }
 
-    return true;
+    return !targetSegment;
   }
 
   // If this is the initial registration poll, set lastId to current ID and return HEARTBEAT
   if (lastId === '') {
-    return NextResponse.json({ type: 'HEARTBEAT', id: current?.id || 'initial' });
+    return NextResponse.json({ type: 'HEARTBEAT', id: current.at(-1)?.id || `cursor-${Date.now()}` });
   }
 
-  // Check immediately — return any new broadcast the client hasn't seen
-  if (current && current.id !== lastId) {
-    if (!await shouldDeliver(current)) {
-      return NextResponse.json({ type: 'HEARTBEAT', id: current.id });
+  async function nextResponse(broadcasts: BroadcastData[]) {
+    const pending = broadcastsAfter(broadcasts, lastId);
+    for (const broadcast of pending) {
+      if (await shouldDeliver(broadcast)) {
+        // Recipient lists are server-side routing data, not client content.
+        const { inviteeIds: _ids, inviteeEmails: _emails, ...message } = broadcast;
+        return NextResponse.json({ type: 'PUSH_RECEIVED', ...message });
+      }
     }
-    return NextResponse.json({ type: 'PUSH_RECEIVED', ...current });
+    if (pending.length) return NextResponse.json({ type: 'HEARTBEAT', id: pending.at(-1)!.id });
+    return null;
   }
+  const immediate = await nextResponse(current);
+  if (immediate) return immediate;
 
   // Long-poll: wait up to 25s for a new broadcast
   const MAX_WAIT_MS = 25_000;
@@ -85,13 +80,8 @@ export async function GET(req: NextRequest) {
 
   while (Date.now() < deadline) {
     await new Promise<void>((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const latest = await getLatestBroadcast();
-    if (latest && latest.id !== lastId) {
-      if (!await shouldDeliver(latest)) {
-        return NextResponse.json({ type: 'HEARTBEAT', id: latest.id });
-      }
-      return NextResponse.json({ type: 'PUSH_RECEIVED', ...latest });
-    }
+    const response = await nextResponse(await getRecentBroadcasts());
+    if (response) return response;
   }
 
   // Timeout — return heartbeat so client reconnects immediately

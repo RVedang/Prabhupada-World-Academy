@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint, PushSubscriptions, Users, AppError } from '@/lib/backend-sdk';
+import { getNotificationDepartment } from '@/lib/notificationDepartment';
 
 export default createEndpoint({
   description: 'Get push subscription stats (Super Guide / Admin only)',
@@ -76,8 +77,6 @@ export default createEndpoint({
     ));
     const users = userBatches.flatMap(batch => batch.records || []);
 
-    const isPwTarget = targetSegment === 'PW';
-
     const targetUsers = users.filter((u: any) => {
       if (u.status !== 'Active') return false;
 
@@ -85,19 +84,7 @@ export default createEndpoint({
                        (callerEmail && (u.email || '').toLowerCase() === callerEmail);
       if (isCaller) return false;
 
-      const uSegment = String(u.segment || '').toUpperCase();
-      const isPwUser = uSegment === 'PW' || !!u.isPrabhupadaWorldUser;
-      const isFolkUser = uSegment === 'FOLK' || !!u.isFolkLead || !!u.residencyId;
-
-      if (isPwTarget) {
-        if (isPwUser) return true;
-        if (isFolkUser) return false;
-        return true;
-      } else {
-        if (isPwUser) return false;
-        if (isFolkUser) return true;
-        return false;
-      }
+      return getNotificationDepartment(u) === targetSegment;
     });
 
     const targetUserIds = new Set(targetUsers.map(u => u.id));

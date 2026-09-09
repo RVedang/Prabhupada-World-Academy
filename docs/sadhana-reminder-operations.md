@@ -1,11 +1,10 @@
 # Sadhana reminder delivery
 
-## Verified deployment prerequisite
+## Deployment prerequisite
 
-On 2026-09-06, Cloud Scheduler returned HTTP 403 with `Cloud Scheduler API has
-not been used in project bvpw108 before or it is disabled`. Browser timers do
-not provide closed-browser delivery. Deploy the notification changes and
-activate a server scheduler before declaring automatic reminders operational.
+Browser timers do not provide closed-browser delivery. Deploy the notification
+changes and activate the two server jobs below. As checked on 2026-09-09, the
+Cloud Scheduler API is active and PW meeting reminders have a separate job.
 
 ## Required department jobs
 
@@ -36,6 +35,23 @@ records, so changing one department never changes the other department's
 schedule. Settings changes take effect without editing the jobs.
 Keep the cron secret out of source control, command output and client code.
 Meeting reminder jobs are separate. FOLK has no meeting or MoM reminders.
+
+Scheduled dispatch claims each department/minute in a Firestore transaction,
+so duplicate scheduler requests cannot resend that slot. Browser and service
+worker local reminder timers are removed; day rules and submission eligibility
+are evaluated by the server. Manual dispatch is independent of the automatic
+enabled switch. Both dispatch paths exclude members who already submitted.
+
+In-app messages use separate server-only `NotificationBroadcasts` documents.
+The long-poll route consumes recent messages in order, including when PW and
+FOLK send simultaneously. It never returns recipient lists to clients.
+
+## Admin controls
+
+Open **Notifications**, choose the automatic schedule and times (IST), then
+click **Save Notification Settings**. A failed database save is shown as an
+error. **Send Notification Instantly** sends an immediate Sadhana reminder
+after confirmation; it does not require automatic reminders to be enabled.
 
 ## Verification after activation
 

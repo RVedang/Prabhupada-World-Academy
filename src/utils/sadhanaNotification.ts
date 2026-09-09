@@ -52,33 +52,15 @@ export async function savePwNotificationConfig(
   config: Partial<PwSadhanaNotificationConfig>,
   segment: 'PW' | 'FOLK' = 'PW',
 ): Promise<PwSadhanaNotificationConfig> {
-  try {
-    const current = await getPwNotificationConfig(segment);
-    const updated: PwSadhanaNotificationConfig = {
-      ...current,
-      ...config,
-      updatedAt: new Date().toISOString(),
-    };
-    await apiSaveConfig({ ...updated, segment });
-    return updated;
-  } catch (e) {
-    console.error('Failed to save config in DB:', e);
-    const current = getDefaultSadhanaNotificationConfig(segment);
-    const updated: PwSadhanaNotificationConfig = {
-      ...current,
-      ...config,
-      updatedAt: new Date().toISOString(),
-    };
-    return updated;
-  }
+  const current = await getPwNotificationConfig(segment);
+  const updated: PwSadhanaNotificationConfig = {
+    ...current,
+    ...config,
+    updatedAt: new Date().toISOString(),
+  };
+  await apiSaveConfig({ ...updated, segment });
+  return updated;
 }
-
-// ── Reminder times (IST fallback) ──
-const REMINDER_TIMES = {
-  'night-1': { hour: 21, minute: 20 }, // 9:20 PM
-  'night-2': { hour: 22, minute: 20 }, // 10:20 PM
-  'morning': { hour: 7, minute: 40 },  // 7:40 AM next day
-};
 
 // ── localStorage helpers ──
 const SUBMITTED_KEY = 'sadhana_submitted_today';
@@ -514,18 +496,13 @@ export async function checkPushSubscriptionStatus(): Promise<boolean> {
   }
 }
 
-// ── Local notification scheduling ──
-let _reminderTimers: ReturnType<typeof setTimeout>[] = [];
-
+// The server owns scheduling and submission eligibility. Pages only sync
+// state; local timers would duplicate dispatch and ignore server day rules.
 export async function scheduleSadhanaReminder(
   submittedToday: boolean,
   segment: 'PW' | 'FOLK' = 'PW',
 ): Promise<void> {
-  _reminderTimers.forEach(t => clearTimeout(t));
-  _reminderTimers = [];
-
   const config = await getPwNotificationConfig(segment);
-  if (!config.enabled) return;
 
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({
@@ -543,64 +520,6 @@ export async function scheduleSadhanaReminder(
     });
   }
 
-  if (submittedToday) return;
-  // Foreground reminders work without browser notification permission.
-  // Native delivery still requires the browser's actual permission.
-
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istNow = new Date(now.getTime() + istOffset);
-  const istHour = istNow.getUTCHours();
-  const istMinute = istNow.getUTCMinutes();
-
-  const timesToUse = config.times.length > 0
-    ? config.times.map((t, idx) => {
-        const [hStr, mStr] = t.split(':');
-        return {
-          slot: `custom-${idx}`,
-          hour: parseInt(hStr || '0', 10),
-          minute: parseInt(mStr || '0', 10),
-        };
-      })
-    : Object.entries(REMINDER_TIMES).map(([slot, time]) => ({
-        slot,
-        hour: time.hour,
-        minute: time.minute,
-      }));
-
-  for (const time of timesToUse) {
-    const slot = time.slot;
-    const targetIST = new Date(istNow);
-    targetIST.setUTCHours(time.hour, time.minute, 0, 0);
-
-    if (istHour < time.hour || (istHour === time.hour && istMinute < time.minute)) {
-      // Future today
-    } else {
-      targetIST.setUTCDate(targetIST.getUTCDate() + 1);
-    }
-
-    const targetLocal = new Date(targetIST.getTime() - istOffset);
-    const delay = targetLocal.getTime() - now.getTime();
-
-    if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
-      const timer = setTimeout(async () => {
-        const liveConfig = await getPwNotificationConfig(segment).catch(() => null);
-        if (!liveConfig || !liveConfig.enabled) return;
-        if (typeof window !== 'undefined' && localStorage.getItem('push_notifications_disabled') === 'true') return;
-
-        if (!hasSubmittedToday()) {
-          triggerInAppOrNativeNotification({
-            id: `local-${slot}-${Date.now()}`,
-            title: liveConfig.title,
-            body: liveConfig.body,
-            slot,
-            url: '/sadhana',
-          });
-        }
-      }, delay);
-      _reminderTimers.push(timer);
-    }
-  }
 }
 
 export function initReminderVisibilityCheck(segment: 'PW' | 'FOLK' = 'PW'): () => void {

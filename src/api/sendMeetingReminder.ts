@@ -185,6 +185,9 @@ export default createEndpoint({
     if (!isCron && !canManageMeetings) {
       throw new AppError({ code: 'UNAUTHORIZED', message: 'Unauthorized to send meeting reminders' });
     }
+    if (!isCron && String(context?.user?.segment || '').trim().toUpperCase() === 'FOLK') {
+      throw new AppError({ code: 'FORBIDDEN', message: 'FOLK meeting reminders are disabled' });
+    }
 
     // Load meeting details
     const meeting = await Meetings.findOne({ id: input.meetingId });

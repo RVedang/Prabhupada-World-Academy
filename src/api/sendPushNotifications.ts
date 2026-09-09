@@ -3,6 +3,8 @@ import { createEndpoint, PushSubscriptions, Users, SadhanaEntries, AppError } fr
 import { storeBroadcast } from '@/lib/notificationBroadcast';
 import getPwNotificationConfig from './getPwNotificationConfig';
 import { isSadhanaReminderDue } from '@/lib/sadhanaReminderSchedule';
+import { getNotificationDepartment } from '@/lib/notificationDepartment';
+import { claimSadhanaReminderSlot } from '@/lib/sadhanaReminderDispatch';
 
 /** Extract a plain string ID from a Firestore DocumentReference, array, or string. */
 function getUserIdStr(userField: any): string | null {
@@ -78,7 +80,7 @@ async function fetchActiveUsers(): Promise<any[]> {
       fields: [
         'id', 'userId', 'email', 'phone', 'uid', 'authUid', 'firebaseUid',
         'firebaseUserId', 'firebaseAuthUid', 'status', 'segment', 'fullName',
-        'isPrabhupadaWorldUser', 'isFolkLead', 'residencyId',
+        'isPrabhupadaWorldUser', 'isFolkUser', 'isFolkLead', 'residencyId',
       ],
       limit: 500,
       offset,
@@ -344,12 +346,13 @@ export default createEndpoint({
     const senderId = context?.user?.id;
     const senderEmail = String(context?.user?.email || (isCron ? input.senderEmail : '') || '').toLowerCase();
 
-    const isPwTarget = targetSegment === 'PW';
-
     const slotMsg = SLOT_MESSAGES[input.reminderSlot] || SLOT_MESSAGES['night-1'];
     const title = scheduleConfig?.title || input.customTitle || slotMsg.title;
     const body = scheduleConfig?.body || input.customBody || slotMsg.body;
-    const broadcastId = String(Date.now()) + '_' + String(Math.floor(Math.random() * 1000000));
+    const scheduleSlot = istNow.toISOString().slice(0, 16);
+    const broadcastId = input.scheduled
+      ? `sadhana-${targetSegment}-${scheduleSlot}`
+      : String(Date.now()) + '_' + String(Math.floor(Math.random() * 1000000));
 
     // Get all push subscriptions
     const { records: subs } = await PushSubscriptions.findAll({ limit: 2000 });
@@ -397,37 +400,7 @@ export default createEndpoint({
                        (senderEmail && (u.email || '').toLowerCase() === senderEmail);
       if (isSender) return false;
 
-      const uSegment = (u.segment || '').toUpperCase();
-      const name = (u.fullName || '').toUpperCase();
-      const email = (u.email || '').toLowerCase();
-
-      const isFolkUser = uSegment === 'FOLK' || 
-                         email.includes('folk.org') || 
-                         email.includes('gaurmandal') || 
-                         email.includes('superguide') || 
-                         name.includes('FOLK') || 
-                         name.includes('GAURMANDAL') || 
-                         !!u.residencyId || 
-                         !!u.isFolkLead;
-
-      const isPwUser = uSegment === 'PW' || 
-                       !!u.isPrabhupadaWorldUser || 
-                       email.includes('prabhupadaworld') || 
-                       email.includes('hrvd') || 
-                       email.includes('srilaprabhupadaworld') || 
-                       name.includes('PW') || 
-                       name.includes('PRABHUPADA') || 
-                       name.includes('HIRANYAVARNA');
-
-      if (isPwTarget) {
-        if (isFolkUser && !isPwUser) return false;
-        if (uSegment === 'FOLK') return false;
-        return true;
-      } else {
-        if (isPwUser && !isFolkUser) return false;
-        if (uSegment === 'PW') return false;
-        return true;
-      }
+      return getNotificationDepartment(u) === targetSegment;
     };
 
     const hasSubmitted = (user: any): boolean => {
@@ -482,6 +455,9 @@ export default createEndpoint({
 
     // Scope the long-poll broadcast to every missing member, whether or not
     // they have opted into browser push. This is the in-app notification path.
+    if (input.scheduled && !await claimSadhanaReminderSlot(targetSegment, scheduleSlot)) {
+      return { sent: 0, failed: 0, skipped: toSend.length, inAppRecipients: 0 };
+    }
     let inAppRecipients = 0;
     if (eligibleRecipients.length > 0) {
       const eligibleIds = new Set<string>();
@@ -508,6 +484,7 @@ export default createEndpoint({
         inAppRecipients = eligibleRecipients.length;
       } catch (e) {
         console.warn('[Push] Store broadcast failed:', e);
+        throw new AppError({ code: 'INTERNAL_ERROR', message: 'The in-app reminder could not be published' });
       }
     }
 

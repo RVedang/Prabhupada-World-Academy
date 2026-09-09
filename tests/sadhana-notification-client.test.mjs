@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
 
-function loadClient(permission = 'denied') {
+function loadClient(permission = 'denied', saveError = null) {
   const storage = new Map([['auth_user_id', 'member-a']]);
   const timers = [];
   const toasts = [];
@@ -28,6 +28,7 @@ function loadClient(permission = 'denied') {
       if (name === 'sonner') return { toast: value => toasts.push(value) };
       if (name === '@/lib/endpoints-sdk') return {
         getPwNotificationConfig: async input => { configRequests.push(input); return config; },
+        savePwNotificationConfig: async () => { if (saveError) throw saveError; return {success: true}; },
       };
       throw Error(`Unexpected import ${name}`);
     },
@@ -50,10 +51,14 @@ test('denied and unsupported native permission never become simulated permission
 test('foreground missing-Sadhana reminder works without native permission or a subscription', async () => {
   const { api, timers, toasts } = loadClient('denied');
   await api.scheduleSadhanaReminder(false, 'PW');
-  assert.equal(timers.length, 1);
-  assert.equal(timers[0].delay, 60_000);
-  await timers[0].callback();
+  assert.equal(timers.length, 0, 'only the server schedules reminders');
+  api.triggerInAppOrNativeNotification({ id: 'server-reminder', title: 'Reminder', body: 'Submit Sadhana' });
   assert.equal(toasts.length, 1);
+});
+
+test('a failed schedule save is reported to the admin instead of appearing successful', async () => {
+  const { api } = loadClient('denied', new Error('Save failed'));
+  await assert.rejects(api.savePwNotificationConfig({ times: ['20:15'] }, 'FOLK'), /Save failed/);
 });
 
 test('FOLK users load the FOLK notification schedule', async () => {

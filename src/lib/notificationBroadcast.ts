@@ -1,8 +1,9 @@
 /**
  * Notification broadcast store.
  *
- * Primary store: Firestore document `meta/latestBroadcast`
- * — shared across ALL server instances on Firebase App Hosting.
+ * Primary store: server-only Firestore collection `NotificationBroadcasts`.
+ * Each dispatch has its own document so simultaneous messages cannot overwrite
+ * each other. The latest legacy document remains available during rollouts.
  *
  * Fallback: in-process memory + /tmp file
  * — used when Firestore is unavailable (local dev, cold starts).
@@ -25,9 +26,10 @@ export interface BroadcastData {
 }
 
 // In-process memory cache so the long-poll tight loop doesn't hammer Firestore
-let _memCache: BroadcastData | null = null;
+let _memCache: BroadcastData[] = [];
 let _memCacheTime = 0;
 const MEM_CACHE_TTL_MS = 500; // refresh from Firestore at most every 500ms
+const DELIVERY_WINDOW_MS = 5 * 60_000;
 
 let _idCounter = 0;
 const BROADCAST_FILE = path.join('/tmp', 'pw-latest-broadcast.json');
@@ -69,30 +71,32 @@ export async function storeBroadcast(
     segment,
   };
 
-  // Update in-process cache immediately
-  _memCache = broadcast;
-  _memCacheTime = Date.now();
-
   // Await shared persistence before the request ends. App Hosting can stop
   // background work once a response is sent.
   const db = getDb();
   if (db) {
-    await db.collection(FIRESTORE_DOC.collection)
-      .doc(FIRESTORE_DOC.doc)
-      .set(broadcast);
+    const batch = db.batch();
+    // Remove optional undefined properties for Firestore configurations that
+    // do not enable ignoreUndefinedProperties.
+    const record = JSON.parse(JSON.stringify(broadcast));
+    batch.set(db.collection('NotificationBroadcasts').doc(broadcast.id), record);
+    batch.set(db.collection(FIRESTORE_DOC.collection).doc(FIRESTORE_DOC.doc), record);
+    await batch.commit();
   }
+  _memCache = [..._memCache.filter(item => item.id !== broadcast.id && item.sentAt > Date.now() - DELIVERY_WINDOW_MS), broadcast];
+  _memCacheTime = 0; // reread other instances' concurrent dispatches
 
   // Also write /tmp as local fallback
   try {
-    fs.writeFileSync(BROADCAST_FILE, JSON.stringify(broadcast), 'utf8');
+    fs.writeFileSync(BROADCAST_FILE, JSON.stringify({ ...broadcast, recent: _memCache }), 'utf8');
   } catch {
     // Non-critical — Firestore is the primary store
   }
 }
 
-export async function getLatestBroadcast(): Promise<BroadcastData | null> {
+export async function getRecentBroadcasts(): Promise<BroadcastData[]> {
   // Return in-process cache if fresh enough (avoids Firestore reads on every poll tick)
-  if (_memCache && (Date.now() - _memCacheTime) < MEM_CACHE_TTL_MS) {
+  if ((Date.now() - _memCacheTime) < MEM_CACHE_TTL_MS) {
     return _memCache;
   }
 
@@ -100,17 +104,13 @@ export async function getLatestBroadcast(): Promise<BroadcastData | null> {
   const db = getDb();
   if (db) {
     try {
-      const snap = await db
-        .collection(FIRESTORE_DOC.collection)
-        .doc(FIRESTORE_DOC.doc)
-        .get();
-      if (snap.exists) {
-        const data = snap.data() as BroadcastData;
-        _memCache = data;
-        _memCacheTime = Date.now();
-        return data;
-      }
-      return null;
+      const snap = await db.collection('NotificationBroadcasts')
+        .where('sentAt', '>', Date.now() - DELIVERY_WINDOW_MS)
+        .orderBy('sentAt', 'desc').limit(100).get();
+      _memCache = snap.docs.map((doc: any) => doc.data() as BroadcastData)
+        .sort((a: BroadcastData, b: BroadcastData) => a.sentAt - b.sentAt || a.id.localeCompare(b.id));
+      _memCacheTime = Date.now();
+      return _memCache;
     } catch (e) {
       console.warn('[Notifications] Firestore read failed, falling back to /tmp:', e);
     }
@@ -118,13 +118,23 @@ export async function getLatestBroadcast(): Promise<BroadcastData | null> {
 
   // Fallback: /tmp file (single-instance or local dev)
   try {
-    if (!fs.existsSync(BROADCAST_FILE)) return null;
+    if (!fs.existsSync(BROADCAST_FILE)) return _memCache;
     const raw = fs.readFileSync(BROADCAST_FILE, 'utf8');
-    const data = JSON.parse(raw) as BroadcastData;
-    _memCache = data;
+    const data = JSON.parse(raw) as BroadcastData & { recent?: BroadcastData[] };
+    _memCache = (data.recent || [data]).filter(item => item.sentAt > Date.now() - DELIVERY_WINDOW_MS)
+      .sort((a, b) => a.sentAt - b.sentAt || a.id.localeCompare(b.id));
     _memCacheTime = Date.now();
-    return data;
+    return _memCache;
   } catch {
-    return null;
+    return _memCache;
   }
+}
+
+export function broadcastsAfter(broadcasts: BroadcastData[], lastId: string): BroadcastData[] {
+  if (lastId.startsWith('cursor-')) {
+    const startedAt = Number(lastId.slice('cursor-'.length));
+    return broadcasts.filter(item => item.sentAt >= startedAt);
+  }
+  const index = broadcasts.findIndex(item => item.id === lastId);
+  return broadcasts.slice(index + 1);
 }

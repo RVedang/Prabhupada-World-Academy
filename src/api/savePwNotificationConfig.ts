@@ -8,15 +8,18 @@ export default createEndpoint({
   inputSchema: z.object({
     segment: z.enum(['PW', 'FOLK']).optional().default('PW'),
     enabled: z.boolean(),
-    times: z.array(z.string()),
+    times: z.array(z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)).min(1).max(24),
     frequency: z.enum(['daily', 'weekdays', 'custom']),
-    customDays: z.array(z.number()).optional(),
-    title: z.string(),
-    body: z.string(),
+    customDays: z.array(z.number().int().min(0).max(6)).optional(),
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(1000),
     updatedBy: z.string(),
   }),
   outputSchema: z.any(),
   execute: async ({ input, context }: { input: any; context: any }) => {
+    if (input.frequency === 'custom' && !input.customDays?.length) {
+      throw new AppError({ code: 'BAD_REQUEST', message: 'Select at least one day for the custom schedule' });
+    }
     const callerSegment = String(context.user?.segment || '').trim().toUpperCase();
     const role = (context.user?.role || '').replace(/\s/g, '_').toUpperCase();
     const canManageAnyDepartment = context.user?.capabilities?.includes('*');

@@ -7,25 +7,12 @@ const BADGE_URL = '/icons/icon-192.png';
 
 // ── Top-level state declarations ──
 let swUserNotificationsDisabled = false;
-let swAdminNotificationsDisabled = false;
-let submittedToday = false;
-const notifiedSlots = new Set();
 // Track processed broadcast IDs to avoid duplicates from push events and polling fallback
 const processedBroadcastIds = new Set();
 
 function notificationTag(slot, id) {
   return 'sadhana-' + (slot || 'reminder') + '-' + (id || Date.now());
 }
-
-// ── Reminder times (IST hours/minutes fallbacks) ──
-let swReminderTimes = [
-  { hour: 21, minute: 20, slot: 'night-1' },
-  { hour: 22, minute: 20, slot: 'night-2' },
-  { hour: 7, minute: 40, slot: 'morning' },
-];
-
-let swCustomTitle = '';
-let swCustomBody = '';
 
 // ── Slot messages (fallback text) ──
 const SLOT_MESSAGES = {
@@ -267,10 +254,6 @@ self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data) return;
 
-  if (data.type === 'SYNC_STATE' || data.type === 'SUBMITTED_TODAY') {
-    submittedToday = !!data.submittedToday;
-    if (submittedToday) notifiedSlots.clear();
-  }
   if (data.type === 'SYNC_USER') {
     swUserEmail = (data.email || '').toLowerCase();
     swUserId = data.userId || '';
@@ -287,36 +270,10 @@ self.addEventListener('message', (event) => {
     } else if (data.disabled !== undefined) {
       swUserNotificationsDisabled = !!data.disabled;
     }
-    if (data.adminDisabled !== undefined) {
-      swAdminNotificationsDisabled = !!data.adminDisabled;
-    }
     if (wasUserDisabled && !swUserNotificationsDisabled) {
       // User enabled notifications — reset swLastId so they immediately fetch the current broadcast if any
       swLastId = '';
     }
-    
-    // Sync custom reminder times
-    if (Array.isArray(data.times)) {
-      if (data.times.length > 0) {
-        swReminderTimes = data.times.map((t, idx) => {
-          const [hStr, mStr] = t.split(':');
-          return {
-            hour: parseInt(hStr || '0', 10),
-            minute: parseInt(mStr || '0', 10),
-            slot: `custom-${idx}`,
-          };
-        });
-      } else {
-        swReminderTimes = [
-          { hour: 21, minute: 20, slot: 'night-1' },
-          { hour: 22, minute: 20, slot: 'night-2' },
-          { hour: 7, minute: 40, slot: 'morning' },
-        ];
-      }
-    }
-    
-    if (data.title !== undefined) swCustomTitle = data.title;
-    if (data.body !== undefined) swCustomBody = data.body;
   }
   if (data.type === 'PAGE_VISIBLE') {
     if (swUserEmail && !isPolling) {
@@ -325,55 +282,8 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// ── Periodic sync (background check) ──
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'sadhana-reminder-check') {
-    event.waitUntil(checkAndNotify());
-  }
-});
-
-async function checkAndNotify() {
-  if (submittedToday) return;
-  if (swUserNotificationsDisabled || swAdminNotificationsDisabled) {
-    console.log('[SW] Skipping checkAndNotify: user or admin disabled notifications');
-    return;
-  }
-
-  const subscription = await self.registration.pushManager.getSubscription();
-  if (!subscription) {
-    console.log('[SW] Skipping reminder check: user is not subscribed');
-    return;
-  }
-
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istNow = new Date(now.getTime() + istOffset);
-  const istHour = istNow.getUTCHours();
-  const istMinute = istNow.getUTCMinutes();
-
-  for (const time of swReminderTimes) {
-    const slot = time.slot;
-    if (notifiedSlots.has(slot)) continue;
-
-    const targetMinutes = time.hour * 60 + time.minute;
-    const currentMinutes = istHour * 60 + istMinute;
-
-    if (currentMinutes >= targetMinutes && currentMinutes <= targetMinutes + 10) {
-      const titleToUse = swCustomTitle || '📿 Sadhana Reminder';
-      const bodyToUse = swCustomBody || 'Time to fill your Sadhana report before sleeping tonight!';
-      
-      await self.registration.showNotification(titleToUse, {
-        body: bodyToUse,
-        icon: ICON_URL,
-        badge: BADGE_URL,
-        tag: `sadhana-local-${slot}`,
-        data: { url: APP_URL, slot },
-        renotify: true,
-      });
-      notifiedSlots.add(slot);
-    }
-  }
-}
+// Scheduled reminders arrive from the server through Web Push. No local
+// periodic timer: it cannot reliably check saved days or submitted Sadhana.
 
 // ── Cache Configuration ──
 const CACHE_NAME = 'sadhana-static-cache-v3';
